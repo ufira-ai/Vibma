@@ -26,10 +26,20 @@ create_frame(name: "Buttons Content", parentId: sectionId,
   layoutSizingHorizontal: "FILL", layoutSizingVertical: "HUG")
 ```
 
-## 4. Text Overflow
+## 4. Text Sizing in Auto-Layout
 
-**Problem**: Text content wider than parent frame.
-**Solution**: `set_layout_sizing(nodeId: textId, layoutSizingHorizontal: "FILL")`
+**Problem**: Text nodes render at 0px width (vertical character-by-character) inside auto-layout frames.
+**Root cause**: Figma text defaults to `textAutoResize: "WIDTH_AND_HEIGHT"` (shrink to fit content), which conflicts with `layoutSizingHorizontal: "FILL"`.
+**Solution**: Pass `layoutSizingHorizontal: "FILL"` in `create_text` — it automatically sets `textAutoResize: "HEIGHT"`:
+```
+create_text(text: "Long paragraph...", parentId: autoLayoutFrameId,
+  layoutSizingHorizontal: "FILL")
+```
+For fixed-width text, explicitly set `textAutoResize: "HEIGHT"`:
+```
+create_text(text: "Fixed width text", parentId: frameId,
+  textAutoResize: "HEIGHT", layoutSizingHorizontal: "FIXED")
+```
 
 ## 5. Font Loading Failures
 
@@ -76,4 +86,53 @@ create_component_from_node(nodeId: "4:22")  -> { id: "4:24", ... }
 # BAD — mismatched property names
 "Size=Small, State=Idle"
 "Style=Large, Active=True"
+```
+
+## 11. Creating Styles but Never Applying Them
+
+**Problem**: Created paint/text/effect styles but used raw color/font values on every node. Styles exist but aren't connected to any nodes.
+**Solution**: After creating a style, apply it to nodes. Use `styleName` for convenience (no need to track IDs):
+```
+# For text, apply at creation time:
+create_text(text: "Title", parentId: frameId, textStyleId: headingStyleId)
+
+# For existing nodes — by ID:
+apply_style_to_node(nodeId, styleId: "S:abc123...", styleType: "fill")
+
+# Or by name (case-insensitive substring match — much easier):
+apply_style_to_node(nodeId, styleName: "Heading/Large Title", styleType: "text")
+apply_style_to_node(nodeId, styleName: "Accent/Blue", styleType: "fill")
+apply_style_to_node(nodeId, styleName: "Shadow/Medium", styleType: "effect")
+```
+
+## 12. No Single-Side Strokes
+
+**Problem**: Trying to create a left-bordered callout or bottom-bordered row with `set_stroke_color`. Figma strokes apply to all sides — there's no `strokeSide` parameter.
+**Solution**: Build single-side borders as a colored rectangle inside a horizontal auto-layout:
+```
+# Left-bordered callout
+create_frame(name: "Callout", parentId: parentId,
+  layoutMode: "HORIZONTAL", itemSpacing: 0,
+  layoutSizingHorizontal: "FILL", layoutSizingVertical: "HUG")
+
+# Left border bar
+create_rectangle(name: "Border", parentId: calloutId, width: 4, height: 1)
+set_fill_color(nodeId: borderRectId, r: 0, g: 0.48, b: 1)
+set_layout_sizing(nodeId: borderRectId, layoutSizingVertical: "FILL")
+
+# Content area
+create_frame(name: "Content", parentId: calloutId,
+  layoutMode: "VERTICAL", itemSpacing: 8,
+  paddingTop: 12, paddingBottom: 12, paddingLeft: 12, paddingRight: 12,
+  layoutSizingHorizontal: "FILL", layoutSizingVertical: "HUG")
+```
+
+## 13. Instance Text Not Overridden
+
+**Problem**: Component instances show default component text instead of contextual content.
+**Solution**: After creating instances, override their text:
+```
+create_instance_from_local(componentId, parentId: frameId)
+scan_text_nodes(nodeId: instanceId)    <- find text node IDs
+set_text_content(nodeId: textNodeId, text: "Contextual content here")
 ```

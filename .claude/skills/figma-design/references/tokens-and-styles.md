@@ -65,7 +65,11 @@ For simple, non-modal colors (brand colors, materials):
 create_paint_style(name: "Materials/Thick", color: { r: 0.96, g: 0.96, b: 0.96, a: 0.9 })
 create_paint_style(name: "Accent/Blue", color: { r: 0, g: 0.48, b: 1, a: 1 })
 
-apply_style_to_node(nodeId, styleId, styleType: "fill")
+# Apply by ID
+apply_style_to_node(nodeId, styleId: "S:abc123...", styleType: "fill")
+
+# Or apply by name (case-insensitive substring match — no need to track IDs)
+apply_style_to_node(nodeId, styleName: "Accent/Blue", styleType: "fill")
 ```
 
 ## Text Styles
@@ -80,7 +84,12 @@ create_text_style(name: "Heading/Large Title", fontFamily: "SF Pro", fontSize: 2
 create_text_style(name: "Body/Regular", fontFamily: "SF Pro", fontSize: 13, fontStyle: "Regular",
                   lineHeight: { value: 18, unit: "PIXELS" })
 
+# Apply to existing text nodes
 apply_style_to_node(nodeId, styleId, styleType: "text")
+
+# Or apply at creation time — pass textStyleId directly to create_text
+create_text(text: "Hello", parentId: frameId, textStyleId: bodyStyleId,
+            layoutSizingHorizontal: "FILL")
 ```
 
 ## Effect Styles

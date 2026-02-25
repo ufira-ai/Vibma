@@ -6,6 +6,39 @@ import { z } from "zod";
 import WebSocket from "ws";
 import { v4 as uuidv4 } from "uuid";
 
+// ─── Coercion helpers ───────────────────────────────────────────────
+// AI agents (Claude, GPT, etc.) frequently pass numbers as strings
+// ("10" instead of 10), booleans as strings ("true" instead of true),
+// and objects/arrays as JSON strings. These helpers add resilient
+// coercion so tools don't fail on valid-but-mistyped input.
+
+/** Coerce "true"/"false"/"1"/"0" strings to boolean */
+const flexBool = <T extends z.ZodTypeAny>(inner: T) =>
+  z.preprocess((v) => {
+    if (v === 'true' || v === '1') return true;
+    if (v === 'false' || v === '0') return false;
+    return v;
+  }, inner);
+
+/** Coerce JSON strings to parsed values (for objects/arrays that agents may stringify) */
+const flexJson = <T extends z.ZodTypeAny>(inner: T) =>
+  z.preprocess((v) => {
+    if (typeof v === 'string') {
+      try { return JSON.parse(v); } catch { return v; }
+    }
+    return v;
+  }, inner);
+
+/** Coerce numeric strings only when they're valid numbers (safe for use inside unions) */
+const flexNum = <T extends z.ZodTypeAny>(inner: T) =>
+  z.preprocess((v) => {
+    if (typeof v === 'string') {
+      const n = Number(v);
+      if (!isNaN(n) && v.trim() !== '') return n;
+    }
+    return v;
+  }, inner);
+
 // Define TypeScript interfaces for Figma responses
 interface FigmaResponse {
   id: string;
@@ -77,7 +110,7 @@ server.tool(
   "get_document_info",
   "Get information about the current Figma document including all pages and top-level children of the current page.",
   {
-    depth: z.number().optional().describe("How many levels of children to include on the current page. 0 or omit for top-level only, 1 includes grandchildren names."),
+    depth: z.coerce.number().optional().describe("How many levels of children to include on the current page. 0 or omit for top-level only, 1 includes grandchildren names."),
   },
   async ({ depth }: any) => {
     try {
@@ -139,7 +172,7 @@ server.tool(
   "read_my_design",
   "Get detailed information about the current selection in Figma, including all node details. Use depth to control traversal.",
   {
-    depth: z.number().optional().describe("How many levels of children to recurse. 0=selection nodes only, 1=direct children, -1 or omit for unlimited."),
+    depth: z.coerce.number().optional().describe("How many levels of children to recurse. 0=selection nodes only, 1=direct children, -1 or omit for unlimited."),
   },
   async ({ depth }: any) => {
     try {
@@ -172,7 +205,7 @@ server.tool(
   "Get detailed information about a specific node in Figma. Use depth to control how many levels of children to include (0=node only with child summaries, 1=direct children, -1=unlimited).",
   {
     nodeId: z.string().describe("The ID of the node to get information about"),
-    depth: z.number().optional().describe("How many levels of children to recurse into. 0=node only with child name/type stubs, 1=direct children fully, 2=grandchildren, etc. -1 or omit for unlimited depth."),
+    depth: z.coerce.number().optional().describe("How many levels of children to recurse into. 0=node only with child name/type stubs, 1=direct children fully, 2=grandchildren, etc. -1 or omit for unlimited depth."),
   },
   async ({ nodeId, depth }: any) => {
     try {
@@ -357,8 +390,8 @@ server.tool(
   "get_nodes_info",
   "Get detailed information about multiple nodes in Figma. Use depth to control child traversal.",
   {
-    nodeIds: z.array(z.string()).describe("Array of node IDs to get information about"),
-    depth: z.number().optional().describe("How many levels of children to recurse. 0=nodes only, 1=direct children, -1 or omit for unlimited."),
+    nodeIds: flexJson(z.array(z.string())).describe("Array of node IDs. Example: [\"1:2\",\"1:3\"]"),
+    depth: z.coerce.number().optional().describe("How many levels of children to recurse. 0=nodes only, 1=direct children, -1 or omit for unlimited."),
   },
   async ({ nodeIds, depth }: any) => {
     try {
@@ -396,10 +429,10 @@ server.tool(
   "create_rectangle",
   "Create a new rectangle in Figma. Default: white fill (Figma native).",
   {
-    x: z.number().optional().describe("X position (default: 0)"),
-    y: z.number().optional().describe("Y position (default: 0)"),
-    width: z.number().optional().describe("Width (default: 100)"),
-    height: z.number().optional().describe("Height (default: 100)"),
+    x: z.coerce.number().optional().describe("X position (default: 0)"),
+    y: z.coerce.number().optional().describe("Y position (default: 0)"),
+    width: z.coerce.number().optional().describe("Width (default: 100)"),
+    height: z.coerce.number().optional().describe("Height (default: 100)"),
     name: z.string().optional().describe("Name for the rectangle (default: 'Rectangle')"),
     parentId: z
       .string()
@@ -443,40 +476,40 @@ server.tool(
   "create_frame",
   "Create a new frame in Figma. Default: transparent fill, no stroke, no auto-layout.",
   {
-    x: z.number().optional().describe("X position (default: 0)"),
-    y: z.number().optional().describe("Y position (default: 0)"),
-    width: z.number().optional().describe("Width (default: 100)"),
-    height: z.number().optional().describe("Height (default: 100)"),
+    x: z.coerce.number().optional().describe("X position (default: 0)"),
+    y: z.coerce.number().optional().describe("Y position (default: 0)"),
+    width: z.coerce.number().optional().describe("Width (default: 100)"),
+    height: z.coerce.number().optional().describe("Height (default: 100)"),
     name: z.string().optional().describe("Name for the frame (default: 'Frame')"),
     parentId: z
       .string()
       .optional()
       .describe("Parent node ID to append into"),
-    fillColor: z
+    fillColor: flexJson(z
       .object({
-        r: z.number().min(0).max(1),
-        g: z.number().min(0).max(1),
-        b: z.number().min(0).max(1),
-        a: z.number().min(0).max(1).optional(),
+        r: z.coerce.number().min(0).max(1),
+        g: z.coerce.number().min(0).max(1),
+        b: z.coerce.number().min(0).max(1),
+        a: z.coerce.number().min(0).max(1).optional(),
       })
       .optional()
-      .describe("Fill color RGBA. Default: no fill (transparent). Pass {r:1,g:1,b:1} for white."),
-    strokeColor: z
+    ).describe("Fill color RGBA (0-1 each). Default: transparent. Example: {\"r\":1,\"g\":1,\"b\":1} for white"),
+    strokeColor: flexJson(z
       .object({
-        r: z.number().min(0).max(1),
-        g: z.number().min(0).max(1),
-        b: z.number().min(0).max(1),
-        a: z.number().min(0).max(1).optional(),
+        r: z.coerce.number().min(0).max(1),
+        g: z.coerce.number().min(0).max(1),
+        b: z.coerce.number().min(0).max(1),
+        a: z.coerce.number().min(0).max(1).optional(),
       })
       .optional()
-      .describe("Stroke color RGBA. Default: no stroke."),
-    strokeWeight: z.number().positive().optional().describe("Stroke weight. Only applied if strokeColor is set."),
+    ).describe("Stroke color RGBA (0-1 each). Default: no stroke. Example: {\"r\":0,\"g\":0,\"b\":0}"),
+    strokeWeight: z.coerce.number().positive().optional().describe("Stroke weight. Only applied if strokeColor is set."),
     layoutMode: z.enum(["NONE", "HORIZONTAL", "VERTICAL"]).optional().describe("Auto-layout direction (default: NONE). The following layout params only apply when not NONE."),
     layoutWrap: z.enum(["NO_WRAP", "WRAP"]).optional().describe("Wrap children (default: NO_WRAP)"),
-    paddingTop: z.number().optional().describe("Top padding (default: 0)"),
-    paddingRight: z.number().optional().describe("Right padding (default: 0)"),
-    paddingBottom: z.number().optional().describe("Bottom padding (default: 0)"),
-    paddingLeft: z.number().optional().describe("Left padding (default: 0)"),
+    paddingTop: z.coerce.number().optional().describe("Top padding (default: 0)"),
+    paddingRight: z.coerce.number().optional().describe("Right padding (default: 0)"),
+    paddingBottom: z.coerce.number().optional().describe("Bottom padding (default: 0)"),
+    paddingLeft: z.coerce.number().optional().describe("Left padding (default: 0)"),
     primaryAxisAlignItems: z
       .enum(["MIN", "MAX", "CENTER", "SPACE_BETWEEN"])
       .optional()
@@ -560,25 +593,25 @@ server.tool(
 // Create Text Tool
 server.tool(
   "create_text",
-  "Create a new text element in Figma. Uses Inter font family.",
+  "Create a new text element in Figma. Uses Inter font family. When placing inside an auto-layout parent, set layoutSizingHorizontal to FILL so the text wraps to the parent width.",
   {
-    x: z.number().optional().describe("X position (default: 0)"),
-    y: z.number().optional().describe("Y position (default: 0)"),
+    x: z.coerce.number().optional().describe("X position (default: 0)"),
+    y: z.coerce.number().optional().describe("Y position (default: 0)"),
     text: z.string().describe("Text content"),
-    fontSize: z.number().optional().describe("Font size (default: 14)"),
-    fontWeight: z
+    fontSize: z.coerce.number().optional().describe("Font size (default: 14)"),
+    fontWeight: z.coerce
       .number()
       .optional()
       .describe("Font weight (default: 400). Values: 100=Thin, 200=Extra Light, 300=Light, 400=Regular, 500=Medium, 600=Semi Bold, 700=Bold, 800=Extra Bold, 900=Black"),
-    fontColor: z
+    fontColor: flexJson(z
       .object({
-        r: z.number().min(0).max(1),
-        g: z.number().min(0).max(1),
-        b: z.number().min(0).max(1),
-        a: z.number().min(0).max(1).optional(),
+        r: z.coerce.number().min(0).max(1),
+        g: z.coerce.number().min(0).max(1),
+        b: z.coerce.number().min(0).max(1),
+        a: z.coerce.number().min(0).max(1).optional(),
       })
       .optional()
-      .describe("Font color RGBA (default: black {r:0,g:0,b:0})"),
+    ).describe("Font color RGBA (0-1 each). Default: black. Example: {\"r\":1,\"g\":0,\"b\":0} for red"),
     name: z
       .string()
       .optional()
@@ -587,8 +620,12 @@ server.tool(
       .string()
       .optional()
       .describe("Parent node ID to append into"),
+    textStyleId: z.string().optional().describe("Text style ID to apply (from create_text_style or get_styles). Overrides fontSize/fontWeight."),
+    layoutSizingHorizontal: z.enum(["FIXED", "HUG", "FILL"]).optional().describe("Horizontal sizing. Use FILL to stretch to parent width (common for text in auto-layout). Automatically sets textAutoResize to HEIGHT when FILL is used."),
+    layoutSizingVertical: z.enum(["FIXED", "HUG", "FILL"]).optional().describe("Vertical sizing (default: HUG)"),
+    textAutoResize: z.enum(["NONE", "WIDTH_AND_HEIGHT", "HEIGHT", "TRUNCATE"]).optional().describe("Text auto-resize behavior. WIDTH_AND_HEIGHT (default) shrinks to fit. HEIGHT = fixed/fill width, auto height (set automatically when layoutSizingHorizontal is FILL). NONE = fixed size. TRUNCATE = fixed size with ellipsis."),
   },
-  async ({ x, y, text, fontSize, fontWeight, fontColor, name, parentId }: any) => {
+  async ({ x, y, text, fontSize, fontWeight, fontColor, name, parentId, textStyleId, layoutSizingHorizontal, layoutSizingVertical, textAutoResize }: any) => {
     try {
       const result = await sendCommandToFigma("create_text", {
         x,
@@ -599,6 +636,10 @@ server.tool(
         fontColor: fontColor || { r: 0, g: 0, b: 0, a: 1 },
         name,
         parentId,
+        textStyleId,
+        layoutSizingHorizontal,
+        layoutSizingVertical,
+        textAutoResize,
       });
       const typedResult = result as { name: string; id: string };
       return {
@@ -629,10 +670,10 @@ server.tool(
   "Set the fill color of a node in Figma can be TextNode or FrameNode",
   {
     nodeId: z.string().describe("The ID of the node to modify"),
-    r: z.number().min(0).max(1).describe("Red component (0-1)"),
-    g: z.number().min(0).max(1).describe("Green component (0-1)"),
-    b: z.number().min(0).max(1).describe("Blue component (0-1)"),
-    a: z.number().min(0).max(1).optional().describe("Alpha component (0-1, default: 1)"),
+    r: z.coerce.number().min(0).max(1).describe("Red component (0-1)"),
+    g: z.coerce.number().min(0).max(1).describe("Green component (0-1)"),
+    b: z.coerce.number().min(0).max(1).describe("Blue component (0-1)"),
+    a: z.coerce.number().min(0).max(1).optional().describe("Alpha component (0-1, default: 1)"),
   },
   async ({ nodeId, r, g, b, a }: any) => {
     try {
@@ -670,11 +711,11 @@ server.tool(
   "Set the stroke color of a node in Figma",
   {
     nodeId: z.string().describe("The ID of the node to modify"),
-    r: z.number().min(0).max(1).describe("Red component (0-1)"),
-    g: z.number().min(0).max(1).describe("Green component (0-1)"),
-    b: z.number().min(0).max(1).describe("Blue component (0-1)"),
-    a: z.number().min(0).max(1).optional().describe("Alpha component (0-1, default: 1)"),
-    weight: z.number().positive().optional().describe("Stroke weight (default: 1)"),
+    r: z.coerce.number().min(0).max(1).describe("Red component (0-1)"),
+    g: z.coerce.number().min(0).max(1).describe("Green component (0-1)"),
+    b: z.coerce.number().min(0).max(1).describe("Blue component (0-1)"),
+    a: z.coerce.number().min(0).max(1).optional().describe("Alpha component (0-1, default: 1)"),
+    weight: z.coerce.number().positive().optional().describe("Stroke weight (default: 1)"),
   },
   async ({ nodeId, r, g, b, a, weight }: any) => {
     try {
@@ -713,8 +754,8 @@ server.tool(
   "Move a node to a new position in Figma",
   {
     nodeId: z.string().describe("The ID of the node to move"),
-    x: z.number().describe("New X position"),
-    y: z.number().describe("New Y position"),
+    x: z.coerce.number().describe("New X position"),
+    y: z.coerce.number().describe("New Y position"),
   },
   async ({ nodeId, x, y }: any) => {
     try {
@@ -748,8 +789,8 @@ server.tool(
   "Clone an existing node in Figma",
   {
     nodeId: z.string().describe("The ID of the node to clone"),
-    x: z.number().optional().describe("New X position for the clone"),
-    y: z.number().optional().describe("New Y position for the clone")
+    x: z.coerce.number().optional().describe("New X position for the clone"),
+    y: z.coerce.number().optional().describe("New Y position for the clone")
   },
   async ({ nodeId, x, y }: any) => {
     try {
@@ -782,8 +823,8 @@ server.tool(
   "Resize a node in Figma",
   {
     nodeId: z.string().describe("The ID of the node to resize"),
-    width: z.number().positive().describe("New width"),
-    height: z.number().positive().describe("New height"),
+    width: z.coerce.number().positive().describe("New width"),
+    height: z.coerce.number().positive().describe("New height"),
   },
   async ({ nodeId, width, height }: any) => {
     try {
@@ -852,7 +893,7 @@ server.tool(
   "delete_multiple_nodes",
   "Delete multiple nodes from Figma at once",
   {
-    nodeIds: z.array(z.string()).describe("Array of node IDs to delete"),
+    nodeIds: flexJson(z.array(z.string())).describe("Array of node IDs to delete. Example: [\"1:2\",\"1:3\"]"),
   },
   async ({ nodeIds }: any) => {
     try {
@@ -889,7 +930,7 @@ server.tool(
       .enum(["PNG", "JPG", "SVG", "PDF"])
       .optional()
       .describe("Export format (default: PNG)"),
-    scale: z.number().positive().optional().describe("Export scale (default: 1)"),
+    scale: z.coerce.number().positive().optional().describe("Export scale (default: 1)"),
   },
   async ({ nodeId, format, scale }: any) => {
     try {
@@ -995,10 +1036,10 @@ server.tool(
   "get_local_components",
   "List local components. Use setsOnly=true to get only component sets (not individual variants). Supports pagination and name filtering. Use get_component_by_id for full details.",
   {
-    setsOnly: z.boolean().optional().describe("If true, return only COMPONENT_SET nodes (top-level components, not variants). Dramatically reduces results in large files."),
+    setsOnly: flexBool(z.boolean().optional()).describe("If true, return only COMPONENT_SET nodes (top-level components, not variants). Dramatically reduces results in large files."),
     nameFilter: z.string().optional().describe("Filter components by name (case-insensitive substring match)"),
-    limit: z.number().optional().describe("Max results to return (default 100)"),
-    offset: z.number().optional().describe("Skip this many results for pagination (default 0)"),
+    limit: z.coerce.number().optional().describe("Max results to return (default 100)"),
+    offset: z.coerce.number().optional().describe("Skip this many results for pagination (default 0)"),
   },
   async ({ setsOnly, nameFilter, limit, offset }: any) => {
     try {
@@ -1068,13 +1109,13 @@ server.tool(
   "Set the corner radius of a node in Figma",
   {
     nodeId: z.string().describe("The ID of the node to modify"),
-    radius: z.number().min(0).describe("Corner radius value"),
-    corners: z
-      .array(z.boolean())
+    radius: z.coerce.number().min(0).describe("Corner radius value"),
+    corners: flexJson(z
+      .array(flexBool(z.boolean()))
       .length(4)
       .optional()
-      .describe(
-        "Optional array of 4 booleans to specify which corners to round [topLeft, topRight, bottomRight, bottomLeft]"
+    ).describe(
+        "Array of 4 booleans for which corners to round [topLeft, topRight, bottomRight, bottomLeft]. Example: [true,true,false,false]"
       ),
   },
   async ({ nodeId, radius, corners }: any) => {
@@ -1438,14 +1479,14 @@ server.tool(
     nodeId: z
       .string()
       .describe("The ID of the node containing the text nodes to replace"),
-    text: z
+    text: flexJson(z
       .array(
         z.object({
           nodeId: z.string().describe("The ID of the text node"),
           text: z.string().describe("The replacement text"),
         })
       )
-      .describe("Array of text node IDs and their replacement texts"),
+    ).describe("Array of {nodeId, text} pairs. Example: [{\"nodeId\":\"1:2\",\"text\":\"Hello\"}]"),
   },
   async ({ nodeId, text }: any) => {
     try {
@@ -1796,10 +1837,10 @@ server.tool(
   "Set padding values for an auto-layout frame in Figma",
   {
     nodeId: z.string().describe("The ID of the frame to modify"),
-    paddingTop: z.number().optional().describe("Top padding value"),
-    paddingRight: z.number().optional().describe("Right padding value"),
-    paddingBottom: z.number().optional().describe("Bottom padding value"),
-    paddingLeft: z.number().optional().describe("Left padding value"),
+    paddingTop: z.coerce.number().optional().describe("Top padding value"),
+    paddingRight: z.coerce.number().optional().describe("Right padding value"),
+    paddingBottom: z.coerce.number().optional().describe("Bottom padding value"),
+    paddingLeft: z.coerce.number().optional().describe("Left padding value"),
   },
   async ({ nodeId, paddingTop, paddingRight, paddingBottom, paddingLeft }: any) => {
     try {
@@ -1958,8 +1999,8 @@ server.tool(
   "Set distance between children in an auto-layout frame. Provide at least one of itemSpacing or counterAxisSpacing.",
   {
     nodeId: z.string().describe("The ID of the frame to modify"),
-    itemSpacing: z.number().optional().describe("Distance between children. Note: This value will be ignored if primaryAxisAlignItems is set to SPACE_BETWEEN."),
-    counterAxisSpacing: z.number().optional().describe("Distance between wrapped rows/columns. Only works when layoutWrap is set to WRAP.")
+    itemSpacing: z.coerce.number().optional().describe("Distance between children. Note: This value will be ignored if primaryAxisAlignItems is set to SPACE_BETWEEN."),
+    counterAxisSpacing: z.coerce.number().optional().describe("Distance between wrapped rows/columns. Only works when layoutWrap is set to WRAP.")
   },
   async ({ nodeId, itemSpacing, counterAxisSpacing}: any) => {
     try {
@@ -2032,7 +2073,7 @@ server.tool(
   "set_selections",
   "Set selection to multiple nodes in Figma and scroll viewport to show them",
   {
-    nodeIds: z.array(z.string()).describe("Array of node IDs to select"),
+    nodeIds: flexJson(z.array(z.string())).describe("Array of node IDs to select. Example: [\"1:2\",\"1:3\"]"),
   },
   async ({ nodeIds }: any) => {
     try {
@@ -2172,6 +2213,10 @@ type CommandParams = {
     fontColor?: { r: number; g: number; b: number; a?: number };
     name?: string;
     parentId?: string;
+    textStyleId?: string;
+    layoutSizingHorizontal?: string;
+    layoutSizingVertical?: string;
+    textAutoResize?: string;
   };
   set_fill_color: {
     nodeId: string;
@@ -2349,7 +2394,8 @@ type CommandParams = {
   };
   apply_style_to_node: {
     nodeId: string;
-    styleId: string;
+    styleId?: string;
+    styleName?: string;
     styleType: "fill" | "stroke" | "text" | "effect";
   };
   create_ellipse: {
@@ -2741,32 +2787,32 @@ server.tool(
   "Create a new component in Figma. Default: transparent fill, no stroke, no auto-layout. Same layout params as create_frame.",
   {
     name: z.string().describe("Name for the component"),
-    x: z.number().optional().describe("X position (default: 0)"),
-    y: z.number().optional().describe("Y position (default: 0)"),
-    width: z.number().optional().describe("Width (default: 100)"),
-    height: z.number().optional().describe("Height (default: 100)"),
+    x: z.coerce.number().optional().describe("X position (default: 0)"),
+    y: z.coerce.number().optional().describe("Y position (default: 0)"),
+    width: z.coerce.number().optional().describe("Width (default: 100)"),
+    height: z.coerce.number().optional().describe("Height (default: 100)"),
     parentId: z.string().optional().describe("Parent node ID to append into"),
-    fillColor: z.object({
-      r: z.number().min(0).max(1), g: z.number().min(0).max(1),
-      b: z.number().min(0).max(1), a: z.number().min(0).max(1).optional(),
-    }).optional().describe("Fill color RGBA. Default: no fill (transparent). Pass {r:1,g:1,b:1} for white."),
-    strokeColor: z.object({
-      r: z.number().min(0).max(1), g: z.number().min(0).max(1),
-      b: z.number().min(0).max(1), a: z.number().min(0).max(1).optional(),
-    }).optional().describe("Stroke color RGBA. Default: no stroke."),
-    strokeWeight: z.number().positive().optional().describe("Stroke weight. Only applied if strokeColor is set."),
-    cornerRadius: z.number().optional().describe("Corner radius"),
+    fillColor: flexJson(z.object({
+      r: z.coerce.number().min(0).max(1), g: z.coerce.number().min(0).max(1),
+      b: z.coerce.number().min(0).max(1), a: z.coerce.number().min(0).max(1).optional(),
+    }).optional()).describe("Fill color RGBA (0-1 each). Default: transparent. Example: {\"r\":1,\"g\":1,\"b\":1} for white"),
+    strokeColor: flexJson(z.object({
+      r: z.coerce.number().min(0).max(1), g: z.coerce.number().min(0).max(1),
+      b: z.coerce.number().min(0).max(1), a: z.coerce.number().min(0).max(1).optional(),
+    }).optional()).describe("Stroke color RGBA (0-1 each). Default: no stroke. Example: {\"r\":0,\"g\":0,\"b\":0}"),
+    strokeWeight: z.coerce.number().positive().optional().describe("Stroke weight. Only applied if strokeColor is set."),
+    cornerRadius: z.coerce.number().optional().describe("Corner radius"),
     layoutMode: z.enum(["NONE", "HORIZONTAL", "VERTICAL"]).optional().describe("Auto-layout direction (default: NONE)"),
     layoutWrap: z.enum(["NO_WRAP", "WRAP"]).optional().describe("Wrap children (default: NO_WRAP)"),
-    paddingTop: z.number().optional().describe("Top padding (default: 0)"),
-    paddingRight: z.number().optional().describe("Right padding (default: 0)"),
-    paddingBottom: z.number().optional().describe("Bottom padding (default: 0)"),
-    paddingLeft: z.number().optional().describe("Left padding (default: 0)"),
+    paddingTop: z.coerce.number().optional().describe("Top padding (default: 0)"),
+    paddingRight: z.coerce.number().optional().describe("Right padding (default: 0)"),
+    paddingBottom: z.coerce.number().optional().describe("Bottom padding (default: 0)"),
+    paddingLeft: z.coerce.number().optional().describe("Left padding (default: 0)"),
     primaryAxisAlignItems: z.enum(["MIN", "MAX", "CENTER", "SPACE_BETWEEN"]).optional().describe("Primary axis alignment (default: MIN)"),
     counterAxisAlignItems: z.enum(["MIN", "MAX", "CENTER", "BASELINE"]).optional().describe("Counter axis alignment (default: MIN)"),
     layoutSizingHorizontal: z.enum(["FIXED", "HUG", "FILL"]).optional().describe("Horizontal sizing (default: FIXED)"),
     layoutSizingVertical: z.enum(["FIXED", "HUG", "FILL"]).optional().describe("Vertical sizing (default: FIXED)"),
-    itemSpacing: z.number().optional().describe("Spacing between children (default: 0)"),
+    itemSpacing: z.coerce.number().optional().describe("Spacing between children (default: 0)"),
   },
   async ({ name, x, y, width, height, parentId, fillColor, strokeColor, strokeWeight, cornerRadius, layoutMode, layoutWrap, paddingTop, paddingRight, paddingBottom, paddingLeft, primaryAxisAlignItems, counterAxisAlignItems, layoutSizingHorizontal, layoutSizingVertical, itemSpacing }: any) => {
     try {
@@ -2800,7 +2846,7 @@ server.tool(
   "combine_as_variants",
   "Combine multiple components into a variant set",
   {
-    componentIds: z.array(z.string()).describe("Array of component node IDs to combine as variants"),
+    componentIds: flexJson(z.array(z.string())).describe("Array of component node IDs to combine. Example: [\"1:2\",\"1:3\"]"),
     name: z.string().optional().describe("Name for the component set"),
   },
   async ({ componentIds, name }: any) => {
@@ -2821,11 +2867,11 @@ server.tool(
     componentId: z.string().describe("The component node ID"),
     propertyName: z.string().describe("Name of the property"),
     type: z.enum(["BOOLEAN", "TEXT", "INSTANCE_SWAP", "VARIANT"]).describe("Type of the property"),
-    defaultValue: z.union([z.string(), z.boolean()]).describe("Default value for the property"),
-    preferredValues: z.array(z.object({
+    defaultValue: flexBool(z.union([z.string(), z.boolean()])).describe("Default value — string for TEXT/VARIANT/INSTANCE_SWAP, boolean for BOOLEAN. Examples: \"Click me\", true"),
+    preferredValues: flexJson(z.array(z.object({
       type: z.enum(["COMPONENT", "COMPONENT_SET"]),
       key: z.string(),
-    })).optional().describe("Preferred values for INSTANCE_SWAP properties"),
+    })).optional()).describe("Preferred values for INSTANCE_SWAP. Example: [{\"type\":\"COMPONENT\",\"key\":\"abc123\"}]"),
   },
   async ({ componentId, propertyName, type, defaultValue, preferredValues }: any) => {
     try {
@@ -2843,8 +2889,8 @@ server.tool(
   "Create an instance of a local component by its node ID. Accepts both COMPONENT and COMPONENT_SET IDs (picks default variant).",
   {
     componentId: z.string().describe("The node ID of the local component or component set to instantiate"),
-    x: z.number().optional().describe("X position for the instance"),
-    y: z.number().optional().describe("Y position for the instance"),
+    x: z.coerce.number().optional().describe("X position for the instance"),
+    y: z.coerce.number().optional().describe("Y position for the instance"),
     parentId: z.string().optional().describe("Parent node ID to append to"),
   },
   async ({ componentId, x, y, parentId }: any) => {
@@ -2900,17 +2946,17 @@ server.tool(
   {
     variableId: z.string().describe("The variable ID"),
     modeId: z.string().describe("The mode ID to set the value for"),
-    value: z.union([
+    value: flexJson(z.union([
       z.number(),
       z.string(),
       z.boolean(),
       z.object({
-        r: z.number().describe("Red (0-1)"),
-        g: z.number().describe("Green (0-1)"),
-        b: z.number().describe("Blue (0-1)"),
-        a: z.number().optional().describe("Alpha (0-1, default 1)"),
+        r: z.coerce.number().describe("Red (0-1)"),
+        g: z.coerce.number().describe("Green (0-1)"),
+        b: z.coerce.number().describe("Blue (0-1)"),
+        a: z.coerce.number().optional().describe("Alpha (0-1, default 1)"),
       }),
-    ]).describe("The value to set"),
+    ])).describe("The value — number for FLOAT, string for STRING, boolean for BOOLEAN, {r,g,b,a} object (0-1) for COLOR. Example COLOR: {\"r\":0.2,\"g\":0.5,\"b\":1,\"a\":1}"),
   },
   async ({ variableId, modeId, value }: any) => {
     try {
@@ -3000,7 +3046,7 @@ server.tool(
   "zoom_into_view",
   "Scroll and zoom the viewport to fit specific nodes on screen (like pressing Shift+1). Use this to bring the user's attention to nodes you just created or modified.",
   {
-    nodeIds: z.array(z.string()).describe("Array of node IDs to zoom into view"),
+    nodeIds: flexJson(z.array(z.string())).describe("Array of node IDs to zoom into view. Example: [\"1:2\"]"),
   },
   async ({ nodeIds }: any) => {
     try {
@@ -3017,11 +3063,11 @@ server.tool(
   "set_viewport",
   "Set the viewport center position and/or zoom level. Zoom 1.0 = 100%, 0.5 = 50%, 2.0 = 200%.",
   {
-    center: z.object({
-      x: z.number().describe("X coordinate of viewport center"),
-      y: z.number().describe("Y coordinate of viewport center"),
-    }).optional().describe("Viewport center point"),
-    zoom: z.number().min(0.01).max(256).optional().describe("Zoom level (1.0 = 100%)"),
+    center: flexJson(z.object({
+      x: z.coerce.number().describe("X coordinate of viewport center"),
+      y: z.coerce.number().describe("Y coordinate of viewport center"),
+    }).optional()).describe("Viewport center point. Example: {\"x\":500,\"y\":300}"),
+    zoom: z.coerce.number().min(0.01).max(256).optional().describe("Zoom level (1.0 = 100%)"),
   },
   async ({ center, zoom }: any) => {
     try {
@@ -3038,14 +3084,14 @@ server.tool(
   "create_auto_layout",
   "Wrap existing nodes in an auto-layout frame. One call replaces create_frame + set_layout_mode + insert_child × N. Defaults to VERTICAL layout with HUG sizing.",
   {
-    nodeIds: z.array(z.string()).describe("Array of node IDs to wrap in the auto-layout frame"),
+    nodeIds: flexJson(z.array(z.string())).describe("Array of node IDs to wrap. Example: [\"1:2\",\"1:3\"]"),
     name: z.string().optional().describe("Name for the frame (default 'Auto Layout')"),
     layoutMode: z.enum(["HORIZONTAL", "VERTICAL"]).optional().describe("Layout direction (default VERTICAL)"),
-    itemSpacing: z.number().optional().describe("Spacing between children (default 0)"),
-    paddingTop: z.number().optional().describe("Top padding (default: 0)"),
-    paddingRight: z.number().optional().describe("Right padding (default: 0)"),
-    paddingBottom: z.number().optional().describe("Bottom padding (default: 0)"),
-    paddingLeft: z.number().optional().describe("Left padding (default: 0)"),
+    itemSpacing: z.coerce.number().optional().describe("Spacing between children (default 0)"),
+    paddingTop: z.coerce.number().optional().describe("Top padding (default: 0)"),
+    paddingRight: z.coerce.number().optional().describe("Right padding (default: 0)"),
+    paddingBottom: z.coerce.number().optional().describe("Bottom padding (default: 0)"),
+    paddingLeft: z.coerce.number().optional().describe("Left padding (default: 0)"),
     primaryAxisAlignItems: z.enum(["MIN", "MAX", "CENTER", "SPACE_BETWEEN"]).optional().describe("Primary axis alignment (default: MIN)"),
     counterAxisAlignItems: z.enum(["MIN", "MAX", "CENTER", "BASELINE"]).optional().describe("Counter axis alignment (default: MIN)"),
     layoutSizingHorizontal: z.enum(["FIXED", "HUG", "FILL"]).optional().describe("Horizontal sizing (default: HUG)"),
@@ -3120,12 +3166,12 @@ server.tool(
   "Create a color/paint style",
   {
     name: z.string().describe("Name for the paint style"),
-    color: z.object({
-      r: z.number().describe("Red (0-1)"),
-      g: z.number().describe("Green (0-1)"),
-      b: z.number().describe("Blue (0-1)"),
-      a: z.number().optional().describe("Alpha (0-1, default 1)"),
-    }).describe("The color for the style"),
+    color: flexJson(z.object({
+      r: z.coerce.number().describe("Red (0-1)"),
+      g: z.coerce.number().describe("Green (0-1)"),
+      b: z.coerce.number().describe("Blue (0-1)"),
+      a: z.coerce.number().optional().describe("Alpha (0-1, default 1)"),
+    })).describe("Color RGBA (0-1 each). Example: {\"r\":0.2,\"g\":0.5,\"b\":1} — omit a for full opacity"),
   },
   async ({ name, color }: any) => {
     try {
@@ -3145,21 +3191,21 @@ server.tool(
     name: z.string().describe("Name for the text style"),
     fontFamily: z.string().describe("Font family name"),
     fontStyle: z.string().optional().describe("Font style (e.g., 'Regular', 'Bold', 'Italic') (default: 'Regular')"),
-    fontSize: z.number().describe("Font size in pixels"),
-    lineHeight: z.union([
+    fontSize: z.coerce.number().describe("Font size in pixels"),
+    lineHeight: flexNum(z.union([
       z.number(),
       z.object({
-        value: z.number(),
+        value: z.coerce.number(),
         unit: z.enum(["PIXELS", "PERCENT", "AUTO"]),
       }),
-    ]).optional().describe("Line height — number for pixels or object with unit"),
-    letterSpacing: z.union([
+    ]).optional()).describe("Line height — number (pixels) or {value, unit}. Examples: 24, {\"value\":150,\"unit\":\"PERCENT\"}"),
+    letterSpacing: flexNum(z.union([
       z.number(),
       z.object({
-        value: z.number(),
+        value: z.coerce.number(),
         unit: z.enum(["PIXELS", "PERCENT"]),
       }),
-    ]).optional().describe("Letter spacing — number for pixels or object with unit"),
+    ]).optional()).describe("Letter spacing — number (pixels) or {value, unit}. Examples: 0.5, {\"value\":2,\"unit\":\"PERCENT\"}"),
     textCase: z.enum(["ORIGINAL", "UPPER", "LOWER", "TITLE"]).optional().describe("Text case transform"),
     textDecoration: z.enum(["NONE", "UNDERLINE", "STRIKETHROUGH"]).optional().describe("Text decoration"),
   },
@@ -3179,19 +3225,19 @@ server.tool(
   "Create an effect style (shadows, blurs)",
   {
     name: z.string().describe("Name for the effect style"),
-    effects: z.array(z.object({
+    effects: flexJson(z.array(z.object({
       type: z.enum(["DROP_SHADOW", "INNER_SHADOW", "LAYER_BLUR", "BACKGROUND_BLUR"]).describe("Effect type"),
       color: z.object({
-        r: z.number(), g: z.number(), b: z.number(), a: z.number().optional(),
-      }).optional().describe("Effect color (for shadows)"),
+        r: z.coerce.number(), g: z.coerce.number(), b: z.coerce.number(), a: z.coerce.number().optional(),
+      }).optional().describe("Effect color RGBA (0-1). Example: {\"r\":0,\"g\":0,\"b\":0,\"a\":0.25}"),
       offset: z.object({
-        x: z.number(), y: z.number(),
-      }).optional().describe("Shadow offset"),
-      radius: z.number().describe("Blur radius"),
-      spread: z.number().optional().describe("Shadow spread"),
-      visible: z.boolean().optional().describe("Whether effect is visible (default true)"),
+        x: z.coerce.number(), y: z.coerce.number(),
+      }).optional().describe("Shadow offset. Example: {\"x\":0,\"y\":4}"),
+      radius: z.coerce.number().describe("Blur radius"),
+      spread: z.coerce.number().optional().describe("Shadow spread"),
+      visible: flexBool(z.boolean().optional()).describe("Whether effect is visible (default true)"),
       blendMode: z.enum(["NORMAL", "DARKEN", "MULTIPLY", "COLOR_BURN", "LIGHTEN", "SCREEN", "COLOR_DODGE", "OVERLAY", "SOFT_LIGHT", "HARD_LIGHT", "DIFFERENCE", "EXCLUSION", "HUE", "SATURATION", "COLOR", "LUMINOSITY"]).optional().describe("Blend mode for shadows (default NORMAL)"),
-    })).describe("Array of effects"),
+    }))).describe("Array of effects. Example: [{\"type\":\"DROP_SHADOW\",\"color\":{\"r\":0,\"g\":0,\"b\":0,\"a\":0.25},\"offset\":{\"x\":0,\"y\":4},\"radius\":4}]"),
   },
   async ({ name, effects }: any) => {
     try {
@@ -3206,15 +3252,16 @@ server.tool(
 // Apply Style To Node Tool
 server.tool(
   "apply_style_to_node",
-  "Apply a style to a node (fill, stroke, text, or effect style)",
+  "Apply a style to a node by ID or name. Provide either styleId or styleName (name supports case-insensitive substring match).",
   {
     nodeId: z.string().describe("The node ID to apply the style to"),
-    styleId: z.string().describe("The style ID to apply"),
+    styleId: z.string().optional().describe("The style ID to apply (from create_paint_style, create_text_style, etc.)"),
+    styleName: z.string().optional().describe("Style name to look up (e.g., \"Heading/Large Title\"). Case-insensitive substring match. Use instead of styleId for convenience."),
     styleType: z.enum(["fill", "stroke", "text", "effect"]).describe("Type of style to apply"),
   },
-  async ({ nodeId, styleId, styleType }: any) => {
+  async ({ nodeId, styleId, styleName, styleType }: any) => {
     try {
-      const result = await sendCommandToFigma("apply_style_to_node", { nodeId, styleId, styleType });
+      const result = await sendCommandToFigma("apply_style_to_node", { nodeId, styleId, styleName, styleType });
       return { content: [{ type: "text", text: JSON.stringify(result) }] };
     } catch (error) {
       return { content: [{ type: "text", text: `Error applying style: ${error instanceof Error ? error.message : String(error)}` }] };
@@ -3227,10 +3274,10 @@ server.tool(
   "create_ellipse",
   "Create an ellipse/circle in Figma. Default: white fill (Figma native). Use equal width/height for a circle.",
   {
-    x: z.number().optional().describe("X position (default: 0)"),
-    y: z.number().optional().describe("Y position (default: 0)"),
-    width: z.number().optional().describe("Width (default: 100)"),
-    height: z.number().optional().describe("Height (default: 100)"),
+    x: z.coerce.number().optional().describe("X position (default: 0)"),
+    y: z.coerce.number().optional().describe("Y position (default: 0)"),
+    width: z.coerce.number().optional().describe("Width (default: 100)"),
+    height: z.coerce.number().optional().describe("Height (default: 100)"),
     name: z.string().optional().describe("Name for the ellipse"),
     parentId: z.string().optional().describe("Parent node ID to append into"),
   },
@@ -3249,10 +3296,10 @@ server.tool(
   "create_line",
   "Create a line in Figma. Default: black stroke.",
   {
-    x: z.number().optional().describe("X position (default: 0)"),
-    y: z.number().optional().describe("Y position (default: 0)"),
-    length: z.number().optional().describe("Length of the line (default: 100)"),
-    rotation: z.number().optional().describe("Rotation in degrees (default: 0)"),
+    x: z.coerce.number().optional().describe("X position (default: 0)"),
+    y: z.coerce.number().optional().describe("Y position (default: 0)"),
+    length: z.coerce.number().optional().describe("Length of the line (default: 100)"),
+    rotation: z.coerce.number().optional().describe("Rotation in degrees (default: 0)"),
     name: z.string().optional().describe("Name for the line"),
     parentId: z.string().optional().describe("Parent node ID to append into"),
   },
@@ -3271,7 +3318,7 @@ server.tool(
   "create_boolean_operation",
   "Create a boolean operation (union, intersect, subtract, exclude) from multiple nodes",
   {
-    nodeIds: z.array(z.string()).describe("Array of node IDs to combine"),
+    nodeIds: flexJson(z.array(z.string())).describe("Array of node IDs to combine. Example: [\"1:2\",\"1:3\"]"),
     operation: z.enum(["UNION", "INTERSECT", "SUBTRACT", "EXCLUDE"]).describe("Boolean operation type"),
     name: z.string().optional().describe("Name for the resulting node"),
   },
@@ -3291,7 +3338,7 @@ server.tool(
   "Set the opacity of a node",
   {
     nodeId: z.string().describe("The node ID"),
-    opacity: z.number().min(0).max(1).describe("Opacity value (0-1)"),
+    opacity: z.coerce.number().min(0).max(1).describe("Opacity value (0-1)"),
   },
   async ({ nodeId, opacity }: any) => {
     try {
@@ -3309,19 +3356,19 @@ server.tool(
   "Set effects (shadows, blurs) on a node",
   {
     nodeId: z.string().describe("The node ID"),
-    effects: z.array(z.object({
+    effects: flexJson(z.array(z.object({
       type: z.enum(["DROP_SHADOW", "INNER_SHADOW", "LAYER_BLUR", "BACKGROUND_BLUR"]).describe("Effect type"),
       color: z.object({
-        r: z.number(), g: z.number(), b: z.number(), a: z.number().optional(),
-      }).optional().describe("Effect color (for shadows)"),
+        r: z.coerce.number(), g: z.coerce.number(), b: z.coerce.number(), a: z.coerce.number().optional(),
+      }).optional().describe("Effect color RGBA (0-1). Example: {\"r\":0,\"g\":0,\"b\":0,\"a\":0.25}"),
       offset: z.object({
-        x: z.number(), y: z.number(),
-      }).optional().describe("Shadow offset"),
-      radius: z.number().describe("Blur radius"),
-      spread: z.number().optional().describe("Shadow spread"),
-      visible: z.boolean().optional().describe("Whether effect is visible (default true)"),
+        x: z.coerce.number(), y: z.coerce.number(),
+      }).optional().describe("Shadow offset. Example: {\"x\":0,\"y\":4}"),
+      radius: z.coerce.number().describe("Blur radius"),
+      spread: z.coerce.number().optional().describe("Shadow spread"),
+      visible: flexBool(z.boolean().optional()).describe("Whether effect is visible (default true)"),
       blendMode: z.enum(["NORMAL", "DARKEN", "MULTIPLY", "COLOR_BURN", "LIGHTEN", "SCREEN", "COLOR_DODGE", "OVERLAY", "SOFT_LIGHT", "HARD_LIGHT", "DIFFERENCE", "EXCLUSION", "HUE", "SATURATION", "COLOR", "LUMINOSITY"]).optional().describe("Blend mode for shadows (default NORMAL)"),
-    })).describe("Array of effects to apply"),
+    }))).describe("Array of effects. Example: [{\"type\":\"DROP_SHADOW\",\"color\":{\"r\":0,\"g\":0,\"b\":0,\"a\":0.25},\"offset\":{\"x\":0,\"y\":4},\"radius\":4}]"),
   },
   async ({ nodeId, effects }: any) => {
     try {
@@ -3358,15 +3405,15 @@ server.tool(
   "Set export settings on a node",
   {
     nodeId: z.string().describe("The node ID"),
-    settings: z.array(z.object({
+    settings: flexJson(z.array(z.object({
       format: z.enum(["PNG", "JPG", "SVG", "PDF"]).describe("Export format"),
       suffix: z.string().optional().describe("File suffix"),
-      contentsOnly: z.boolean().optional().describe("Export contents only (default true)"),
+      contentsOnly: flexBool(z.boolean().optional()).describe("Export contents only (default true)"),
       constraint: z.object({
         type: z.enum(["SCALE", "WIDTH", "HEIGHT"]).describe("Constraint type"),
-        value: z.number().describe("Constraint value"),
-      }).optional().describe("Export constraint"),
-    })).describe("Array of export settings"),
+        value: z.coerce.number().describe("Constraint value"),
+      }).optional().describe("Export constraint. Example: {\"type\":\"SCALE\",\"value\":2}"),
+    }))).describe("Array of export settings. Example: [{\"format\":\"PNG\",\"constraint\":{\"type\":\"SCALE\",\"value\":2}}]"),
   },
   async ({ nodeId, settings }: any) => {
     try {
@@ -3384,7 +3431,7 @@ server.tool(
   "Batch-set multiple properties on a node at once",
   {
     nodeId: z.string().describe("The node ID"),
-    properties: z.record(z.unknown()).describe("Object of property key-value pairs to set (e.g., { opacity: 0.5, visible: false, locked: true })"),
+    properties: flexJson(z.record(z.unknown())).describe("Object of property key-value pairs. Example: {\"opacity\":0.5,\"visible\":false,\"locked\":true}"),
   },
   async ({ nodeId, properties }: any) => {
     try {
@@ -3436,7 +3483,7 @@ server.tool(
   "Get detailed information about a component including property definitions and variant group properties. For COMPONENT_SETs, variant children are omitted by default (use includeChildren=true to list them) since propertyDefinitions already describes the full variant space.",
   {
     componentId: z.string().describe("The component node ID"),
-    includeChildren: z.boolean().optional().describe("For COMPONENT_SETs: include variant children list (default false). Plain COMPONENTs always include children."),
+    includeChildren: flexBool(z.boolean().optional()).describe("For COMPONENT_SETs: include variant children list (default false). Plain COMPONENTs always include children."),
   },
   async ({ componentId, includeChildren }: any) => {
     try {
@@ -3571,10 +3618,10 @@ server.tool(
   "create_section",
   "Create a section node to organize content on the canvas. Sections are top-level containers.",
   {
-    x: z.number().optional().describe("X position (default: 0)"),
-    y: z.number().optional().describe("Y position (default: 0)"),
-    width: z.number().optional().describe("Width (default: 500)"),
-    height: z.number().optional().describe("Height (default: 500)"),
+    x: z.coerce.number().optional().describe("X position (default: 0)"),
+    y: z.coerce.number().optional().describe("Y position (default: 0)"),
+    width: z.coerce.number().optional().describe("Width (default: 500)"),
+    height: z.coerce.number().optional().describe("Height (default: 500)"),
     name: z.string().optional().describe("Name for the section (default: 'Section')"),
     parentId: z.string().optional().describe("Parent node ID"),
   },
@@ -3595,7 +3642,7 @@ server.tool(
   {
     parentId: z.string().describe("The parent node ID"),
     childId: z.string().describe("The child node ID to move"),
-    index: z.number().optional().describe("Index to insert at (0=first). Omit to append at end."),
+    index: z.coerce.number().optional().describe("Index to insert at (0=first). Omit to append at end."),
   },
   async ({ parentId, childId, index }: any) => {
     try {
@@ -3613,8 +3660,8 @@ server.tool(
   "Create a node from an SVG string",
   {
     svg: z.string().describe("SVG markup string"),
-    x: z.number().optional().describe("X position (default 0)"),
-    y: z.number().optional().describe("Y position (default 0)"),
+    x: z.coerce.number().optional().describe("X position (default 0)"),
+    y: z.coerce.number().optional().describe("Y position (default 0)"),
     name: z.string().optional().describe("Name for the node"),
     parentId: z.string().optional().describe("Parent node ID"),
   },
@@ -3649,11 +3696,11 @@ server.tool(
   "Search for nodes by name and/or type within a scope. Returns paginated results with parent info and bounds.",
   {
     query: z.string().optional().describe("Search string to match against node names (case-insensitive substring match)"),
-    types: z.array(z.string()).optional().describe("Filter by node types, e.g. ['FRAME', 'COMPONENT', 'TEXT', 'INSTANCE']"),
+    types: flexJson(z.array(z.string()).optional()).describe("Filter by node types. Example: [\"FRAME\",\"COMPONENT\",\"TEXT\",\"INSTANCE\"]"),
     scopeNodeId: z.string().optional().describe("Node ID to search within (defaults to current page)"),
-    caseSensitive: z.boolean().optional().describe("If true, name matching is case-sensitive (default false)"),
-    limit: z.number().optional().describe("Max results to return (default 50)"),
-    offset: z.number().optional().describe("Skip this many results for pagination (default 0)"),
+    caseSensitive: flexBool(z.boolean().optional()).describe("If true, name matching is case-sensitive (default false)"),
+    limit: z.coerce.number().optional().describe("Max results to return (default 50)"),
+    offset: z.coerce.number().optional().describe("Skip this many results for pagination (default 0)"),
   },
   async ({ query, types, scopeNodeId, caseSensitive, limit, offset }: any) => {
     try {

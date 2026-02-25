@@ -676,6 +676,10 @@ async function createFrame(params) {
   frame.name = name;
   frame.fills = []; // transparent by default
 
+  // Track whether we need to defer FILL sizing until after appendChild
+  const deferHorizontalFill = parentId && layoutSizingHorizontal === "FILL";
+  const deferVerticalFill = parentId && layoutSizingVertical === "FILL";
+
   // Set layout mode if provided
   if (layoutMode !== "NONE") {
     frame.layoutMode = layoutMode;
@@ -691,9 +695,9 @@ async function createFrame(params) {
     frame.primaryAxisAlignItems = primaryAxisAlignItems;
     frame.counterAxisAlignItems = counterAxisAlignItems;
 
-    // Set layout sizing only when layoutMode is not NONE
-    frame.layoutSizingHorizontal = layoutSizingHorizontal;
-    frame.layoutSizingVertical = layoutSizingVertical;
+    // Set layout sizing — defer FILL until after appendChild (FILL requires auto-layout parent)
+    frame.layoutSizingHorizontal = deferHorizontalFill ? "FIXED" : layoutSizingHorizontal;
+    frame.layoutSizingVertical = deferVerticalFill ? "FIXED" : layoutSizingVertical;
 
     // Set item spacing only when layoutMode is not NONE
     frame.itemSpacing = itemSpacing;
@@ -742,6 +746,14 @@ async function createFrame(params) {
       throw new Error(`Parent node does not support children: ${parentId}`);
     }
     parentNode.appendChild(frame);
+
+    // Apply deferred FILL sizing now that node is a child of the parent
+    if (deferHorizontalFill) {
+      try { frame.layoutSizingHorizontal = "FILL"; } catch (_) {}
+    }
+    if (deferVerticalFill) {
+      try { frame.layoutSizingVertical = "FILL"; } catch (_) {}
+    }
   } else {
     figma.currentPage.appendChild(frame);
   }
@@ -772,6 +784,10 @@ async function createText(params) {
     fontColor = { r: 0, g: 0, b: 0, a: 1 }, // Default to black
     name = "",
     parentId,
+    textStyleId,
+    layoutSizingHorizontal,
+    layoutSizingVertical,
+    textAutoResize,
   } = params || {};
 
   // Map common font weights to Figma font styles
@@ -828,6 +844,18 @@ async function createText(params) {
   };
   textNode.fills = [paintStyle];
 
+  // Apply text style if provided
+  if (textStyleId) {
+    try {
+      const style = await figma.getStyleByIdAsync(textStyleId);
+      if (style && style.type === "TEXT") {
+        await textNode.setTextStyleIdAsync(style.id);
+      }
+    } catch (e) {
+      console.error("Error applying text style:", e);
+    }
+  }
+
   // If parentId is provided, append to that node, otherwise append to current page
   if (parentId) {
     const parentNode = await figma.getNodeByIdAsync(parentId);
@@ -840,6 +868,29 @@ async function createText(params) {
     parentNode.appendChild(textNode);
   } else {
     figma.currentPage.appendChild(textNode);
+  }
+
+  // Set textAutoResize BEFORE layout sizing — critical for FILL to work.
+  // Default is "WIDTH_AND_HEIGHT" (shrink to fit), which fights with FILL.
+  // When FILL is requested, switch to "HEIGHT" so width is layout-controlled.
+  if (textAutoResize) {
+    textNode.textAutoResize = textAutoResize;
+  } else if (layoutSizingHorizontal === "FILL") {
+    textNode.textAutoResize = "HEIGHT";
+  } else if (layoutSizingHorizontal === "FIXED") {
+    textNode.textAutoResize = "HEIGHT";
+  }
+
+  // Apply layout sizing after appendChild (FILL requires auto-layout parent)
+  if (layoutSizingHorizontal) {
+    try { textNode.layoutSizingHorizontal = layoutSizingHorizontal; } catch (e) {
+      console.error("Error setting layoutSizingHorizontal:", e);
+    }
+  }
+  if (layoutSizingVertical) {
+    try { textNode.layoutSizingVertical = layoutSizingVertical; } catch (e) {
+      console.error("Error setting layoutSizingVertical:", e);
+    }
   }
 
   return {
@@ -2983,6 +3034,10 @@ async function createComponent(params) {
   } = params || {};
   if (!name) throw new Error("Missing name parameter");
 
+  // Track whether we need to defer FILL sizing until after appendChild
+  const deferHorizontalFill = parentId && layoutSizingHorizontal === "FILL";
+  const deferVerticalFill = parentId && layoutSizingVertical === "FILL";
+
   const component = figma.createComponent();
   component.name = name;
   component.x = x;
@@ -3000,8 +3055,9 @@ async function createComponent(params) {
     component.paddingLeft = paddingLeft;
     component.primaryAxisAlignItems = primaryAxisAlignItems;
     component.counterAxisAlignItems = counterAxisAlignItems;
-    component.layoutSizingHorizontal = layoutSizingHorizontal;
-    component.layoutSizingVertical = layoutSizingVertical;
+    // Defer FILL until after appendChild (FILL requires auto-layout parent)
+    component.layoutSizingHorizontal = deferHorizontalFill ? "FIXED" : layoutSizingHorizontal;
+    component.layoutSizingVertical = deferVerticalFill ? "FIXED" : layoutSizingVertical;
     component.itemSpacing = itemSpacing;
   }
 
@@ -3031,6 +3087,14 @@ async function createComponent(params) {
     const parent = await figma.getNodeByIdAsync(parentId);
     if (parent && "appendChild" in parent) {
       parent.appendChild(component);
+
+      // Apply deferred FILL sizing now that node is a child of the parent
+      if (deferHorizontalFill) {
+        try { component.layoutSizingHorizontal = "FILL"; } catch (_) {}
+      }
+      if (deferVerticalFill) {
+        try { component.layoutSizingVertical = "FILL"; } catch (_) {}
+      }
     }
   }
 
@@ -3546,28 +3610,49 @@ async function createEffectStyle(params) {
 
 // Apply a style to a node
 async function applyStyleToNode(params) {
-  if (!params || !params.nodeId || !params.styleId || !params.styleType) {
-    throw new Error("Missing required parameters: nodeId, styleId, styleType");
+  if (!params || !params.nodeId || !params.styleType) {
+    throw new Error("Missing required parameters: nodeId, styleType");
+  }
+  if (!params.styleId && !params.styleName) {
+    throw new Error("Must provide either styleId or styleName");
   }
 
   const node = await figma.getNodeByIdAsync(params.nodeId);
   if (!node) throw new Error(`Node not found: ${params.nodeId}`);
 
+  // Resolve style by name if no ID provided
+  let styleId = params.styleId;
+  if (!styleId && params.styleName) {
+    const allStyles = await figma.getLocalPaintStylesAsync();
+    const allTextStyles = await figma.getLocalTextStylesAsync();
+    const allEffectStyles = await figma.getLocalEffectStylesAsync();
+    const all = [...allStyles, ...allTextStyles, ...allEffectStyles];
+    const match = all.find(s => s.name === params.styleName);
+    if (!match) {
+      // Try case-insensitive substring match
+      const fuzzy = all.find(s => s.name.toLowerCase().includes(params.styleName.toLowerCase()));
+      if (!fuzzy) throw new Error(`Style not found: "${params.styleName}". Use get_styles to list available styles.`);
+      styleId = fuzzy.id;
+    } else {
+      styleId = match.id;
+    }
+  }
+
   switch (params.styleType) {
     case "fill":
-      if ("setFillStyleIdAsync" in node) await node.setFillStyleIdAsync(params.styleId);
+      if ("setFillStyleIdAsync" in node) await node.setFillStyleIdAsync(styleId);
       else throw new Error("Node does not support fill styles");
       break;
     case "stroke":
-      if ("setStrokeStyleIdAsync" in node) await node.setStrokeStyleIdAsync(params.styleId);
+      if ("setStrokeStyleIdAsync" in node) await node.setStrokeStyleIdAsync(styleId);
       else throw new Error("Node does not support stroke styles");
       break;
     case "text":
-      if ("setTextStyleIdAsync" in node) await node.setTextStyleIdAsync(params.styleId);
+      if ("setTextStyleIdAsync" in node) await node.setTextStyleIdAsync(styleId);
       else throw new Error("Node does not support text styles");
       break;
     case "effect":
-      if ("setEffectStyleIdAsync" in node) await node.setEffectStyleIdAsync(params.styleId);
+      if ("setEffectStyleIdAsync" in node) await node.setEffectStyleIdAsync(styleId);
       else throw new Error("Node does not support effect styles");
       break;
     default:
@@ -3578,7 +3663,7 @@ async function applyStyleToNode(params) {
     id: node.id,
     name: node.name,
     styleType: params.styleType,
-    styleId: params.styleId,
+    styleId: styleId,
   };
 }
 

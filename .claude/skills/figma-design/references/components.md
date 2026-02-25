@@ -43,12 +43,12 @@ create_component(
   fillColor: { r: 0, g: 0.48, b: 1 }, cornerRadius: 6
 )  -> componentId
 
-# x/y optional for children of auto-layout parents (position is managed by parent)
+# create_text accepts layoutSizing directly — no separate set_layout_sizing call needed
 create_text(
   text: "Button", fontSize: 13, fontWeight: 600,
-  fontColor: { r: 1, g: 1, b: 1 }, parentId: componentId
+  fontColor: { r: 1, g: 1, b: 1 }, parentId: componentId,
+  layoutSizingHorizontal: "HUG"
 )
-set_layout_sizing(nodeId: textId, layoutSizingHorizontal: "HUG")
 ```
 
 ### Step 2: Build all variants
@@ -155,7 +155,9 @@ create_frame(name: "Dialog Card", layoutMode: "VERTICAL", itemSpacing: 12,
   fillColor: { r: 1, g: 1, b: 1 }, cornerRadius: 12,
   layoutSizingVertical: "HUG")
 
-create_text(text: "Are you sure?", parentId: cardId, fontSize: 16, fontWeight: 700)
+# Text nodes accept layoutSizing and textStyleId directly
+create_text(text: "Are you sure?", parentId: cardId,
+  fontSize: 16, fontWeight: 700, layoutSizingHorizontal: "FILL")
 create_instance_from_local(componentId: buttonId, parentId: cardId)
 ```
 

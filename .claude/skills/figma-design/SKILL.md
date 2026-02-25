@@ -16,12 +16,13 @@ description: >
 
 1. **Frames only** — Never use Groups for layout. Every structural container = Frame.
 2. **Auto-layout mandatory** — Any frame with 2+ children must have auto-layout. Absolute positioning is forbidden unless explicitly needed (floating badge, tooltip).
-3. **Explicit sizing** — Every node inside auto-layout needs `layoutSizingHorizontal` and `layoutSizingVertical` (HUG, FILL, or FIXED). FIXED is discouraged for responsive layouts.
+3. **Explicit sizing** — Every node inside auto-layout needs `layoutSizingHorizontal` and `layoutSizingVertical` (HUG, FILL, or FIXED). FIXED is discouraged for responsive layouts. `create_text` and `create_frame` accept these directly — no separate `set_layout_sizing` call needed.
 4. **No raw values** — Never inject raw hex colors or arbitrary spacing numbers. Inventory existing styles/variables first (`get_styles`, `get_local_variables`). Only create new ones if nothing matches.
-5. **Component-first** — If building 2+ similar elements, create ONE as Frame, convert to component, instantiate copies. Check `get_local_components` before creating.
-6. **Transparent layout frames** — Layout-only frames (rows, columns, wrappers) must have NO FILL. Only surface frames (cards, modals) get fills. Dark theme failure mode: root dark + intermediate white = invisible text.
-7. **Contrast validation** — Do NOT trust screenshots for contrast. Programmatically trace text fill -> walk up parent chain -> find first opaque ancestor -> compare. Both light-on-light and dark-on-dark = broken.
-8. **Colors are 0-1** — Figma uses normalized 0-1 RGB, not 0-255. Convert: `hex / 255`. Example: #007AFF = `{ r: 0, g: 0.478, b: 1 }`.
+5. **Apply what you create** — After creating paint/text/effect styles, USE them via `apply_style_to_node`. Styles that aren't applied to any nodes are wasted. For text, pass `textStyleId` directly to `create_text`.
+6. **Component-first** — If building 2+ similar elements, create ONE as Frame, convert to component, instantiate copies. Check `get_local_components` before creating.
+7. **Transparent layout frames** — Layout-only frames (rows, columns, wrappers) must have NO FILL. Only surface frames (cards, modals) get fills. Dark theme failure mode: root dark + intermediate white = invisible text.
+8. **Contrast validation** — Do NOT trust screenshots for contrast. Programmatically trace text fill -> walk up parent chain -> find first opaque ancestor -> compare. Both light-on-light and dark-on-dark = broken.
+9. **Colors are 0-1** — Figma uses normalized 0-1 RGB, not 0-255. Convert: `hex / 255`. Example: #007AFF = `{ r: 0, g: 0.478, b: 1 }`.
 
 ## Connection & Setup
 
@@ -83,12 +84,20 @@ After `insert_child`, the node retains old coordinates — always follow with `m
 ```
 # Create an auto-layout frame (x/y/width/height all optional, default: 0/0/100/100)
 # Frames and components default to transparent (no fill) and 0 padding.
+# FILL sizing works at creation when parentId points to an auto-layout frame.
 create_frame(
   name: "Button Row", parentId: "container-id",
   layoutMode: "HORIZONTAL", itemSpacing: 16,
   paddingTop: 12, paddingBottom: 12, paddingLeft: 16, paddingRight: 16,
   counterAxisAlignItems: "CENTER",
-  layoutSizingHorizontal: "HUG", layoutSizingVertical: "HUG"
+  layoutSizingHorizontal: "FILL", layoutSizingVertical: "HUG"
+)
+
+# Text nodes accept layoutSizing directly — no follow-up set_layout_sizing needed.
+# FILL automatically sets textAutoResize to HEIGHT (prevents 0px width bug).
+create_text(
+  text: "Hello", parentId: "auto-layout-frame-id",
+  fontSize: 14, layoutSizingHorizontal: "FILL"
 )
 
 # Wrap existing nodes (replaces create_frame + set_layout_mode + insert_child x N)
