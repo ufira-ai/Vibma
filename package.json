@@ -19,9 +19,11 @@
     "build": "tsup",
     "build:watch": "tsup --watch",
     "dev": "bun run build:watch",
+    "dev:mcp": "bun run src/talk_to_figma_mcp/server.ts",
     "pub:release": "bun run build && npm publish"
   },
   "devDependencies": {
+    "@figma/plugin-typings": "^1.123.0",
     "@types/bun": "latest",
     "bun-types": "^1.2.5",
     "tsup": "^8.4.0",

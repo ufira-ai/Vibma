@@ -285,6 +285,13 @@
               min="1024"
               max="65535"
             />
+            <label for="channel-name">Channel Name (leave empty for random)</label>
+            <input
+              type="text"
+              id="channel-name"
+              placeholder="e.g. my-project"
+              maxlength="32"
+            />
           </div>
         </div>
 
@@ -389,6 +396,7 @@
 
       // UI Elements
       const portInput = document.getElementById("port");
+      const channelInput = document.getElementById("channel-name");
       const connectButton = document.getElementById("btn-connect");
       const connectionStatus = document.getElementById("connection-status");
 
@@ -427,6 +435,7 @@
         connectButton.textContent = isConnected ? "Disconnect" : "Connect";
         connectButton.className = isConnected ? "secondary" : "primary";
         portInput.disabled = isConnected;
+        channelInput.disabled = isConnected;
 
         // Show/hide MCP config section
         const mcpConfig = document.getElementById("mcp-config");
@@ -452,8 +461,9 @@
           state.socket = new WebSocket(wsUrl);
 
           state.socket.onopen = () => {
-            // Generate random channel name
-            const channelName = generateChannelName();
+            // Use custom channel name or generate random
+            const custom = channelInput.value.trim();
+            const channelName = custom || generateChannelName();
             console.log("Joining channel:", channelName);
             state.channel = channelName;
 
@@ -487,6 +497,18 @@
                       pluginMessage: {
                         type: "notify",
                         message: `Connected to Cursor MCP server on port ${port} in channel: ${channelName}`,
+                      },
+                    },
+                    "*"
+                  );
+
+                  // Persist channel name for next session
+                  parent.postMessage(
+                    {
+                      pluginMessage: {
+                        type: "update-settings",
+                        serverPort: port,
+                        channelName: channelInput.value.trim(),
                       },
                     },
                     "*"
@@ -774,6 +796,10 @@
         console.log("Received message from plugin:", message);
 
         switch (message.type) {
+          case "restore-settings":
+            if (message.serverPort) portInput.value = message.serverPort;
+            if (message.channelName) channelInput.value = message.channelName;
+            break;
           case "connection-status":
             updateConnectionStatus(message.connected, message.message);
             break;

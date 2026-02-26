@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "talk-to-figma": {
+      "command": "/Users/ufi/.bun/bin/bun",
+      "args": ["run", "/Users/ufi/Dev/cursor-talk-to-figma-mcp/src/talk_to_figma_mcp/server.ts"]
+    }
+  }
+}

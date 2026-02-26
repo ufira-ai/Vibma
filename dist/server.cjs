@@ -5,6 +5,9 @@ var __getOwnPropDesc = Object.getOwnPropertyDescriptor;
 var __getOwnPropNames = Object.getOwnPropertyNames;
 var __getProtoOf = Object.getPrototypeOf;
 var __hasOwnProp = Object.prototype.hasOwnProperty;
+var __esm = (fn, res) => function __init() {
+  return fn && (res = (0, fn[__getOwnPropNames(fn)[0]])(fn = 0)), res;
+};
 var __copyProps = (to, from, except, desc) => {
   if (from && typeof from === "object" || typeof from === "function") {
     for (let key of __getOwnPropNames(from))
@@ -22,18 +25,152 @@ var __toESM = (mod, isNodeMode, target) => (target = mod != null ? __create(__ge
   mod
 ));
 
+// src/utils/color.ts
+var init_color = __esm({
+  "src/utils/color.ts"() {
+  }
+});
+
+// src/utils/filter-node.ts
+var init_filter_node = __esm({
+  "src/utils/filter-node.ts"() {
+    init_color();
+  }
+});
+
+// src/tools/helpers.ts
+var init_helpers = __esm({
+  "src/tools/helpers.ts"() {
+    init_filter_node();
+  }
+});
+
 // src/talk_to_figma_mcp/server.ts
 var import_mcp = require("@modelcontextprotocol/sdk/server/mcp.js");
 var import_stdio = require("@modelcontextprotocol/sdk/server/stdio.js");
-var import_zod = require("zod");
+var import_zod19 = require("zod");
 var import_ws = __toESM(require("ws"), 1);
 var import_uuid = require("uuid");
-var flexBool = (inner) => import_zod.z.preprocess((v) => {
+
+// src/tools/document.ts
+var import_zod = require("zod");
+
+// src/tools/types.ts
+var MAX_RESPONSE_CHARS = 5e4;
+function mcpJson(data) {
+  const text = JSON.stringify(data);
+  if (text.length <= MAX_RESPONSE_CHARS) {
+    return { content: [{ type: "text", text }] };
+  }
+  return {
+    content: [{
+      type: "text",
+      text: JSON.stringify({
+        _error: "response_too_large",
+        _sizeKB: Math.round(text.length / 1024),
+        _hint: "Response exceeds safe size. Use 'depth', 'fields', 'limit', or 'summaryOnly' parameters to reduce response size."
+      })
+    }]
+  };
+}
+function mcpError(prefix, error) {
+  const msg = error instanceof Error ? error.message : String(error);
+  return { content: [{ type: "text", text: `${prefix}: ${msg}` }] };
+}
+
+// src/tools/document.ts
+function registerMcpTools(server2, sendCommand) {
+  server2.tool(
+    "get_document_info",
+    "Get the document name, current page, and list of all pages.",
+    {},
+    async () => {
+      try {
+        return mcpJson(await sendCommand("get_document_info"));
+      } catch (e) {
+        return mcpError("Error getting document info", e);
+      }
+    }
+  );
+  server2.tool(
+    "get_current_page",
+    "Get the current page info and its top-level children. Always safe \u2014 never touches unloaded pages.",
+    {},
+    async () => {
+      try {
+        return mcpJson(await sendCommand("get_current_page"));
+      } catch (e) {
+        return mcpError("Error getting current page", e);
+      }
+    }
+  );
+  server2.tool(
+    "get_pages",
+    "Get all pages in the document with their IDs, names, and child counts.",
+    {},
+    async () => {
+      try {
+        return mcpJson(await sendCommand("get_pages"));
+      } catch (e) {
+        return mcpError("Error getting pages", e);
+      }
+    }
+  );
+  server2.tool(
+    "set_current_page",
+    "Switch to a different page. Provide either pageId or pageName.",
+    {
+      pageId: import_zod.z.string().optional().describe("The page ID to switch to"),
+      pageName: import_zod.z.string().optional().describe("The page name (case-insensitive, partial match)")
+    },
+    async (params) => {
+      try {
+        return mcpJson(await sendCommand("set_current_page", params));
+      } catch (e) {
+        return mcpError("Error setting current page", e);
+      }
+    }
+  );
+  server2.tool(
+    "create_page",
+    "Create a new page in the document",
+    { name: import_zod.z.string().optional().describe("Name for the new page (default: 'New Page')") },
+    async ({ name }) => {
+      try {
+        return mcpJson(await sendCommand("create_page", { name }));
+      } catch (e) {
+        return mcpError("Error creating page", e);
+      }
+    }
+  );
+  server2.tool(
+    "rename_page",
+    "Rename a page. Defaults to current page if no pageId given.",
+    {
+      newName: import_zod.z.string().describe("New name for the page"),
+      pageId: import_zod.z.string().optional().describe("Page ID (default: current page)")
+    },
+    async (params) => {
+      try {
+        return mcpJson(await sendCommand("rename_page", params));
+      } catch (e) {
+        return mcpError("Error renaming page", e);
+      }
+    }
+  );
+}
+
+// src/tools/selection.ts
+var import_zod3 = require("zod");
+
+// src/utils/coercion.ts
+var import_zod2 = require("zod");
+var flexBool = (inner) => import_zod2.z.preprocess((v) => {
   if (v === "true" || v === "1") return true;
   if (v === "false" || v === "0") return false;
   return v;
 }, inner);
-var flexJson = (inner) => import_zod.z.preprocess((v) => {
+var flexJson = (inner) => import_zod2.z.preprocess((v) => {
   if (typeof v === "string") {
     try {
       return JSON.parse(v);
@@ -43,1124 +180,1492 @@ var flexJson = (inner) => import_zod.z.preprocess((v) => {
   }
   return v;
 }, inner);
-var flexNum = (inner) => import_zod.z.preprocess((v) => {
+var flexNum = (inner) => import_zod2.z.preprocess((v) => {
   if (typeof v === "string") {
     const n = Number(v);
     if (!isNaN(n) && v.trim() !== "") return n;
   }
   return v;
 }, inner);
-var logger = {
-  info: (message) => process.stderr.write(`[INFO] ${message}
-`),
-  debug: (message) => process.stderr.write(`[DEBUG] ${message}
-`),
-  warn: (message) => process.stderr.write(`[WARN] ${message}
-`),
-  error: (message) => process.stderr.write(`[ERROR] ${message}
-`),
-  log: (message) => process.stderr.write(`[LOG] ${message}
-`)
-};
-var ws = null;
-var pendingRequests = /* @__PURE__ */ new Map();
-var currentChannel = null;
-var server = new import_mcp.McpServer({
-  name: "TalkToFigmaMCP",
-  version: "1.0.0"
+
+// src/tools/selection.ts
+function registerMcpTools2(server2, sendCommand) {
+  server2.tool(
+    "get_selection",
+    "Get information about the current selection in Figma",
+    {},
+    async () => {
+      try {
+        return mcpJson(await sendCommand("get_selection"));
+      } catch (e) {
+        return mcpError("Error getting selection", e);
+      }
+    }
+  );
+  server2.tool(
+    "read_my_design",
+    "Get detailed information about the current selection, including all node details. Use depth to control traversal.",
+    { depth: import_zod3.z.coerce.number().optional().describe("Levels of children to recurse. 0=selection only, -1 or omit for unlimited.") },
+    async ({ depth: depth2 }) => {
+      try {
+        return mcpJson(await sendCommand("read_my_design", { depth: depth2 }));
+      } catch (e) {
+        return mcpError("Error reading design", e);
+      }
+    }
+  );
+  server2.tool(
+    "set_selection",
+    "Set selection to nodes and scroll viewport to show them. Also works as focus (single node).",
+    {
+      nodeIds: flexJson(import_zod3.z.array(import_zod3.z.string())).describe('Array of node IDs to select. Example: ["1:2","1:3"]')
+    },
+    async ({ nodeIds: nodeIds2 }) => {
+      try {
+        return mcpJson(await sendCommand("set_selection", { nodeIds: nodeIds2 }));
+      } catch (e) {
+        return mcpError("Error setting selection", e);
+      }
+    }
+  );
+  server2.tool(
+    "zoom_into_view",
+    "Zoom the viewport to fit specific nodes (like pressing Shift+1)",
+    {
+      nodeIds: flexJson(import_zod3.z.array(import_zod3.z.string())).describe("Array of node IDs to zoom into")
+    },
+    async ({ nodeIds: nodeIds2 }) => {
+      try {
+        return mcpJson(await sendCommand("zoom_into_view", { nodeIds: nodeIds2 }));
+      } catch (e) {
+        return mcpError("Error zooming", e);
+      }
+    }
+  );
+  server2.tool(
+    "set_viewport",
+    "Set viewport center position and/or zoom level",
+    {
+      center: flexJson(import_zod3.z.object({ x: import_zod3.z.coerce.number(), y: import_zod3.z.coerce.number() }).optional()).describe("Viewport center point. Omit to keep current center."),
+      zoom: import_zod3.z.coerce.number().optional().describe("Zoom level (1 = 100%). Omit to keep current zoom.")
+    },
+    async (params) => {
+      try {
+        return mcpJson(await sendCommand("set_viewport", params));
+      } catch (e) {
+        return mcpError("Error setting viewport", e);
+      }
+    }
+  );
+}
+
+// src/tools/node-info.ts
+var import_zod4 = require("zod");
+init_filter_node();
+function registerMcpTools3(server2, sendCommand) {
+  server2.tool(
+    "get_node_info",
+    "Get detailed information about one or more nodes. Always pass an array of IDs. Use `fields` to select only the properties you need (reduces context size).",
+    {
+      nodeIds: flexJson(import_zod4.z.array(import_zod4.z.string())).describe('Array of node IDs. Example: ["1:2","1:3"]'),
+      depth: import_zod4.z.coerce.number().optional().describe("Child recursion depth (default: unlimited). 0=stubs only."),
+      fields: flexJson(import_zod4.z.array(import_zod4.z.string()).optional()).describe('Whitelist of property names to include. Always includes id, name, type. Example: ["absoluteBoundingBox","layoutMode","fills"]. Omit to return all properties.')
+    },
+    async (params) => {
+      try {
+        const result = await sendCommand("get_node_info", params);
+        return mcpJson(result);
+      } catch (e) {
+        return mcpError("Error getting node info", e);
+      }
+    }
+  );
+  server2.tool(
+    "get_node_css",
+    "Get CSS properties for a node (useful for dev handoff)",
+    { nodeId: import_zod4.z.string().describe("The node ID to get CSS for") },
+    async ({ nodeId: nodeId2 }) => {
+      try {
+        return mcpJson(await sendCommand("get_node_css", { nodeId: nodeId2 }));
+      } catch (e) {
+        return mcpError("Error getting CSS", e);
+      }
+    }
+  );
+  server2.tool(
+    "search_nodes",
+    "Search for nodes by layer name and/or type. Searches current page only \u2014 use set_current_page to switch pages first. Matches layer names (text nodes are often auto-named from their content). Returns paginated results.",
+    {
+      query: import_zod4.z.string().optional().describe("Name search (case-insensitive substring). Omit to match all names."),
+      types: flexJson(import_zod4.z.array(import_zod4.z.string()).optional()).describe('Filter by types. Example: ["FRAME","TEXT"]. Omit to match all types.'),
+      scopeNodeId: import_zod4.z.string().optional().describe("Node ID to search within (defaults to current page)"),
+      caseSensitive: flexBool(import_zod4.z.boolean().optional()).describe("Case-sensitive name match (default false)"),
+      limit: import_zod4.z.coerce.number().optional().describe("Max results (default 50)"),
+      offset: import_zod4.z.coerce.number().optional().describe("Skip N results for pagination (default 0)")
+    },
+    async (params) => {
+      try {
+        return mcpJson(await sendCommand("search_nodes", params));
+      } catch (e) {
+        return mcpError("Error searching nodes", e);
+      }
+    }
+  );
+  server2.tool(
+    "export_node_as_image",
+    "Export a node as an image from Figma",
+    {
+      nodeId: import_zod4.z.string().describe("The node ID to export"),
+      format: import_zod4.z.enum(["PNG", "JPG", "SVG", "PDF"]).optional().describe("Export format (default: PNG)"),
+      scale: import_zod4.z.coerce.number().positive().optional().describe("Export scale (default: 1)")
+    },
+    async ({ nodeId: nodeId2, format, scale }) => {
+      try {
+        const result = await sendCommand("export_node_as_image", { nodeId: nodeId2, format, scale });
+        return {
+          content: [{ type: "image", data: result.imageData, mimeType: result.mimeType || "image/png" }]
+        };
+      } catch (e) {
+        return mcpError("Error exporting image", e);
+      }
+    }
+  );
+}
+
+// src/tools/create-shape.ts
+var import_zod6 = require("zod");
+
+// src/tools/schemas.ts
+var import_zod5 = require("zod");
+var nodeId = import_zod5.z.string().describe("Node ID");
+var nodeIds = flexJson(import_zod5.z.array(import_zod5.z.string())).describe("Array of node IDs");
+var parentId = import_zod5.z.string().optional().describe("Parent node ID. Omit to place on current page.");
+var depth = import_zod5.z.coerce.number().optional().describe("Response detail: omit for id+name only. 0=properties + child stubs. N=recurse N levels. -1=unlimited.");
+var xPos = import_zod5.z.coerce.number().optional().describe("X position (default: 0)");
+var yPos = import_zod5.z.coerce.number().optional().describe("Y position (default: 0)");
+function parseHex(hex) {
+  const m = hex.match(/^#?([0-9a-f]{3,8})$/i);
+  if (!m) return null;
+  let h = m[1];
+  if (h.length === 3) h = h[0] + h[0] + h[1] + h[1] + h[2] + h[2];
+  if (h.length === 4) h = h[0] + h[0] + h[1] + h[1] + h[2] + h[2] + h[3] + h[3];
+  if (h.length !== 6 && h.length !== 8) return null;
+  const r = parseInt(h.slice(0, 2), 16) / 255;
+  const g = parseInt(h.slice(2, 4), 16) / 255;
+  const b = parseInt(h.slice(4, 6), 16) / 255;
+  if (h.length === 8) return { r, g, b, a: parseInt(h.slice(6, 8), 16) / 255 };
+  return { r, g, b };
+}
+var colorRgba = import_zod5.z.preprocess((v) => {
+  if (typeof v === "string") return parseHex(v) ?? v;
+  return v;
+}, import_zod5.z.object({
+  r: import_zod5.z.coerce.number().min(0).max(1),
+  g: import_zod5.z.coerce.number().min(0).max(1),
+  b: import_zod5.z.coerce.number().min(0).max(1),
+  a: import_zod5.z.coerce.number().min(0).max(1).optional()
+}));
+var effectEntry = import_zod5.z.object({
+  type: import_zod5.z.enum(["DROP_SHADOW", "INNER_SHADOW", "LAYER_BLUR", "BACKGROUND_BLUR"]),
+  color: flexJson(colorRgba.optional()),
+  offset: flexJson(import_zod5.z.object({ x: import_zod5.z.coerce.number(), y: import_zod5.z.coerce.number() }).optional()),
+  radius: import_zod5.z.coerce.number(),
+  spread: import_zod5.z.coerce.number().optional(),
+  visible: flexBool(import_zod5.z.boolean().optional()),
+  blendMode: import_zod5.z.string().optional()
 });
-var args = process.argv.slice(2);
-var serverArg = args.find((arg) => arg.startsWith("--server="));
-var serverUrl = serverArg ? serverArg.split("=")[1] : "localhost";
-var WS_URL = serverUrl === "localhost" ? `ws://${serverUrl}` : `wss://${serverUrl}`;
-server.tool(
-  "get_document_info",
-  "Get information about the current Figma document including all pages and top-level children of the current page.",
-  {
-    depth: import_zod.z.coerce.number().optional().describe("How many levels of children to include on the current page. 0 or omit for top-level only, 1 includes grandchildren names.")
-  },
-  async ({ depth }) => {
-    try {
-      const result = await sendCommandToFigma("get_document_info", { depth });
-      return {
-        content: [
-          {
-            type: "text",
-            text: JSON.stringify(result)
-          }
-        ]
-      };
-    } catch (error) {
-      return {
-        content: [
-          {
-            type: "text",
-            text: `Error getting document info: ${error instanceof Error ? error.message : String(error)}`
-          }
-        ]
-      };
-    }
-  }
-);
-server.tool(
-  "get_selection",
-  "Get information about the current selection in Figma",
-  {},
-  async () => {
-    try {
-      const result = await sendCommandToFigma("get_selection");
-      return {
-        content: [
-          {
-            type: "text",
-            text: JSON.stringify(result)
-          }
-        ]
-      };
-    } catch (error) {
-      return {
-        content: [
-          {
-            type: "text",
-            text: `Error getting selection: ${error instanceof Error ? error.message : String(error)}`
-          }
-        ]
-      };
-    }
-  }
-);
-server.tool(
-  "read_my_design",
-  "Get detailed information about the current selection in Figma, including all node details. Use depth to control traversal.",
-  {
-    depth: import_zod.z.coerce.number().optional().describe("How many levels of children to recurse. 0=selection nodes only, 1=direct children, -1 or omit for unlimited.")
-  },
-  async ({ depth }) => {
-    try {
-      const result = await sendCommandToFigma("read_my_design", { depth });
-      return {
-        content: [
-          {
-            type: "text",
-            text: JSON.stringify(result)
-          }
-        ]
-      };
-    } catch (error) {
-      return {
-        content: [
-          {
-            type: "text",
-            text: `Error getting node info: ${error instanceof Error ? error.message : String(error)}`
-          }
-        ]
-      };
-    }
-  }
-);
-server.tool(
-  "get_node_info",
-  "Get detailed information about a specific node in Figma. Use depth to control how many levels of children to include (0=node only with child summaries, 1=direct children, -1=unlimited).",
-  {
-    nodeId: import_zod.z.string().describe("The ID of the node to get information about"),
-    depth: import_zod.z.coerce.number().optional().describe("How many levels of children to recurse into. 0=node only with child name/type stubs, 1=direct children fully, 2=grandchildren, etc. -1 or omit for unlimited depth.")
-  },
-  async ({ nodeId, depth }) => {
-    try {
-      const result = await sendCommandToFigma("get_node_info", { nodeId, depth });
-      return {
-        content: [
-          {
-            type: "text",
-            text: JSON.stringify(filterFigmaNode(result, depth !== void 0 ? depth : -1))
-          }
-        ]
-      };
-    } catch (error) {
-      return {
-        content: [
-          {
-            type: "text",
-            text: `Error getting node info: ${error instanceof Error ? error.message : String(error)}`
-          }
-        ]
-      };
-    }
-  }
-);
-function rgbaToHex(color) {
-  if (color.startsWith("#")) {
-    return color;
-  }
-  const r = Math.round(color.r * 255);
-  const g = Math.round(color.g * 255);
-  const b = Math.round(color.b * 255);
-  const a = Math.round(color.a * 255);
-  return `#${r.toString(16).padStart(2, "0")}${g.toString(16).padStart(2, "0")}${b.toString(16).padStart(2, "0")}${a === 255 ? "" : a.toString(16).padStart(2, "0")}`;
-}
-function filterFigmaNode(node, depth = -1, currentDepth = 0) {
-  if (node.type === "VECTOR") {
-    return null;
-  }
-  const filtered = {
-    id: node.id,
-    name: node.name,
-    type: node.type
-  };
-  if (currentDepth === 0) {
-    if (node.parentId) filtered.parentId = node.parentId;
-    if (node.parentName) filtered.parentName = node.parentName;
-    if (node.parentType) filtered.parentType = node.parentType;
-  }
-  if (node.fills && node.fills.length > 0) {
-    filtered.fills = node.fills.map((fill) => {
-      const processedFill = { ...fill };
-      delete processedFill.boundVariables;
-      delete processedFill.imageRef;
-      if (processedFill.gradientStops) {
-        processedFill.gradientStops = processedFill.gradientStops.map((stop) => {
-          const processedStop = { ...stop };
-          if (processedStop.color) {
-            processedStop.color = rgbaToHex(processedStop.color);
-          }
-          delete processedStop.boundVariables;
-          return processedStop;
-        });
-      }
-      if (processedFill.color) {
-        processedFill.color = rgbaToHex(processedFill.color);
-      }
-      return processedFill;
-    });
-  }
-  if (node.strokes && node.strokes.length > 0) {
-    filtered.strokes = node.strokes.map((stroke) => {
-      const processedStroke = { ...stroke };
-      delete processedStroke.boundVariables;
-      if (processedStroke.color) {
-        processedStroke.color = rgbaToHex(processedStroke.color);
-      }
-      return processedStroke;
-    });
-  }
-  if (node.cornerRadius !== void 0) {
-    filtered.cornerRadius = node.cornerRadius;
-  }
-  if (node.absoluteBoundingBox) {
-    filtered.absoluteBoundingBox = node.absoluteBoundingBox;
-  }
-  if (node.characters) {
-    filtered.characters = node.characters;
-  }
-  if (node.style) {
-    filtered.style = {
-      fontFamily: node.style.fontFamily,
-      fontStyle: node.style.fontStyle,
-      fontWeight: node.style.fontWeight,
-      fontSize: node.style.fontSize,
-      textAlignHorizontal: node.style.textAlignHorizontal,
-      letterSpacing: node.style.letterSpacing,
-      lineHeightPx: node.style.lineHeightPx
-    };
-  }
-  if (node.effects && node.effects.length > 0) {
-    filtered.effects = node.effects;
-  }
-  if (node.layoutMode !== void 0) {
-    filtered.layoutMode = node.layoutMode;
-  }
-  if (node.itemSpacing !== void 0) {
-    filtered.itemSpacing = node.itemSpacing;
-  }
-  if (node.paddingLeft !== void 0) {
-    filtered.padding = {
-      left: node.paddingLeft,
-      right: node.paddingRight,
-      top: node.paddingTop,
-      bottom: node.paddingBottom
-    };
-  }
-  if (node.opacity !== void 0 && node.opacity !== 1) {
-    filtered.opacity = node.opacity;
-  }
-  if (node.visible !== void 0 && node.visible === false) {
-    filtered.visible = false;
-  }
-  if (node.constraints) {
-    filtered.constraints = node.constraints;
-  }
-  if (node.children) {
-    if (depth >= 0 && currentDepth >= depth) {
-      filtered.children = node.children.map((child) => ({
-        id: child.id,
-        name: child.name,
-        type: child.type
-      }));
-    } else {
-      filtered.children = node.children.map((child) => filterFigmaNode(child, depth, currentDepth + 1)).filter((child) => child !== null);
-    }
-  }
-  return filtered;
-}
-server.tool(
-  "get_nodes_info",
-  "Get detailed information about multiple nodes in Figma. Use depth to control child traversal.",
-  {
-    nodeIds: flexJson(import_zod.z.array(import_zod.z.string())).describe('Array of node IDs. Example: ["1:2","1:3"]'),
-    depth: import_zod.z.coerce.number().optional().describe("How many levels of children to recurse. 0=nodes only, 1=direct children, -1 or omit for unlimited.")
-  },
-  async ({ nodeIds, depth }) => {
-    try {
-      const results = await Promise.all(
-        nodeIds.map(async (nodeId) => {
-          const result = await sendCommandToFigma("get_node_info", { nodeId, depth });
-          return { nodeId, info: result };
-        })
-      );
-      return {
-        content: [
-          {
-            type: "text",
-            text: JSON.stringify(results.map((result) => filterFigmaNode(result.info, depth !== void 0 ? depth : -1)))
-          }
-        ]
-      };
-    } catch (error) {
-      return {
-        content: [
-          {
-            type: "text",
-            text: `Error getting nodes info: ${error instanceof Error ? error.message : String(error)}`
-          }
-        ]
-      };
-    }
-  }
-);
-server.tool(
-  "create_rectangle",
-  "Create a new rectangle in Figma. Default: white fill (Figma native).",
-  {
-    x: import_zod.z.coerce.number().optional().describe("X position (default: 0)"),
-    y: import_zod.z.coerce.number().optional().describe("Y position (default: 0)"),
-    width: import_zod.z.coerce.number().optional().describe("Width (default: 100)"),
-    height: import_zod.z.coerce.number().optional().describe("Height (default: 100)"),
-    name: import_zod.z.string().optional().describe("Name for the rectangle (default: 'Rectangle')"),
-    parentId: import_zod.z.string().optional().describe("Parent node ID to append into")
-  },
-  async ({ x, y, width, height, name, parentId }) => {
-    try {
-      const result = await sendCommandToFigma("create_rectangle", {
-        x,
-        y,
-        width,
-        height,
-        name,
-        parentId
-      });
-      return {
-        content: [
-          {
-            type: "text",
-            text: `Created rectangle "${JSON.stringify(result)}"`
-          }
-        ]
-      };
-    } catch (error) {
-      return {
-        content: [
-          {
-            type: "text",
-            text: `Error creating rectangle: ${error instanceof Error ? error.message : String(error)}`
-          }
-        ]
-      };
-    }
-  }
-);
-server.tool(
-  "create_frame",
-  "Create a new frame in Figma. Default: transparent fill, no stroke, no auto-layout.",
-  {
-    x: import_zod.z.coerce.number().optional().describe("X position (default: 0)"),
-    y: import_zod.z.coerce.number().optional().describe("Y position (default: 0)"),
-    width: import_zod.z.coerce.number().optional().describe("Width (default: 100)"),
-    height: import_zod.z.coerce.number().optional().describe("Height (default: 100)"),
-    name: import_zod.z.string().optional().describe("Name for the frame (default: 'Frame')"),
-    parentId: import_zod.z.string().optional().describe("Parent node ID to append into"),
-    fillColor: flexJson(
-      import_zod.z.object({
-        r: import_zod.z.coerce.number().min(0).max(1),
-        g: import_zod.z.coerce.number().min(0).max(1),
-        b: import_zod.z.coerce.number().min(0).max(1),
-        a: import_zod.z.coerce.number().min(0).max(1).optional()
-      }).optional()
-    ).describe('Fill color RGBA (0-1 each). Default: transparent. Example: {"r":1,"g":1,"b":1} for white'),
-    strokeColor: flexJson(
-      import_zod.z.object({
-        r: import_zod.z.coerce.number().min(0).max(1),
-        g: import_zod.z.coerce.number().min(0).max(1),
-        b: import_zod.z.coerce.number().min(0).max(1),
-        a: import_zod.z.coerce.number().min(0).max(1).optional()
-      }).optional()
-    ).describe('Stroke color RGBA (0-1 each). Default: no stroke. Example: {"r":0,"g":0,"b":0}'),
-    strokeWeight: import_zod.z.coerce.number().positive().optional().describe("Stroke weight. Only applied if strokeColor is set."),
-    layoutMode: import_zod.z.enum(["NONE", "HORIZONTAL", "VERTICAL"]).optional().describe("Auto-layout direction (default: NONE). The following layout params only apply when not NONE."),
-    layoutWrap: import_zod.z.enum(["NO_WRAP", "WRAP"]).optional().describe("Wrap children (default: NO_WRAP)"),
-    paddingTop: import_zod.z.coerce.number().optional().describe("Top padding (default: 0)"),
-    paddingRight: import_zod.z.coerce.number().optional().describe("Right padding (default: 0)"),
-    paddingBottom: import_zod.z.coerce.number().optional().describe("Bottom padding (default: 0)"),
-    paddingLeft: import_zod.z.coerce.number().optional().describe("Left padding (default: 0)"),
-    primaryAxisAlignItems: import_zod.z.enum(["MIN", "MAX", "CENTER", "SPACE_BETWEEN"]).optional().describe("Primary axis alignment (default: MIN). SPACE_BETWEEN overrides itemSpacing."),
-    counterAxisAlignItems: import_zod.z.enum(["MIN", "MAX", "CENTER", "BASELINE"]).optional().describe("Counter axis alignment (default: MIN)"),
-    layoutSizingHorizontal: import_zod.z.enum(["FIXED", "HUG", "FILL"]).optional().describe("Horizontal sizing (default: FIXED)"),
-    layoutSizingVertical: import_zod.z.enum(["FIXED", "HUG", "FILL"]).optional().describe("Vertical sizing (default: FIXED)"),
-    itemSpacing: import_zod.z.number().optional().describe("Spacing between children (default: 0). Ignored if primaryAxisAlignItems is SPACE_BETWEEN.")
-  },
-  async ({
-    x,
-    y,
-    width,
-    height,
-    name,
-    parentId,
-    fillColor,
-    strokeColor,
-    strokeWeight,
-    layoutMode,
-    layoutWrap,
-    paddingTop,
-    paddingRight,
-    paddingBottom,
-    paddingLeft,
-    primaryAxisAlignItems,
-    counterAxisAlignItems,
-    layoutSizingHorizontal,
-    layoutSizingVertical,
-    itemSpacing
-  }) => {
-    try {
-      const result = await sendCommandToFigma("create_frame", {
-        x,
-        y,
-        width,
-        height,
-        name,
-        parentId,
-        fillColor,
-        strokeColor,
-        strokeWeight,
-        layoutMode,
-        layoutWrap,
-        paddingTop,
-        paddingRight,
-        paddingBottom,
-        paddingLeft,
-        primaryAxisAlignItems,
-        counterAxisAlignItems,
-        layoutSizingHorizontal,
-        layoutSizingVertical,
-        itemSpacing
-      });
-      const typedResult = result;
-      return {
-        content: [
-          {
-            type: "text",
-            text: `Created frame "${typedResult.name}" with ID: ${typedResult.id}. Use the ID as the parentId to appendChild inside this frame.`
-          }
-        ]
-      };
-    } catch (error) {
-      return {
-        content: [
-          {
-            type: "text",
-            text: `Error creating frame: ${error instanceof Error ? error.message : String(error)}`
-          }
-        ]
-      };
-    }
-  }
-);
-server.tool(
-  "create_text",
-  "Create a new text element in Figma. Uses Inter font family. When placing inside an auto-layout parent, set layoutSizingHorizontal to FILL so the text wraps to the parent width.",
-  {
-    x: import_zod.z.coerce.number().optional().describe("X position (default: 0)"),
-    y: import_zod.z.coerce.number().optional().describe("Y position (default: 0)"),
-    text: import_zod.z.string().describe("Text content"),
-    fontSize: import_zod.z.coerce.number().optional().describe("Font size (default: 14)"),
-    fontWeight: import_zod.z.coerce.number().optional().describe("Font weight (default: 400). Values: 100=Thin, 200=Extra Light, 300=Light, 400=Regular, 500=Medium, 600=Semi Bold, 700=Bold, 800=Extra Bold, 900=Black"),
-    fontColor: flexJson(
-      import_zod.z.object({
-        r: import_zod.z.coerce.number().min(0).max(1),
-        g: import_zod.z.coerce.number().min(0).max(1),
-        b: import_zod.z.coerce.number().min(0).max(1),
-        a: import_zod.z.coerce.number().min(0).max(1).optional()
-      }).optional()
-    ).describe('Font color RGBA (0-1 each). Default: black. Example: {"r":1,"g":0,"b":0} for red'),
-    name: import_zod.z.string().optional().describe("Layer name (default: uses text content)"),
-    parentId: import_zod.z.string().optional().describe("Parent node ID to append into"),
-    textStyleId: import_zod.z.string().optional().describe("Text style ID to apply (from create_text_style or get_styles). Overrides fontSize/fontWeight."),
-    layoutSizingHorizontal: import_zod.z.enum(["FIXED", "HUG", "FILL"]).optional().describe("Horizontal sizing. Use FILL to stretch to parent width (common for text in auto-layout). Automatically sets textAutoResize to HEIGHT when FILL is used."),
-    layoutSizingVertical: import_zod.z.enum(["FIXED", "HUG", "FILL"]).optional().describe("Vertical sizing (default: HUG)"),
-    textAutoResize: import_zod.z.enum(["NONE", "WIDTH_AND_HEIGHT", "HEIGHT", "TRUNCATE"]).optional().describe("Text auto-resize behavior. WIDTH_AND_HEIGHT (default) shrinks to fit. HEIGHT = fixed/fill width, auto height (set automatically when layoutSizingHorizontal is FILL). NONE = fixed size. TRUNCATE = fixed size with ellipsis.")
-  },
-  async ({ x, y, text, fontSize, fontWeight, fontColor, name, parentId, textStyleId, layoutSizingHorizontal, layoutSizingVertical, textAutoResize }) => {
-    try {
-      const result = await sendCommandToFigma("create_text", {
-        x,
-        y,
-        text,
-        fontSize: fontSize !== void 0 ? fontSize : 14,
-        fontWeight: fontWeight !== void 0 ? fontWeight : 400,
-        fontColor: fontColor || { r: 0, g: 0, b: 0, a: 1 },
-        name,
-        parentId,
-        textStyleId,
-        layoutSizingHorizontal,
-        layoutSizingVertical,
-        textAutoResize
-      });
-      const typedResult = result;
-      return {
-        content: [
-          {
-            type: "text",
-            text: `Created text "${typedResult.name}" with ID: ${typedResult.id}`
-          }
-        ]
-      };
-    } catch (error) {
-      return {
-        content: [
-          {
-            type: "text",
-            text: `Error creating text: ${error instanceof Error ? error.message : String(error)}`
-          }
-        ]
-      };
-    }
-  }
-);
-server.tool(
-  "set_fill_color",
-  "Set the fill color of a node in Figma can be TextNode or FrameNode",
-  {
-    nodeId: import_zod.z.string().describe("The ID of the node to modify"),
-    r: import_zod.z.coerce.number().min(0).max(1).describe("Red component (0-1)"),
-    g: import_zod.z.coerce.number().min(0).max(1).describe("Green component (0-1)"),
-    b: import_zod.z.coerce.number().min(0).max(1).describe("Blue component (0-1)"),
-    a: import_zod.z.coerce.number().min(0).max(1).optional().describe("Alpha component (0-1, default: 1)")
-  },
-  async ({ nodeId, r, g, b, a }) => {
-    try {
-      const result = await sendCommandToFigma("set_fill_color", {
-        nodeId,
-        color: { r, g, b, a: a !== void 0 ? a : 1 }
-      });
-      const typedResult = result;
-      return {
-        content: [
-          {
-            type: "text",
-            text: `Set fill color of node "${typedResult.name}" to RGBA(${r}, ${g}, ${b}, ${a !== void 0 ? a : 1})`
-          }
-        ]
-      };
-    } catch (error) {
-      return {
-        content: [
-          {
-            type: "text",
-            text: `Error setting fill color: ${error instanceof Error ? error.message : String(error)}`
-          }
-        ]
-      };
-    }
-  }
-);
-server.tool(
-  "set_stroke_color",
-  "Set the stroke color of a node in Figma",
-  {
-    nodeId: import_zod.z.string().describe("The ID of the node to modify"),
-    r: import_zod.z.coerce.number().min(0).max(1).describe("Red component (0-1)"),
-    g: import_zod.z.coerce.number().min(0).max(1).describe("Green component (0-1)"),
-    b: import_zod.z.coerce.number().min(0).max(1).describe("Blue component (0-1)"),
-    a: import_zod.z.coerce.number().min(0).max(1).optional().describe("Alpha component (0-1, default: 1)"),
-    weight: import_zod.z.coerce.number().positive().optional().describe("Stroke weight (default: 1)")
-  },
-  async ({ nodeId, r, g, b, a, weight }) => {
-    try {
-      const result = await sendCommandToFigma("set_stroke_color", {
-        nodeId,
-        color: { r, g, b, a: a !== void 0 ? a : 1 },
-        weight: weight !== void 0 ? weight : 1
-      });
-      const typedResult = result;
-      return {
-        content: [
-          {
-            type: "text",
-            text: `Set stroke color of node "${typedResult.name}" to RGBA(${r}, ${g}, ${b}, ${a !== void 0 ? a : 1}) with weight ${weight !== void 0 ? weight : 1}`
-          }
-        ]
-      };
-    } catch (error) {
-      return {
-        content: [
-          {
-            type: "text",
-            text: `Error setting stroke color: ${error instanceof Error ? error.message : String(error)}`
-          }
-        ]
-      };
-    }
-  }
-);
-server.tool(
-  "move_node",
-  "Move a node to a new position in Figma",
-  {
-    nodeId: import_zod.z.string().describe("The ID of the node to move"),
-    x: import_zod.z.coerce.number().describe("New X position"),
-    y: import_zod.z.coerce.number().describe("New Y position")
-  },
-  async ({ nodeId, x, y }) => {
-    try {
-      const result = await sendCommandToFigma("move_node", { nodeId, x, y });
-      const typedResult = result;
-      return {
-        content: [
-          {
-            type: "text",
-            text: `Moved node "${typedResult.name}" to position (${x}, ${y})`
-          }
-        ]
-      };
-    } catch (error) {
-      return {
-        content: [
-          {
-            type: "text",
-            text: `Error moving node: ${error instanceof Error ? error.message : String(error)}`
-          }
-        ]
-      };
-    }
-  }
-);
-server.tool(
-  "clone_node",
-  "Clone an existing node in Figma",
-  {
-    nodeId: import_zod.z.string().describe("The ID of the node to clone"),
-    x: import_zod.z.coerce.number().optional().describe("New X position for the clone"),
-    y: import_zod.z.coerce.number().optional().describe("New Y position for the clone")
-  },
-  async ({ nodeId, x, y }) => {
-    try {
-      const result = await sendCommandToFigma("clone_node", { nodeId, x, y });
-      const typedResult = result;
-      return {
-        content: [
-          {
-            type: "text",
-            text: `Cloned node "${typedResult.name}" with new ID: ${typedResult.id}${x !== void 0 && y !== void 0 ? ` at position (${x}, ${y})` : ""}`
-          }
-        ]
-      };
-    } catch (error) {
-      return {
-        content: [
-          {
-            type: "text",
-            text: `Error cloning node: ${error instanceof Error ? error.message : String(error)}`
-          }
-        ]
-      };
-    }
-  }
-);
-server.tool(
-  "resize_node",
-  "Resize a node in Figma",
-  {
-    nodeId: import_zod.z.string().describe("The ID of the node to resize"),
-    width: import_zod.z.coerce.number().positive().describe("New width"),
-    height: import_zod.z.coerce.number().positive().describe("New height")
-  },
-  async ({ nodeId, width, height }) => {
-    try {
-      const result = await sendCommandToFigma("resize_node", {
-        nodeId,
-        width,
-        height
-      });
-      const typedResult = result;
-      return {
-        content: [
-          {
-            type: "text",
-            text: `Resized node "${typedResult.name}" to width ${width} and height ${height}`
-          }
-        ]
-      };
-    } catch (error) {
-      return {
-        content: [
-          {
-            type: "text",
-            text: `Error resizing node: ${error instanceof Error ? error.message : String(error)}`
-          }
-        ]
-      };
-    }
-  }
-);
-server.tool(
-  "delete_node",
-  "Delete a node from Figma",
-  {
-    nodeId: import_zod.z.string().describe("The ID of the node to delete")
-  },
-  async ({ nodeId }) => {
-    try {
-      await sendCommandToFigma("delete_node", { nodeId });
-      return {
-        content: [
-          {
-            type: "text",
-            text: `Deleted node with ID: ${nodeId}`
-          }
-        ]
-      };
-    } catch (error) {
-      return {
-        content: [
-          {
-            type: "text",
-            text: `Error deleting node: ${error instanceof Error ? error.message : String(error)}`
-          }
-        ]
-      };
-    }
-  }
-);
-server.tool(
-  "delete_multiple_nodes",
-  "Delete multiple nodes from Figma at once",
-  {
-    nodeIds: flexJson(import_zod.z.array(import_zod.z.string())).describe('Array of node IDs to delete. Example: ["1:2","1:3"]')
-  },
-  async ({ nodeIds }) => {
-    try {
-      const result = await sendCommandToFigma("delete_multiple_nodes", { nodeIds });
-      return {
-        content: [
-          {
-            type: "text",
-            text: JSON.stringify(result)
-          }
-        ]
-      };
-    } catch (error) {
-      return {
-        content: [
-          {
-            type: "text",
-            text: `Error deleting multiple nodes: ${error instanceof Error ? error.message : String(error)}`
-          }
-        ]
-      };
-    }
-  }
-);
-server.tool(
-  "export_node_as_image",
-  "Export a node as an image from Figma",
-  {
-    nodeId: import_zod.z.string().describe("The ID of the node to export"),
-    format: import_zod.z.enum(["PNG", "JPG", "SVG", "PDF"]).optional().describe("Export format (default: PNG)"),
-    scale: import_zod.z.coerce.number().positive().optional().describe("Export scale (default: 1)")
-  },
-  async ({ nodeId, format, scale }) => {
-    try {
-      const result = await sendCommandToFigma("export_node_as_image", {
-        nodeId,
-        format,
-        scale
-      });
-      const typedResult = result;
-      return {
-        content: [
-          {
-            type: "image",
-            data: typedResult.imageData,
-            mimeType: typedResult.mimeType || "image/png"
-          }
-        ]
-      };
-    } catch (error) {
-      return {
-        content: [
-          {
-            type: "text",
-            text: `Error exporting node as image: ${error instanceof Error ? error.message : String(error)}`
-          }
-        ]
-      };
-    }
-  }
-);
-server.tool(
-  "set_text_content",
-  "Set the text content of an existing text node in Figma",
-  {
-    nodeId: import_zod.z.string().describe("The ID of the text node to modify"),
-    text: import_zod.z.string().describe("New text content")
-  },
-  async ({ nodeId, text }) => {
-    try {
-      const result = await sendCommandToFigma("set_text_content", {
-        nodeId,
-        text
-      });
-      const typedResult = result;
-      return {
-        content: [
-          {
-            type: "text",
-            text: `Updated text content of node "${typedResult.name}" to "${text}"`
-          }
-        ]
-      };
-    } catch (error) {
-      return {
-        content: [
-          {
-            type: "text",
-            text: `Error setting text content: ${error instanceof Error ? error.message : String(error)}`
-          }
-        ]
-      };
-    }
-  }
-);
-server.tool(
-  "get_styles",
-  "List local styles (paint, text, effect, grid) from the document. Returns only IDs, names, and keys (no paint/font details). Use get_style_by_id for full details on a specific style.",
-  {},
-  async () => {
-    try {
-      const result = await sendCommandToFigma("get_styles");
-      return {
-        content: [
-          {
-            type: "text",
-            text: JSON.stringify(result)
-          }
-        ]
-      };
-    } catch (error) {
-      return {
-        content: [
-          {
-            type: "text",
-            text: `Error getting styles: ${error instanceof Error ? error.message : String(error)}`
-          }
-        ]
-      };
-    }
-  }
-);
-server.tool(
-  "get_local_components",
-  "List local components. Use setsOnly=true to get only component sets (not individual variants). Supports pagination and name filtering. Use get_component_by_id for full details.",
-  {
-    setsOnly: flexBool(import_zod.z.boolean().optional()).describe("If true, return only COMPONENT_SET nodes (top-level components, not variants). Dramatically reduces results in large files."),
-    nameFilter: import_zod.z.string().optional().describe("Filter components by name (case-insensitive substring match)"),
-    limit: import_zod.z.coerce.number().optional().describe("Max results to return (default 100)"),
-    offset: import_zod.z.coerce.number().optional().describe("Skip this many results for pagination (default 0)")
-  },
-  async ({ setsOnly, nameFilter, limit, offset }) => {
-    try {
-      const result = await sendCommandToFigma("get_local_components", { setsOnly, nameFilter, limit, offset });
-      return {
-        content: [
-          {
-            type: "text",
-            text: JSON.stringify(result)
-          }
-        ]
-      };
-    } catch (error) {
-      return {
-        content: [
-          {
-            type: "text",
-            text: `Error getting local components: ${error instanceof Error ? error.message : String(error)}`
-          }
-        ]
-      };
-    }
-  }
-);
-server.tool(
-  "get_instance_overrides",
-  "Get all override properties from a selected component instance. These overrides can be applied to other instances, which will swap them to match the source component.",
-  {
-    nodeId: import_zod.z.string().optional().describe("Optional ID of the component instance to get overrides from. If not provided, currently selected instance will be used.")
-  },
-  async ({ nodeId }) => {
-    try {
-      const result = await sendCommandToFigma("get_instance_overrides", {
-        instanceNodeId: nodeId || null
-      });
-      const typedResult = result;
-      return {
-        content: [
-          {
-            type: "text",
-            text: typedResult.success ? `Successfully got instance overrides: ${typedResult.message}` : `Failed to get instance overrides: ${typedResult.message}`
-          }
-        ]
-      };
-    } catch (error) {
-      return {
-        content: [
-          {
-            type: "text",
-            text: `Error copying instance overrides: ${error instanceof Error ? error.message : String(error)}`
-          }
-        ]
-      };
-    }
-  }
-);
-server.tool(
-  "set_corner_radius",
-  "Set the corner radius of a node in Figma",
-  {
-    nodeId: import_zod.z.string().describe("The ID of the node to modify"),
-    radius: import_zod.z.coerce.number().min(0).describe("Corner radius value"),
-    corners: flexJson(
-      import_zod.z.array(flexBool(import_zod.z.boolean())).length(4).optional()
-    ).describe(
-      "Array of 4 booleans for which corners to round [topLeft, topRight, bottomRight, bottomLeft]. Example: [true,true,false,false]"
-    )
-  },
-  async ({ nodeId, radius, corners }) => {
-    try {
-      const result = await sendCommandToFigma("set_corner_radius", {
-        nodeId,
-        radius,
-        corners: corners || [true, true, true, true]
-      });
-      const typedResult = result;
-      return {
-        content: [
-          {
-            type: "text",
-            text: `Set corner radius of node "${typedResult.name}" to ${radius}px`
-          }
-        ]
-      };
-    } catch (error) {
-      return {
-        content: [
-          {
-            type: "text",
-            text: `Error setting corner radius: ${error instanceof Error ? error.message : String(error)}`
-          }
-        ]
-      };
-    }
-  }
-);
-server.prompt(
-  "design_strategy",
-  "Best practices for working with Figma designs",
-  (extra) => {
-    return {
-      messages: [
-        {
-          role: "assistant",
-          content: {
-            type: "text",
-            text: `When working with Figma designs, follow these best practices:
 
-1. Start with Document Structure:
-   - First use get_document_info() to understand the current document
-   - Plan your layout hierarchy before creating elements
-   - Create a main container frame for each screen/section
+// src/tools/create-shape.ts
+init_helpers();
+var rectItem = import_zod6.z.object({
+  name: import_zod6.z.string().optional().describe("Name (default: 'Rectangle')"),
+  x: xPos,
+  y: yPos,
+  width: import_zod6.z.coerce.number().optional().describe("Width (default: 100)"),
+  height: import_zod6.z.coerce.number().optional().describe("Height (default: 100)"),
+  parentId
+});
+var ellipseItem = import_zod6.z.object({
+  name: import_zod6.z.string().optional().describe("Layer name (default: 'Ellipse')"),
+  x: xPos,
+  y: yPos,
+  width: import_zod6.z.coerce.number().optional().describe("Width (default: 100)"),
+  height: import_zod6.z.coerce.number().optional().describe("Height (default: 100)"),
+  parentId
+});
+var lineItem = import_zod6.z.object({
+  name: import_zod6.z.string().optional().describe("Layer name (default: 'Line')"),
+  x: xPos,
+  y: yPos,
+  length: import_zod6.z.coerce.number().optional().describe("Length (default: 100)"),
+  rotation: import_zod6.z.coerce.number().optional().describe("Rotation in degrees (default: 0)"),
+  parentId
+});
+var sectionItem = import_zod6.z.object({
+  name: import_zod6.z.string().optional().describe("Name (default: 'Section')"),
+  x: xPos,
+  y: yPos,
+  width: import_zod6.z.coerce.number().optional().describe("Width (default: 500)"),
+  height: import_zod6.z.coerce.number().optional().describe("Height (default: 500)"),
+  parentId
+});
+var svgItem = import_zod6.z.object({
+  svg: import_zod6.z.string().describe("SVG markup string"),
+  name: import_zod6.z.string().optional().describe("Layer name (default: 'SVG')"),
+  x: xPos,
+  y: yPos,
+  parentId
+});
+var boolOpItem = import_zod6.z.object({
+  nodeIds: flexJson(import_zod6.z.array(import_zod6.z.string())).describe("Array of node IDs (min 2)"),
+  operation: import_zod6.z.enum(["UNION", "INTERSECT", "SUBTRACT", "EXCLUDE"]).describe("Boolean operation type"),
+  name: import_zod6.z.string().optional().describe("Name for the result. Omit to auto-generate.")
+});
+function registerMcpTools4(server2, sendCommand) {
+  server2.tool(
+    "create_rectangle",
+    "Create rectangles (leaf nodes \u2014 cannot have children). For containers/cards/panels, use create_frame instead. Batch: pass multiple items.",
+    { items: flexJson(import_zod6.z.array(rectItem)).describe("Array of rectangles to create"), depth },
+    async (params) => {
+      try {
+        return mcpJson(await sendCommand("create_rectangle", params));
+      } catch (e) {
+        return mcpError("Error creating rectangles", e);
+      }
+    }
+  );
+  server2.tool(
+    "create_ellipse",
+    "Create ellipses (leaf nodes \u2014 cannot have children). For circular containers, use create_frame with cornerRadius instead. Batch: pass multiple items.",
+    { items: flexJson(import_zod6.z.array(ellipseItem)).describe("Array of ellipses to create"), depth },
+    async (params) => {
+      try {
+        return mcpJson(await sendCommand("create_ellipse", params));
+      } catch (e) {
+        return mcpError("Error creating ellipses", e);
+      }
+    }
+  );
+  server2.tool(
+    "create_line",
+    "Create lines (leaf nodes \u2014 cannot have children). For dividers inside layouts, use create_frame with a thin height and fill color instead. Batch: pass multiple items.",
+    { items: flexJson(import_zod6.z.array(lineItem)).describe("Array of lines to create"), depth },
+    async (params) => {
+      try {
+        return mcpJson(await sendCommand("create_line", params));
+      } catch (e) {
+        return mcpError("Error creating lines", e);
+      }
+    }
+  );
+  server2.tool(
+    "create_section",
+    "Create section nodes to organize content on the canvas.",
+    { items: flexJson(import_zod6.z.array(sectionItem)).describe("Array of sections to create"), depth },
+    async (params) => {
+      try {
+        return mcpJson(await sendCommand("create_section", params));
+      } catch (e) {
+        return mcpError("Error creating sections", e);
+      }
+    }
+  );
+  server2.tool(
+    "create_node_from_svg",
+    "Create nodes from SVG strings.",
+    { items: flexJson(import_zod6.z.array(svgItem)).describe("Array of SVG items to create"), depth },
+    async (params) => {
+      try {
+        return mcpJson(await sendCommand("create_node_from_svg", params));
+      } catch (e) {
+        return mcpError("Error creating SVG nodes", e);
+      }
+    }
+  );
+  server2.tool(
+    "create_boolean_operation",
+    "Create a boolean operation (union, intersect, subtract, exclude) from multiple nodes.",
+    { items: flexJson(import_zod6.z.array(boolOpItem)).describe("Array of boolean operations to create"), depth },
+    async (params) => {
+      try {
+        return mcpJson(await sendCommand("create_boolean_operation", params));
+      } catch (e) {
+        return mcpError("Error creating boolean operations", e);
+      }
+    }
+  );
+}
 
-2. Naming Conventions:
+// src/tools/create-frame.ts
+var import_zod7 = require("zod");
+init_helpers();
+var frameItem = import_zod7.z.object({
+  name: import_zod7.z.string().optional().describe("Frame name (default: 'Frame')"),
+  x: xPos,
+  y: yPos,
+  width: import_zod7.z.coerce.number().optional().describe("Width (default: 100)"),
+  height: import_zod7.z.coerce.number().optional().describe("Height (default: 100)"),
+  parentId,
+  fillColor: flexJson(colorRgba.optional()).describe('Fill color. Hex "#FF0000" or {r,g,b,a?} 0-1. Default: no fill (empty fills array).'),
+  strokeColor: flexJson(colorRgba.optional()).describe('Stroke color. Hex "#FF0000" or {r,g,b,a?} 0-1. Default: none.'),
+  strokeWeight: import_zod7.z.coerce.number().positive().optional().describe("Stroke weight (default: 1)"),
+  cornerRadius: import_zod7.z.coerce.number().min(0).optional().describe("Corner radius (default: 0)"),
+  layoutMode: import_zod7.z.enum(["NONE", "HORIZONTAL", "VERTICAL"]).optional().describe("Auto-layout direction (default: NONE)"),
+  layoutWrap: import_zod7.z.enum(["NO_WRAP", "WRAP"]).optional().describe("Wrap (default: NO_WRAP)"),
+  paddingTop: import_zod7.z.coerce.number().optional().describe("Top padding (default: 0)"),
+  paddingRight: import_zod7.z.coerce.number().optional().describe("Right padding (default: 0)"),
+  paddingBottom: import_zod7.z.coerce.number().optional().describe("Bottom padding (default: 0)"),
+  paddingLeft: import_zod7.z.coerce.number().optional().describe("Left padding (default: 0)"),
+  primaryAxisAlignItems: import_zod7.z.enum(["MIN", "MAX", "CENTER", "SPACE_BETWEEN"]).optional(),
+  counterAxisAlignItems: import_zod7.z.enum(["MIN", "MAX", "CENTER", "BASELINE"]).optional(),
+  layoutSizingHorizontal: import_zod7.z.enum(["FIXED", "HUG", "FILL"]).optional(),
+  layoutSizingVertical: import_zod7.z.enum(["FIXED", "HUG", "FILL"]).optional(),
+  itemSpacing: import_zod7.z.coerce.number().optional().describe("Spacing between children (default: 0)"),
+  // Style/variable references
+  fillStyleName: import_zod7.z.string().optional().describe("Apply a fill paint style by name (case-insensitive). Omit to skip."),
+  strokeStyleName: import_zod7.z.string().optional().describe("Apply a stroke paint style by name. Omit to skip."),
+  fillVariableId: import_zod7.z.string().optional().describe("Bind a color variable to the fill. Creates a solid fill and binds the variable to fills/0/color."),
+  strokeVariableId: import_zod7.z.string().optional().describe("Bind a color variable to the stroke. Creates a solid stroke and binds the variable to strokes/0/color.")
+});
+var autoLayoutItem = import_zod7.z.object({
+  nodeIds: flexJson(import_zod7.z.array(import_zod7.z.string())).describe("Array of node IDs to wrap"),
+  name: import_zod7.z.string().optional().describe("Frame name (default: 'Auto Layout')"),
+  layoutMode: import_zod7.z.enum(["HORIZONTAL", "VERTICAL"]).optional().describe("Direction (default: VERTICAL)"),
+  itemSpacing: import_zod7.z.coerce.number().optional().describe("Spacing between children (default: 0)"),
+  paddingTop: import_zod7.z.coerce.number().optional().describe("Top padding (default: 0)"),
+  paddingRight: import_zod7.z.coerce.number().optional().describe("Right padding (default: 0)"),
+  paddingBottom: import_zod7.z.coerce.number().optional().describe("Bottom padding (default: 0)"),
+  paddingLeft: import_zod7.z.coerce.number().optional().describe("Left padding (default: 0)"),
+  primaryAxisAlignItems: import_zod7.z.enum(["MIN", "MAX", "CENTER", "SPACE_BETWEEN"]).optional(),
+  counterAxisAlignItems: import_zod7.z.enum(["MIN", "MAX", "CENTER", "BASELINE"]).optional(),
+  layoutSizingHorizontal: import_zod7.z.enum(["FIXED", "HUG", "FILL"]).optional(),
+  layoutSizingVertical: import_zod7.z.enum(["FIXED", "HUG", "FILL"]).optional(),
+  layoutWrap: import_zod7.z.enum(["NO_WRAP", "WRAP"]).optional()
+});
+function registerMcpTools5(server2, sendCommand) {
+  server2.tool(
+    "create_frame",
+    "Create frames in Figma. Supports batch. Prefer fillStyleName or fillVariableId over hardcoded fillColor for design token consistency.",
+    { items: flexJson(import_zod7.z.array(frameItem)).describe("Array of frames to create"), depth },
+    async (params) => {
+      try {
+        return mcpJson(await sendCommand("create_frame", params));
+      } catch (e) {
+        return mcpError("Error creating frames", e);
+      }
+    }
+  );
+  server2.tool(
+    "create_auto_layout",
+    "Wrap existing nodes in an auto-layout frame. One call replaces create_frame + set_layout_mode + insert_child \xD7 N.",
+    { items: flexJson(import_zod7.z.array(autoLayoutItem)).describe("Array of auto-layout wraps to perform"), depth },
+    async (params) => {
+      try {
+        return mcpJson(await sendCommand("create_auto_layout", params));
+      } catch (e) {
+        return mcpError("Error creating auto layout", e);
+      }
+    }
+  );
+}
+
+// src/tools/create-text.ts
+var import_zod8 = require("zod");
+init_helpers();
+var textItem = import_zod8.z.object({
+  text: import_zod8.z.string().describe("Text content"),
+  name: import_zod8.z.string().optional().describe("Layer name (default: text content)"),
+  x: xPos,
+  y: yPos,
+  fontSize: import_zod8.z.coerce.number().optional().describe("Font size (default: 14)"),
+  fontWeight: import_zod8.z.coerce.number().optional().describe("Font weight: 100-900 (default: 400)"),
+  fontColor: flexJson(colorRgba.optional()).describe('Font color. Hex "#000000" or {r,g,b,a?} 0-1. Default: black.'),
+  fontColorVariableId: import_zod8.z.string().optional().describe("Bind a color variable to the text fill instead of hardcoded fontColor."),
+  parentId,
+  textStyleId: import_zod8.z.string().optional().describe("Text style ID to apply (overrides fontSize/fontWeight). Omit to skip."),
+  textStyleName: import_zod8.z.string().optional().describe("Text style name (case-insensitive match). Omit to skip."),
+  layoutSizingHorizontal: import_zod8.z.enum(["FIXED", "HUG", "FILL"]).optional().describe("Horizontal sizing. FILL auto-sets textAutoResize to HEIGHT."),
+  layoutSizingVertical: import_zod8.z.enum(["FIXED", "HUG", "FILL"]).optional().describe("Vertical sizing (default: HUG)"),
+  textAutoResize: import_zod8.z.enum(["NONE", "WIDTH_AND_HEIGHT", "HEIGHT", "TRUNCATE"]).optional().describe("Text auto-resize behavior (default: WIDTH_AND_HEIGHT when FILL)")
+});
+function registerMcpTools6(server2, sendCommand) {
+  server2.tool(
+    "create_text",
+    "Create text nodes in Figma. Uses Inter font. Max 10 items per batch. Use textStyleName to apply styles by name.",
+    { items: flexJson(import_zod8.z.array(textItem).max(10)).describe("Array of text nodes to create (max 10)"), depth },
+    async (params) => {
+      try {
+        return mcpJson(await sendCommand("create_text", params));
+      } catch (e) {
+        return mcpError("Error creating text", e);
+      }
+    }
+  );
+}
+
+// src/tools/modify-node.ts
+var import_zod9 = require("zod");
+init_helpers();
+var moveItem = import_zod9.z.object({
+  nodeId,
+  x: import_zod9.z.coerce.number().describe("New X"),
+  y: import_zod9.z.coerce.number().describe("New Y")
+});
+var resizeItem = import_zod9.z.object({
+  nodeId,
+  width: import_zod9.z.coerce.number().positive().describe("New width"),
+  height: import_zod9.z.coerce.number().positive().describe("New height")
+});
+var deleteItem = import_zod9.z.object({
+  nodeId: import_zod9.z.string().describe("Node ID to delete")
+});
+var cloneItem = import_zod9.z.object({
+  nodeId: import_zod9.z.string().describe("Node ID to clone"),
+  parentId: import_zod9.z.string().optional().describe("Parent for the clone (e.g. a page ID). Defaults to same parent as original."),
+  x: import_zod9.z.coerce.number().optional().describe("New X for clone. Omit to keep original position."),
+  y: import_zod9.z.coerce.number().optional().describe("New Y for clone. Omit to keep original position.")
+});
+var insertItem = import_zod9.z.object({
+  parentId: import_zod9.z.string().describe("Parent node ID"),
+  childId: import_zod9.z.string().describe("Child node ID to move"),
+  index: import_zod9.z.coerce.number().optional().describe("Index to insert at (0=first). Omit to append.")
+});
+function registerMcpTools7(server2, sendCommand) {
+  server2.tool(
+    "move_node",
+    "Move nodes to new positions. Batch: pass multiple items.",
+    { items: flexJson(import_zod9.z.array(moveItem)).describe("Array of {nodeId, x, y}"), depth },
+    async (params) => {
+      try {
+        return mcpJson(await sendCommand("move_node", params));
+      } catch (e) {
+        return mcpError("Error moving nodes", e);
+      }
+    }
+  );
+  server2.tool(
+    "resize_node",
+    "Resize nodes. Batch: pass multiple items.",
+    { items: flexJson(import_zod9.z.array(resizeItem)).describe("Array of {nodeId, width, height}"), depth },
+    async (params) => {
+      try {
+        return mcpJson(await sendCommand("resize_node", params));
+      } catch (e) {
+        return mcpError("Error resizing nodes", e);
+      }
+    }
+  );
+  server2.tool(
+    "delete_node",
+    "Delete nodes. Batch: pass multiple items.",
+    { items: flexJson(import_zod9.z.array(deleteItem)).describe("Array of {nodeId}") },
+    async (params) => {
+      try {
+        return mcpJson(await sendCommand("delete_node", params));
+      } catch (e) {
+        return mcpError("Error deleting nodes", e);
+      }
+    }
+  );
+  server2.tool(
+    "clone_node",
+    "Clone nodes. Batch: pass multiple items.",
+    { items: flexJson(import_zod9.z.array(cloneItem)).describe("Array of {nodeId, x?, y?}"), depth },
+    async (params) => {
+      try {
+        return mcpJson(await sendCommand("clone_node", params));
+      } catch (e) {
+        return mcpError("Error cloning nodes", e);
+      }
+    }
+  );
+  server2.tool(
+    "insert_child",
+    "Move nodes into a parent at a specific index (reorder/reparent). Batch: pass multiple items.",
+    { items: flexJson(import_zod9.z.array(insertItem)).describe("Array of {parentId, childId, index?}"), depth },
+    async (params) => {
+      try {
+        return mcpJson(await sendCommand("insert_child", params));
+      } catch (e) {
+        return mcpError("Error inserting children", e);
+      }
+    }
+  );
+}
+
+// src/tools/fill-stroke.ts
+var import_zod10 = require("zod");
+init_helpers();
+var fillItem = import_zod10.z.object({
+  nodeId,
+  color: flexJson(colorRgba.optional()).describe('Fill color. Hex "#FF0000" or {r,g,b,a?} 0-1. Ignored when styleName is set.'),
+  styleName: import_zod10.z.string().optional().describe("Apply fill paint style by name instead of color. Omit to use color.")
+});
+var strokeItem = import_zod10.z.object({
+  nodeId,
+  color: flexJson(colorRgba.optional()).describe('Stroke color. Hex "#FF0000" or {r,g,b,a?} 0-1. Ignored when styleName is set.'),
+  strokeWeight: import_zod10.z.coerce.number().positive().optional().describe("Stroke weight (default: 1)"),
+  styleName: import_zod10.z.string().optional().describe("Apply stroke paint style by name instead of color. Omit to use color.")
+});
+var cornerItem = import_zod10.z.object({
+  nodeId,
+  radius: import_zod10.z.coerce.number().min(0).describe("Corner radius"),
+  corners: flexJson(import_zod10.z.array(flexBool(import_zod10.z.boolean())).length(4).optional()).describe("Which corners to round [topLeft, topRight, bottomRight, bottomLeft]. Default: all corners [true,true,true,true].")
+});
+var opacityItem = import_zod10.z.object({
+  nodeId,
+  opacity: import_zod10.z.coerce.number().min(0).max(1).describe("Opacity (0-1)")
+});
+function registerMcpTools8(server2, sendCommand) {
+  server2.tool(
+    "set_fill_color",
+    "Set fill color on nodes. Use styleName to apply a paint style by name, or provide color directly. Batch: pass multiple items.",
+    { items: flexJson(import_zod10.z.array(fillItem)).describe("Array of {nodeId, color?, styleName?}"), depth },
+    async (params) => {
+      try {
+        return mcpJson(await sendCommand("set_fill_color", params));
+      } catch (e) {
+        return mcpError("Error setting fill", e);
+      }
+    }
+  );
+  server2.tool(
+    "set_stroke_color",
+    "Set stroke color on nodes. Use styleName to apply a paint style by name. Batch: pass multiple items.",
+    { items: flexJson(import_zod10.z.array(strokeItem)).describe("Array of {nodeId, color?, strokeWeight?, styleName?}"), depth },
+    async (params) => {
+      try {
+        return mcpJson(await sendCommand("set_stroke_color", params));
+      } catch (e) {
+        return mcpError("Error setting stroke", e);
+      }
+    }
+  );
+  server2.tool(
+    "set_corner_radius",
+    "Set corner radius on nodes. Batch: pass multiple items.",
+    { items: flexJson(import_zod10.z.array(cornerItem)).describe("Array of {nodeId, radius, corners?}"), depth },
+    async (params) => {
+      try {
+        return mcpJson(await sendCommand("set_corner_radius", params));
+      } catch (e) {
+        return mcpError("Error setting corner radius", e);
+      }
+    }
+  );
+  server2.tool(
+    "set_opacity",
+    "Set opacity on nodes. Batch: pass multiple items.",
+    { items: flexJson(import_zod10.z.array(opacityItem)).describe("Array of {nodeId, opacity}"), depth },
+    async (params) => {
+      try {
+        return mcpJson(await sendCommand("set_opacity", params));
+      } catch (e) {
+        return mcpError("Error setting opacity", e);
+      }
+    }
+  );
+}
+
+// src/tools/layout.ts
+var import_zod11 = require("zod");
+init_helpers();
+var layoutModeItem = import_zod11.z.object({
+  nodeId,
+  layoutMode: import_zod11.z.enum(["NONE", "HORIZONTAL", "VERTICAL"]).describe("Layout mode"),
+  layoutWrap: import_zod11.z.enum(["NO_WRAP", "WRAP"]).optional().describe("Wrap (default: NO_WRAP)")
+});
+var paddingItem = import_zod11.z.object({
+  nodeId,
+  paddingTop: import_zod11.z.coerce.number().optional().describe("Top padding (default: unchanged)"),
+  paddingRight: import_zod11.z.coerce.number().optional().describe("Right padding (default: unchanged)"),
+  paddingBottom: import_zod11.z.coerce.number().optional().describe("Bottom padding (default: unchanged)"),
+  paddingLeft: import_zod11.z.coerce.number().optional().describe("Left padding (default: unchanged)")
+});
+var axisAlignItem = import_zod11.z.object({
+  nodeId,
+  primaryAxisAlignItems: import_zod11.z.enum(["MIN", "MAX", "CENTER", "SPACE_BETWEEN"]).optional().describe("Primary axis alignment"),
+  counterAxisAlignItems: import_zod11.z.enum(["MIN", "MAX", "CENTER", "BASELINE"]).optional().describe("Counter axis alignment")
+});
+var layoutSizingItem = import_zod11.z.object({
+  nodeId,
+  layoutSizingHorizontal: import_zod11.z.enum(["FIXED", "HUG", "FILL"]).optional(),
+  layoutSizingVertical: import_zod11.z.enum(["FIXED", "HUG", "FILL"]).optional()
+});
+var itemSpacingItem = import_zod11.z.object({
+  nodeId,
+  itemSpacing: import_zod11.z.coerce.number().optional().describe("Distance between children. Default: unchanged."),
+  counterAxisSpacing: import_zod11.z.coerce.number().optional().describe("Distance between wrapped rows/columns (WRAP only). Default: unchanged.")
+});
+function registerMcpTools9(server2, sendCommand) {
+  server2.tool(
+    "set_layout_mode",
+    "Set layout mode and wrap on frames. Batch: pass multiple items.",
+    { items: flexJson(import_zod11.z.array(layoutModeItem)).describe("Array of {nodeId, layoutMode, layoutWrap?}"), depth },
+    async (params) => {
+      try {
+        return mcpJson(await sendCommand("set_layout_mode", params));
+      } catch (e) {
+        return mcpError("Error setting layout mode", e);
+      }
+    }
+  );
+  server2.tool(
+    "set_padding",
+    "Set padding on auto-layout frames. Batch: pass multiple items.",
+    { items: flexJson(import_zod11.z.array(paddingItem)).describe("Array of {nodeId, paddingTop?, paddingRight?, paddingBottom?, paddingLeft?}"), depth },
+    async (params) => {
+      try {
+        return mcpJson(await sendCommand("set_padding", params));
+      } catch (e) {
+        return mcpError("Error setting padding", e);
+      }
+    }
+  );
+  server2.tool(
+    "set_axis_align",
+    "Set primary/counter axis alignment on auto-layout frames. Batch: pass multiple items.",
+    { items: flexJson(import_zod11.z.array(axisAlignItem)).describe("Array of {nodeId, primaryAxisAlignItems?, counterAxisAlignItems?}"), depth },
+    async (params) => {
+      try {
+        return mcpJson(await sendCommand("set_axis_align", params));
+      } catch (e) {
+        return mcpError("Error setting axis alignment", e);
+      }
+    }
+  );
+  server2.tool(
+    "set_layout_sizing",
+    "Set horizontal/vertical sizing modes on auto-layout nodes. Batch: pass multiple items.",
+    { items: flexJson(import_zod11.z.array(layoutSizingItem)).describe("Array of {nodeId, layoutSizingHorizontal?, layoutSizingVertical?}"), depth },
+    async (params) => {
+      try {
+        return mcpJson(await sendCommand("set_layout_sizing", params));
+      } catch (e) {
+        return mcpError("Error setting layout sizing", e);
+      }
+    }
+  );
+  server2.tool(
+    "set_item_spacing",
+    "Set spacing between children in auto-layout frames. Batch: pass multiple items.",
+    { items: flexJson(import_zod11.z.array(itemSpacingItem)).describe("Array of {nodeId, itemSpacing?, counterAxisSpacing?}"), depth },
+    async (params) => {
+      try {
+        return mcpJson(await sendCommand("set_item_spacing", params));
+      } catch (e) {
+        return mcpError("Error setting item spacing", e);
+      }
+    }
+  );
+}
+
+// src/tools/effects.ts
+var import_zod12 = require("zod");
+init_helpers();
+var effectItem = import_zod12.z.object({
+  nodeId,
+  effects: flexJson(import_zod12.z.array(effectEntry).optional()).describe("Array of effect objects. Ignored when effectStyleName is set."),
+  effectStyleName: import_zod12.z.string().optional().describe("Apply an effect style by name (case-insensitive). Omit to use raw effects.")
+});
+var constraintItem = import_zod12.z.object({
+  nodeId,
+  horizontal: import_zod12.z.enum(["MIN", "CENTER", "MAX", "STRETCH", "SCALE"]),
+  vertical: import_zod12.z.enum(["MIN", "CENTER", "MAX", "STRETCH", "SCALE"])
+});
+var exportSettingEntry = import_zod12.z.object({
+  format: import_zod12.z.enum(["PNG", "JPG", "SVG", "PDF"]),
+  suffix: import_zod12.z.string().optional(),
+  contentsOnly: flexBool(import_zod12.z.boolean().optional()),
+  constraint: flexJson(import_zod12.z.object({
+    type: import_zod12.z.enum(["SCALE", "WIDTH", "HEIGHT"]),
+    value: import_zod12.z.coerce.number()
+  }).optional())
+});
+var exportSettingsItem = import_zod12.z.object({
+  nodeId,
+  settings: flexJson(import_zod12.z.array(exportSettingEntry)).describe("Export settings array")
+});
+var nodePropertiesItem = import_zod12.z.object({
+  nodeId,
+  properties: flexJson(import_zod12.z.record(import_zod12.z.unknown())).describe("Key-value properties to set")
+});
+function registerMcpTools10(server2, sendCommand) {
+  server2.tool(
+    "set_effects",
+    "Set effects (shadows, blurs) on nodes. Use effectStyleName to apply by name, or provide raw effects. Batch: pass multiple items.",
+    { items: flexJson(import_zod12.z.array(effectItem)).describe("Array of {nodeId, effects}"), depth },
+    async (params) => {
+      try {
+        return mcpJson(await sendCommand("set_effects", params));
+      } catch (e) {
+        return mcpError("Error setting effects", e);
+      }
+    }
+  );
+  server2.tool(
+    "set_constraints",
+    "Set constraints on nodes. Batch: pass multiple items.",
+    { items: flexJson(import_zod12.z.array(constraintItem)).describe("Array of {nodeId, horizontal, vertical}"), depth },
+    async (params) => {
+      try {
+        return mcpJson(await sendCommand("set_constraints", params));
+      } catch (e) {
+        return mcpError("Error setting constraints", e);
+      }
+    }
+  );
+  server2.tool(
+    "set_export_settings",
+    "Set export settings on nodes. Batch: pass multiple items.",
+    { items: flexJson(import_zod12.z.array(exportSettingsItem)).describe("Array of {nodeId, settings}"), depth },
+    async (params) => {
+      try {
+        return mcpJson(await sendCommand("set_export_settings", params));
+      } catch (e) {
+        return mcpError("Error setting export settings", e);
+      }
+    }
+  );
+  server2.tool(
+    "set_node_properties",
+    "Set arbitrary properties on nodes. Batch: pass multiple items.",
+    { items: flexJson(import_zod12.z.array(nodePropertiesItem)).describe("Array of {nodeId, properties}"), depth },
+    async (params) => {
+      try {
+        return mcpJson(await sendCommand("set_node_properties", params));
+      } catch (e) {
+        return mcpError("Error setting node properties", e);
+      }
+    }
+  );
+}
+
+// src/tools/text.ts
+var import_zod13 = require("zod");
+init_helpers();
+var textContentItem = import_zod13.z.object({
+  nodeId: import_zod13.z.string().describe("Text node ID"),
+  text: import_zod13.z.string().describe("New text content")
+});
+var textPropsItem = import_zod13.z.object({
+  nodeId: import_zod13.z.string().describe("Text node ID"),
+  fontSize: import_zod13.z.coerce.number().optional().describe("Font size"),
+  fontWeight: import_zod13.z.coerce.number().optional().describe("Font weight: 100-900"),
+  fontColor: flexJson(colorRgba.optional()).describe('Font color. Hex "#000" or {r,g,b,a?} 0-1.'),
+  textStyleId: import_zod13.z.string().optional().describe("Text style ID to apply (overrides font props)"),
+  textStyleName: import_zod13.z.string().optional().describe("Text style name (case-insensitive match)"),
+  textAutoResize: import_zod13.z.enum(["NONE", "WIDTH_AND_HEIGHT", "HEIGHT", "TRUNCATE"]).optional(),
+  layoutSizingHorizontal: import_zod13.z.enum(["FIXED", "HUG", "FILL"]).optional(),
+  layoutSizingVertical: import_zod13.z.enum(["FIXED", "HUG", "FILL"]).optional()
+});
+var scanTextItem = import_zod13.z.object({
+  nodeId,
+  limit: import_zod13.z.coerce.number().optional().describe("Max text nodes to return (default: 50)"),
+  includePath: flexBool(import_zod13.z.boolean().optional()).describe("Include ancestor path strings (default: true). Set false to reduce payload."),
+  includeGeometry: flexBool(import_zod13.z.boolean().optional()).describe("Include absoluteX/absoluteY/width/height (default: true). Set false to reduce payload.")
+});
+function registerMcpTools11(server2, sendCommand) {
+  server2.tool(
+    "set_text_content",
+    "Set text content on text nodes. Batch: pass multiple items to replace text in multiple nodes at once.",
+    { items: flexJson(import_zod13.z.array(textContentItem)).describe("Array of {nodeId, text}"), depth },
+    async (params) => {
+      try {
+        return mcpJson(await sendCommand("set_text_content", params));
+      } catch (e) {
+        return mcpError("Error setting text content", e);
+      }
+    }
+  );
+  server2.tool(
+    "set_text_properties",
+    "Set font properties on existing text nodes (fontSize, fontWeight, fontColor, textStyle). Batch: pass multiple items.",
+    { items: flexJson(import_zod13.z.array(textPropsItem)).describe("Array of {nodeId, fontSize?, fontWeight?, fontColor?, ...}"), depth },
+    async (params) => {
+      try {
+        return mcpJson(await sendCommand("set_text_properties", params));
+      } catch (e) {
+        return mcpError("Error setting text properties", e);
+      }
+    }
+  );
+  server2.tool(
+    "scan_text_nodes",
+    "Scan all text nodes within a node tree. Batch: pass multiple items.",
+    { items: flexJson(import_zod13.z.array(scanTextItem)).describe("Array of {nodeId}") },
+    async (params) => {
+      try {
+        return mcpJson(await sendCommand("scan_text_nodes", params));
+      } catch (e) {
+        return mcpError("Error scanning text nodes", e);
+      }
+    }
+  );
+}
+
+// src/tools/fonts.ts
+var import_zod14 = require("zod");
+function registerMcpTools12(server2, sendCommand) {
+  server2.tool(
+    "get_available_fonts",
+    "Get available fonts in Figma. Optionally filter by query string.",
+    { query: import_zod14.z.string().optional().describe("Filter fonts by name (case-insensitive). Omit to list all fonts.") },
+    async ({ query }) => {
+      try {
+        return mcpJson(await sendCommand("get_available_fonts", { query }));
+      } catch (e) {
+        return mcpError("Error getting fonts", e);
+      }
+    }
+  );
+}
+
+// src/tools/components.ts
+var import_zod15 = require("zod");
+init_helpers();
+var componentItem = import_zod15.z.object({
+  name: import_zod15.z.string().describe("Component name"),
+  x: xPos,
+  y: yPos,
+  width: import_zod15.z.coerce.number().optional().describe("Width (default: 100)"),
+  height: import_zod15.z.coerce.number().optional().describe("Height (default: 100)"),
+  parentId,
+  fillColor: flexJson(colorRgba.optional()).describe('Fill color. Hex "#FF0000" or {r,g,b,a?} 0-1. Omit for no fill.'),
+  fillStyleName: import_zod15.z.string().optional().describe("Apply a fill paint style by name (case-insensitive)."),
+  fillVariableId: import_zod15.z.string().optional().describe("Bind a color variable to the fill."),
+  strokeColor: flexJson(colorRgba.optional()).describe('Stroke color. Hex "#FF0000" or {r,g,b,a?} 0-1. Omit for no stroke.'),
+  strokeStyleName: import_zod15.z.string().optional().describe("Apply a stroke paint style by name."),
+  strokeVariableId: import_zod15.z.string().optional().describe("Bind a color variable to the stroke."),
+  strokeWeight: import_zod15.z.coerce.number().positive().optional().describe("Stroke weight (default: 1)"),
+  cornerRadius: import_zod15.z.coerce.number().optional().describe("Corner radius (default: 0)"),
+  layoutMode: import_zod15.z.enum(["NONE", "HORIZONTAL", "VERTICAL"]).optional().describe("Layout direction (default: NONE)"),
+  layoutWrap: import_zod15.z.enum(["NO_WRAP", "WRAP"]).optional().describe("Wrap behavior (default: NO_WRAP)"),
+  paddingTop: import_zod15.z.coerce.number().optional().describe("Top padding (default: 0)"),
+  paddingRight: import_zod15.z.coerce.number().optional().describe("Right padding (default: 0)"),
+  paddingBottom: import_zod15.z.coerce.number().optional().describe("Bottom padding (default: 0)"),
+  paddingLeft: import_zod15.z.coerce.number().optional().describe("Left padding (default: 0)"),
+  primaryAxisAlignItems: import_zod15.z.enum(["MIN", "MAX", "CENTER", "SPACE_BETWEEN"]).optional().describe("Primary axis alignment (default: MIN)"),
+  counterAxisAlignItems: import_zod15.z.enum(["MIN", "MAX", "CENTER", "BASELINE"]).optional().describe("Counter axis alignment (default: MIN)"),
+  layoutSizingHorizontal: import_zod15.z.enum(["FIXED", "HUG", "FILL"]).optional().describe("Horizontal sizing (default: FIXED)"),
+  layoutSizingVertical: import_zod15.z.enum(["FIXED", "HUG", "FILL"]).optional().describe("Vertical sizing (default: FIXED)"),
+  itemSpacing: import_zod15.z.coerce.number().optional().describe("Spacing between children (default: 0)")
+});
+var fromNodeItem = import_zod15.z.object({
+  nodeId
+});
+var combineItem = import_zod15.z.object({
+  componentIds: flexJson(import_zod15.z.array(import_zod15.z.string())).describe("Component IDs to combine (min 2)"),
+  name: import_zod15.z.string().optional().describe("Name for the component set. Omit to auto-generate.")
+});
+var propItem = import_zod15.z.object({
+  componentId: import_zod15.z.string().describe("Component node ID"),
+  propertyName: import_zod15.z.string().describe("Property name"),
+  type: import_zod15.z.enum(["BOOLEAN", "TEXT", "INSTANCE_SWAP", "VARIANT"]).describe("Property type"),
+  defaultValue: flexBool(import_zod15.z.union([import_zod15.z.string(), import_zod15.z.boolean()])).describe("Default value (string for TEXT/VARIANT, boolean for BOOLEAN)"),
+  preferredValues: flexJson(import_zod15.z.array(import_zod15.z.object({
+    type: import_zod15.z.enum(["COMPONENT", "COMPONENT_SET"]),
+    key: import_zod15.z.string()
+  })).optional()).describe("Preferred values for INSTANCE_SWAP type. Omit for none.")
+});
+var instanceItem = import_zod15.z.object({
+  componentId: import_zod15.z.string().describe("Component or component set ID"),
+  variantProperties: flexJson(import_zod15.z.record(import_zod15.z.string()).optional()).describe('Pick variant by properties, e.g. {"Style":"Secondary","Size":"Large"}. Ignored for plain COMPONENT IDs.'),
+  x: import_zod15.z.coerce.number().optional().describe("X position. Omit to keep default."),
+  y: import_zod15.z.coerce.number().optional().describe("Y position. Omit to keep default."),
+  parentId
+});
+function registerMcpTools13(server2, sendCommand) {
+  server2.tool(
+    "create_component",
+    "Create components in Figma. Same layout params as create_frame. Name with 'Property=Value' pattern (e.g. 'Size=Small') if you plan to combine_as_variants later. Batch: pass multiple items.",
+    { items: flexJson(import_zod15.z.array(componentItem)).describe("Array of components to create"), depth },
+    async (params) => {
+      try {
+        return mcpJson(await sendCommand("create_component", params));
+      } catch (e) {
+        return mcpError("Error creating component", e);
+      }
+    }
+  );
+  server2.tool(
+    "create_component_from_node",
+    "Convert existing nodes into components. Batch: pass multiple items.",
+    { items: flexJson(import_zod15.z.array(fromNodeItem)).describe("Array of {nodeId}"), depth },
+    async (params) => {
+      try {
+        return mcpJson(await sendCommand("create_component_from_node", params));
+      } catch (e) {
+        return mcpError("Error creating component from node", e);
+      }
+    }
+  );
+  server2.tool(
+    "combine_as_variants",
+    "Combine components into variant sets. Name components with 'Property=Value' pattern (e.g. 'Style=Primary', 'Size=Large') BEFORE combining \u2014 Figma derives variant properties from component names. Avoid slashes in names. The resulting set is placed in the components' shared parent (or page root if parents differ). Batch: pass multiple items.",
+    { items: flexJson(import_zod15.z.array(combineItem)).describe("Array of {componentIds, name?}"), depth },
+    async (params) => {
+      try {
+        return mcpJson(await sendCommand("combine_as_variants", params));
+      } catch (e) {
+        return mcpError("Error combining variants", e);
+      }
+    }
+  );
+  server2.tool(
+    "add_component_property",
+    "Add properties to components. Batch: pass multiple items.",
+    { items: flexJson(import_zod15.z.array(propItem)).describe("Array of {componentId, propertyName, type, defaultValue, preferredValues?}") },
+    async (params) => {
+      try {
+        return mcpJson(await sendCommand("add_component_property", params));
+      } catch (e) {
+        return mcpError("Error adding component property", e);
+      }
+    }
+  );
+  server2.tool(
+    "create_instance_from_local",
+    'Create instances of local components. For COMPONENT_SET, use variantProperties to pick a specific variant (e.g. {"Style":"Secondary"}). Batch: pass multiple items.',
+    { items: flexJson(import_zod15.z.array(instanceItem)).describe("Array of {componentId, x?, y?, parentId?}"), depth },
+    async (params) => {
+      try {
+        return mcpJson(await sendCommand("create_instance_from_local", params));
+      } catch (e) {
+        return mcpError("Error creating instance", e);
+      }
+    }
+  );
+  server2.tool(
+    "search_components",
+    "Search local components and component sets across all pages. Returns component id, name, and which page it lives on.",
+    {
+      query: import_zod15.z.string().optional().describe("Filter by name (case-insensitive substring). Omit to list all."),
+      setsOnly: flexBool(import_zod15.z.boolean().optional()).describe("If true, return only COMPONENT_SET nodes"),
+      limit: import_zod15.z.coerce.number().optional().describe("Max results (default 100)"),
+      offset: import_zod15.z.coerce.number().optional().describe("Skip N results (default 0)")
+    },
+    async (params) => {
+      try {
+        return mcpJson(await sendCommand("search_components", params));
+      } catch (e) {
+        return mcpError("Error searching components", e);
+      }
+    }
+  );
+  server2.tool(
+    "get_component_by_id",
+    "Get detailed component info including property definitions and variants.",
+    {
+      componentId: import_zod15.z.string().describe("Component node ID"),
+      includeChildren: flexBool(import_zod15.z.boolean().optional()).describe("For COMPONENT_SETs: include variant children (default false)")
+    },
+    async (params) => {
+      try {
+        return mcpJson(await sendCommand("get_component_by_id", params));
+      } catch (e) {
+        return mcpError("Error getting component", e);
+      }
+    }
+  );
+  server2.tool(
+    "get_instance_overrides",
+    "Get override properties from a component instance.",
+    { nodeId: import_zod15.z.string().optional().describe("Instance node ID (uses selection if omitted)") },
+    async ({ nodeId: nodeId2 }) => {
+      try {
+        return mcpJson(await sendCommand("get_instance_overrides", { instanceNodeId: nodeId2 || null }));
+      } catch (e) {
+        return mcpError("Error getting overrides", e);
+      }
+    }
+  );
+}
+
+// src/tools/styles.ts
+var import_zod16 = require("zod");
+init_helpers();
+var paintStyleItem = import_zod16.z.object({
+  name: import_zod16.z.string().describe("Style name"),
+  color: flexJson(colorRgba).describe('Color. Hex "#FF0000" or {r,g,b,a?} 0-1.')
+});
+var textStyleItem = import_zod16.z.object({
+  name: import_zod16.z.string().describe("Style name"),
+  fontFamily: import_zod16.z.string().describe("Font family"),
+  fontStyle: import_zod16.z.string().optional().describe("Font style (default: Regular)"),
+  fontSize: import_zod16.z.coerce.number().describe("Font size"),
+  lineHeight: flexNum(import_zod16.z.union([
+    import_zod16.z.number(),
+    import_zod16.z.object({ value: import_zod16.z.coerce.number(), unit: import_zod16.z.enum(["PIXELS", "PERCENT", "AUTO"]) })
+  ]).optional()).describe("Line height \u2014 number (px) or {value, unit}. Default: auto."),
+  letterSpacing: flexNum(import_zod16.z.union([
+    import_zod16.z.number(),
+    import_zod16.z.object({ value: import_zod16.z.coerce.number(), unit: import_zod16.z.enum(["PIXELS", "PERCENT"]) })
+  ]).optional()).describe("Letter spacing \u2014 number (px) or {value, unit}. Default: 0."),
+  textCase: import_zod16.z.enum(["ORIGINAL", "UPPER", "LOWER", "TITLE"]).optional(),
+  textDecoration: import_zod16.z.enum(["NONE", "UNDERLINE", "STRIKETHROUGH"]).optional()
+});
+var effectStyleItem = import_zod16.z.object({
+  name: import_zod16.z.string().describe("Style name"),
+  effects: flexJson(import_zod16.z.array(effectEntry)).describe("Array of effects")
+});
+var applyStyleItem = import_zod16.z.object({
+  nodeId,
+  styleId: import_zod16.z.string().optional().describe("Style ID. Provide either styleId or styleName."),
+  styleName: import_zod16.z.string().optional().describe("Style name (case-insensitive substring match). Provide either styleId or styleName."),
+  styleType: import_zod16.z.preprocess((v) => typeof v === "string" ? v.toLowerCase() : v, import_zod16.z.enum(["fill", "stroke", "text", "effect"])).describe("Type of style: fill, stroke, text, or effect (case-insensitive)")
+});
+function registerMcpTools14(server2, sendCommand) {
+  server2.tool(
+    "get_styles",
+    "List local styles (paint, text, effect, grid). Returns IDs and names only.",
+    {},
+    async () => {
+      try {
+        return mcpJson(await sendCommand("get_styles"));
+      } catch (e) {
+        return mcpError("Error getting styles", e);
+      }
+    }
+  );
+  server2.tool(
+    "get_style_by_id",
+    "Get detailed style info by ID. Returns full paint/font/effect/grid details.",
+    { styleId: import_zod16.z.string().describe("Style ID") },
+    async ({ styleId }) => {
+      try {
+        return mcpJson(await sendCommand("get_style_by_id", { styleId }));
+      } catch (e) {
+        return mcpError("Error getting style", e);
+      }
+    }
+  );
+  server2.tool(
+    "remove_style",
+    "Delete a style by ID.",
+    { styleId: import_zod16.z.string().describe("Style ID to remove") },
+    async ({ styleId }) => {
+      try {
+        return mcpJson(await sendCommand("remove_style", { styleId }));
+      } catch (e) {
+        return mcpError("Error removing style", e);
+      }
+    }
+  );
+  server2.tool(
+    "create_paint_style",
+    "Create color/paint styles. Batch: pass multiple items.",
+    { items: flexJson(import_zod16.z.array(paintStyleItem)).describe("Array of {name, color}") },
+    async (params) => {
+      try {
+        return mcpJson(await sendCommand("create_paint_style", params));
+      } catch (e) {
+        return mcpError("Error creating paint style", e);
+      }
+    }
+  );
+  server2.tool(
+    "create_text_style",
+    "Create text styles. Batch: pass multiple items.",
+    { items: flexJson(import_zod16.z.array(textStyleItem)).describe("Array of text style definitions") },
+    async (params) => {
+      try {
+        return mcpJson(await sendCommand("create_text_style", params));
+      } catch (e) {
+        return mcpError("Error creating text style", e);
+      }
+    }
+  );
+  server2.tool(
+    "create_effect_style",
+    "Create effect styles (shadows, blurs). Batch: pass multiple items.",
+    { items: flexJson(import_zod16.z.array(effectStyleItem)).describe("Array of {name, effects}") },
+    async (params) => {
+      try {
+        return mcpJson(await sendCommand("create_effect_style", params));
+      } catch (e) {
+        return mcpError("Error creating effect style", e);
+      }
+    }
+  );
+  server2.tool(
+    "apply_style_to_node",
+    "Apply a style to nodes by ID or name. Use styleName for convenience (case-insensitive). Batch: pass multiple items.",
+    { items: flexJson(import_zod16.z.array(applyStyleItem)).describe("Array of {nodeId, styleId?, styleName?, styleType}"), depth },
+    async (params) => {
+      try {
+        return mcpJson(await sendCommand("apply_style_to_node", params));
+      } catch (e) {
+        return mcpError("Error applying style", e);
+      }
+    }
+  );
+}
+
+// src/tools/variables.ts
+var import_zod17 = require("zod");
+var collectionItem = import_zod17.z.object({
+  name: import_zod17.z.string().describe("Collection name")
+});
+var variableItem = import_zod17.z.object({
+  collectionId: import_zod17.z.string().describe("Variable collection ID"),
+  name: import_zod17.z.string().describe("Variable name"),
+  resolvedType: import_zod17.z.enum(["COLOR", "FLOAT", "STRING", "BOOLEAN"]).describe("Variable type")
+});
+var setValueItem = import_zod17.z.object({
+  variableId: import_zod17.z.string().describe("Variable ID (use full ID from create_variable response, e.g. VariableID:1:6)"),
+  modeId: import_zod17.z.string().describe("Mode ID"),
+  value: flexJson(import_zod17.z.union([
+    import_zod17.z.number(),
+    import_zod17.z.string(),
+    import_zod17.z.boolean(),
+    import_zod17.z.object({ r: import_zod17.z.coerce.number(), g: import_zod17.z.coerce.number(), b: import_zod17.z.coerce.number(), a: import_zod17.z.coerce.number().optional() })
+  ])).describe("Value: number, string, boolean, or {r,g,b,a} color")
+});
+var bindingItem = import_zod17.z.object({
+  nodeId: import_zod17.z.string().describe("Node ID"),
+  field: import_zod17.z.string().describe("Property field (e.g., 'opacity', 'fills/0/color')"),
+  variableId: import_zod17.z.string().describe("Variable ID (use full ID from create_variable response, e.g. VariableID:1:6)")
+});
+var addModeItem = import_zod17.z.object({
+  collectionId: import_zod17.z.string().describe("Collection ID"),
+  name: import_zod17.z.string().describe("Mode name")
+});
+var renameModeItem = import_zod17.z.object({
+  collectionId: import_zod17.z.string().describe("Collection ID"),
+  modeId: import_zod17.z.string().describe("Mode ID"),
+  name: import_zod17.z.string().describe("New name")
+});
+var removeModeItem = import_zod17.z.object({
+  collectionId: import_zod17.z.string().describe("Collection ID"),
+  modeId: import_zod17.z.string().describe("Mode ID")
+});
+var setExplicitModeItem = import_zod17.z.object({
+  nodeId,
+  collectionId: import_zod17.z.string().describe("Variable collection ID"),
+  modeId: import_zod17.z.string().describe("Mode ID to pin (e.g. Dark mode)")
+});
+function registerMcpTools15(server2, sendCommand) {
+  server2.tool(
+    "create_variable_collection",
+    "Create variable collections. Batch: pass multiple items.",
+    { items: flexJson(import_zod17.z.array(collectionItem)).describe("Array of {name}") },
+    async ({ items }) => {
+      try {
+        return mcpJson(await sendCommand("create_variable_collection", { items }));
+      } catch (e) {
+        return mcpError("Error creating variable collection", e);
+      }
+    }
+  );
+  server2.tool(
+    "create_variable",
+    "Create variables in a collection. Batch: pass multiple items.",
+    { items: flexJson(import_zod17.z.array(variableItem)).describe("Array of {collectionId, name, resolvedType}") },
+    async ({ items }) => {
+      try {
+        return mcpJson(await sendCommand("create_variable", { items }));
+      } catch (e) {
+        return mcpError("Error creating variable", e);
+      }
+    }
+  );
+  server2.tool(
+    "set_variable_value",
+    "Set variable values for modes. Batch: pass multiple items.",
+    { items: flexJson(import_zod17.z.array(setValueItem)).describe("Array of {variableId, modeId, value}") },
+    async ({ items }) => {
+      try {
+        return mcpJson(await sendCommand("set_variable_value", { items }));
+      } catch (e) {
+        return mcpError("Error setting variable value", e);
+      }
+    }
+  );
+  server2.tool(
+    "get_local_variables",
+    "List local variables. Pass includeValues:true to get all mode values in bulk (avoids N separate get_variable_by_id calls).",
+    {
+      type: import_zod17.z.enum(["COLOR", "FLOAT", "STRING", "BOOLEAN"]).optional().describe("Filter by type"),
+      collectionId: import_zod17.z.string().optional().describe("Filter by collection. Omit for all collections."),
+      includeValues: flexBool(import_zod17.z.boolean().optional()).describe("Include valuesByMode for each variable (default: false)")
+    },
+    async (params) => {
+      try {
+        return mcpJson(await sendCommand("get_local_variables", params));
+      } catch (e) {
+        return mcpError("Error getting variables", e);
+      }
+    }
+  );
+  server2.tool(
+    "get_local_variable_collections",
+    "List all local variable collections.",
+    {},
+    async () => {
+      try {
+        return mcpJson(await sendCommand("get_local_variable_collections"));
+      } catch (e) {
+        return mcpError("Error getting variable collections", e);
+      }
+    }
+  );
+  server2.tool(
+    "get_variable_by_id",
+    "Get detailed variable info including all mode values.",
+    { variableId: import_zod17.z.string().describe("Variable ID") },
+    async ({ variableId }) => {
+      try {
+        return mcpJson(await sendCommand("get_variable_by_id", { variableId }));
+      } catch (e) {
+        return mcpError("Error getting variable", e);
+      }
+    }
+  );
+  server2.tool(
+    "get_variable_collection_by_id",
+    "Get detailed variable collection info including modes and variable IDs.",
+    { collectionId: import_zod17.z.string().describe("Collection ID") },
+    async ({ collectionId }) => {
+      try {
+        return mcpJson(await sendCommand("get_variable_collection_by_id", { collectionId }));
+      } catch (e) {
+        return mcpError("Error getting variable collection", e);
+      }
+    }
+  );
+  server2.tool(
+    "set_variable_binding",
+    "Bind variables to node properties. Common fields: 'fills/0/color', 'strokes/0/color', 'opacity', 'topLeftRadius', 'itemSpacing'. Batch: pass multiple items.",
+    { items: flexJson(import_zod17.z.array(bindingItem)).describe("Array of {nodeId, field, variableId}") },
+    async ({ items }) => {
+      try {
+        return mcpJson(await sendCommand("set_variable_binding", { items }));
+      } catch (e) {
+        return mcpError("Error binding variable", e);
+      }
+    }
+  );
+  server2.tool(
+    "add_mode",
+    "Add modes to variable collections. Batch: pass multiple items.",
+    { items: flexJson(import_zod17.z.array(addModeItem)).describe("Array of {collectionId, name}") },
+    async ({ items }) => {
+      try {
+        return mcpJson(await sendCommand("add_mode", { items }));
+      } catch (e) {
+        return mcpError("Error adding mode", e);
+      }
+    }
+  );
+  server2.tool(
+    "rename_mode",
+    "Rename modes in variable collections. Batch: pass multiple items.",
+    { items: flexJson(import_zod17.z.array(renameModeItem)).describe("Array of {collectionId, modeId, name}") },
+    async ({ items }) => {
+      try {
+        return mcpJson(await sendCommand("rename_mode", { items }));
+      } catch (e) {
+        return mcpError("Error renaming mode", e);
+      }
+    }
+  );
+  server2.tool(
+    "remove_mode",
+    "Remove modes from variable collections. Batch: pass multiple items.",
+    { items: flexJson(import_zod17.z.array(removeModeItem)).describe("Array of {collectionId, modeId}") },
+    async ({ items }) => {
+      try {
+        return mcpJson(await sendCommand("remove_mode", { items }));
+      } catch (e) {
+        return mcpError("Error removing mode", e);
+      }
+    }
+  );
+  server2.tool(
+    "set_explicit_variable_mode",
+    "Pin a variable collection mode on a frame (e.g. show Dark mode). Batch: pass multiple items.",
+    { items: flexJson(import_zod17.z.array(setExplicitModeItem)).describe("Array of {nodeId, collectionId, modeId}") },
+    async ({ items }) => {
+      try {
+        return mcpJson(await sendCommand("set_explicit_variable_mode", { items }));
+      } catch (e) {
+        return mcpError("Error setting variable mode", e);
+      }
+    }
+  );
+  server2.tool(
+    "get_node_variables",
+    "Get variable bindings on a node. Returns which variables are bound to fills, strokes, opacity, corner radius, etc.",
+    { nodeId },
+    async ({ nodeId: nodeId2 }) => {
+      try {
+        return mcpJson(await sendCommand("get_node_variables", { nodeId: nodeId2 }));
+      } catch (e) {
+        return mcpError("Error getting node variables", e);
+      }
+    }
+  );
+}
+
+// src/tools/lint.ts
+var import_zod18 = require("zod");
+init_helpers();
+var lintRules = import_zod18.z.enum([
+  "no-autolayout",
+  // Frames with >1 child and no auto-layout
+  "shape-instead-of-frame",
+  // Shapes used where FRAME should be
+  "hardcoded-color",
+  // Fills/strokes not using styles
+  "no-text-style",
+  // Text nodes without text style
+  "fixed-in-autolayout",
+  // Fixed-size children in auto-layout parents
+  "default-name",
+  // Nodes with default/unnamed names
+  "empty-container",
+  // Frames/components with layout but no children
+  "stale-text-name",
+  // Text nodes where layer name diverges from content
+  "all"
+  // Run all rules
+]);
+function registerMcpTools16(server2, sendCommand) {
+  server2.tool(
+    "lint_node",
+    "Run design linter on a node tree. Returns issues grouped by category with affected node IDs and fix instructions. Lint child nodes individually for large trees.",
+    {
+      nodeId: import_zod18.z.string().optional().describe("Node ID to lint. Omit to lint current selection."),
+      rules: flexJson(import_zod18.z.array(lintRules).optional()).describe('Rules to run. Default: ["all"]. Options: no-autolayout, shape-instead-of-frame, hardcoded-color, no-text-style, fixed-in-autolayout, default-name, empty-container, stale-text-name, all'),
+      maxDepth: import_zod18.z.coerce.number().optional().describe("Max depth to recurse (default: 10)"),
+      maxFindings: import_zod18.z.coerce.number().optional().describe("Stop after N findings (default: 50)")
+    },
+    async (params) => {
+      try {
+        return mcpJson(await sendCommand("lint_node", params));
+      } catch (e) {
+        return mcpError("Error running lint", e);
+      }
+    }
+  );
+  server2.tool(
+    "lint_fix_autolayout",
+    "Auto-fix: convert frames with multiple children to auto-layout. Takes node IDs from lint_node 'no-autolayout' results.",
+    {
+      items: flexJson(import_zod18.z.array(import_zod18.z.object({
+        nodeId,
+        layoutMode: import_zod18.z.enum(["HORIZONTAL", "VERTICAL"]).optional().describe("Layout direction (default: auto-detect based on child positions)"),
+        itemSpacing: import_zod18.z.coerce.number().optional().describe("Spacing between children (default: 0)")
+      }))).describe("Array of frames to convert to auto-layout"),
+      depth
+    },
+    async (params) => {
+      try {
+        return mcpJson(await sendCommand("lint_fix_autolayout", params));
+      } catch (e) {
+        return mcpError("Error fixing auto-layout", e);
+      }
+    }
+  );
+  server2.tool(
+    "lint_fix_replace_shape_with_frame",
+    "Auto-fix: replace shapes with frames preserving visual properties. Overlapping siblings are re-parented into the new frame. Use after lint_node 'shape-instead-of-frame' results.",
+    {
+      items: flexJson(import_zod18.z.array(import_zod18.z.object({
+        nodeId,
+        adoptChildren: flexBool(import_zod18.z.boolean().optional()).describe("Re-parent overlapping siblings into the new frame (default: true)")
+      }))).describe("Array of shapes to convert to frames"),
+      depth
+    },
+    async (params) => {
+      try {
+        return mcpJson(await sendCommand("lint_fix_replace_shape_with_frame", params));
+      } catch (e) {
+        return mcpError("Error converting shapes to frames", e);
+      }
+    }
+  );
+}
+
+// src/tools/prompts.ts
+function registerPrompts(server2) {
+  server2.prompt(
+    "design_strategy",
+    "Best practices for working with Figma designs",
+    () => ({
+      messages: [{
+        role: "assistant",
+        content: {
+          type: "text",
+          text: `When working with Figma designs, follow these best practices:
+
+1. Understand Before Creating:
+   - Use get_document_info() to see pages and current page
+   - Use get_styles() and get_local_variables() to discover existing design tokens
+   - Plan layout hierarchy before creating elements
+
+2. Use Design Tokens \u2014 Never Hardcode:
+   - Colors: use fillStyleName/strokeStyleName (paint styles) or fillVariableId/strokeVariableId (variables)
+   - Text: use textStyleName to apply text styles that control font size, weight, and line height together
+   - Effects: use effectStyleName to apply shadow/blur styles
+   - Only use raw fillColor/fontColor for one-off values not in the design system
+
+3. Auto-Layout First:
+   - Use create_frame() with layoutMode: "VERTICAL" or "HORIZONTAL" for every container
+   - Set itemSpacing, padding, and alignment at creation time
+   - Use layoutSizingHorizontal/Vertical: "FILL" for responsive children
+   - Avoid absolute positioning \u2014 let auto-layout handle spacing
+
+4. Naming Conventions:
    - Use descriptive, semantic names for all elements
-   - Follow a consistent naming pattern (e.g., "Login Screen", "Logo Container", "Email Input")
-   - Group related elements with meaningful names
+   - Name components with Property=Value pattern (e.g. "Size=Small") before combine_as_variants
 
-3. Layout Hierarchy:
-   - Create parent frames first, then add child elements
-   - For forms/login screens:
-     * Start with the main screen container frame
-     * Create a logo container at the top
-     * Group input fields in their own containers
-     * Place action buttons (login, submit) after inputs
-     * Add secondary elements (forgot password, signup links) last
+5. Variable Modes:
+   - Use set_explicit_variable_mode() to pin a frame to a specific mode (e.g. Dark)
+   - Use get_node_variables() to verify which variables are bound to a node
 
-4. Input Fields Structure:
-   - Create a container frame for each input field
-   - Include a label text above or inside the input
-   - Group related inputs (e.g., username/password) together
-
-5. Element Creation:
-   - Use create_frame() for containers and input fields
-   - Use create_text() for labels, buttons text, and links
-   - Set appropriate colors and styles:
-     * Use fillColor for backgrounds
-     * Use strokeColor for borders
-     * Set proper fontWeight for different text elements
-
-6. Mofifying existing elements:
-  - use set_text_content() to modify text content.
-
-7. Visual Hierarchy:
-   - Position elements in logical reading order (top to bottom)
-   - Maintain consistent spacing between elements
-   - Use appropriate font sizes for different text types:
-     * Larger for headings/welcome text
-     * Medium for input labels
-     * Standard for button text
-     * Smaller for helper text/links
-
-8. Best Practices:
-   - Verify each creation with get_node_info()
-   - Use parentId to maintain proper hierarchy
-   - Group related elements together in frames
-   - Keep consistent spacing and alignment
-
-Example Login Screen Structure:
-- Login Screen (main frame)
-  - Logo Container (frame)
-    - Logo (image/text)
-  - Welcome Text (text)
-  - Input Container (frame)
-    - Email Input (frame)
-      - Email Label (text)
-      - Email Field (frame)
-    - Password Input (frame)
-      - Password Label (text)
-      - Password Field (frame)
-  - Login Button (frame)
-    - Button Text (text)
-  - Helper Links (frame)
-    - Forgot Password (text)
-    - Don't have account (text)`
-          }
+6. Quality Check \u2014 Run Lint:
+   - After building a section, run lint_node() to catch common issues:
+     * hardcoded-color: fills/strokes not using styles or variables
+     * no-text-style: text without a text style applied
+     * no-autolayout: frames with children but no auto-layout
+     * default-name: nodes still named "Frame", "Rectangle", etc.
+   - Use lint_fix_autolayout() and lint_fix_replace_shape_with_frame() to auto-fix
+   - Lint early and often \u2014 it is cheaper to fix issues during creation than after`
         }
-      ],
+      }],
       description: "Best practices for working with Figma designs"
-    };
-  }
-);
-server.prompt(
-  "read_design_strategy",
-  "Best practices for reading Figma designs",
-  (extra) => {
-    return {
-      messages: [
-        {
-          role: "assistant",
-          content: {
-            type: "text",
-            text: `When reading Figma designs, follow these best practices:
+    })
+  );
+  server2.prompt(
+    "read_design_strategy",
+    "Best practices for reading Figma designs",
+    () => ({
+      messages: [{
+        role: "assistant",
+        content: {
+          type: "text",
+          text: `When reading Figma designs, follow these best practices:
 
 1. Start with selection:
    - First use read_my_design() to understand the current selection
    - If no selection ask user to select single or multiple nodes
 `
-          }
         }
-      ],
+      }],
       description: "Best practices for reading Figma designs"
-    };
-  }
-);
-server.tool(
-  "scan_text_nodes",
-  "Scan all text nodes in the selected Figma node",
-  {
-    nodeId: import_zod.z.string().describe("ID of the node to scan")
-  },
-  async ({ nodeId }) => {
-    try {
-      const initialStatus = {
-        type: "text",
-        text: "Starting text node scanning. This may take a moment for large designs..."
-      };
-      const result = await sendCommandToFigma("scan_text_nodes", {
-        nodeId,
-        useChunking: true,
-        // Enable chunking on the plugin side
-        chunkSize: 10
-        // Process 10 nodes at a time
-      });
-      if (result && typeof result === "object" && "chunks" in result) {
-        const typedResult = result;
-        const summaryText = `
-        Scan completed:
-        - Found ${typedResult.totalNodes} text nodes
-        - Processed in ${typedResult.chunks} chunks
-        `;
-        return {
-          content: [
-            initialStatus,
-            {
-              type: "text",
-              text: summaryText
-            },
-            {
-              type: "text",
-              text: JSON.stringify(typedResult.textNodes, null, 2)
-            }
-          ]
-        };
-      }
-      return {
-        content: [
-          initialStatus,
-          {
-            type: "text",
-            text: JSON.stringify(result, null, 2)
-          }
-        ]
-      };
-    } catch (error) {
-      return {
-        content: [
-          {
-            type: "text",
-            text: `Error scanning text nodes: ${error instanceof Error ? error.message : String(error)}`
-          }
-        ]
-      };
-    }
-  }
-);
-server.prompt(
-  "text_replacement_strategy",
-  "Systematic approach for replacing text in Figma designs",
-  (extra) => {
-    return {
-      messages: [
-        {
-          role: "assistant",
-          content: {
-            type: "text",
-            text: `# Intelligent Text Replacement Strategy
+    })
+  );
+  server2.prompt(
+    "text_replacement_strategy",
+    "Systematic approach for replacing text in Figma designs",
+    () => ({
+      messages: [{
+        role: "assistant",
+        content: {
+          type: "text",
+          text: `# Intelligent Text Replacement Strategy
 
 ## 1. Analyze Design & Identify Structure
 - Scan text nodes to understand the overall structure of the design
@@ -1196,9 +1701,8 @@ get_node_info(nodeId: "node-id")  // optional
 clone_node(nodeId: "selected-node-id", x: [new-x], y: [new-y])
 
 // Replace text chunk by chunk
-set_multiple_text_contents(
-  nodeId: "parent-node-id", 
-  text: [
+set_text_content(
+  items: [
     { nodeId: "node-id-1", text: "New text 1" },
     // More nodes in this chunk...
   ]
@@ -1275,558 +1779,90 @@ export_node_as_image(nodeId: "chunk-node-id", format: "PNG", scale: 0.5)
 - **Respect Content Relationships**: Keep related content consistent across chunks
 
 Remember that text is never just text\u2014it's a core design element that must work harmoniously with the overall composition. This chunk-based strategy allows you to methodically transform text while maintaining design integrity.`
-          }
         }
-      ],
+      }],
       description: "Systematic approach for replacing text in Figma designs"
-    };
-  }
-);
-server.tool(
-  "set_multiple_text_contents",
-  "Set multiple text contents parallelly in a node",
-  {
-    nodeId: import_zod.z.string().describe("The ID of the node containing the text nodes to replace"),
-    text: flexJson(
-      import_zod.z.array(
-        import_zod.z.object({
-          nodeId: import_zod.z.string().describe("The ID of the text node"),
-          text: import_zod.z.string().describe("The replacement text")
-        })
-      )
-    ).describe('Array of {nodeId, text} pairs. Example: [{"nodeId":"1:2","text":"Hello"}]')
-  },
-  async ({ nodeId, text }) => {
-    try {
-      if (!text || text.length === 0) {
-        return {
-          content: [
-            {
-              type: "text",
-              text: "No text provided"
-            }
-          ]
-        };
-      }
-      const initialStatus = {
-        type: "text",
-        text: `Starting text replacement for ${text.length} nodes. This will be processed in batches of 5...`
-      };
-      let totalProcessed = 0;
-      const totalToProcess = text.length;
-      const result = await sendCommandToFigma("set_multiple_text_contents", {
-        nodeId,
-        text
-      });
-      const typedResult = result;
-      const success = typedResult.replacementsApplied && typedResult.replacementsApplied > 0;
-      const progressText = `
-      Text replacement completed:
-      - ${typedResult.replacementsApplied || 0} of ${totalToProcess} successfully updated
-      - ${typedResult.replacementsFailed || 0} failed
-      - Processed in ${typedResult.completedInChunks || 1} batches
-      `;
-      const detailedResults = typedResult.results || [];
-      const failedResults = detailedResults.filter((item) => !item.success);
-      let detailedResponse = "";
-      if (failedResults.length > 0) {
-        detailedResponse = `
-
-Nodes that failed:
-${failedResults.map(
-          (item) => `- ${item.nodeId}: ${item.error || "Unknown error"}`
-        ).join("\n")}`;
-      }
-      return {
-        content: [
-          initialStatus,
-          {
-            type: "text",
-            text: progressText + detailedResponse
-          }
-        ]
-      };
-    } catch (error) {
-      return {
-        content: [
-          {
-            type: "text",
-            text: `Error setting multiple text contents: ${error instanceof Error ? error.message : String(error)}`
-          }
-        ]
-      };
-    }
-  }
-);
-server.prompt(
-  "annotation_conversion_strategy",
-  "Strategy for converting manual annotations to Figma's native annotations",
-  (extra) => {
-    return {
-      messages: [
-        {
-          role: "assistant",
-          content: {
-            type: "text",
-            text: `# Automatic Annotation Conversion
-            
-## Process Overview
-
-The process of converting manual annotations (numbered/alphabetical indicators with connected descriptions) to Figma's native annotations:
-
-1. Get selected frame/component information
-2. Scan and collect all annotation text nodes
-3. Scan target UI elements (components, instances, frames)
-4. Match annotations to appropriate UI elements
-5. Apply native Figma annotations
-
-## Step 1: Get Selection and Initial Setup
-
-First, get the selected frame or component that contains annotations:
-
-\`\`\`typescript
-// Get the selected frame/component
-const selection = await get_selection();
-const selectedNodeId = selection[0].id
-
-// Get available annotation categories for later use
-const annotationData = await get_annotations({
-  nodeId: selectedNodeId,
-  includeCategories: true
-});
-const categories = annotationData.categories;
-\`\`\`
-
-## Step 2: Scan Annotation Text Nodes
-
-Scan all text nodes to identify annotations and their descriptions:
-
-\`\`\`typescript
-// Get all text nodes in the selection
-const textNodes = await scan_text_nodes({
-  nodeId: selectedNodeId
-});
-
-// Filter and group annotation markers and descriptions
-
-// Markers typically have these characteristics:
-// - Short text content (usually single digit/letter)
-// - Specific font styles (often bold)
-// - Located in a container with "Marker" or "Dot" in the name
-// - Have a clear naming pattern (e.g., "1", "2", "3" or "A", "B", "C")
-
-
-// Identify description nodes
-// Usually longer text nodes near markers or with matching numbers in path
-  
-\`\`\`
-
-## Step 3: Scan Target UI Elements
-
-Get all potential target elements that annotations might refer to:
-
-\`\`\`typescript
-// Scan for all UI elements that could be annotation targets
-const targetNodes = await scan_nodes_by_types({
-  nodeId: selectedNodeId,
-  types: [
-    "COMPONENT",
-    "INSTANCE",
-    "FRAME"
-  ]
-});
-\`\`\`
-
-## Step 4: Match Annotations to Targets
-
-Match each annotation to its target UI element using these strategies in order of priority:
-
-1. **Path-Based Matching**:
-   - Look at the marker's parent container name in the Figma layer hierarchy
-   - Remove any "Marker:" or "Annotation:" prefixes from the parent name
-   - Find UI elements that share the same parent name or have it in their path
-   - This works well when markers are grouped with their target elements
-
-2. **Name-Based Matching**:
-   - Extract key terms from the annotation description
-   - Look for UI elements whose names contain these key terms
-   - Consider both exact matches and semantic similarities
-   - Particularly effective for form fields, buttons, and labeled components
-
-3. **Proximity-Based Matching** (fallback):
-   - Calculate the center point of the marker
-   - Find the closest UI element by measuring distances to element centers
-   - Consider the marker's position relative to nearby elements
-   - Use this method when other matching strategies fail
-
-Additional Matching Considerations:
-- Give higher priority to matches found through path-based matching
-- Consider the type of UI element when evaluating matches
-- Take into account the annotation's context and content
-- Use a combination of strategies for more accurate matching
-
-## Step 5: Apply Native Annotations
-
-Convert matched annotations to Figma's native annotations using batch processing:
-
-\`\`\`typescript
-// Prepare annotations array for batch processing
-const annotationsToApply = Object.values(annotations).map(({ marker, description }) => {
-  // Find target using multiple strategies
-  const target = 
-    findTargetByPath(marker, targetNodes) ||
-    findTargetByName(description, targetNodes) ||
-    findTargetByProximity(marker, targetNodes);
-  
-  if (target) {
-    // Determine appropriate category based on content
-    const category = determineCategory(description.characters, categories);
-
-    // Determine appropriate additional annotationProperty based on content
-    const annotationProperty = determineProperties(description.characters, target.type);
-    
-    return {
-      nodeId: target.id,
-      labelMarkdown: description.characters,
-      categoryId: category.id,
-      properties: annotationProperty
-    };
-  }
-  return null;
-}).filter(Boolean); // Remove null entries
-
-// Apply annotations in batches using set_multiple_annotations
-if (annotationsToApply.length > 0) {
-  await set_multiple_annotations({
-    nodeId: selectedNodeId,
-    annotations: annotationsToApply
-  });
-}
-\`\`\`
-
-
-This strategy focuses on practical implementation based on real-world usage patterns, emphasizing the importance of handling various UI elements as annotation targets, not just text nodes.`
-          }
-        }
-      ],
-      description: "Strategy for converting manual annotations to Figma's native annotations"
-    };
-  }
-);
-server.prompt(
-  "swap_overrides_instances",
-  "Guide to swap instance overrides between instances",
-  (extra) => {
-    return {
-      messages: [
-        {
-          role: "assistant",
-          content: {
-            type: "text",
-            text: `# Swap Component Instance and Override Strategy
+    })
+  );
+  server2.prompt(
+    "swap_overrides_instances",
+    "Guide to swap instance overrides between instances",
+    () => ({
+      messages: [{
+        role: "assistant",
+        content: {
+          type: "text",
+          text: `# Swap Component Instance Overrides
 
 ## Overview
-This strategy enables transferring content and property overrides from a source instance to one or more target instances in Figma, maintaining design consistency while reducing manual work.
+Transfer content overrides from a source instance to target instances.
 
-## Step-by-Step Process
+## Process
 
-### 1. Selection Analysis
-- Use \`get_selection()\` to identify the parent component or selected instances
-- For parent components, scan for instances with \`scan_nodes_by_types({ nodeId: "parent-id", types: ["INSTANCE"] })\`
-- Identify custom slots by name patterns (e.g. "Custom Slot*" or "Instance Slot") or by examining text content
-- Determine which is the source instance (with content to copy) and which are targets (where to apply content)
+### 1. Identify Instances
+- Use \`get_selection()\` to identify selected instances
+- Use \`search_nodes(types: ["INSTANCE"])\` to find instances on the page
 
 ### 2. Extract Source Overrides
-- Use \`get_instance_overrides()\` to extract customizations from the source instance
-- This captures text content, property values, and style overrides
-- Command syntax: \`get_instance_overrides({ nodeId: "source-instance-id" })\`
-- Look for successful response like "Got component information from [instance name]"
+- \`get_instance_overrides(nodeId: "source-instance-id")\`
+- Returns mainComponentId and per-child override fields (characters, fills, fontSize, etc.)
 
-### 3. Apply Overrides to Targets
-- Apply captured overrides using \`set_instance_overrides()\`
-- Command syntax:
-  \`\`\`
-  set_instance_overrides({
-    sourceInstanceId: "source-instance-id", 
-    targetNodeIds: ["target-id-1", "target-id-2", ...]
-  })
-  \`\`\`
+### 3. Apply to Targets
+- For text overrides: use \`set_text_content\` on matching child node IDs
+- For style overrides: use \`set_fill_color\`, \`apply_style_to_node\`, etc.
+- Match children by name path \u2014 source and target instances share the same internal structure
 
-### 4. Verification
-- Verify results with \`get_node_info()\` or \`read_my_design()\`
-- Confirm text content and style overrides have transferred successfully
-
-## Key Tips
-- Always join the appropriate channel first with \`join_channel()\`
-- When working with multiple targets, check the full selection with \`get_selection()\`
-- Preserve component relationships by using instance overrides rather than direct text manipulation`
-          }
+### 4. Verify
+- \`get_node_info(nodeId, depth: 1)\` on target instances
+- \`export_node_as_image\` for visual verification`
         }
-      ],
+      }],
       description: "Strategy for transferring overrides between component instances in Figma"
-    };
-  }
-);
-server.tool(
-  "set_layout_mode",
-  "Set the layout mode and wrap behavior of a frame in Figma",
-  {
-    nodeId: import_zod.z.string().describe("The ID of the frame to modify"),
-    layoutMode: import_zod.z.enum(["NONE", "HORIZONTAL", "VERTICAL"]).describe("Layout mode for the frame"),
-    layoutWrap: import_zod.z.enum(["NO_WRAP", "WRAP"]).optional().describe("Wrap behavior (default: NO_WRAP)")
-  },
-  async ({ nodeId, layoutMode, layoutWrap }) => {
-    try {
-      const result = await sendCommandToFigma("set_layout_mode", {
-        nodeId,
-        layoutMode,
-        layoutWrap
-      });
-      const typedResult = result;
-      return {
-        content: [
-          {
-            type: "text",
-            text: `Set layout mode of frame "${typedResult.name}" to ${layoutMode}${layoutWrap ? ` with ${layoutWrap}` : ""}`
-          }
-        ]
-      };
-    } catch (error) {
-      return {
-        content: [
-          {
-            type: "text",
-            text: `Error setting layout mode: ${error instanceof Error ? error.message : String(error)}`
-          }
-        ]
-      };
-    }
-  }
-);
-server.tool(
-  "set_padding",
-  "Set padding values for an auto-layout frame in Figma",
-  {
-    nodeId: import_zod.z.string().describe("The ID of the frame to modify"),
-    paddingTop: import_zod.z.coerce.number().optional().describe("Top padding value"),
-    paddingRight: import_zod.z.coerce.number().optional().describe("Right padding value"),
-    paddingBottom: import_zod.z.coerce.number().optional().describe("Bottom padding value"),
-    paddingLeft: import_zod.z.coerce.number().optional().describe("Left padding value")
-  },
-  async ({ nodeId, paddingTop, paddingRight, paddingBottom, paddingLeft }) => {
-    try {
-      const result = await sendCommandToFigma("set_padding", {
-        nodeId,
-        paddingTop,
-        paddingRight,
-        paddingBottom,
-        paddingLeft
-      });
-      const typedResult = result;
-      const paddingMessages = [];
-      if (paddingTop !== void 0) paddingMessages.push(`top: ${paddingTop}`);
-      if (paddingRight !== void 0) paddingMessages.push(`right: ${paddingRight}`);
-      if (paddingBottom !== void 0) paddingMessages.push(`bottom: ${paddingBottom}`);
-      if (paddingLeft !== void 0) paddingMessages.push(`left: ${paddingLeft}`);
-      const paddingText = paddingMessages.length > 0 ? `padding (${paddingMessages.join(", ")})` : "padding";
-      return {
-        content: [
-          {
-            type: "text",
-            text: `Set ${paddingText} for frame "${typedResult.name}"`
-          }
-        ]
-      };
-    } catch (error) {
-      return {
-        content: [
-          {
-            type: "text",
-            text: `Error setting padding: ${error instanceof Error ? error.message : String(error)}`
-          }
-        ]
-      };
-    }
-  }
-);
-server.tool(
-  "set_axis_align",
-  "Set primary and counter axis alignment for an auto-layout frame in Figma",
-  {
-    nodeId: import_zod.z.string().describe("The ID of the frame to modify"),
-    primaryAxisAlignItems: import_zod.z.enum(["MIN", "MAX", "CENTER", "SPACE_BETWEEN"]).optional().describe("Primary axis alignment (MIN/MAX = left/right in horizontal, top/bottom in vertical). Note: When set to SPACE_BETWEEN, itemSpacing will be ignored as children will be evenly spaced."),
-    counterAxisAlignItems: import_zod.z.enum(["MIN", "MAX", "CENTER", "BASELINE"]).optional().describe("Counter axis alignment (MIN/MAX = top/bottom in horizontal, left/right in vertical)")
-  },
-  async ({ nodeId, primaryAxisAlignItems, counterAxisAlignItems }) => {
-    try {
-      const result = await sendCommandToFigma("set_axis_align", {
-        nodeId,
-        primaryAxisAlignItems,
-        counterAxisAlignItems
-      });
-      const typedResult = result;
-      const alignMessages = [];
-      if (primaryAxisAlignItems !== void 0) alignMessages.push(`primary: ${primaryAxisAlignItems}`);
-      if (counterAxisAlignItems !== void 0) alignMessages.push(`counter: ${counterAxisAlignItems}`);
-      const alignText = alignMessages.length > 0 ? `axis alignment (${alignMessages.join(", ")})` : "axis alignment";
-      return {
-        content: [
-          {
-            type: "text",
-            text: `Set ${alignText} for frame "${typedResult.name}"`
-          }
-        ]
-      };
-    } catch (error) {
-      return {
-        content: [
-          {
-            type: "text",
-            text: `Error setting axis alignment: ${error instanceof Error ? error.message : String(error)}`
-          }
-        ]
-      };
-    }
-  }
-);
-server.tool(
-  "set_layout_sizing",
-  "Set horizontal and vertical sizing modes for auto-layout containers (frames, components, instances) or their children (including TEXT nodes)",
-  {
-    nodeId: import_zod.z.string().describe("The ID of the node to modify"),
-    layoutSizingHorizontal: import_zod.z.enum(["FIXED", "HUG", "FILL"]).optional().describe("Horizontal sizing mode (HUG for frames/text only, FILL for auto-layout children only)"),
-    layoutSizingVertical: import_zod.z.enum(["FIXED", "HUG", "FILL"]).optional().describe("Vertical sizing mode (HUG for frames/text only, FILL for auto-layout children only)")
-  },
-  async ({ nodeId, layoutSizingHorizontal, layoutSizingVertical }) => {
-    try {
-      const result = await sendCommandToFigma("set_layout_sizing", {
-        nodeId,
-        layoutSizingHorizontal,
-        layoutSizingVertical
-      });
-      const typedResult = result;
-      const sizingMessages = [];
-      if (layoutSizingHorizontal !== void 0) sizingMessages.push(`horizontal: ${layoutSizingHorizontal}`);
-      if (layoutSizingVertical !== void 0) sizingMessages.push(`vertical: ${layoutSizingVertical}`);
-      const sizingText = sizingMessages.length > 0 ? `layout sizing (${sizingMessages.join(", ")})` : "layout sizing";
-      return {
-        content: [
-          {
-            type: "text",
-            text: `Set ${sizingText} for frame "${typedResult.name}"`
-          }
-        ]
-      };
-    } catch (error) {
-      return {
-        content: [
-          {
-            type: "text",
-            text: `Error setting layout sizing: ${error instanceof Error ? error.message : String(error)}`
-          }
-        ]
-      };
-    }
-  }
-);
-server.tool(
-  "set_item_spacing",
-  "Set distance between children in an auto-layout frame. Provide at least one of itemSpacing or counterAxisSpacing.",
-  {
-    nodeId: import_zod.z.string().describe("The ID of the frame to modify"),
-    itemSpacing: import_zod.z.coerce.number().optional().describe("Distance between children. Note: This value will be ignored if primaryAxisAlignItems is set to SPACE_BETWEEN."),
-    counterAxisSpacing: import_zod.z.coerce.number().optional().describe("Distance between wrapped rows/columns. Only works when layoutWrap is set to WRAP.")
-  },
-  async ({ nodeId, itemSpacing, counterAxisSpacing }) => {
-    try {
-      const params = { nodeId };
-      if (itemSpacing !== void 0) params.itemSpacing = itemSpacing;
-      if (counterAxisSpacing !== void 0) params.counterAxisSpacing = counterAxisSpacing;
-      const result = await sendCommandToFigma("set_item_spacing", params);
-      const typedResult = result;
-      let message = `Updated spacing for frame "${typedResult.name}":`;
-      if (itemSpacing !== void 0) message += ` itemSpacing=${itemSpacing}`;
-      if (counterAxisSpacing !== void 0) message += ` counterAxisSpacing=${counterAxisSpacing}`;
-      return {
-        content: [
-          {
-            type: "text",
-            text: message
-          }
-        ]
-      };
-    } catch (error) {
-      return {
-        content: [
-          {
-            type: "text",
-            text: `Error setting spacing: ${error instanceof Error ? error.message : String(error)}`
-          }
-        ]
-      };
-    }
-  }
-);
-server.tool(
-  "set_focus",
-  "Set focus on a specific node in Figma by selecting it and scrolling viewport to it",
-  {
-    nodeId: import_zod.z.string().describe("The ID of the node to focus on")
-  },
-  async ({ nodeId }) => {
-    try {
-      const result = await sendCommandToFigma("set_focus", { nodeId });
-      const typedResult = result;
-      return {
-        content: [
-          {
-            type: "text",
-            text: `Focused on node "${typedResult.name}" (ID: ${typedResult.id})`
-          }
-        ]
-      };
-    } catch (error) {
-      return {
-        content: [
-          {
-            type: "text",
-            text: `Error setting focus: ${error instanceof Error ? error.message : String(error)}`
-          }
-        ]
-      };
-    }
-  }
-);
-server.tool(
-  "set_selections",
-  "Set selection to multiple nodes in Figma and scroll viewport to show them",
-  {
-    nodeIds: flexJson(import_zod.z.array(import_zod.z.string())).describe('Array of node IDs to select. Example: ["1:2","1:3"]')
-  },
-  async ({ nodeIds }) => {
-    try {
-      const result = await sendCommandToFigma("set_selections", { nodeIds });
-      const typedResult = result;
-      return {
-        content: [
-          {
-            type: "text",
-            text: `Selected ${typedResult.count} nodes: ${typedResult.selectedNodes.map((node) => `"${node.name}" (${node.id})`).join(", ")}`
-          }
-        ]
-      };
-    } catch (error) {
-      return {
-        content: [
-          {
-            type: "text",
-            text: `Error setting selections: ${error instanceof Error ? error.message : String(error)}`
-          }
-        ]
-      };
-    }
-  }
-);
+    })
+  );
+}
+
+// src/tools/mcp-registry.ts
+function registerAllTools(server2, sendCommand) {
+  registerMcpTools(server2, sendCommand);
+  registerMcpTools2(server2, sendCommand);
+  registerMcpTools3(server2, sendCommand);
+  registerMcpTools4(server2, sendCommand);
+  registerMcpTools5(server2, sendCommand);
+  registerMcpTools6(server2, sendCommand);
+  registerMcpTools7(server2, sendCommand);
+  registerMcpTools8(server2, sendCommand);
+  registerMcpTools9(server2, sendCommand);
+  registerMcpTools10(server2, sendCommand);
+  registerMcpTools11(server2, sendCommand);
+  registerMcpTools12(server2, sendCommand);
+  registerMcpTools13(server2, sendCommand);
+  registerMcpTools14(server2, sendCommand);
+  registerMcpTools15(server2, sendCommand);
+  registerMcpTools16(server2, sendCommand);
+  registerPrompts(server2);
+}
+
+// src/talk_to_figma_mcp/server.ts
+var logger = {
+  info: (msg) => process.stderr.write(`[INFO] ${msg}
+`),
+  debug: (msg) => process.stderr.write(`[DEBUG] ${msg}
+`),
+  warn: (msg) => process.stderr.write(`[WARN] ${msg}
+`),
+  error: (msg) => process.stderr.write(`[ERROR] ${msg}
+`),
+  log: (msg) => process.stderr.write(`[LOG] ${msg}
+`)
+};
+var ws = null;
+var pendingRequests = /* @__PURE__ */ new Map();
+var currentChannel = null;
+var args = process.argv.slice(2);
+var serverArg = args.find((a) => a.startsWith("--server="));
+var serverUrl = serverArg ? serverArg.split("=")[1] : "localhost";
+var WS_URL = serverUrl === "localhost" ? `ws://${serverUrl}` : `wss://${serverUrl}`;
 function connectToFigma(port = 3055) {
   if (ws && ws.readyState === import_ws.default.OPEN) {
     logger.info("Already connected to Figma");
@@ -1865,7 +1901,6 @@ function connectToFigma(port = 3055) {
       }
       const myResponse = json.message;
       logger.debug(`Received message: ${JSON.stringify(myResponse)}`);
-      logger.log("myResponse" + JSON.stringify(myResponse));
       if (myResponse.id && pendingRequests.has(myResponse.id) && myResponse.result) {
         const request = pendingRequests.get(myResponse.id);
         clearTimeout(request.timeout);
@@ -1873,9 +1908,7 @@ function connectToFigma(port = 3055) {
           logger.error(`Error from Figma: ${myResponse.error}`);
           request.reject(new Error(myResponse.error));
         } else {
-          if (myResponse.result) {
-            request.resolve(myResponse.result);
-          }
+          request.resolve(myResponse.result);
         }
         pendingRequests.delete(myResponse.id);
       } else {
@@ -1922,7 +1955,7 @@ function sendCommandToFigma(command, params = {}, timeoutMs = 3e4) {
     }
     const requiresChannel = command !== "join";
     if (requiresChannel && !currentChannel) {
-      reject(new Error("Must join a channel before sending commands"));
+      reject(new Error("No channel joined. Call join_channel first with the channel name shown in the Figma plugin panel."));
       return;
     }
     const id = (0, import_uuid.v4)();
@@ -1936,7 +1969,6 @@ function sendCommandToFigma(command, params = {}, timeoutMs = 3e4) {
         params: {
           ...params,
           commandId: id
-          // Include the command ID in params
         }
       }
     };
@@ -1947,913 +1979,42 @@ function sendCommandToFigma(command, params = {}, timeoutMs = 3e4) {
         reject(new Error("Request to Figma timed out"));
       }
     }, timeoutMs);
-    pendingRequests.set(id, {
-      resolve,
-      reject,
-      timeout,
-      lastActivity: Date.now()
-    });
+    pendingRequests.set(id, { resolve, reject, timeout, lastActivity: Date.now() });
     logger.info(`Sending command to Figma: ${command}`);
     logger.debug(`Request details: ${JSON.stringify(request)}`);
     ws.send(JSON.stringify(request));
   });
 }
-server.tool(
-  "create_component",
-  "Create a new component in Figma. Default: transparent fill, no stroke, no auto-layout. Same layout params as create_frame.",
-  {
-    name: import_zod.z.string().describe("Name for the component"),
-    x: import_zod.z.coerce.number().optional().describe("X position (default: 0)"),
-    y: import_zod.z.coerce.number().optional().describe("Y position (default: 0)"),
-    width: import_zod.z.coerce.number().optional().describe("Width (default: 100)"),
-    height: import_zod.z.coerce.number().optional().describe("Height (default: 100)"),
-    parentId: import_zod.z.string().optional().describe("Parent node ID to append into"),
-    fillColor: flexJson(import_zod.z.object({
-      r: import_zod.z.coerce.number().min(0).max(1),
-      g: import_zod.z.coerce.number().min(0).max(1),
-      b: import_zod.z.coerce.number().min(0).max(1),
-      a: import_zod.z.coerce.number().min(0).max(1).optional()
-    }).optional()).describe('Fill color RGBA (0-1 each). Default: transparent. Example: {"r":1,"g":1,"b":1} for white'),
-    strokeColor: flexJson(import_zod.z.object({
-      r: import_zod.z.coerce.number().min(0).max(1),
-      g: import_zod.z.coerce.number().min(0).max(1),
-      b: import_zod.z.coerce.number().min(0).max(1),
-      a: import_zod.z.coerce.number().min(0).max(1).optional()
-    }).optional()).describe('Stroke color RGBA (0-1 each). Default: no stroke. Example: {"r":0,"g":0,"b":0}'),
-    strokeWeight: import_zod.z.coerce.number().positive().optional().describe("Stroke weight. Only applied if strokeColor is set."),
-    cornerRadius: import_zod.z.coerce.number().optional().describe("Corner radius"),
-    layoutMode: import_zod.z.enum(["NONE", "HORIZONTAL", "VERTICAL"]).optional().describe("Auto-layout direction (default: NONE)"),
-    layoutWrap: import_zod.z.enum(["NO_WRAP", "WRAP"]).optional().describe("Wrap children (default: NO_WRAP)"),
-    paddingTop: import_zod.z.coerce.number().optional().describe("Top padding (default: 0)"),
-    paddingRight: import_zod.z.coerce.number().optional().describe("Right padding (default: 0)"),
-    paddingBottom: import_zod.z.coerce.number().optional().describe("Bottom padding (default: 0)"),
-    paddingLeft: import_zod.z.coerce.number().optional().describe("Left padding (default: 0)"),
-    primaryAxisAlignItems: import_zod.z.enum(["MIN", "MAX", "CENTER", "SPACE_BETWEEN"]).optional().describe("Primary axis alignment (default: MIN)"),
-    counterAxisAlignItems: import_zod.z.enum(["MIN", "MAX", "CENTER", "BASELINE"]).optional().describe("Counter axis alignment (default: MIN)"),
-    layoutSizingHorizontal: import_zod.z.enum(["FIXED", "HUG", "FILL"]).optional().describe("Horizontal sizing (default: FIXED)"),
-    layoutSizingVertical: import_zod.z.enum(["FIXED", "HUG", "FILL"]).optional().describe("Vertical sizing (default: FIXED)"),
-    itemSpacing: import_zod.z.coerce.number().optional().describe("Spacing between children (default: 0)")
-  },
-  async ({ name, x, y, width, height, parentId, fillColor, strokeColor, strokeWeight, cornerRadius, layoutMode, layoutWrap, paddingTop, paddingRight, paddingBottom, paddingLeft, primaryAxisAlignItems, counterAxisAlignItems, layoutSizingHorizontal, layoutSizingVertical, itemSpacing }) => {
-    try {
-      const result = await sendCommandToFigma("create_component", { name, x, y, width, height, parentId, fillColor, strokeColor, strokeWeight, cornerRadius, layoutMode, layoutWrap, paddingTop, paddingRight, paddingBottom, paddingLeft, primaryAxisAlignItems, counterAxisAlignItems, layoutSizingHorizontal, layoutSizingVertical, itemSpacing });
-      return { content: [{ type: "text", text: JSON.stringify(result) }] };
-    } catch (error) {
-      return { content: [{ type: "text", text: `Error creating component: ${error instanceof Error ? error.message : String(error)}` }] };
-    }
-  }
-);
-server.tool(
-  "create_component_from_node",
-  "Convert an existing node into a component",
-  {
-    nodeId: import_zod.z.string().describe("The ID of the node to convert to a component")
-  },
-  async ({ nodeId }) => {
-    try {
-      const result = await sendCommandToFigma("create_component_from_node", { nodeId });
-      return { content: [{ type: "text", text: JSON.stringify(result) }] };
-    } catch (error) {
-      return { content: [{ type: "text", text: `Error creating component from node: ${error instanceof Error ? error.message : String(error)}` }] };
-    }
-  }
-);
-server.tool(
-  "combine_as_variants",
-  "Combine multiple components into a variant set",
-  {
-    componentIds: flexJson(import_zod.z.array(import_zod.z.string())).describe('Array of component node IDs to combine. Example: ["1:2","1:3"]'),
-    name: import_zod.z.string().optional().describe("Name for the component set")
-  },
-  async ({ componentIds, name }) => {
-    try {
-      const result = await sendCommandToFigma("combine_as_variants", { componentIds, name });
-      return { content: [{ type: "text", text: JSON.stringify(result) }] };
-    } catch (error) {
-      return { content: [{ type: "text", text: `Error combining variants: ${error instanceof Error ? error.message : String(error)}` }] };
-    }
-  }
-);
-server.tool(
-  "add_component_property",
-  "Add a property to a component (BOOLEAN, TEXT, INSTANCE_SWAP, or VARIANT)",
-  {
-    componentId: import_zod.z.string().describe("The component node ID"),
-    propertyName: import_zod.z.string().describe("Name of the property"),
-    type: import_zod.z.enum(["BOOLEAN", "TEXT", "INSTANCE_SWAP", "VARIANT"]).describe("Type of the property"),
-    defaultValue: flexBool(import_zod.z.union([import_zod.z.string(), import_zod.z.boolean()])).describe('Default value \u2014 string for TEXT/VARIANT/INSTANCE_SWAP, boolean for BOOLEAN. Examples: "Click me", true'),
-    preferredValues: flexJson(import_zod.z.array(import_zod.z.object({
-      type: import_zod.z.enum(["COMPONENT", "COMPONENT_SET"]),
-      key: import_zod.z.string()
-    })).optional()).describe('Preferred values for INSTANCE_SWAP. Example: [{"type":"COMPONENT","key":"abc123"}]')
-  },
-  async ({ componentId, propertyName, type, defaultValue, preferredValues }) => {
-    try {
-      const result = await sendCommandToFigma("add_component_property", { componentId, propertyName, type, defaultValue, preferredValues });
-      return { content: [{ type: "text", text: JSON.stringify(result) }] };
-    } catch (error) {
-      return { content: [{ type: "text", text: `Error adding component property: ${error instanceof Error ? error.message : String(error)}` }] };
-    }
-  }
-);
-server.tool(
-  "create_instance_from_local",
-  "Create an instance of a local component by its node ID. Accepts both COMPONENT and COMPONENT_SET IDs (picks default variant).",
-  {
-    componentId: import_zod.z.string().describe("The node ID of the local component or component set to instantiate"),
-    x: import_zod.z.coerce.number().optional().describe("X position for the instance"),
-    y: import_zod.z.coerce.number().optional().describe("Y position for the instance"),
-    parentId: import_zod.z.string().optional().describe("Parent node ID to append to")
-  },
-  async ({ componentId, x, y, parentId }) => {
-    try {
-      const result = await sendCommandToFigma("create_instance_from_local", { componentId, x, y, parentId });
-      return { content: [{ type: "text", text: JSON.stringify(result) }] };
-    } catch (error) {
-      return { content: [{ type: "text", text: `Error creating instance: ${error instanceof Error ? error.message : String(error)}` }] };
-    }
-  }
-);
-server.tool(
-  "create_variable_collection",
-  "Create a new variable collection for design tokens",
-  {
-    name: import_zod.z.string().describe("Name for the variable collection")
-  },
-  async ({ name }) => {
-    try {
-      const result = await sendCommandToFigma("create_variable_collection", { name });
-      return { content: [{ type: "text", text: JSON.stringify(result) }] };
-    } catch (error) {
-      return { content: [{ type: "text", text: `Error creating variable collection: ${error instanceof Error ? error.message : String(error)}` }] };
-    }
-  }
-);
-server.tool(
-  "create_variable",
-  "Create a new variable (design token) in a collection",
-  {
-    collectionId: import_zod.z.string().describe("The variable collection ID"),
-    name: import_zod.z.string().describe("Name for the variable"),
-    resolvedType: import_zod.z.enum(["COLOR", "FLOAT", "STRING", "BOOLEAN"]).describe("The variable type")
-  },
-  async ({ collectionId, name, resolvedType }) => {
-    try {
-      const result = await sendCommandToFigma("create_variable", { collectionId, name, resolvedType });
-      return { content: [{ type: "text", text: JSON.stringify(result) }] };
-    } catch (error) {
-      return { content: [{ type: "text", text: `Error creating variable: ${error instanceof Error ? error.message : String(error)}` }] };
-    }
-  }
-);
-server.tool(
-  "set_variable_value",
-  "Set a variable's value for a specific mode",
-  {
-    variableId: import_zod.z.string().describe("The variable ID"),
-    modeId: import_zod.z.string().describe("The mode ID to set the value for"),
-    value: flexJson(import_zod.z.union([
-      import_zod.z.number(),
-      import_zod.z.string(),
-      import_zod.z.boolean(),
-      import_zod.z.object({
-        r: import_zod.z.coerce.number().describe("Red (0-1)"),
-        g: import_zod.z.coerce.number().describe("Green (0-1)"),
-        b: import_zod.z.coerce.number().describe("Blue (0-1)"),
-        a: import_zod.z.coerce.number().optional().describe("Alpha (0-1, default 1)")
-      })
-    ])).describe('The value \u2014 number for FLOAT, string for STRING, boolean for BOOLEAN, {r,g,b,a} object (0-1) for COLOR. Example COLOR: {"r":0.2,"g":0.5,"b":1,"a":1}')
-  },
-  async ({ variableId, modeId, value }) => {
-    try {
-      const result = await sendCommandToFigma("set_variable_value", { variableId, modeId, value });
-      return { content: [{ type: "text", text: JSON.stringify(result) }] };
-    } catch (error) {
-      return { content: [{ type: "text", text: `Error setting variable value: ${error instanceof Error ? error.message : String(error)}` }] };
-    }
-  }
-);
-server.tool(
-  "add_mode",
-  "Add a new mode to a variable collection",
-  {
-    collectionId: import_zod.z.string().describe("The variable collection ID"),
-    name: import_zod.z.string().describe("Name for the new mode")
-  },
-  async ({ collectionId, name }) => {
-    try {
-      const result = await sendCommandToFigma("add_mode", { collectionId, name });
-      return { content: [{ type: "text", text: JSON.stringify(result) }] };
-    } catch (error) {
-      return { content: [{ type: "text", text: `Error adding mode: ${error instanceof Error ? error.message : String(error)}` }] };
-    }
-  }
-);
-server.tool(
-  "rename_mode",
-  "Rename an existing mode in a variable collection",
-  {
-    collectionId: import_zod.z.string().describe("The variable collection ID"),
-    modeId: import_zod.z.string().describe("The mode ID to rename"),
-    name: import_zod.z.string().describe("New name for the mode")
-  },
-  async ({ collectionId, modeId, name }) => {
-    try {
-      const result = await sendCommandToFigma("rename_mode", { collectionId, modeId, name });
-      return { content: [{ type: "text", text: JSON.stringify(result) }] };
-    } catch (error) {
-      return { content: [{ type: "text", text: `Error renaming mode: ${error instanceof Error ? error.message : String(error)}` }] };
-    }
-  }
-);
-server.tool(
-  "remove_mode",
-  "Remove a mode from a variable collection",
-  {
-    collectionId: import_zod.z.string().describe("The variable collection ID"),
-    modeId: import_zod.z.string().describe("The mode ID to remove")
-  },
-  async ({ collectionId, modeId }) => {
-    try {
-      const result = await sendCommandToFigma("remove_mode", { collectionId, modeId });
-      return { content: [{ type: "text", text: JSON.stringify(result) }] };
-    } catch (error) {
-      return { content: [{ type: "text", text: `Error removing mode: ${error instanceof Error ? error.message : String(error)}` }] };
-    }
-  }
-);
-server.tool(
-  "rename_page",
-  "Rename a page. Defaults to current page if no pageId given.",
-  {
-    newName: import_zod.z.string().describe("New name for the page"),
-    pageId: import_zod.z.string().optional().describe("Page ID to rename (defaults to current page)")
-  },
-  async ({ newName, pageId }) => {
-    try {
-      const result = await sendCommandToFigma("rename_page", { newName, pageId });
-      return { content: [{ type: "text", text: JSON.stringify(result) }] };
-    } catch (error) {
-      return { content: [{ type: "text", text: `Error renaming page: ${error instanceof Error ? error.message : String(error)}` }] };
-    }
-  }
-);
-server.tool(
-  "zoom_into_view",
-  "Scroll and zoom the viewport to fit specific nodes on screen (like pressing Shift+1). Use this to bring the user's attention to nodes you just created or modified.",
-  {
-    nodeIds: flexJson(import_zod.z.array(import_zod.z.string())).describe('Array of node IDs to zoom into view. Example: ["1:2"]')
-  },
-  async ({ nodeIds }) => {
-    try {
-      const result = await sendCommandToFigma("zoom_into_view", { nodeIds });
-      return { content: [{ type: "text", text: JSON.stringify(result) }] };
-    } catch (error) {
-      return { content: [{ type: "text", text: `Error zooming into view: ${error instanceof Error ? error.message : String(error)}` }] };
-    }
-  }
-);
-server.tool(
-  "set_viewport",
-  "Set the viewport center position and/or zoom level. Zoom 1.0 = 100%, 0.5 = 50%, 2.0 = 200%.",
-  {
-    center: flexJson(import_zod.z.object({
-      x: import_zod.z.coerce.number().describe("X coordinate of viewport center"),
-      y: import_zod.z.coerce.number().describe("Y coordinate of viewport center")
-    }).optional()).describe('Viewport center point. Example: {"x":500,"y":300}'),
-    zoom: import_zod.z.coerce.number().min(0.01).max(256).optional().describe("Zoom level (1.0 = 100%)")
-  },
-  async ({ center, zoom }) => {
-    try {
-      const result = await sendCommandToFigma("set_viewport", { center, zoom });
-      return { content: [{ type: "text", text: JSON.stringify(result) }] };
-    } catch (error) {
-      return { content: [{ type: "text", text: `Error setting viewport: ${error instanceof Error ? error.message : String(error)}` }] };
-    }
-  }
-);
-server.tool(
-  "create_auto_layout",
-  "Wrap existing nodes in an auto-layout frame. One call replaces create_frame + set_layout_mode + insert_child \xD7 N. Defaults to VERTICAL layout with HUG sizing.",
-  {
-    nodeIds: flexJson(import_zod.z.array(import_zod.z.string())).describe('Array of node IDs to wrap. Example: ["1:2","1:3"]'),
-    name: import_zod.z.string().optional().describe("Name for the frame (default 'Auto Layout')"),
-    layoutMode: import_zod.z.enum(["HORIZONTAL", "VERTICAL"]).optional().describe("Layout direction (default VERTICAL)"),
-    itemSpacing: import_zod.z.coerce.number().optional().describe("Spacing between children (default 0)"),
-    paddingTop: import_zod.z.coerce.number().optional().describe("Top padding (default: 0)"),
-    paddingRight: import_zod.z.coerce.number().optional().describe("Right padding (default: 0)"),
-    paddingBottom: import_zod.z.coerce.number().optional().describe("Bottom padding (default: 0)"),
-    paddingLeft: import_zod.z.coerce.number().optional().describe("Left padding (default: 0)"),
-    primaryAxisAlignItems: import_zod.z.enum(["MIN", "MAX", "CENTER", "SPACE_BETWEEN"]).optional().describe("Primary axis alignment (default: MIN)"),
-    counterAxisAlignItems: import_zod.z.enum(["MIN", "MAX", "CENTER", "BASELINE"]).optional().describe("Counter axis alignment (default: MIN)"),
-    layoutSizingHorizontal: import_zod.z.enum(["FIXED", "HUG", "FILL"]).optional().describe("Horizontal sizing (default: HUG)"),
-    layoutSizingVertical: import_zod.z.enum(["FIXED", "HUG", "FILL"]).optional().describe("Vertical sizing (default: HUG)"),
-    layoutWrap: import_zod.z.enum(["NO_WRAP", "WRAP"]).optional().describe("Wrap children (default: NO_WRAP)")
-  },
-  async ({ nodeIds, name, layoutMode, itemSpacing, paddingTop, paddingRight, paddingBottom, paddingLeft, primaryAxisAlignItems, counterAxisAlignItems, layoutSizingHorizontal, layoutSizingVertical, layoutWrap }) => {
-    try {
-      const result = await sendCommandToFigma("create_auto_layout", { nodeIds, name, layoutMode, itemSpacing, paddingTop, paddingRight, paddingBottom, paddingLeft, primaryAxisAlignItems, counterAxisAlignItems, layoutSizingHorizontal, layoutSizingVertical, layoutWrap });
-      return { content: [{ type: "text", text: JSON.stringify(result) }] };
-    } catch (error) {
-      return { content: [{ type: "text", text: `Error creating auto layout: ${error instanceof Error ? error.message : String(error)}` }] };
-    }
-  }
-);
-server.tool(
-  "get_local_variables",
-  "List local variables (names, IDs, types only - no values). Use collectionId to browse a specific collection's contents. Use get_variable_by_id for full values.",
-  {
-    type: import_zod.z.enum(["COLOR", "FLOAT", "STRING", "BOOLEAN"]).optional().describe("Filter by variable type"),
-    collectionId: import_zod.z.string().optional().describe("Filter to variables in this collection only")
-  },
-  async ({ type, collectionId }) => {
-    try {
-      const result = await sendCommandToFigma("get_local_variables", { type, collectionId });
-      return { content: [{ type: "text", text: JSON.stringify(result) }] };
-    } catch (error) {
-      return { content: [{ type: "text", text: `Error getting variables: ${error instanceof Error ? error.message : String(error)}` }] };
-    }
-  }
-);
-server.tool(
-  "get_local_variable_collections",
-  "List all local variable collections",
-  {},
-  async () => {
-    try {
-      const result = await sendCommandToFigma("get_local_variable_collections");
-      return { content: [{ type: "text", text: JSON.stringify(result) }] };
-    } catch (error) {
-      return { content: [{ type: "text", text: `Error getting variable collections: ${error instanceof Error ? error.message : String(error)}` }] };
-    }
-  }
-);
-server.tool(
-  "set_variable_binding",
-  "Bind a variable to a node property. For scalar fields use the field name directly (e.g., 'opacity', 'itemSpacing', 'cornerRadius'). For paint colors use 'fills/0/color' or 'strokes/0/color' syntax.",
-  {
-    nodeId: import_zod.z.string().describe("The node ID to bind the variable to"),
-    field: import_zod.z.string().describe("Property field: scalar fields like 'opacity', 'width', 'itemSpacing', 'paddingLeft', 'visible', 'topLeftRadius', 'strokeWeight'; or paint color fields like 'fills/0/color', 'strokes/0/color'"),
-    variableId: import_zod.z.string().describe("The variable ID to bind")
-  },
-  async ({ nodeId, field, variableId }) => {
-    try {
-      const result = await sendCommandToFigma("set_variable_binding", { nodeId, field, variableId });
-      return { content: [{ type: "text", text: JSON.stringify(result) }] };
-    } catch (error) {
-      return { content: [{ type: "text", text: `Error binding variable: ${error instanceof Error ? error.message : String(error)}` }] };
-    }
-  }
-);
-server.tool(
-  "create_paint_style",
-  "Create a color/paint style",
-  {
-    name: import_zod.z.string().describe("Name for the paint style"),
-    color: flexJson(import_zod.z.object({
-      r: import_zod.z.coerce.number().describe("Red (0-1)"),
-      g: import_zod.z.coerce.number().describe("Green (0-1)"),
-      b: import_zod.z.coerce.number().describe("Blue (0-1)"),
-      a: import_zod.z.coerce.number().optional().describe("Alpha (0-1, default 1)")
-    })).describe('Color RGBA (0-1 each). Example: {"r":0.2,"g":0.5,"b":1} \u2014 omit a for full opacity')
-  },
-  async ({ name, color }) => {
-    try {
-      const result = await sendCommandToFigma("create_paint_style", { name, color });
-      return { content: [{ type: "text", text: JSON.stringify(result) }] };
-    } catch (error) {
-      return { content: [{ type: "text", text: `Error creating paint style: ${error instanceof Error ? error.message : String(error)}` }] };
-    }
-  }
-);
-server.tool(
-  "create_text_style",
-  "Create a text style with font properties",
-  {
-    name: import_zod.z.string().describe("Name for the text style"),
-    fontFamily: import_zod.z.string().describe("Font family name"),
-    fontStyle: import_zod.z.string().optional().describe("Font style (e.g., 'Regular', 'Bold', 'Italic') (default: 'Regular')"),
-    fontSize: import_zod.z.coerce.number().describe("Font size in pixels"),
-    lineHeight: flexNum(import_zod.z.union([
-      import_zod.z.number(),
-      import_zod.z.object({
-        value: import_zod.z.coerce.number(),
-        unit: import_zod.z.enum(["PIXELS", "PERCENT", "AUTO"])
-      })
-    ]).optional()).describe('Line height \u2014 number (pixels) or {value, unit}. Examples: 24, {"value":150,"unit":"PERCENT"}'),
-    letterSpacing: flexNum(import_zod.z.union([
-      import_zod.z.number(),
-      import_zod.z.object({
-        value: import_zod.z.coerce.number(),
-        unit: import_zod.z.enum(["PIXELS", "PERCENT"])
-      })
-    ]).optional()).describe('Letter spacing \u2014 number (pixels) or {value, unit}. Examples: 0.5, {"value":2,"unit":"PERCENT"}'),
-    textCase: import_zod.z.enum(["ORIGINAL", "UPPER", "LOWER", "TITLE"]).optional().describe("Text case transform"),
-    textDecoration: import_zod.z.enum(["NONE", "UNDERLINE", "STRIKETHROUGH"]).optional().describe("Text decoration")
-  },
-  async ({ name, fontFamily, fontStyle, fontSize, lineHeight, letterSpacing, textCase, textDecoration }) => {
-    try {
-      const result = await sendCommandToFigma("create_text_style", { name, fontFamily, fontStyle, fontSize, lineHeight, letterSpacing, textCase, textDecoration });
-      return { content: [{ type: "text", text: JSON.stringify(result) }] };
-    } catch (error) {
-      return { content: [{ type: "text", text: `Error creating text style: ${error instanceof Error ? error.message : String(error)}` }] };
-    }
-  }
-);
-server.tool(
-  "create_effect_style",
-  "Create an effect style (shadows, blurs)",
-  {
-    name: import_zod.z.string().describe("Name for the effect style"),
-    effects: flexJson(import_zod.z.array(import_zod.z.object({
-      type: import_zod.z.enum(["DROP_SHADOW", "INNER_SHADOW", "LAYER_BLUR", "BACKGROUND_BLUR"]).describe("Effect type"),
-      color: import_zod.z.object({
-        r: import_zod.z.coerce.number(),
-        g: import_zod.z.coerce.number(),
-        b: import_zod.z.coerce.number(),
-        a: import_zod.z.coerce.number().optional()
-      }).optional().describe('Effect color RGBA (0-1). Example: {"r":0,"g":0,"b":0,"a":0.25}'),
-      offset: import_zod.z.object({
-        x: import_zod.z.coerce.number(),
-        y: import_zod.z.coerce.number()
-      }).optional().describe('Shadow offset. Example: {"x":0,"y":4}'),
-      radius: import_zod.z.coerce.number().describe("Blur radius"),
-      spread: import_zod.z.coerce.number().optional().describe("Shadow spread"),
-      visible: flexBool(import_zod.z.boolean().optional()).describe("Whether effect is visible (default true)"),
-      blendMode: import_zod.z.enum(["NORMAL", "DARKEN", "MULTIPLY", "COLOR_BURN", "LIGHTEN", "SCREEN", "COLOR_DODGE", "OVERLAY", "SOFT_LIGHT", "HARD_LIGHT", "DIFFERENCE", "EXCLUSION", "HUE", "SATURATION", "COLOR", "LUMINOSITY"]).optional().describe("Blend mode for shadows (default NORMAL)")
-    }))).describe('Array of effects. Example: [{"type":"DROP_SHADOW","color":{"r":0,"g":0,"b":0,"a":0.25},"offset":{"x":0,"y":4},"radius":4}]')
-  },
-  async ({ name, effects }) => {
-    try {
-      const result = await sendCommandToFigma("create_effect_style", { name, effects });
-      return { content: [{ type: "text", text: JSON.stringify(result) }] };
-    } catch (error) {
-      return { content: [{ type: "text", text: `Error creating effect style: ${error instanceof Error ? error.message : String(error)}` }] };
-    }
-  }
-);
-server.tool(
-  "apply_style_to_node",
-  "Apply a style to a node by ID or name. Provide either styleId or styleName (name supports case-insensitive substring match).",
-  {
-    nodeId: import_zod.z.string().describe("The node ID to apply the style to"),
-    styleId: import_zod.z.string().optional().describe("The style ID to apply (from create_paint_style, create_text_style, etc.)"),
-    styleName: import_zod.z.string().optional().describe('Style name to look up (e.g., "Heading/Large Title"). Case-insensitive substring match. Use instead of styleId for convenience.'),
-    styleType: import_zod.z.enum(["fill", "stroke", "text", "effect"]).describe("Type of style to apply")
-  },
-  async ({ nodeId, styleId, styleName, styleType }) => {
-    try {
-      const result = await sendCommandToFigma("apply_style_to_node", { nodeId, styleId, styleName, styleType });
-      return { content: [{ type: "text", text: JSON.stringify(result) }] };
-    } catch (error) {
-      return { content: [{ type: "text", text: `Error applying style: ${error instanceof Error ? error.message : String(error)}` }] };
-    }
-  }
-);
-server.tool(
-  "create_ellipse",
-  "Create an ellipse/circle in Figma. Default: white fill (Figma native). Use equal width/height for a circle.",
-  {
-    x: import_zod.z.coerce.number().optional().describe("X position (default: 0)"),
-    y: import_zod.z.coerce.number().optional().describe("Y position (default: 0)"),
-    width: import_zod.z.coerce.number().optional().describe("Width (default: 100)"),
-    height: import_zod.z.coerce.number().optional().describe("Height (default: 100)"),
-    name: import_zod.z.string().optional().describe("Name for the ellipse"),
-    parentId: import_zod.z.string().optional().describe("Parent node ID to append into")
-  },
-  async ({ x, y, width, height, name, parentId }) => {
-    try {
-      const result = await sendCommandToFigma("create_ellipse", { x, y, width, height, name, parentId });
-      return { content: [{ type: "text", text: JSON.stringify(result) }] };
-    } catch (error) {
-      return { content: [{ type: "text", text: `Error creating ellipse: ${error instanceof Error ? error.message : String(error)}` }] };
-    }
-  }
-);
-server.tool(
-  "create_line",
-  "Create a line in Figma. Default: black stroke.",
-  {
-    x: import_zod.z.coerce.number().optional().describe("X position (default: 0)"),
-    y: import_zod.z.coerce.number().optional().describe("Y position (default: 0)"),
-    length: import_zod.z.coerce.number().optional().describe("Length of the line (default: 100)"),
-    rotation: import_zod.z.coerce.number().optional().describe("Rotation in degrees (default: 0)"),
-    name: import_zod.z.string().optional().describe("Name for the line"),
-    parentId: import_zod.z.string().optional().describe("Parent node ID to append into")
-  },
-  async ({ x, y, length, rotation, name, parentId }) => {
-    try {
-      const result = await sendCommandToFigma("create_line", { x, y, length, rotation, name, parentId });
-      return { content: [{ type: "text", text: JSON.stringify(result) }] };
-    } catch (error) {
-      return { content: [{ type: "text", text: `Error creating line: ${error instanceof Error ? error.message : String(error)}` }] };
-    }
-  }
-);
-server.tool(
-  "create_boolean_operation",
-  "Create a boolean operation (union, intersect, subtract, exclude) from multiple nodes",
-  {
-    nodeIds: flexJson(import_zod.z.array(import_zod.z.string())).describe('Array of node IDs to combine. Example: ["1:2","1:3"]'),
-    operation: import_zod.z.enum(["UNION", "INTERSECT", "SUBTRACT", "EXCLUDE"]).describe("Boolean operation type"),
-    name: import_zod.z.string().optional().describe("Name for the resulting node")
-  },
-  async ({ nodeIds, operation, name }) => {
-    try {
-      const result = await sendCommandToFigma("create_boolean_operation", { nodeIds, operation, name });
-      return { content: [{ type: "text", text: JSON.stringify(result) }] };
-    } catch (error) {
-      return { content: [{ type: "text", text: `Error creating boolean operation: ${error instanceof Error ? error.message : String(error)}` }] };
-    }
-  }
-);
-server.tool(
-  "set_opacity",
-  "Set the opacity of a node",
-  {
-    nodeId: import_zod.z.string().describe("The node ID"),
-    opacity: import_zod.z.coerce.number().min(0).max(1).describe("Opacity value (0-1)")
-  },
-  async ({ nodeId, opacity }) => {
-    try {
-      const result = await sendCommandToFigma("set_opacity", { nodeId, opacity });
-      return { content: [{ type: "text", text: JSON.stringify(result) }] };
-    } catch (error) {
-      return { content: [{ type: "text", text: `Error setting opacity: ${error instanceof Error ? error.message : String(error)}` }] };
-    }
-  }
-);
-server.tool(
-  "set_effects",
-  "Set effects (shadows, blurs) on a node",
-  {
-    nodeId: import_zod.z.string().describe("The node ID"),
-    effects: flexJson(import_zod.z.array(import_zod.z.object({
-      type: import_zod.z.enum(["DROP_SHADOW", "INNER_SHADOW", "LAYER_BLUR", "BACKGROUND_BLUR"]).describe("Effect type"),
-      color: import_zod.z.object({
-        r: import_zod.z.coerce.number(),
-        g: import_zod.z.coerce.number(),
-        b: import_zod.z.coerce.number(),
-        a: import_zod.z.coerce.number().optional()
-      }).optional().describe('Effect color RGBA (0-1). Example: {"r":0,"g":0,"b":0,"a":0.25}'),
-      offset: import_zod.z.object({
-        x: import_zod.z.coerce.number(),
-        y: import_zod.z.coerce.number()
-      }).optional().describe('Shadow offset. Example: {"x":0,"y":4}'),
-      radius: import_zod.z.coerce.number().describe("Blur radius"),
-      spread: import_zod.z.coerce.number().optional().describe("Shadow spread"),
-      visible: flexBool(import_zod.z.boolean().optional()).describe("Whether effect is visible (default true)"),
-      blendMode: import_zod.z.enum(["NORMAL", "DARKEN", "MULTIPLY", "COLOR_BURN", "LIGHTEN", "SCREEN", "COLOR_DODGE", "OVERLAY", "SOFT_LIGHT", "HARD_LIGHT", "DIFFERENCE", "EXCLUSION", "HUE", "SATURATION", "COLOR", "LUMINOSITY"]).optional().describe("Blend mode for shadows (default NORMAL)")
-    }))).describe('Array of effects. Example: [{"type":"DROP_SHADOW","color":{"r":0,"g":0,"b":0,"a":0.25},"offset":{"x":0,"y":4},"radius":4}]')
-  },
-  async ({ nodeId, effects }) => {
-    try {
-      const result = await sendCommandToFigma("set_effects", { nodeId, effects });
-      return { content: [{ type: "text", text: JSON.stringify(result) }] };
-    } catch (error) {
-      return { content: [{ type: "text", text: `Error setting effects: ${error instanceof Error ? error.message : String(error)}` }] };
-    }
-  }
-);
-server.tool(
-  "set_constraints",
-  "Set layout constraints on a node",
-  {
-    nodeId: import_zod.z.string().describe("The node ID"),
-    horizontal: import_zod.z.enum(["MIN", "CENTER", "MAX", "STRETCH", "SCALE"]).describe("Horizontal constraint"),
-    vertical: import_zod.z.enum(["MIN", "CENTER", "MAX", "STRETCH", "SCALE"]).describe("Vertical constraint")
-  },
-  async ({ nodeId, horizontal, vertical }) => {
-    try {
-      const result = await sendCommandToFigma("set_constraints", { nodeId, horizontal, vertical });
-      return { content: [{ type: "text", text: JSON.stringify(result) }] };
-    } catch (error) {
-      return { content: [{ type: "text", text: `Error setting constraints: ${error instanceof Error ? error.message : String(error)}` }] };
-    }
-  }
-);
-server.tool(
-  "set_export_settings",
-  "Set export settings on a node",
-  {
-    nodeId: import_zod.z.string().describe("The node ID"),
-    settings: flexJson(import_zod.z.array(import_zod.z.object({
-      format: import_zod.z.enum(["PNG", "JPG", "SVG", "PDF"]).describe("Export format"),
-      suffix: import_zod.z.string().optional().describe("File suffix"),
-      contentsOnly: flexBool(import_zod.z.boolean().optional()).describe("Export contents only (default true)"),
-      constraint: import_zod.z.object({
-        type: import_zod.z.enum(["SCALE", "WIDTH", "HEIGHT"]).describe("Constraint type"),
-        value: import_zod.z.coerce.number().describe("Constraint value")
-      }).optional().describe('Export constraint. Example: {"type":"SCALE","value":2}')
-    }))).describe('Array of export settings. Example: [{"format":"PNG","constraint":{"type":"SCALE","value":2}}]')
-  },
-  async ({ nodeId, settings }) => {
-    try {
-      const result = await sendCommandToFigma("set_export_settings", { nodeId, settings });
-      return { content: [{ type: "text", text: JSON.stringify(result) }] };
-    } catch (error) {
-      return { content: [{ type: "text", text: `Error setting export settings: ${error instanceof Error ? error.message : String(error)}` }] };
-    }
-  }
-);
-server.tool(
-  "set_node_properties",
-  "Batch-set multiple properties on a node at once",
-  {
-    nodeId: import_zod.z.string().describe("The node ID"),
-    properties: flexJson(import_zod.z.record(import_zod.z.unknown())).describe('Object of property key-value pairs. Example: {"opacity":0.5,"visible":false,"locked":true}')
-  },
-  async ({ nodeId, properties }) => {
-    try {
-      const result = await sendCommandToFigma("set_node_properties", { nodeId, properties });
-      return { content: [{ type: "text", text: JSON.stringify(result) }] };
-    } catch (error) {
-      return { content: [{ type: "text", text: `Error setting node properties: ${error instanceof Error ? error.message : String(error)}` }] };
-    }
-  }
-);
-server.tool(
-  "get_style_by_id",
-  "Get detailed information about a specific style by its ID. Returns full paint/font/effect/grid details.",
-  {
-    styleId: import_zod.z.string().describe("The style ID to look up")
-  },
-  async ({ styleId }) => {
-    try {
-      const result = await sendCommandToFigma("get_style_by_id", { styleId });
-      return { content: [{ type: "text", text: JSON.stringify(result) }] };
-    } catch (error) {
-      return { content: [{ type: "text", text: `Error getting style: ${error instanceof Error ? error.message : String(error)}` }] };
-    }
-  }
-);
-server.tool(
-  "remove_style",
-  "Delete/remove a style from the document by its ID",
-  {
-    styleId: import_zod.z.string().describe("The style ID to remove")
-  },
-  async ({ styleId }) => {
-    try {
-      const result = await sendCommandToFigma("remove_style", { styleId });
-      return { content: [{ type: "text", text: JSON.stringify(result) }] };
-    } catch (error) {
-      return { content: [{ type: "text", text: `Error removing style: ${error instanceof Error ? error.message : String(error)}` }] };
-    }
-  }
-);
-server.tool(
-  "get_component_by_id",
-  "Get detailed information about a component including property definitions and variant group properties. For COMPONENT_SETs, variant children are omitted by default (use includeChildren=true to list them) since propertyDefinitions already describes the full variant space.",
-  {
-    componentId: import_zod.z.string().describe("The component node ID"),
-    includeChildren: flexBool(import_zod.z.boolean().optional()).describe("For COMPONENT_SETs: include variant children list (default false). Plain COMPONENTs always include children.")
-  },
-  async ({ componentId, includeChildren }) => {
-    try {
-      const result = await sendCommandToFigma("get_component_by_id", { componentId, includeChildren });
-      return { content: [{ type: "text", text: JSON.stringify(result) }] };
-    } catch (error) {
-      return { content: [{ type: "text", text: `Error getting component: ${error instanceof Error ? error.message : String(error)}` }] };
-    }
-  }
-);
-server.tool(
-  "get_variable_by_id",
-  "Get detailed information about a variable by its ID, including all mode values.",
-  {
-    variableId: import_zod.z.string().describe("The variable ID")
-  },
-  async ({ variableId }) => {
-    try {
-      const result = await sendCommandToFigma("get_variable_by_id", { variableId });
-      return { content: [{ type: "text", text: JSON.stringify(result) }] };
-    } catch (error) {
-      return { content: [{ type: "text", text: `Error getting variable: ${error instanceof Error ? error.message : String(error)}` }] };
-    }
-  }
-);
-server.tool(
-  "get_variable_collection_by_id",
-  "Get detailed information about a variable collection by its ID, including modes and variable IDs.",
-  {
-    collectionId: import_zod.z.string().describe("The variable collection ID")
-  },
-  async ({ collectionId }) => {
-    try {
-      const result = await sendCommandToFigma("get_variable_collection_by_id", { collectionId });
-      return { content: [{ type: "text", text: JSON.stringify(result) }] };
-    } catch (error) {
-      return { content: [{ type: "text", text: `Error getting variable collection: ${error instanceof Error ? error.message : String(error)}` }] };
-    }
-  }
-);
-server.tool(
-  "get_pages",
-  "Get all pages in the document with their IDs, names, and child counts.",
-  {},
-  async () => {
-    try {
-      const result = await sendCommandToFigma("get_pages");
-      return { content: [{ type: "text", text: JSON.stringify(result) }] };
-    } catch (error) {
-      return { content: [{ type: "text", text: `Error getting pages: ${error instanceof Error ? error.message : String(error)}` }] };
-    }
-  }
-);
-server.tool(
-  "set_current_page",
-  "Switch to a different page. Provide either pageId or pageName (at least one required).",
-  {
-    pageId: import_zod.z.string().optional().describe("The page ID to switch to"),
-    pageName: import_zod.z.string().optional().describe("The page name to switch to (case-insensitive, supports partial match)")
-  },
-  async ({ pageId, pageName }) => {
-    try {
-      const result = await sendCommandToFigma("set_current_page", { pageId, pageName });
-      return { content: [{ type: "text", text: JSON.stringify(result) }] };
-    } catch (error) {
-      return { content: [{ type: "text", text: `Error setting current page: ${error instanceof Error ? error.message : String(error)}` }] };
-    }
-  }
-);
-server.tool(
-  "create_page",
-  "Create a new page in the document",
-  {
-    name: import_zod.z.string().optional().describe("Name for the new page (default: 'New Page')")
-  },
-  async ({ name }) => {
-    try {
-      const result = await sendCommandToFigma("create_page", { name });
-      return { content: [{ type: "text", text: JSON.stringify(result) }] };
-    } catch (error) {
-      return { content: [{ type: "text", text: `Error creating page: ${error instanceof Error ? error.message : String(error)}` }] };
-    }
-  }
-);
-server.tool(
-  "get_node_css",
-  "Get CSS properties for a node (useful for dev handoff)",
-  {
-    nodeId: import_zod.z.string().describe("The node ID to get CSS for")
-  },
-  async ({ nodeId }) => {
-    try {
-      const result = await sendCommandToFigma("get_node_css", { nodeId });
-      return { content: [{ type: "text", text: JSON.stringify(result) }] };
-    } catch (error) {
-      return { content: [{ type: "text", text: `Error getting CSS: ${error instanceof Error ? error.message : String(error)}` }] };
-    }
-  }
-);
-server.tool(
-  "get_available_fonts",
-  "List available fonts in Figma, grouped by family. Use query to filter by family name (e.g., 'Inter', 'SF Pro'). Without query, returns ALL fonts \u2014 use query to avoid large responses.",
-  {
-    query: import_zod.z.string().optional().describe("Filter font families by name (case-insensitive substring match). Strongly recommended.")
-  },
-  async ({ query }) => {
-    try {
-      const result = await sendCommandToFigma("get_available_fonts", { query });
-      return { content: [{ type: "text", text: JSON.stringify(result) }] };
-    } catch (error) {
-      return { content: [{ type: "text", text: `Error getting fonts: ${error instanceof Error ? error.message : String(error)}` }] };
-    }
-  }
-);
-server.tool(
-  "create_section",
-  "Create a section node to organize content on the canvas. Sections are top-level containers.",
-  {
-    x: import_zod.z.coerce.number().optional().describe("X position (default: 0)"),
-    y: import_zod.z.coerce.number().optional().describe("Y position (default: 0)"),
-    width: import_zod.z.coerce.number().optional().describe("Width (default: 500)"),
-    height: import_zod.z.coerce.number().optional().describe("Height (default: 500)"),
-    name: import_zod.z.string().optional().describe("Name for the section (default: 'Section')"),
-    parentId: import_zod.z.string().optional().describe("Parent node ID")
-  },
-  async ({ x, y, width, height, name, parentId }) => {
-    try {
-      const result = await sendCommandToFigma("create_section", { x, y, width, height, name, parentId });
-      return { content: [{ type: "text", text: JSON.stringify(result) }] };
-    } catch (error) {
-      return { content: [{ type: "text", text: `Error creating section: ${error instanceof Error ? error.message : String(error)}` }] };
-    }
-  }
-);
-server.tool(
-  "insert_child",
-  "Move a node into a parent at a specific index (reorder/reparent)",
-  {
-    parentId: import_zod.z.string().describe("The parent node ID"),
-    childId: import_zod.z.string().describe("The child node ID to move"),
-    index: import_zod.z.coerce.number().optional().describe("Index to insert at (0=first). Omit to append at end.")
-  },
-  async ({ parentId, childId, index }) => {
-    try {
-      const result = await sendCommandToFigma("insert_child", { parentId, childId, index });
-      return { content: [{ type: "text", text: JSON.stringify(result) }] };
-    } catch (error) {
-      return { content: [{ type: "text", text: `Error inserting child: ${error instanceof Error ? error.message : String(error)}` }] };
-    }
-  }
-);
-server.tool(
-  "create_node_from_svg",
-  "Create a node from an SVG string",
-  {
-    svg: import_zod.z.string().describe("SVG markup string"),
-    x: import_zod.z.coerce.number().optional().describe("X position (default 0)"),
-    y: import_zod.z.coerce.number().optional().describe("Y position (default 0)"),
-    name: import_zod.z.string().optional().describe("Name for the node"),
-    parentId: import_zod.z.string().optional().describe("Parent node ID")
-  },
-  async ({ svg, x, y, name, parentId }) => {
-    try {
-      const result = await sendCommandToFigma("create_node_from_svg", { svg, x, y, name, parentId });
-      return { content: [{ type: "text", text: JSON.stringify(result) }] };
-    } catch (error) {
-      return { content: [{ type: "text", text: `Error creating node from SVG: ${error instanceof Error ? error.message : String(error)}` }] };
-    }
-  }
-);
-server.tool(
-  "get_current_page",
-  "Get the current page info and its top-level children. Always safe - never touches unloaded pages. Use this as the entry point for exploring large files.",
-  {},
-  async () => {
-    try {
-      const result = await sendCommandToFigma("get_current_page");
-      return { content: [{ type: "text", text: JSON.stringify(result) }] };
-    } catch (error) {
-      return { content: [{ type: "text", text: `Error getting current page: ${error instanceof Error ? error.message : String(error)}` }] };
-    }
-  }
-);
-server.tool(
-  "search_nodes",
-  "Search for nodes by name and/or type within a scope. Returns paginated results with parent info and bounds.",
-  {
-    query: import_zod.z.string().optional().describe("Search string to match against node names (case-insensitive substring match)"),
-    types: flexJson(import_zod.z.array(import_zod.z.string()).optional()).describe('Filter by node types. Example: ["FRAME","COMPONENT","TEXT","INSTANCE"]'),
-    scopeNodeId: import_zod.z.string().optional().describe("Node ID to search within (defaults to current page)"),
-    caseSensitive: flexBool(import_zod.z.boolean().optional()).describe("If true, name matching is case-sensitive (default false)"),
-    limit: import_zod.z.coerce.number().optional().describe("Max results to return (default 50)"),
-    offset: import_zod.z.coerce.number().optional().describe("Skip this many results for pagination (default 0)")
-  },
-  async ({ query, types, scopeNodeId, caseSensitive, limit, offset }) => {
-    try {
-      const result = await sendCommandToFigma("search_nodes", { query, types, scopeNodeId, caseSensitive, limit, offset });
-      return { content: [{ type: "text", text: JSON.stringify(result) }] };
-    } catch (error) {
-      return { content: [{ type: "text", text: `Error searching nodes: ${error instanceof Error ? error.message : String(error)}` }] };
-    }
-  }
-);
+var server = new import_mcp.McpServer({
+  name: "TalkToFigmaMCP",
+  version: "1.0.0"
+});
 server.tool(
   "join_channel",
-  "Join a specific channel to communicate with Figma",
-  {
-    channel: import_zod.z.string().describe("The name of the channel to join").default("")
-  },
+  "REQUIRED FIRST STEP: Join a channel before using any other tool. The channel name is shown in the Figma plugin UI. All subsequent commands are sent through this channel.",
+  { channel: import_zod19.z.string().describe("The channel name displayed in the Figma plugin panel (e.g. 'channel-abc-123')").default("") },
   async ({ channel }) => {
     try {
       if (!channel) {
         return {
-          content: [
-            {
-              type: "text",
-              text: "Please provide a channel name to join:"
-            }
-          ],
-          followUp: {
-            tool: "join_channel",
-            description: "Join the specified channel"
-          }
+          content: [{ type: "text", text: "Please provide a channel name to join:" }]
         };
       }
       await joinChannel(channel);
       return {
-        content: [
-          {
-            type: "text",
-            text: `Successfully joined channel: ${channel}`
-          }
-        ]
+        content: [{ type: "text", text: `Successfully joined channel: ${channel}` }]
       };
     } catch (error) {
       return {
-        content: [
-          {
-            type: "text",
-            text: `Error joining channel: ${error instanceof Error ? error.message : String(error)}`
-          }
-        ]
+        content: [{
+          type: "text",
+          text: `Error joining channel: ${error instanceof Error ? error.message : String(error)}`
+        }]
       };
     }
   }
 );
+registerAllTools(server, sendCommandToFigma);
 async function main() {
   try {
     connectToFigma();
