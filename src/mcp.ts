@@ -53,16 +53,20 @@ const pendingRequests = new Map<
   }
 >();
 let currentChannel: string | null = null;
+let activePort: number = parseInt(process.env.VIBMA_PORT || "3055");
 
 // CLI args
 const args = process.argv.slice(2);
 const serverArg = args.find((a) => a.startsWith("--server="));
+const portArg = args.find((a) => a.startsWith("--port="));
 const serverUrl = serverArg ? serverArg.split("=")[1] : "localhost";
+if (portArg) activePort = parseInt(portArg.split("=")[1]);
 const WS_URL = serverUrl === "localhost" ? `ws://${serverUrl}` : `wss://${serverUrl}`;
 
 // ─── WebSocket connection ────────────────────────────────────────
 
-function connectToFigma(port: number = parseInt(process.env.VIBMA_PORT || "3055")) {
+function connectToFigma(port: number = activePort) {
+  activePort = port;
   if (ws && ws.readyState === WebSocket.OPEN) {
     logger.info("Already connected to Figma");
     return;
@@ -199,7 +203,11 @@ function sendCommandToFigma(
       if (pendingRequests.has(id)) {
         pendingRequests.delete(id);
         logger.error(`Request ${id} to Figma timed out after ${timeoutMs / 1000} seconds`);
-        reject(new Error("Request to Figma timed out"));
+        reject(new Error(
+          `Request to Figma timed out. This usually means the Figma plugin is not connected to the relay. ` +
+          `MCP is using port ${activePort}, channel "${currentChannel}". ` +
+          `Check the Figma plugin window: the port and channel name must match.`
+        ));
       }
     }, timeoutMs);
 
@@ -220,24 +228,19 @@ const server = new McpServer({
 // Register the join_channel tool directly (it uses local state)
 server.tool(
   "join_channel",
-  "REQUIRED FIRST STEP: Join a channel before using any other tool. The channel name is shown in the Figma plugin UI. All subsequent commands are sent through this channel.",
-  { channel: z.string().describe("The channel name displayed in the Figma plugin panel (e.g. 'channel-abc-123')").default("") },
+  "REQUIRED FIRST STEP: Join a channel before using any other tool. The channel name is shown in the Figma plugin UI (defaults to 'vibma' if not customised). After joining, call `ping` to verify the Figma plugin is connected. All subsequent commands are sent through this channel.",
+  { channel: z.string().describe("The channel name displayed in the Figma plugin panel. Defaults to 'vibma' if omitted.").default("vibma") },
   async ({ channel }: any) => {
     try {
-      if (!channel) {
-        return {
-          content: [{ type: "text", text: "Please provide a channel name to join:" }],
-        };
-      }
       await joinChannel(channel);
       return {
-        content: [{ type: "text", text: `Successfully joined channel: ${channel}` }],
+        content: [{ type: "text", text: `Joined channel "${channel}" on port ${activePort}. Call \`ping\` now to verify the Figma plugin is connected.` }],
       };
     } catch (error) {
       return {
         content: [{
           type: "text",
-          text: `Error joining channel: ${error instanceof Error ? error.message : String(error)}`,
+          text: `Error joining channel: ${error instanceof Error ? error.message : String(error)}. MCP is using port ${activePort} — confirm the relay is running on the same port.`,
         }],
       };
     }

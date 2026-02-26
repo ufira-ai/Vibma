@@ -78,12 +78,25 @@ Or run from source (no build step, good for development):
 }
 ```
 
+If using a non-default port, pass `--port=`:
+
+```json
+{
+  "mcpServers": {
+    "Vibma": {
+      "command": "node",
+      "args": ["dist/mcp.js", "--port=3056"]
+    }
+  }
+}
+```
+
 ## 6. Connect
 
-1. In the Figma plugin, optionally set a custom channel name (or leave blank for a random one)
-2. Click **Connect** — note the channel name shown
-3. In your AI tool, call `join_channel` with that channel name
-4. Test with `get_document_info` — you should get back your Figma document structure
+1. In the Figma plugin, set the channel name to `vibma` (or any name you like)
+2. Click **Connect**
+3. In your AI tool, call `join_channel` with the same channel name (defaults to `vibma`)
+4. Call `ping` — you should get back `pong` with your document name
 
 ## Troubleshooting
 
@@ -121,7 +134,7 @@ lsof -ti:3057 || echo "3057 is free"
 lsof -ti:3058 || echo "3058 is free"
 ```
 
-Use the first free port. Set `VIBMA_PORT=<port>` when starting the relay and MCP server. Inform the user to set the same port in the Figma plugin UI before clicking Connect.
+Use the first free port. Set `VIBMA_PORT=<port>` when starting the relay, and pass `--port=<port>` to the MCP server in the MCP config. Inform the user to set the same port in the Figma plugin UI before clicking Connect.
 
 If all four ports (3055–3058) are occupied, tell the user they need to free one.
 
@@ -129,18 +142,12 @@ If all four ports (3055–3058) are occupied, tell the user they need to free on
 
 After the user says they've connected the Figma plugin:
 
-1. Call `join_channel` with the channel name shown in the Figma plugin UI.
+1. Call `join_channel` (defaults to channel `vibma` — use a different name only if the user specifies one).
 2. Call `ping`. Expected response: `{ status: "pong", documentName: "...", currentPage: "...", timestamp: ... }`
 
-If `ping` returns a `pong` with a document name, the full chain is verified — MCP server, relay, plugin, and Figma are all talking. Proceed with design tasks.
+If `ping` returns a `pong` with a document name, the full chain is verified. Proceed with design tasks.
 
-**If `join_channel` fails** (timeout or connection refused):
-- Confirm the relay is running (`bun socket` terminal still active)
-- Confirm the port matches between relay, MCP config, and plugin UI
-- Check SSL certs exist at the paths specified in `SSL_KEY_PATH` and `SSL_CERT_PATH`
-
-**If `ping` fails** (join succeeded but no pong):
-- The Figma plugin is not connected to the relay. Ask the user to:
-  1. Open the Figma plugin panel
-  2. Confirm the status shows "Connected" with the correct channel name
-  3. If disconnected, click Connect and ensure the port matches the relay
+If any tool times out after a successful `join_channel`, the Figma plugin is not connected to the relay. The timeout error will include the port and channel the MCP server is using. Ask the user to check the Figma plugin window and confirm:
+- The **port** matches what MCP is using
+- The **channel name** matches what MCP joined
+- The plugin status shows **Connected**

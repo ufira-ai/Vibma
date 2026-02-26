@@ -6,7 +6,7 @@ import { mcpJson, mcpError } from "./types";
 export function registerMcpTools(server: McpServer, sendCommand: SendCommandFn) {
   server.tool(
     "ping",
-    "Verify end-to-end connection to Figma. Returns the document name if the full chain (MCP → relay → plugin → Figma) is working. Use this after join_channel to confirm everything is wired up.",
+    "Verify end-to-end connection to Figma. Call this right after join_channel. Returns { status: 'pong', documentName, currentPage } if the full chain (MCP → relay → plugin → Figma) is working. If this times out, the Figma plugin is not connected — ask the user to check the plugin window for the correct port and channel name.",
     {},
     async () => {
       try {
