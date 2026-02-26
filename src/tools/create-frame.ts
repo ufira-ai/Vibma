@@ -146,7 +146,7 @@ async function createSingleFrame(p: any) {
     const v = await figma.variables.getVariableByIdAsync(fillVariableId);
     if (v) {
       frame.fills = [solidPaint(fillColor || { r: 0, g: 0, b: 0 })];
-      const bound = figma.variables.setBoundVariableForPaint(frame.fills[0], "color", v);
+      const bound = figma.variables.setBoundVariableForPaint(frame.fills[0] as SolidPaint, "color", v);
       frame.fills = [bound];
       fillTokenized = true;
     }
@@ -163,7 +163,7 @@ async function createSingleFrame(p: any) {
     const v = await figma.variables.getVariableByIdAsync(strokeVariableId);
     if (v) {
       frame.strokes = [solidPaint(strokeColor || { r: 0, g: 0, b: 0 })];
-      const bound = figma.variables.setBoundVariableForPaint(frame.strokes[0], "color", v);
+      const bound = figma.variables.setBoundVariableForPaint(frame.strokes[0] as SolidPaint, "color", v);
       frame.strokes = [bound];
       strokeTokenized = true;
     }

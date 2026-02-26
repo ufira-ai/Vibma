@@ -140,7 +140,7 @@ async function createTextBatch(params: any): Promise<{ results: any[] }> {
       if (fontColorVariableId) {
         const v = await figma.variables.getVariableByIdAsync(fontColorVariableId);
         if (v) {
-          const bound = figma.variables.setBoundVariableForPaint(textNode.fills[0], "color", v);
+          const bound = figma.variables.setBoundVariableForPaint(textNode.fills[0] as SolidPaint, "color", v);
           textNode.fills = [bound];
           colorTokenized = true;
         }
