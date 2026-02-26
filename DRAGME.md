@@ -1,5 +1,12 @@
 # Vibma Setup Guide
 
+> **This guide assumes you've cloned the repo and are running commands from the project root.** If you haven't yet:
+> ```bash
+> git clone https://github.com/ufira-ai/vibma.git
+> cd vibma
+> ```
+> Looking for a zero-download setup instead? See [CARRYME.md](./CARRYME.md).
+
 ## Prerequisites
 
 - [Bun](https://bun.sh) runtime
