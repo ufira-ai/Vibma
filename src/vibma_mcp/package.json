@@ -1,7 +1,7 @@
 {
-  "name": "talk-to-figma-mcp",
+  "name": "vibma",
   "version": "1.0.0",
-  "description": "MCP server for Figma integration",
+  "description": "Vibma MCP server for Figma integration",
   "main": "server.ts",
   "type": "module",
   "scripts": {
@@ -12,7 +12,6 @@
   "keywords": [
     "figma",
     "mcp",
-    "cursor",
     "ai"
   ],
   "dependencies": {

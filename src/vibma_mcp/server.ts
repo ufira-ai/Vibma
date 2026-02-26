@@ -213,7 +213,7 @@ function sendCommandToFigma(
 // ─── MCP Server bootstrap ────────────────────────────────────────
 
 const server = new McpServer({
-  name: "TalkToFigmaMCP",
+  name: "VibmaMCP",
   version: "1.0.0",
 });
 

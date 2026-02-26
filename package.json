@@ -1,11 +1,11 @@
 {
-  "name": "cursor-talk-to-figma-mcp",
-  "description": "Cursor Talk to Figma MCP",
+  "name": "vibma-mcp",
+  "description": "Vibma — Vibe Design meets Figma. AI-powered MCP bridge for designing in Figma.",
   "version": "0.3.3",
   "module": "dist/server.js",
   "main": "dist/server.js",
   "bin": {
-    "cursor-talk-to-figma-mcp": "dist/server.js"
+    "vibma-mcp": "dist/server.js"
   },
   "files": [
     "dist",
@@ -19,7 +19,7 @@
     "build": "tsup",
     "build:watch": "tsup --watch",
     "dev": "bun run build:watch",
-    "dev:mcp": "bun run src/talk_to_figma_mcp/server.ts",
+    "dev:mcp": "bun run src/vibma_mcp/server.ts",
     "pub:release": "bun run build && npm publish"
   },
   "devDependencies": {

@@ -3,7 +3,7 @@ import { defineConfig } from 'tsup';
 export default defineConfig([
   // MCP Server → dist/server.{cjs,js}
   {
-    entry: ['src/talk_to_figma_mcp/server.ts'],
+    entry: ['src/vibma_mcp/server.ts'],
     format: ['cjs', 'esm'],
     dts: true,
     clean: true,
@@ -14,11 +14,11 @@ export default defineConfig([
     splitting: false,
     bundle: true,
   },
-  // Figma Plugin → src/cursor_mcp_plugin/code.js (IIFE for Figma sandbox)
+  // Figma Plugin → src/figma-plugin/code.js (IIFE for Figma sandbox)
   {
-    entry: ['src/cursor_mcp_plugin/code.ts'],
+    entry: ['src/figma-plugin/code.ts'],
     format: ['iife'],
-    outDir: 'src/cursor_mcp_plugin',
+    outDir: 'src/figma-plugin',
     outExtension: () => ({ js: '.js' }),
     target: 'es2015',
     sourcemap: false,

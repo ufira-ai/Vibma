@@ -10,7 +10,7 @@ import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { registerAllTools } from "../src/tools/mcp-registry";
 import { z } from "zod";
 
-const server = new McpServer({ name: "TalkToFigmaMCP", version: "1.0.0" });
+const server = new McpServer({ name: "VibmaMCP", version: "1.0.0" });
 registerAllTools(server, async () => ({}));
 server.tool(
   "join_channel",
