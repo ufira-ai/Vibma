@@ -12,7 +12,7 @@ Otherwise, paste this to your AI agent and let it figure it out:
 
 ```
 Set up Vibma so I can vibe-design in Figma.
-Follow the instructions at https://github.com/ufira-ai/vibma/blob/main/DRAGME.md
+Follow the instructions at https://raw.githubusercontent.com/ufira-ai/vibma/refs/heads/main/DRAGME.md
 ```
 
 Good luck vibing.
