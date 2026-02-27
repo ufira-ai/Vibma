@@ -138,12 +138,22 @@ If all four ports (3055–3058) are occupied, tell the user they need to free on
 
 ### Connection verification
 
-After the user says they've connected the Figma plugin:
+After the user opens the Figma plugin, it should automatically show **Connected** on the default port (3055). If a non-default port was used, the user will need to select the correct port in the plugin UI and click Connect.
 
 1. Call `join_channel` (defaults to channel `vibma` — use a different name only if the user specifies one).
 2. Call `ping`. Expected response: `{ status: "pong", documentName: "...", currentPage: "...", timestamp: ... }`
 
 If `ping` returns a `pong` with a document name, the full chain is verified. Proceed with design tasks.
+
+### Troubleshooting connection issues
+
+If the plugin shows **Disconnected** on port 3055, try the following before asking the user:
+
+1. Check the relay is running: `lsof -ti:3055` — if no output, the relay isn't started.
+2. Restart the relay: `npm run socket`
+3. Ask the user to close and reopen the Figma plugin.
+
+If the issue persists after these steps, direct the user to the [Vibma Discord](https://discord.gg/4XTedZdwV6) for help.
 
 If any tool times out after a successful `join_channel`, the Figma plugin is not connected to the relay. The timeout error will include the port and channel the MCP server is using. Ask the user to check the Figma plugin window and confirm:
 - The **port** matches what MCP is using
