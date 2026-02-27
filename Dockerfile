@@ -1,16 +1,13 @@
-# Use the Bun image as the base image
-FROM oven/bun:latest
+FROM node:18-slim
 
-# Set the working directory in the container
 WORKDIR /app
 
-# Copy the current directory contents into the container at /app
-COPY package*.json ./
+COPY packages/tunnel/package*.json ./
 
-RUN bun install
+RUN npm install --production
 
-# Expose the port on which the API will listen
+COPY packages/tunnel/dist/index.js ./index.js
+
 EXPOSE 3055
 
-# Run the server when the container launches
-CMD ["bun", "src/mcp.ts"]
+CMD ["node", "index.js"]
