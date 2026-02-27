@@ -10,11 +10,16 @@ modify styles, and build entire design systems through conversation.
 [![MIT License](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE)
 [![Discord](https://img.shields.io/discord/1476577401298358315?color=5865F2&label=discord&logo=discord&logoColor=white)](https://discord.gg/4XTedZdwV6)
 
-<!-- TODO: demo video -->
-
+[![Watch demo](src/assets/thumbnail.jpg)](https://youtu.be/AltDYHHZrcY)
 </div>
 
 ---
+
+## Prerequisites
+
+Vibma works with any LLM that supports MCP, but only **Claude Opus 4.6** 
+consistently achieves the demonstrated results. GPT-5.3-Codex comes close 
+but makes occasional mistakes.
 
 ## Setup
 
@@ -23,13 +28,13 @@ Two paths:
 | | Guide | For |
 |---|---|---|
 | 📦 | [**DRAGME.md**](./DRAGME.md) | Clone the repo, build from source, full control |
-| ☁️ | [**CARRYME.md**](./CARRYME.md) | Install from Figma store, zero cloning *(coming soon)* |
+| ☁️ | [**CARRYME.md**](./CARRYME.md) | Install from npm, zero cloning |
 
 Or just paste this to your AI agent and let it figure it out:
 
 ```
 Set up Vibma so I can vibe-design in Figma.
-Follow the instructions at https://raw.githubusercontent.com/ufira-ai/vibma/refs/heads/main/DRAGME.md
+Follow the instructions at https://raw.githubusercontent.com/ufira-ai/vibma/refs/heads/main/CARRYME.md
 ```
 
 ## Community
@@ -38,7 +43,7 @@ Follow the instructions at https://raw.githubusercontent.com/ufira-ai/vibma/refs
 
 - [GitHub Issues](https://github.com/ufira-ai/vibma/issues) — bugs and feature requests
 
-Vibma is the first open-source project from **[ufira](https://github.com/ufira-ai)** — a platform bridging creators and technology. We believe every creator should have access to AI-powered design tools, not just developers.
+Vibma is the first open-source project from **[ufira](https://github.com/ufira-ai)** — a platform bridging creators and technology. We believe everyone who wants to create should have access to AI-powered tools, not just developers.
 
 ## Acknowledgments
 
