@@ -3,7 +3,7 @@ import { flexJson, flexBool } from "../utils/coercion";
 import * as S from "./schemas";
 import type { McpServer, SendCommandFn } from "./types";
 import { mcpJson, mcpError } from "./types";
-import { batchHandler } from "./helpers";
+import { batchHandler, suggestStyleForColor, suggestTextStyle } from "./helpers";
 
 // ─── Schemas ─────────────────────────────────────────────────────
 
@@ -16,9 +16,11 @@ const textPropsItem = z.object({
   nodeId: z.string().describe("Text node ID"),
   fontSize: z.coerce.number().optional().describe("Font size"),
   fontWeight: z.coerce.number().optional().describe("Font weight: 100-900"),
-  fontColor: flexJson(S.colorRgba.optional()).describe('Font color. Hex "#000" or {r,g,b,a?} 0-1.'),
+  fontColor: flexJson(S.colorRgba).optional().describe('Font color. Hex "#000" or {r,g,b,a?} 0-1.'),
   textStyleId: z.string().optional().describe("Text style ID to apply (overrides font props)"),
   textStyleName: z.string().optional().describe("Text style name (case-insensitive match)"),
+  textAlignHorizontal: z.enum(["LEFT", "CENTER", "RIGHT", "JUSTIFIED"]).optional().describe("Horizontal text alignment"),
+  textAlignVertical: z.enum(["TOP", "CENTER", "BOTTOM"]).optional().describe("Vertical text alignment"),
   textAutoResize: z.enum(["NONE", "WIDTH_AND_HEIGHT", "HEIGHT", "TRUNCATE"]).optional(),
   layoutSizingHorizontal: z.enum(["FIXED", "HUG", "FILL"]).optional(),
   layoutSizingVertical: z.enum(["FIXED", "HUG", "FILL"]).optional(),
@@ -27,8 +29,8 @@ const textPropsItem = z.object({
 const scanTextItem = z.object({
   nodeId: S.nodeId,
   limit: z.coerce.number().optional().describe("Max text nodes to return (default: 50)"),
-  includePath: flexBool(z.boolean().optional()).describe("Include ancestor path strings (default: true). Set false to reduce payload."),
-  includeGeometry: flexBool(z.boolean().optional()).describe("Include absoluteX/absoluteY/width/height (default: true). Set false to reduce payload."),
+  includePath: flexBool(z.boolean()).optional().describe("Include ancestor path strings (default: true). Set false to reduce payload."),
+  includeGeometry: flexBool(z.boolean()).optional().describe("Include absoluteX/absoluteY/width/height (default: true). Set false to reduce payload."),
 });
 
 // ─── MCP Registration ────────────────────────────────────────────
@@ -206,6 +208,16 @@ async function setTextPropertiesBatch(params: any): Promise<{ results: any[] }> 
         }];
       }
 
+      // Warn about manual font/color without styles
+      if (!resolvedStyleId && !props.textStyleName && !props.textStyleId &&
+          (props.fontSize !== undefined || props.fontWeight !== undefined)) {
+        const fs = props.fontSize ?? (typeof node.fontSize === "number" ? node.fontSize : 14);
+        const fw = props.fontWeight ?? 400;
+        warnings.push(await suggestTextStyle(fs, fw));
+      }
+
+      if (props.textAlignHorizontal) node.textAlignHorizontal = props.textAlignHorizontal;
+      if (props.textAlignVertical) node.textAlignVertical = props.textAlignVertical;
       if (props.textAutoResize) node.textAutoResize = props.textAutoResize;
       if (props.layoutSizingHorizontal) {
         try { node.layoutSizingHorizontal = props.layoutSizingHorizontal; } catch {}
@@ -221,20 +233,18 @@ async function setTextPropertiesBatch(params: any): Promise<{ results: any[] }> 
         if (snapshot) result = snapshot;
       }
 
-      // Hints
-      const hints: string[] = [];
+      // Warnings — only on actual conflicts or actionable suggestions
+      const warnings: string[] = [];
       if (props.textStyleName && props.textStyleId) {
-        hints.push("Both textStyleName and textStyleId provided — used textStyleId. Pass only one: textStyleName (by name lookup) or textStyleId (direct ID).");
-      } else if (!resolvedStyleId && (props.fontSize !== undefined || props.fontWeight !== undefined)) {
-        hints.push("Manual font properties set. Use textStyleName to apply a text style that controls fontSize, fontWeight, and lineHeight together.");
+        warnings.push("Both textStyleName and textStyleId provided — used textStyleId. Pass only one.");
       }
       if (props.fontColor) {
-        hints.push("Hardcoded font color. Use set_variable_binding to bind a color variable to the text fill, or apply a paint style via apply_style_to_node. Only use fontColor for one-off colors not in your design system.");
+        const suggestion = await suggestStyleForColor(props.fontColor, "fontColorStyleName");
+        if (suggestion) warnings.push(suggestion);
       }
-      if (hints.length > 0) {
-        hints.push("Run lint_node after building to catch these patterns across your design.");
+      if (warnings.length > 0) {
         if (typeof result === "string") result = { status: result };
-        result._hint = hints.join(" ");
+        result.warning = warnings.join(" ");
       }
       results.push(result);
     } catch (e: any) {

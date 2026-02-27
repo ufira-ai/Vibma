@@ -59,10 +59,10 @@ export const colorRgba = z.preprocess((v) => {
 /** Single effect entry — shared by set_effects and create_effect_style */
 export const effectEntry = z.object({
   type: z.enum(["DROP_SHADOW", "INNER_SHADOW", "LAYER_BLUR", "BACKGROUND_BLUR"]),
-  color: flexJson(colorRgba.optional()),
-  offset: flexJson(z.object({ x: z.coerce.number(), y: z.coerce.number() }).optional()),
+  color: flexJson(colorRgba).optional(),
+  offset: flexJson(z.object({ x: z.coerce.number(), y: z.coerce.number() })).optional(),
   radius: z.coerce.number(),
   spread: z.coerce.number().optional(),
-  visible: flexBool(z.boolean().optional()),
+  visible: flexBool(z.boolean()).optional(),
   blendMode: z.string().optional(),
 });

@@ -11,7 +11,7 @@ import { batchHandler } from "./helpers";
 
 const effectItem = z.object({
   nodeId: S.nodeId,
-  effects: flexJson(z.array(S.effectEntry).optional()).describe("Array of effect objects. Ignored when effectStyleName is set."),
+  effects: flexJson(z.array(S.effectEntry)).optional().describe("Array of effect objects. Ignored when effectStyleName is set."),
   effectStyleName: z.string().optional().describe("Apply an effect style by name (case-insensitive). Omit to use raw effects."),
 });
 
@@ -24,11 +24,11 @@ const constraintItem = z.object({
 const exportSettingEntry = z.object({
   format: z.enum(["PNG", "JPG", "SVG", "PDF"]),
   suffix: z.string().optional(),
-  contentsOnly: flexBool(z.boolean().optional()),
+  contentsOnly: flexBool(z.boolean()).optional(),
   constraint: flexJson(z.object({
     type: z.enum(["SCALE", "WIDTH", "HEIGHT"]),
     value: z.coerce.number(),
-  }).optional()),
+  })).optional(),
 });
 
 const exportSettingsItem = z.object({
@@ -38,7 +38,7 @@ const exportSettingsItem = z.object({
 
 const nodePropertiesItem = z.object({
   nodeId: S.nodeId,
-  properties: flexJson(z.record(z.unknown())).describe("Key-value properties to set"),
+  properties: flexJson(z.record(z.string(), z.unknown())).describe("Key-value properties to set"),
 });
 
 // ─── MCP Registration ────────────────────────────────────────────
@@ -97,10 +97,15 @@ async function setEffectsSingle(p: any) {
     const styles = await figma.getLocalEffectStylesAsync();
     const exact = styles.find(s => s.name === p.effectStyleName);
     const match = exact || styles.find(s => s.name.toLowerCase().includes(p.effectStyleName.toLowerCase()));
-    if (!match) throw new Error(`Effect style not found: "${p.effectStyleName}"`);
+    if (!match) {
+      const available = styles.map(s => s.name);
+      const names = available.slice(0, 20);
+      const suffix = available.length > 20 ? `, … and ${available.length - 20} more` : "";
+      throw new Error(`effectStyleName '${p.effectStyleName}' not found. Available: [${names.join(", ")}${suffix}]`);
+    }
     await (node as any).setEffectStyleIdAsync(match.id);
     result.matchedStyle = match.name;
-    if (p.effects) result._hint = "Both effectStyleName and effects provided — used effectStyleName, ignored effects. Pass only one.";
+    if (p.effects) result.warning = "Both effectStyleName and effects provided — used effectStyleName, ignored effects. Pass only one.";
   } else if (p.effects) {
     const mapped = p.effects.map((e: any) => {
       const eff: any = { type: e.type, radius: e.radius, visible: e.visible ?? true };
@@ -111,7 +116,6 @@ async function setEffectsSingle(p: any) {
       return eff;
     });
     (node as any).effects = mapped;
-    result._hint = "Hardcoded effects. Use effectStyleName to apply an effect style for design system consistency.";
   }
   return result;
 }

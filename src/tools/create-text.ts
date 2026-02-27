@@ -3,7 +3,7 @@ import { flexJson } from "../utils/coercion";
 import * as S from "./schemas";
 import type { McpServer, SendCommandFn } from "./types";
 import { mcpJson, mcpError } from "./types";
-import { batchHandler, appendToParent } from "./helpers";
+import { batchHandler, appendToParent, styleNotFoundHint, suggestStyleForColor, suggestTextStyle } from "./helpers";
 
 // ─── Schema ──────────────────────────────────────────────────────
 
@@ -14,11 +14,14 @@ const textItem = z.object({
   y: S.yPos,
   fontSize: z.coerce.number().optional().describe("Font size (default: 14)"),
   fontWeight: z.coerce.number().optional().describe("Font weight: 100-900 (default: 400)"),
-  fontColor: flexJson(S.colorRgba.optional()).describe('Font color. Hex "#000000" or {r,g,b,a?} 0-1. Default: black.'),
+  fontColor: flexJson(S.colorRgba).optional().describe('Font color. Hex "#000000" or {r,g,b,a?} 0-1. Default: black.'),
   fontColorVariableId: z.string().optional().describe("Bind a color variable to the text fill instead of hardcoded fontColor."),
+  fontColorStyleName: z.string().optional().describe("Apply a paint style to the text fill by name (case-insensitive). Overrides fontColor."),
   parentId: S.parentId,
   textStyleId: z.string().optional().describe("Text style ID to apply (overrides fontSize/fontWeight). Omit to skip."),
   textStyleName: z.string().optional().describe("Text style name (case-insensitive match). Omit to skip."),
+  textAlignHorizontal: z.enum(["LEFT", "CENTER", "RIGHT", "JUSTIFIED"]).optional().describe("Horizontal text alignment (default: LEFT)"),
+  textAlignVertical: z.enum(["TOP", "CENTER", "BOTTOM"]).optional().describe("Vertical text alignment (default: TOP)"),
   layoutSizingHorizontal: z.enum(["FIXED", "HUG", "FILL"]).optional().describe("Horizontal sizing. FILL auto-sets textAutoResize to HEIGHT."),
   layoutSizingVertical: z.enum(["FIXED", "HUG", "FILL"]).optional().describe("Vertical sizing (default: HUG)"),
   textAutoResize: z.enum(["NONE", "WIDTH_AND_HEIGHT", "HEIGHT", "TRUNCATE"]).optional().describe("Text auto-resize behavior (default: WIDTH_AND_HEIGHT when FILL)"),
@@ -29,7 +32,7 @@ const textItem = z.object({
 export function registerMcpTools(server: McpServer, sendCommand: SendCommandFn) {
   server.tool(
     "create_text",
-    "Create text nodes in Figma. Uses Inter font. Max 10 items per batch. Use textStyleName to apply styles by name.",
+    "Create text nodes in Figma. Uses Inter font. Max 10 items per batch. Use textStyleName for typography and fontColorStyleName for fill color.",
     { items: flexJson(z.array(textItem).max(10)).describe("Array of text nodes to create (max 10)"), depth: S.depth },
     async (params: any) => {
       try { return mcpJson(await sendCommand("create_text", params)); }
@@ -74,6 +77,13 @@ async function createTextBatch(params: any): Promise<{ results: any[] }> {
     textStyles = await figma.getLocalTextStylesAsync();
   }
 
+  // 2a. Resolve paint styles for fontColorStyleName once
+  const hasFontColorStyle = items.some((p: any) => p.fontColorStyleName);
+  let paintStyles: any[] | null = null;
+  if (hasFontColorStyle) {
+    paintStyles = await figma.getLocalPaintStylesAsync();
+  }
+
   // 2b. Resolve text style IDs and collect their fonts for preloading
   const resolvedTextStyleMap = new Map<string, any>(); // textStyleId → style object
   for (const p of items) {
@@ -113,8 +123,9 @@ async function createTextBatch(params: any): Promise<{ results: any[] }> {
     try {
       const {
         x = 0, y = 0, text = "Text", fontSize = 14, fontWeight = 400,
-        fontColor, fontColorVariableId, name = "",
+        fontColor, fontColorVariableId, fontColorStyleName, name = "",
         parentId, textStyleId, textStyleName,
+        textAlignHorizontal, textAlignVertical,
         layoutSizingHorizontal, layoutSizingVertical, textAutoResize,
       } = p;
 
@@ -129,20 +140,44 @@ async function createTextBatch(params: any): Promise<{ results: any[] }> {
 
       await setCharacters(textNode, text);
 
-      // Font color: variableId > direct color > default black
+      // Text alignment
+      if (textAlignHorizontal) textNode.textAlignHorizontal = textAlignHorizontal;
+      if (textAlignVertical) textNode.textAlignVertical = textAlignVertical;
+
+      // Font color: variableId > styleName > direct color > default black
+      const hints: string[] = [];
       let colorTokenized = false;
-      const fc = fontColor || { r: 0, g: 0, b: 0, a: 1 };
-      textNode.fills = [{
-        type: "SOLID",
-        color: { r: fc.r ?? 0, g: fc.g ?? 0, b: fc.b ?? 0 },
-        opacity: fc.a ?? 1,
-      }];
       if (fontColorVariableId) {
         const v = await figma.variables.getVariableByIdAsync(fontColorVariableId);
         if (v) {
+          const fc = fontColor || { r: 0, g: 0, b: 0, a: 1 };
+          textNode.fills = [{ type: "SOLID", color: { r: fc.r ?? 0, g: fc.g ?? 0, b: fc.b ?? 0 }, opacity: fc.a ?? 1 }];
           const bound = figma.variables.setBoundVariableForPaint(textNode.fills[0] as SolidPaint, "color", v);
           textNode.fills = [bound];
           colorTokenized = true;
+        } else {
+          hints.push(`fontColorVariableId '${fontColorVariableId}' not found.`);
+        }
+      } else if (fontColorStyleName && paintStyles) {
+        const exact = paintStyles.find((s: any) => s.name === fontColorStyleName);
+        const match = exact || paintStyles.find((s: any) => s.name.toLowerCase().includes(fontColorStyleName.toLowerCase()));
+        if (match) {
+          try {
+            await (textNode as any).setFillStyleIdAsync(match.id);
+            colorTokenized = true;
+          } catch (e: any) {
+            hints.push(`fontColorStyleName '${fontColorStyleName}' matched '${match.name}' but failed to apply: ${e.message}`);
+          }
+        } else {
+          hints.push(styleNotFoundHint("fontColorStyleName", fontColorStyleName, paintStyles!.map((s: any) => s.name)));
+        }
+      }
+      if (!colorTokenized) {
+        const fc = fontColor || { r: 0, g: 0, b: 0, a: 1 };
+        textNode.fills = [{ type: "SOLID", color: { r: fc.r ?? 0, g: fc.g ?? 0, b: fc.b ?? 0 }, opacity: fc.a ?? 1 }];
+        if (fontColor) {
+          const suggestion = await suggestStyleForColor(fontColor, "fontColorStyleName");
+          if (suggestion) hints.push(suggestion);
         }
       }
 
@@ -158,7 +193,21 @@ async function createTextBatch(params: any): Promise<{ results: any[] }> {
       }
       if (resolvedStyleId) {
         const cached = resolvedTextStyleMap.get(resolvedStyleId);
-        if (cached) await (textNode as any).setTextStyleIdAsync(cached.id);
+        if (cached) {
+          try {
+            await (textNode as any).setTextStyleIdAsync(cached.id);
+          } catch (e: any) {
+            hints.push(`textStyleName '${textStyleName || resolvedStyleId}' matched but failed to apply: ${e.message}`);
+          }
+        } else {
+          // Name resolved to an ID but getStyleByIdAsync couldn't load it
+          hints.push(`textStyleName '${textStyleName || resolvedStyleId}' matched style ID '${resolvedStyleId}' but the style could not be loaded. It may be from a remote library or deleted.`);
+        }
+      } else if (textStyleName) {
+        hints.push(styleNotFoundHint("textStyleName", textStyleName, textStyles!.map((s: any) => s.name)));
+      } else {
+        // No text style used — suggest matching or creating one
+        hints.push(await suggestTextStyle(fontSize, fontWeight));
       }
 
       await appendToParent(textNode, parentId);
@@ -182,28 +231,7 @@ async function createTextBatch(params: any): Promise<{ results: any[] }> {
         const snapshot = await nodeSnapshot(textNode.id, depth);
         if (snapshot) result = { ...result, ...snapshot };
       }
-      // Creation-time hints
-      const hints: string[] = [];
-      if (fontColor && fontColorVariableId) {
-        hints.push("Multiple font color sources — used fontColorVariableId, ignored fontColor. Pass only one: fontColorVariableId (variable token) or fontColor (one-off).");
-      } else if (fontColor && !colorTokenized) {
-        // Suppress hint for intentional white/black on variable-bound parent
-        const isNeutral = (fontColor.r === 0 && fontColor.g === 0 && fontColor.b === 0) || (fontColor.r === 1 && fontColor.g === 1 && fontColor.b === 1);
-        const parent = textNode.parent;
-        const parentHasBoundFill = parent && "boundVariables" in parent && (parent as any).boundVariables?.fills?.length > 0;
-        if (!(isNeutral && parentHasBoundFill)) {
-          hints.push("Hardcoded font color. Use fontColorVariableId to bind a color variable. Only use fontColor for one-off colors not in your design system.");
-        }
-      }
-      if (textStyleName && textStyleId) {
-        hints.push("Both textStyleName and textStyleId provided — used textStyleId. Pass only one: textStyleName (by name lookup) or textStyleId (direct ID).");
-      } else if (!resolvedStyleId) {
-        hints.push("No text style applied. Use textStyleName to apply a text style that controls fontSize, fontWeight, and lineHeight together.");
-      }
-      if (hints.length > 0) {
-        hints.push("Run lint_node after building to catch these patterns across your design.");
-        result._hint = hints.join(" ");
-      }
+      if (hints.length > 0) result.warning = hints.join(" ");
       results.push(result);
     } catch (e: any) {
       results.push({ error: e.message });

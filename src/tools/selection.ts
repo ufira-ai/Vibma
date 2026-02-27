@@ -54,7 +54,7 @@ export function registerMcpTools(server: McpServer, sendCommand: SendCommandFn) 
     "set_viewport",
     "Set viewport center position and/or zoom level",
     {
-      center: flexJson(z.object({ x: z.coerce.number(), y: z.coerce.number() }).optional()).describe("Viewport center point. Omit to keep current center."),
+      center: flexJson(z.object({ x: z.coerce.number(), y: z.coerce.number() })).optional().describe("Viewport center point. Omit to keep current center."),
       zoom: z.coerce.number().optional().describe("Zoom level (1 = 100%). Omit to keep current zoom."),
     },
     async (params: any) => {
@@ -81,24 +81,15 @@ async function getSelection() {
 async function readMyDesign(params: any) {
   const sel = figma.currentPage.selection;
   if (sel.length === 0) {
-    return { selectionCount: 0, _hint: "Nothing selected. Use set_selection to select nodes first, or use get_node_info with specific node IDs." };
+    return { selectionCount: 0, warning: "Nothing selected. Use set_selection to select nodes first, or use get_node_info with specific node IDs." };
   }
 
-  const { filterFigmaNode } = await import("../utils/filter-node");
+  const { serializeNode } = await import("../utils/serialize-node");
   const depth = params?.depth;
-  const nodes = await Promise.all(
-    sel.map((node) => figma.getNodeByIdAsync(node.id))
-  );
-  const validNodes = nodes.filter((n): n is BaseNode => n !== null);
-  const responses = await Promise.all(
-    validNodes.map(async (node) => {
-      const response = await (node as any).exportAsync({ format: "JSON_REST_V1" });
-      return {
-        nodeId: node.id,
-        document: filterFigmaNode(response.document, depth !== undefined ? depth : -1),
-      };
-    })
-  );
+  const responses = sel.map((node) => ({
+    nodeId: node.id,
+    document: serializeNode(node, depth !== undefined ? depth : -1),
+  }));
   return { selectionCount: responses.length, nodes: responses };
 }
 

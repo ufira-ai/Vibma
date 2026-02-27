@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { flexJson, flexBool } from "../utils/coercion";
-import { filterFigmaNode } from "../utils/filter-node";
+import { serializeNode } from "../utils/serialize-node";
 import type { McpServer, SendCommandFn } from "./types";
 import { mcpJson, mcpError } from "./types";
 
@@ -13,7 +13,7 @@ export function registerMcpTools(server: McpServer, sendCommand: SendCommandFn) 
     {
       nodeIds: flexJson(z.array(z.string())).describe('Array of node IDs. Example: ["1:2","1:3"]'),
       depth: z.coerce.number().optional().describe("Child recursion depth (default: unlimited). 0=stubs only."),
-      fields: flexJson(z.array(z.string()).optional()).describe('Whitelist of property names to include. Always includes id, name, type. Example: ["absoluteBoundingBox","layoutMode","fills"]. Omit to return all properties.'),
+      fields: flexJson(z.array(z.string())).optional().describe('Whitelist of property names to include. Always includes id, name, type. Example: ["absoluteBoundingBox","layoutMode","fills"]. Omit to return all properties.'),
     },
     async (params: any) => {
       try {
@@ -38,9 +38,9 @@ export function registerMcpTools(server: McpServer, sendCommand: SendCommandFn) 
     "Search for nodes by layer name and/or type. Searches current page only — use set_current_page to switch pages first. Matches layer names (text nodes are often auto-named from their content). Returns paginated results.",
     {
       query: z.string().optional().describe("Name search (case-insensitive substring). Omit to match all names."),
-      types: flexJson(z.array(z.string()).optional()).describe('Filter by types. Example: ["FRAME","TEXT"]. Omit to match all types.'),
+      types: flexJson(z.array(z.string())).optional().describe('Filter by types. Example: ["FRAME","TEXT"]. Omit to match all types.'),
       scopeNodeId: z.string().optional().describe("Node ID to search within (defaults to current page)"),
-      caseSensitive: flexBool(z.boolean().optional()).describe("Case-sensitive name match (default false)"),
+      caseSensitive: flexBool(z.boolean()).optional().describe("Case-sensitive name match (default false)"),
       limit: z.coerce.number().optional().describe("Max results (default 50)"),
       offset: z.coerce.number().optional().describe("Skip N results for pagination (default 0)"),
     },
@@ -103,26 +103,11 @@ async function getNodeInfo(params: any) {
       const node = await figma.getNodeByIdAsync(nodeId);
       if (!node) return { nodeId, error: `Node not found: ${nodeId}` };
 
-      const response = await (node as any).exportAsync({ format: "JSON_REST_V1" });
-      let filtered = filterFigmaNode(response.document, depth !== undefined ? depth : -1);
+      let serialized = serializeNode(node, depth !== undefined ? depth : -1);
 
-      if (filtered && node.parent) {
-        filtered.parentId = node.parent.id;
-        filtered.parentName = node.parent.name;
-        filtered.parentType = node.parent.type;
-      }
+      if (keep && serialized) serialized = pickFields(serialized, keep);
 
-      // INSTANCE → source component (may not be in JSON_REST_V1)
-      if (filtered && node.type === "INSTANCE") {
-        try {
-          const main = await (node as any).getMainComponentAsync();
-          if (main) { filtered.componentId = main.id; filtered.componentName = main.name; }
-        } catch {}
-      }
-
-      if (keep && filtered) filtered = pickFields(filtered, keep);
-
-      return filtered;
+      return serialized;
     })
   );
 

@@ -27,7 +27,7 @@ export function registerMcpTools(server: McpServer, sendCommand: SendCommandFn) 
     "Run design linter on a node tree. Returns issues grouped by category with affected node IDs and fix instructions. Lint child nodes individually for large trees.",
     {
       nodeId: z.string().optional().describe("Node ID to lint. Omit to lint current selection."),
-      rules: flexJson(z.array(lintRules).optional()).describe('Rules to run. Default: ["all"]. Options: no-autolayout, shape-instead-of-frame, hardcoded-color, no-text-style, fixed-in-autolayout, default-name, empty-container, stale-text-name, all'),
+      rules: flexJson(z.array(lintRules)).optional().describe('Rules to run. Default: ["all"]. Options: no-autolayout, shape-instead-of-frame, hardcoded-color, no-text-style, fixed-in-autolayout, default-name, empty-container, stale-text-name, all'),
       maxDepth: z.coerce.number().optional().describe("Max depth to recurse (default: 10)"),
       maxFindings: z.coerce.number().optional().describe("Stop after N findings (default: 50)"),
     },
@@ -60,7 +60,7 @@ export function registerMcpTools(server: McpServer, sendCommand: SendCommandFn) 
     {
       items: flexJson(z.array(z.object({
         nodeId: S.nodeId,
-        adoptChildren: flexBool(z.boolean().optional()).describe("Re-parent overlapping siblings into the new frame (default: true)"),
+        adoptChildren: flexBool(z.boolean()).optional().describe("Re-parent overlapping siblings into the new frame (default: true)"),
       }))).describe("Array of shapes to convert to frames"),
       depth: S.depth,
     },
@@ -142,18 +142,18 @@ async function lintNodeHandler(params: any): Promise<any> {
 
   const result: any = { nodeId: root.id, nodeName: root.name, categories };
   if (truncated) {
-    result._hint = `Capped at ${maxFindings} findings. Fix these first, then re-lint.`;
+    result.warning = `Capped at ${maxFindings} findings. Fix these first, then re-lint.`;
   }
   return result;
 }
 
 /** Per-rule fix instructions — natural language, actionable, referencing MCP tools */
 const FIX_INSTRUCTIONS: Record<string, string> = {
-  "no-autolayout": "Use lint_fix_autolayout or set_layout_mode to add auto-layout to these frames.",
+  "no-autolayout": "Use lint_fix_autolayout or update_frame with layoutMode to add auto-layout to these frames.",
   "shape-instead-of-frame": "Use lint_fix_replace_shape_with_frame to convert these shapes to frames with children.",
   "hardcoded-color": "Use set_fill_color with styleName to apply a paint style, or set_variable_binding to bind to a color variable.",
   "no-text-style": "Use apply_style_to_node with styleType:\"text\" and styleName, or set_variable_binding to bind text properties to variables.",
-  "fixed-in-autolayout": "Use set_layout_sizing to set FILL or HUG instead of FIXED sizing.",
+  "fixed-in-autolayout": "Use update_frame with layoutSizingHorizontal/layoutSizingVertical to set FILL or HUG instead of FIXED sizing.",
   "default-name": "Use set_node_properties to give descriptive names.",
   "empty-container": "These frames or components have auto-layout but no children. Delete them or add content.",
   "stale-text-name": "These text nodes have layer names that don't match their content. Use set_node_properties to rename, or leave if intentional.",

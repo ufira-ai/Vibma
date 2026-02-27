@@ -20,11 +20,11 @@ const textStyleItem = z.object({
   lineHeight: flexNum(z.union([
     z.number(),
     z.object({ value: z.coerce.number(), unit: z.enum(["PIXELS", "PERCENT", "AUTO"]) }),
-  ]).optional()).describe("Line height — number (px) or {value, unit}. Default: auto."),
+  ])).optional().describe("Line height — number (px) or {value, unit}. Default: auto."),
   letterSpacing: flexNum(z.union([
     z.number(),
     z.object({ value: z.coerce.number(), unit: z.enum(["PIXELS", "PERCENT"]) }),
-  ]).optional()).describe("Letter spacing — number (px) or {value, unit}. Default: 0."),
+  ])).optional().describe("Letter spacing — number (px) or {value, unit}. Default: 0."),
   textCase: z.enum(["ORIGINAL", "UPPER", "LOWER", "TITLE"]).optional(),
   textDecoration: z.enum(["NONE", "UNDERLINE", "STRIKETHROUGH"]).optional(),
 });
@@ -230,12 +230,18 @@ async function applyStyleSingle(p: any) {
     const [paints, texts, effects] = await Promise.all([
       figma.getLocalPaintStylesAsync(), figma.getLocalTextStylesAsync(), figma.getLocalEffectStylesAsync(),
     ]);
-    const all = [...paints, ...texts, ...effects];
-    const exact = all.find(s => s.name === p.styleName);
+    // Filter to styles relevant for the requested type
+    const typeMap: Record<string, any[]> = { fill: paints, stroke: paints, text: texts, effect: effects };
+    const relevant = typeMap[p.styleType] || [...paints, ...texts, ...effects];
+    const exact = relevant.find(s => s.name === p.styleName);
     if (exact) { styleId = exact.id; matchedStyle = exact.name; }
     else {
-      const fuzzy = all.find(s => s.name.toLowerCase().includes(p.styleName.toLowerCase()));
-      if (!fuzzy) throw new Error(`Style not found: "${p.styleName}"`);
+      const fuzzy = relevant.find(s => s.name.toLowerCase().includes(p.styleName.toLowerCase()));
+      if (!fuzzy) {
+        const available = relevant.map(s => s.name).slice(0, 20);
+        const suffix = relevant.length > 20 ? `, … and ${relevant.length - 20} more` : "";
+        throw new Error(`styleName '${p.styleName}' not found for type '${p.styleType}'. Available: [${available.join(", ")}${suffix}]`);
+      }
       styleId = fuzzy.id;
       matchedStyle = fuzzy.name;
     }
@@ -252,7 +258,7 @@ async function applyStyleSingle(p: any) {
   if (matchedStyle) result.matchedStyle = matchedStyle;
   // Hint when both styleId and styleName provided
   if (p.styleId && p.styleName) {
-    result._hint = "Both styleId and styleName provided — used styleId. Pass only one: styleName (by name lookup) or styleId (direct ID).";
+    result.warning = "Both styleId and styleName provided — used styleId. Pass only one: styleName (by name lookup) or styleId (direct ID).";
   }
   return result;
 }

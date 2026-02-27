@@ -1,7 +1,6 @@
 import { z } from "zod";
 import type { McpServer, SendCommandFn } from "./types";
 import { mcpJson, mcpError } from "./types";
-import { filterFigmaNode } from "../utils/filter-node";
 
 // ─── MCP Registration ────────────────────────────────────────────
 

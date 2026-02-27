@@ -3,7 +3,7 @@ import { flexJson, flexBool } from "../utils/coercion";
 import * as S from "./schemas";
 import type { McpServer, SendCommandFn } from "./types";
 import { mcpJson, mcpError } from "./types";
-import { batchHandler, appendToParent, solidPaint } from "./helpers";
+import { batchHandler, appendToParent, solidPaint, styleNotFoundHint, suggestStyleForColor } from "./helpers";
 
 // ─── Schemas ─────────────────────────────────────────────────────
 
@@ -14,10 +14,10 @@ const componentItem = z.object({
   width: z.coerce.number().optional().describe("Width (default: 100)"),
   height: z.coerce.number().optional().describe("Height (default: 100)"),
   parentId: S.parentId,
-  fillColor: flexJson(S.colorRgba.optional()).describe('Fill color. Hex "#FF0000" or {r,g,b,a?} 0-1. Omit for no fill.'),
+  fillColor: flexJson(S.colorRgba).optional().describe('Fill color. Hex "#FF0000" or {r,g,b,a?} 0-1. Omit for no fill.'),
   fillStyleName: z.string().optional().describe("Apply a fill paint style by name (case-insensitive)."),
   fillVariableId: z.string().optional().describe("Bind a color variable to the fill."),
-  strokeColor: flexJson(S.colorRgba.optional()).describe('Stroke color. Hex "#FF0000" or {r,g,b,a?} 0-1. Omit for no stroke.'),
+  strokeColor: flexJson(S.colorRgba).optional().describe('Stroke color. Hex "#FF0000" or {r,g,b,a?} 0-1. Omit for no stroke.'),
   strokeStyleName: z.string().optional().describe("Apply a stroke paint style by name."),
   strokeVariableId: z.string().optional().describe("Bind a color variable to the stroke."),
   strokeWeight: z.coerce.number().positive().optional().describe("Stroke weight (default: 1)"),
@@ -57,7 +57,7 @@ const propItem = z.object({
 
 const instanceItem = z.object({
   componentId: z.string().describe("Component or component set ID"),
-  variantProperties: flexJson(z.record(z.string()).optional()).describe('Pick variant by properties, e.g. {"Style":"Secondary","Size":"Large"}. Ignored for plain COMPONENT IDs.'),
+  variantProperties: flexJson(z.record(z.string(), z.string())).optional().describe('Pick variant by properties, e.g. {"Style":"Secondary","Size":"Large"}. Ignored for plain COMPONENT IDs.'),
   x: z.coerce.number().optional().describe("X position. Omit to keep default."),
   y: z.coerce.number().optional().describe("Y position. Omit to keep default."),
   parentId: S.parentId,
@@ -109,7 +109,7 @@ export function registerMcpTools(server: McpServer, sendCommand: SendCommandFn) 
   server.tool(
     "create_instance_from_local",
     "Create instances of local components. For COMPONENT_SET, use variantProperties to pick a specific variant (e.g. {\"Style\":\"Secondary\"}). Batch: pass multiple items.",
-    { items: flexJson(z.array(instanceItem)).describe("Array of {componentId, x?, y?, parentId?}"), depth: S.depth },
+    { items: flexJson(z.array(instanceItem)).describe("Array of {componentId, x?, y?, parentId?}") },
     async (params: any) => {
       try { return mcpJson(await sendCommand("create_instance_from_local", params)); }
       catch (e) { return mcpError("Error creating instance", e); }
@@ -121,7 +121,7 @@ export function registerMcpTools(server: McpServer, sendCommand: SendCommandFn) 
     "Search local components and component sets across all pages. Returns component id, name, and which page it lives on.",
     {
       query: z.string().optional().describe("Filter by name (case-insensitive substring). Omit to list all."),
-      setsOnly: flexBool(z.boolean().optional()).describe("If true, return only COMPONENT_SET nodes"),
+      setsOnly: flexBool(z.boolean()).optional().describe("If true, return only COMPONENT_SET nodes"),
       limit: z.coerce.number().optional().describe("Max results (default 100)"),
       offset: z.coerce.number().optional().describe("Skip N results (default 0)"),
     },
@@ -136,7 +136,7 @@ export function registerMcpTools(server: McpServer, sendCommand: SendCommandFn) 
     "Get detailed component info including property definitions and variants.",
     {
       componentId: z.string().describe("Component node ID"),
-      includeChildren: flexBool(z.boolean().optional()).describe("For COMPONENT_SETs: include variant children (default false)"),
+      includeChildren: flexBool(z.boolean()).optional().describe("For COMPONENT_SETs: include variant children (default false)"),
     },
     async (params: any) => {
       try { return mcpJson(await sendCommand("get_component_by_id", params)); }
@@ -157,25 +157,13 @@ export function registerMcpTools(server: McpServer, sendCommand: SendCommandFn) 
 
 // ─── Figma Handlers ──────────────────────────────────────────────
 
-function colorConflictHints(prop: string, variableId: any, styleName: any, color: any, tokenized: boolean): string[] {
-  const sources = [variableId && "VariableId", styleName && "StyleName", color && "Color"].filter(Boolean) as string[];
-  if (sources.length > 1) {
-    const used = variableId ? "VariableId" : styleName ? "StyleName" : "Color";
-    const ignored = sources.filter(s => s !== used);
-    return [`Multiple ${prop} sources — used ${prop}${used}, ignored ${ignored.map(s => prop + s).join(", ")}. Pass only one: ${prop}VariableId (variable token), ${prop}StyleName (paint style), or ${prop}Color (one-off).`];
-  }
-  if (sources.length === 1 && color && !tokenized) {
-    return [`Hardcoded ${prop} color. Use ${prop}StyleName to apply a paint style, or ${prop}VariableId to bind a color variable. Only use ${prop}Color for one-off colors not in your design system.`];
-  }
-  return [];
-}
-
-async function resolveStyleId(name: string): Promise<string | null> {
+async function resolvePaintStyle(name: string): Promise<{ id: string | null, available: string[] }> {
   const styles = await figma.getLocalPaintStylesAsync();
+  const available = styles.map(s => s.name);
   const exact = styles.find(s => s.name === name);
-  if (exact) return exact.id;
+  if (exact) return { id: exact.id, available };
   const fuzzy = styles.find(s => s.name.toLowerCase().includes(name.toLowerCase()));
-  return fuzzy?.id ?? null;
+  return { id: fuzzy?.id ?? null, available };
 }
 
 async function bindFillVariable(node: any, variableId: string, fallbackColor?: any) {
@@ -232,25 +220,36 @@ async function createComponentSingle(p: any) {
   }
 
   // Fill: variableId > styleName > direct color
-  let fillTokenized = false;
+  const hints: string[] = [];
   if (fillVariableId) {
-    fillTokenized = await bindFillVariable(comp, fillVariableId, fillColor);
+    const ok = await bindFillVariable(comp, fillVariableId, fillColor);
+    if (!ok) hints.push(`fillVariableId '${fillVariableId}' not found.`);
   } else if (fillStyleName) {
-    const sid = await resolveStyleId(fillStyleName);
-    if (sid) { await (comp as any).setFillStyleIdAsync(sid); fillTokenized = true; }
+    const { id: sid, available } = await resolvePaintStyle(fillStyleName);
+    if (sid) {
+      try { await (comp as any).setFillStyleIdAsync(sid); }
+      catch (e: any) { hints.push(`fillStyleName '${fillStyleName}' matched but failed to apply: ${e.message}`); }
+    } else hints.push(styleNotFoundHint("fillStyleName", fillStyleName, available));
   } else if (fillColor) {
     comp.fills = [solidPaint(fillColor)];
+    const suggestion = await suggestStyleForColor(fillColor, "fillStyleName");
+    if (suggestion) hints.push(suggestion);
   }
 
   // Stroke: variableId > styleName > direct color
-  let strokeTokenized = false;
   if (strokeVariableId) {
-    strokeTokenized = await bindStrokeVariable(comp, strokeVariableId, strokeColor);
+    const ok = await bindStrokeVariable(comp, strokeVariableId, strokeColor);
+    if (!ok) hints.push(`strokeVariableId '${strokeVariableId}' not found.`);
   } else if (strokeStyleName) {
-    const sid = await resolveStyleId(strokeStyleName);
-    if (sid) { await (comp as any).setStrokeStyleIdAsync(sid); strokeTokenized = true; }
+    const { id: sid, available } = await resolvePaintStyle(strokeStyleName);
+    if (sid) {
+      try { await (comp as any).setStrokeStyleIdAsync(sid); }
+      catch (e: any) { hints.push(`strokeStyleName '${strokeStyleName}' matched but failed to apply: ${e.message}`); }
+    } else hints.push(styleNotFoundHint("strokeStyleName", strokeStyleName, available));
   } else if (strokeColor) {
     comp.strokes = [solidPaint(strokeColor)];
+    const suggestion = await suggestStyleForColor(strokeColor, "strokeStyleName");
+    if (suggestion) hints.push(suggestion);
   }
   if (strokeWeight !== undefined) comp.strokeWeight = strokeWeight;
   if (cornerRadius !== undefined) comp.cornerRadius = cornerRadius;
@@ -261,16 +260,8 @@ async function createComponentSingle(p: any) {
     if (deferV) { try { comp.layoutSizingVertical = "FILL"; } catch {} }
   }
 
-  // Creation-time hints
   const result: any = { id: comp.id };
-  const hints: string[] = [];
-  hints.push(...colorConflictHints("fill", fillVariableId, fillStyleName, fillColor, fillTokenized));
-  hints.push(...colorConflictHints("stroke", strokeVariableId, strokeStyleName, strokeColor, strokeTokenized));
-  if (!name.includes("=")) hints.push("Name lacks Property=Value pattern. Add it before combine_as_variants if you plan to create variants.");
-  if (hints.length > 0) {
-    hints.push("Run lint_node after building to catch these patterns across your design.");
-    result._hint = hints.join(" ");
-  }
+  if (hints.length > 0) result.warning = hints.join(" ");
   return result;
 }
 
@@ -339,11 +330,8 @@ async function instanceSingle(p: any) {
   const inst = node.createInstance();
   if (p.x !== undefined) inst.x = p.x;
   if (p.y !== undefined) inst.y = p.y;
-  if (p.parentId) {
-    const parent = await figma.getNodeByIdAsync(p.parentId);
-    if (parent && "appendChild" in parent) (parent as any).appendChild(inst);
-  }
-  return { id: inst.id, componentId: node.id };
+  await appendToParent(inst, p.parentId);
+  return { id: inst.id };
 }
 
 async function getLocalComponentsFigma(params: any) {

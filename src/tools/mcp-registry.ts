@@ -9,7 +9,7 @@ import { registerMcpTools as registerCreateFrame } from "./create-frame";
 import { registerMcpTools as registerCreateText } from "./create-text";
 import { registerMcpTools as registerModifyNode } from "./modify-node";
 import { registerMcpTools as registerFillStroke } from "./fill-stroke";
-import { registerMcpTools as registerLayout } from "./layout";
+import { registerMcpTools as registerUpdateFrame } from "./update-frame";
 import { registerMcpTools as registerEffects } from "./effects";
 import { registerMcpTools as registerText } from "./text";
 import { registerMcpTools as registerFonts } from "./fonts";
@@ -30,7 +30,7 @@ export function registerAllTools(server: McpServer, sendCommand: SendCommandFn) 
   registerCreateText(server, sendCommand);
   registerModifyNode(server, sendCommand);
   registerFillStroke(server, sendCommand);
-  registerLayout(server, sendCommand);
+  registerUpdateFrame(server, sendCommand);
   registerEffects(server, sendCommand);
   registerText(server, sendCommand);
   registerFonts(server, sendCommand);

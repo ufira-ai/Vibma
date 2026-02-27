@@ -3,19 +3,19 @@ import { flexJson, flexBool } from "../utils/coercion";
 import * as S from "./schemas";
 import type { McpServer, SendCommandFn } from "./types";
 import { mcpJson, mcpError } from "./types";
-import { batchHandler } from "./helpers";
+import { batchHandler, styleNotFoundHint, suggestStyleForColor } from "./helpers";
 
 // ─── Schemas ─────────────────────────────────────────────────────
 
 const fillItem = z.object({
   nodeId: S.nodeId,
-  color: flexJson(S.colorRgba.optional()).describe('Fill color. Hex "#FF0000" or {r,g,b,a?} 0-1. Ignored when styleName is set.'),
+  color: flexJson(S.colorRgba).optional().describe('Fill color. Hex "#FF0000" or {r,g,b,a?} 0-1. Ignored when styleName is set.'),
   styleName: z.string().optional().describe("Apply fill paint style by name instead of color. Omit to use color."),
 });
 
 const strokeItem = z.object({
   nodeId: S.nodeId,
-  color: flexJson(S.colorRgba.optional()).describe('Stroke color. Hex "#FF0000" or {r,g,b,a?} 0-1. Ignored when styleName is set.'),
+  color: flexJson(S.colorRgba).optional().describe('Stroke color. Hex "#FF0000" or {r,g,b,a?} 0-1. Ignored when styleName is set.'),
   strokeWeight: z.coerce.number().positive().optional().describe("Stroke weight (default: 1)"),
   styleName: z.string().optional().describe("Apply stroke paint style by name instead of color. Omit to use color."),
 });
@@ -23,7 +23,7 @@ const strokeItem = z.object({
 const cornerItem = z.object({
   nodeId: S.nodeId,
   radius: z.coerce.number().min(0).describe("Corner radius"),
-  corners: flexJson(z.array(flexBool(z.boolean())).length(4).optional())
+  corners: flexJson(z.array(flexBool(z.boolean())).length(4)).optional()
     .describe("Which corners to round [topLeft, topRight, bottomRight, bottomLeft]. Default: all corners [true,true,true,true]."),
 });
 
@@ -78,12 +78,14 @@ export function registerMcpTools(server: McpServer, sendCommand: SendCommandFn) 
 
 // ─── Figma Handlers ──────────────────────────────────────────────
 
-async function resolveStyle(name: string): Promise<{ id: string; name: string } | null> {
+async function resolveStyle(name: string): Promise<{ match: { id: string; name: string } | null, available: string[] }> {
   const styles = await figma.getLocalPaintStylesAsync();
+  const available = styles.map(s => s.name);
   const exact = styles.find(s => s.name === name);
-  if (exact) return { id: exact.id, name: exact.name };
+  if (exact) return { match: { id: exact.id, name: exact.name }, available };
   const fuzzy = styles.find(s => s.name.toLowerCase().includes(name.toLowerCase()));
-  return fuzzy ? { id: fuzzy.id, name: fuzzy.name } : null;
+  if (fuzzy) return { match: { id: fuzzy.id, name: fuzzy.name }, available };
+  return { match: null, available };
 }
 
 async function setFillSingle(p: any) {
@@ -91,18 +93,20 @@ async function setFillSingle(p: any) {
   if (!node) throw new Error(`Node not found: ${p.nodeId}`);
   if (!("fills" in node)) throw new Error(`Node does not support fills: ${p.nodeId}`);
 
-  if (p.styleName && p.color) {
-    const match = await resolveStyle(p.styleName);
-    if (match) { await (node as any).setFillStyleIdAsync(match.id); return { matchedStyle: match.name, _hint: "Both styleName and color provided — used styleName, ignored color. Pass only one: styleName (paint style) or color (one-off)." }; }
-    else throw new Error(`Fill style not found: "${p.styleName}"`);
-  } else if (p.styleName) {
-    const match = await resolveStyle(p.styleName);
-    if (match) { await (node as any).setFillStyleIdAsync(match.id); return { matchedStyle: match.name }; }
-    else throw new Error(`Fill style not found: "${p.styleName}"`);
+  if (p.styleName) {
+    const { match, available } = await resolveStyle(p.styleName);
+    if (match) {
+      await (node as any).setFillStyleIdAsync(match.id);
+      const result: any = { matchedStyle: match.name };
+      if (p.color) result.warning = "Both styleName and color provided — used styleName, ignored color. Pass only one.";
+      return result;
+    }
+    throw new Error(styleNotFoundHint("styleName", p.styleName, available));
   } else if (p.color) {
     const { r = 0, g = 0, b = 0, a = 1 } = p.color;
     (node as any).fills = [{ type: "SOLID", color: { r, g, b }, opacity: a }];
-    return { _hint: "Hardcoded fill color. Use styleName to apply a paint style, or use set_variable_binding to bind a color variable after creation." };
+    const suggestion = await suggestStyleForColor(p.color, "styleName");
+    if (suggestion) return { warning: suggestion };
   }
   return {};
 }
@@ -112,21 +116,26 @@ async function setStrokeSingle(p: any) {
   if (!node) throw new Error(`Node not found: ${p.nodeId}`);
   if (!("strokes" in node)) throw new Error(`Node does not support strokes: ${p.nodeId}`);
 
-  const result: any = {};
-  if (p.styleName && p.color) {
-    const match = await resolveStyle(p.styleName);
-    if (match) { await (node as any).setStrokeStyleIdAsync(match.id); result.matchedStyle = match.name; result._hint = "Both styleName and color provided — used styleName, ignored color. Pass only one: styleName (paint style) or color (one-off)."; }
-    else throw new Error(`Stroke style not found: "${p.styleName}"`);
-  } else if (p.styleName) {
-    const match = await resolveStyle(p.styleName);
-    if (match) { await (node as any).setStrokeStyleIdAsync(match.id); result.matchedStyle = match.name; }
-    else throw new Error(`Stroke style not found: "${p.styleName}"`);
+  if (p.styleName) {
+    const { match, available } = await resolveStyle(p.styleName);
+    if (match) {
+      await (node as any).setStrokeStyleIdAsync(match.id);
+      const result: any = { matchedStyle: match.name };
+      if (p.color) result.warning = "Both styleName and color provided — used styleName, ignored color. Pass only one.";
+      if (p.strokeWeight !== undefined && "strokeWeight" in node) (node as any).strokeWeight = p.strokeWeight;
+      return result;
+    }
+    throw new Error(styleNotFoundHint("styleName", p.styleName, available));
   } else if (p.color) {
     const { r = 0, g = 0, b = 0, a = 1 } = p.color;
     (node as any).strokes = [{ type: "SOLID", color: { r, g, b }, opacity: a }];
-    result._hint = "Hardcoded stroke color. Use styleName to apply a paint style, or use set_variable_binding to bind a color variable after creation.";
   }
   if (p.strokeWeight !== undefined && "strokeWeight" in node) (node as any).strokeWeight = p.strokeWeight;
+  const result: any = {};
+  if (p.color) {
+    const suggestion = await suggestStyleForColor(p.color, "styleName");
+    if (suggestion) result.warning = suggestion;
+  }
   return result;
 }
 

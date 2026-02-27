@@ -26,7 +26,7 @@ export function mcpJson(data: unknown) {
       text: JSON.stringify({
         _error: "response_too_large",
         _sizeKB: Math.round(text.length / 1024),
-        _hint: "Response exceeds safe size. Use 'depth', 'fields', 'limit', or 'summaryOnly' parameters to reduce response size.",
+        warning: "Response exceeds safe size. Use 'depth', 'fields', 'limit', or 'summaryOnly' parameters to reduce response size.",
       }),
     }],
   };

@@ -90,11 +90,14 @@ figma.ui.onmessage = async (msg: any) => {
           id: msg.id,
           result,
         });
-        // Fire-and-forget auto-focus
-        if (!SKIP_FOCUS.has(msg.command)) {
-          const ids = extractNodeIds(result, msg.params);
-          if (ids.length > 0) autoFocus(ids).catch(() => {});
-        }
+        // Auto-focus disabled: fire-and-forget caused race conditions where
+        // Figma native operations (selection, viewport scroll) from the previous
+        // command interfered with getNodeByIdAsync in the next command.
+        // TODO: re-enable with serialization (await pending autoFocus before next command)
+        // if (!SKIP_FOCUS.has(msg.command)) {
+        //   const ids = extractNodeIds(result, msg.params);
+        //   if (ids.length > 0) autoFocus(ids).catch(() => {});
+        // }
       } catch (error: any) {
         figma.ui.postMessage({
           type: "command-error",
@@ -130,8 +133,13 @@ function updateSettings(settings: any) {
 
 async function handleCommand(command: string, params: any): Promise<any> {
   const handler = allFigmaHandlers[command];
-  if (handler) {
-    return await handler(params);
-  }
-  throw new Error(`Unknown command: ${command}`);
+  if (!handler) throw new Error(`Unknown command: ${command}`);
+
+  // Ensure the current page is fully loaded before any handler runs.
+  // Without this, getNodeByIdAsync can return null for nodes that exist,
+  // appendChild can throw on pages that aren't synced, and node IDs can
+  // shift between pre-sync (temporary) and post-sync (stable) formats.
+  await figma.currentPage.loadAsync();
+
+  return await handler(params);
 }

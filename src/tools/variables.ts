@@ -92,7 +92,7 @@ export function registerMcpTools(server: McpServer, sendCommand: SendCommandFn) 
     {
       type: z.enum(["COLOR", "FLOAT", "STRING", "BOOLEAN"]).optional().describe("Filter by type"),
       collectionId: z.string().optional().describe("Filter by collection. Omit for all collections."),
-      includeValues: flexBool(z.boolean().optional()).describe("Include valuesByMode for each variable (default: false)"),
+      includeValues: flexBool(z.boolean()).optional().describe("Include valuesByMode for each variable (default: false)"),
     },
     async (params: any) => {
       try { return mcpJson(await sendCommand("get_local_variables", params)); }

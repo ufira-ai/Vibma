@@ -3,7 +3,7 @@ import { flexJson } from "../utils/coercion";
 import * as S from "./schemas";
 import type { McpServer, SendCommandFn } from "./types";
 import { mcpJson, mcpError } from "./types";
-import { batchHandler, appendToParent, solidPaint } from "./helpers";
+import { batchHandler, appendToParent, solidPaint, styleNotFoundHint, suggestStyleForColor } from "./helpers";
 
 // ─── Schema ──────────────────────────────────────────────────────
 
@@ -14,8 +14,8 @@ const frameItem = z.object({
   width: z.coerce.number().optional().describe("Width (default: 100)"),
   height: z.coerce.number().optional().describe("Height (default: 100)"),
   parentId: S.parentId,
-  fillColor: flexJson(S.colorRgba.optional()).describe('Fill color. Hex "#FF0000" or {r,g,b,a?} 0-1. Default: no fill (empty fills array).'),
-  strokeColor: flexJson(S.colorRgba.optional()).describe('Stroke color. Hex "#FF0000" or {r,g,b,a?} 0-1. Default: none.'),
+  fillColor: flexJson(S.colorRgba).optional().describe('Fill color. Hex "#FF0000" or {r,g,b,a?} 0-1. Default: no fill (empty fills array).'),
+  strokeColor: flexJson(S.colorRgba).optional().describe('Stroke color. Hex "#FF0000" or {r,g,b,a?} 0-1. Default: none.'),
   strokeWeight: z.coerce.number().positive().optional().describe("Stroke weight (default: 1)"),
   cornerRadius: z.coerce.number().min(0).optional().describe("Corner radius (default: 0)"),
   layoutMode: z.enum(["NONE", "HORIZONTAL", "VERTICAL"]).optional().describe("Auto-layout direction (default: NONE)"),
@@ -67,7 +67,7 @@ export function registerMcpTools(server: McpServer, sendCommand: SendCommandFn) 
 
   server.tool(
     "create_auto_layout",
-    "Wrap existing nodes in an auto-layout frame. One call replaces create_frame + set_layout_mode + insert_child × N.",
+    "Wrap existing nodes in an auto-layout frame. One call replaces create_frame + update_frame + insert_child × N.",
     { items: flexJson(z.array(autoLayoutItem)).describe("Array of auto-layout wraps to perform"), depth: S.depth },
     async (params: any) => {
       try { return mcpJson(await sendCommand("create_auto_layout", params)); }
@@ -78,28 +78,13 @@ export function registerMcpTools(server: McpServer, sendCommand: SendCommandFn) 
 
 // ─── Figma Handlers ──────────────────────────────────────────────
 
-function colorConflictHints(prop: string, variableId: any, styleName: any, color: any, tokenized: boolean): string[] {
-  const sources = [variableId && "VariableId", styleName && "StyleName", color && "Color"].filter(Boolean) as string[];
-  if (sources.length > 1) {
-    const used = variableId ? "VariableId" : styleName ? "StyleName" : "Color";
-    const ignored = sources.filter(s => s !== used);
-    return [`Multiple ${prop} sources — used ${prop}${used}, ignored ${ignored.map(s => prop + s).join(", ")}. Pass only one: ${prop}VariableId (variable token), ${prop}StyleName (paint style), or ${prop}Color (one-off).`];
-  }
-  if (sources.length === 1 && color && !tokenized) {
-    return [`Hardcoded ${prop} color. Use ${prop}StyleName to apply a paint style, or ${prop}VariableId to bind a color variable. Only use ${prop}Color for one-off colors not in your design system.`];
-  }
-  return [];
-}
-
-async function resolveStyleId(name: string, styleType: "paint" | "text" | "effect"): Promise<string | null> {
-  if (styleType === "paint") {
-    const styles = await figma.getLocalPaintStylesAsync();
-    const exact = styles.find(s => s.name === name);
-    if (exact) return exact.id;
-    const fuzzy = styles.find(s => s.name.toLowerCase().includes(name.toLowerCase()));
-    return fuzzy?.id ?? null;
-  }
-  return null;
+async function resolvePaintStyle(name: string): Promise<{ id: string | null, available: string[] }> {
+  const styles = await figma.getLocalPaintStylesAsync();
+  const available = styles.map(s => s.name);
+  const exact = styles.find(s => s.name === name);
+  if (exact) return { id: exact.id, available };
+  const fuzzy = styles.find(s => s.name.toLowerCase().includes(name.toLowerCase()));
+  return { id: fuzzy?.id ?? null, available };
 }
 
 async function createSingleFrame(p: any) {
@@ -141,6 +126,7 @@ async function createSingleFrame(p: any) {
   }
 
   // Fill: variableId > styleName > direct color
+  const hints: string[] = [];
   let fillTokenized = false;
   if (fillVariableId) {
     const v = await figma.variables.getVariableByIdAsync(fillVariableId);
@@ -149,12 +135,19 @@ async function createSingleFrame(p: any) {
       const bound = figma.variables.setBoundVariableForPaint(frame.fills[0] as SolidPaint, "color", v);
       frame.fills = [bound];
       fillTokenized = true;
+    } else {
+      hints.push(`fillVariableId '${fillVariableId}' not found.`);
     }
   } else if (fillStyleName) {
-    const sid = await resolveStyleId(fillStyleName, "paint");
-    if (sid) { await (frame as any).setFillStyleIdAsync(sid); fillTokenized = true; }
+    const { id: sid, available } = await resolvePaintStyle(fillStyleName);
+    if (sid) {
+      try { await (frame as any).setFillStyleIdAsync(sid); fillTokenized = true; }
+      catch (e: any) { hints.push(`fillStyleName '${fillStyleName}' matched but failed to apply: ${e.message}`); }
+    } else hints.push(styleNotFoundHint("fillStyleName", fillStyleName, available));
   } else if (fillColor) {
     frame.fills = [solidPaint(fillColor)];
+    const suggestion = await suggestStyleForColor(fillColor, "fillStyleName");
+    if (suggestion) hints.push(suggestion);
   }
 
   // Stroke: variableId > styleName > direct color
@@ -166,12 +159,19 @@ async function createSingleFrame(p: any) {
       const bound = figma.variables.setBoundVariableForPaint(frame.strokes[0] as SolidPaint, "color", v);
       frame.strokes = [bound];
       strokeTokenized = true;
+    } else {
+      hints.push(`strokeVariableId '${strokeVariableId}' not found.`);
     }
   } else if (strokeStyleName) {
-    const sid = await resolveStyleId(strokeStyleName, "paint");
-    if (sid) { await (frame as any).setStrokeStyleIdAsync(sid); strokeTokenized = true; }
+    const { id: sid, available } = await resolvePaintStyle(strokeStyleName);
+    if (sid) {
+      try { await (frame as any).setStrokeStyleIdAsync(sid); strokeTokenized = true; }
+      catch (e: any) { hints.push(`strokeStyleName '${strokeStyleName}' matched but failed to apply: ${e.message}`); }
+    } else hints.push(styleNotFoundHint("strokeStyleName", strokeStyleName, available));
   } else if (strokeColor) {
     frame.strokes = [solidPaint(strokeColor)];
+    const suggestion = await suggestStyleForColor(strokeColor, "strokeStyleName");
+    if (suggestion) hints.push(suggestion);
   }
   if (strokeWeight !== undefined) frame.strokeWeight = strokeWeight;
 
@@ -183,13 +183,7 @@ async function createSingleFrame(p: any) {
   }
 
   const result: any = { id: frame.id };
-  const hints: string[] = [];
-  hints.push(...colorConflictHints("fill", fillVariableId, fillStyleName, fillColor, fillTokenized));
-  hints.push(...colorConflictHints("stroke", strokeVariableId, strokeStyleName, strokeColor, strokeTokenized));
-  if (hints.length > 0) {
-    hints.push("Run lint_node after building to catch these patterns across your design.");
-    result._hint = hints.join(" ");
-  }
+  if (hints.length > 0) result.warning = hints.join(" ");
   return result;
 }
 
