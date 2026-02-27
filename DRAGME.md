@@ -57,7 +57,7 @@ Add to your MCP config (e.g. `.cursor/mcp.json`, `.claude.json`, or `.mcp.json`)
   "mcpServers": {
     "Vibma": {
       "command": "node",
-      "args": ["dist/mcp.js"]
+      "args": ["/absolute/path/to/vibma/dist/mcp.js"]
     }
   }
 }
@@ -70,7 +70,7 @@ Or run from source (no build step, good for development):
   "mcpServers": {
     "Vibma": {
       "command": "npx",
-      "args": ["tsx", "src/mcp.ts"]
+      "args": ["tsx", "/absolute/path/to/vibma/src/mcp.ts"]
     }
   }
 }
@@ -83,11 +83,13 @@ If using a non-default port, pass `--port=`:
   "mcpServers": {
     "Vibma": {
       "command": "node",
-      "args": ["dist/mcp.js", "--port=3056"]
+      "args": ["/absolute/path/to/vibma/dist/mcp.js", "--port=3056"]
     }
   }
 }
 ```
+
+> **Note:** Replace `/absolute/path/to/vibma` with the actual path to your cloned repo. To find it, run `pwd` from the vibma directory. MCP clients don't set a working directory, so relative paths won't resolve.
 
 ## 5. Connect
 
