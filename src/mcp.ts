@@ -6,16 +6,20 @@ import { z } from "zod";
 import WebSocket from "ws";
 import { v4 as uuidv4 } from "uuid";
 import { readFileSync } from "fs";
-import { resolve, dirname } from "path";
-import { fileURLToPath } from "url";
+import { join } from "path";
 import { registerAllTools } from "./tools/mcp-registry";
 
-// Read version from package.json (works in both CJS and ESM)
+// Read version — works with both tsx (source) and node (compiled dist/)
 let VIBMA_VERSION = "0.0.0";
 try {
-  const dir = typeof __dirname !== "undefined" ? __dirname : dirname(fileURLToPath(import.meta.url));
-  const pkg = JSON.parse(readFileSync(resolve(dir, "../package.json"), "utf8"));
-  VIBMA_VERSION = pkg.version;
+  // Walk up from current file's dir to find package.json
+  const start = typeof __dirname !== "undefined" ? __dirname : process.cwd();
+  for (let dir = start; dir !== "/"; dir = join(dir, "..")) {
+    try {
+      const pkg = JSON.parse(readFileSync(join(dir, "package.json"), "utf8"));
+      if (pkg.name === "@ufira/vibma") { VIBMA_VERSION = pkg.version; break; }
+    } catch { continue; }
+  }
 } catch { /* fallback */ }
 
 // ─── Logger (stderr so it doesn't pollute MCP stdio) ────────────
