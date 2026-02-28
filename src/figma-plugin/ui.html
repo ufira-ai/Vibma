@@ -350,6 +350,9 @@
     </div>
 
     <script>
+      // Keep in sync with package.json version
+      const VIBMA_VERSION = "0.1.1";
+
       // WebSocket connection state
       const state = {
         connected: false,
@@ -424,11 +427,13 @@
             console.log("Joining channel:", channelName);
             state.channel = channelName;
 
-            // Join the channel using the same format as App.tsx
+            // Join the channel with role identification
             state.socket.send(
               JSON.stringify({
                 type: "join",
                 channel: channelName.trim(),
+                role: "plugin",
+                version: VIBMA_VERSION,
               })
             );
           };
@@ -472,9 +477,10 @@
                   );
                 }
               } else if (data.type === "error") {
-                console.error("Error:", data.message);
-                updateConnectionStatus(false, `Error: ${data.message}`);
-                state.socket.close();
+                console.error("Relay error:", data.message);
+                const prefix = data.code === "ROLE_OCCUPIED" ? "Connection rejected" : "Error";
+                updateConnectionStatus(false, `${prefix}: ${data.message}`);
+                if (state.socket) { state.socket.close(); state.socket = null; }
               }
 
               handleSocketMessage(data);

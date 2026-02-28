@@ -5,7 +5,18 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import { z } from "zod";
 import WebSocket from "ws";
 import { v4 as uuidv4 } from "uuid";
+import { readFileSync } from "fs";
+import { resolve, dirname } from "path";
+import { fileURLToPath } from "url";
 import { registerAllTools } from "./tools/mcp-registry";
+
+// Read version from package.json (works in both CJS and ESM)
+let VIBMA_VERSION = "0.0.0";
+try {
+  const dir = typeof __dirname !== "undefined" ? __dirname : dirname(fileURLToPath(import.meta.url));
+  const pkg = JSON.parse(readFileSync(resolve(dir, "../package.json"), "utf8"));
+  VIBMA_VERSION = pkg.version;
+} catch { /* fallback */ }
 
 // ─── Logger (stderr so it doesn't pollute MCP stdio) ────────────
 const logger = {
@@ -54,6 +65,7 @@ const pendingRequests = new Map<
 >();
 let currentChannel: string | null = null;
 let activePort: number = parseInt(process.env.VIBMA_PORT || "3055");
+let rejected = false; // Suppress auto-reconnect after ROLE_OCCUPIED rejection
 
 // CLI args
 const args = process.argv.slice(2);
@@ -84,6 +96,19 @@ function connectToFigma(port: number = activePort) {
   ws.on("message", (data: any) => {
     try {
       const json = JSON.parse(data) as any;
+
+      // Handle relay errors (e.g., ROLE_OCCUPIED rejection)
+      if (json.type === "error") {
+        logger.error(`Relay error: ${json.message}`);
+        if (json.code === "ROLE_OCCUPIED") rejected = true;
+        if (json.id && pendingRequests.has(json.id)) {
+          const req = pendingRequests.get(json.id)!;
+          clearTimeout(req.timeout);
+          req.reject(new Error(json.message));
+          pendingRequests.delete(json.id);
+        }
+        return;
+      }
 
       // Handle progress updates
       if (json.type === "progress_update") {
@@ -143,16 +168,26 @@ function connectToFigma(port: number = activePort) {
       request.reject(new Error("Connection closed"));
       pendingRequests.delete(id);
     }
-    logger.info("Attempting to reconnect in 2 seconds...");
-    setTimeout(() => connectToFigma(port), 2000);
+    if (rejected) {
+      logger.info("Not reconnecting — channel role was rejected. Call join_channel to retry.");
+    } else {
+      logger.info("Attempting to reconnect in 2 seconds...");
+      setTimeout(() => connectToFigma(port), 2000);
+    }
   });
 }
 
 // ─── Channel management ──────────────────────────────────────────
 
 async function joinChannel(channelName: string): Promise<void> {
+  rejected = false; // Reset rejection state on explicit join attempt
   if (!ws || ws.readyState !== WebSocket.OPEN) {
-    throw new Error("Not connected to Figma");
+    connectToFigma();
+    // Wait briefly for connection
+    await new Promise((resolve) => setTimeout(resolve, 1000));
+    if (!ws || ws.readyState !== WebSocket.OPEN) {
+      throw new Error("Not connected to relay. Check that the relay server is running.");
+    }
   }
   try {
     await sendCommandToFigma("join", { channel: channelName });
@@ -188,7 +223,9 @@ function sendCommandToFigma(
     const request = {
       id,
       type: command === "join" ? "join" : "message",
-      ...(command === "join" ? { channel: (params as any).channel } : { channel: currentChannel }),
+      ...(command === "join"
+        ? { channel: (params as any).channel, role: "mcp", version: VIBMA_VERSION }
+        : { channel: currentChannel }),
       message: {
         id,
         command,
@@ -241,6 +278,33 @@ server.tool(
         content: [{
           type: "text",
           text: `Error joining channel: ${error instanceof Error ? error.message : String(error)}. MCP is using port ${activePort} — confirm the relay is running on the same port.`,
+        }],
+      };
+    }
+  }
+);
+
+// Debug tool: inspect relay channel occupancy
+server.tool(
+  "channel_info",
+  "Debug: inspect which clients (MCP, plugin) are connected to each relay channel. Useful for diagnosing connection issues. Does not require an active channel.",
+  {},
+  async () => {
+    try {
+      const url = serverUrl === "localhost"
+        ? `http://localhost:${activePort}/channels`
+        : `https://${serverUrl}/channels`;
+      const response = await fetch(url);
+      if (!response.ok) {
+        return { content: [{ type: "text", text: `Relay returned ${response.status}: ${await response.text()}` }] };
+      }
+      const data = await response.json();
+      return { content: [{ type: "text", text: JSON.stringify(data, null, 2) }] };
+    } catch (error) {
+      return {
+        content: [{
+          type: "text",
+          text: `Could not reach relay at port ${activePort}: ${error instanceof Error ? error.message : String(error)}`,
         }],
       };
     }
