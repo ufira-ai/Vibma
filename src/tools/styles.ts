@@ -5,6 +5,7 @@ import type { McpServer, SendCommandFn } from "./types";
 import { mcpJson, mcpError } from "./types";
 import { batchHandler } from "./helpers";
 
+
 // ─── Schemas ─────────────────────────────────────────────────────
 
 const paintStyleItem = z.object({
@@ -201,7 +202,25 @@ async function createTextStyleSingle(p: any) {
   }
   if (p.textCase) style.textCase = p.textCase;
   if (p.textDecoration) style.textDecoration = p.textDecoration;
-  return { id: style.id };
+
+  // WCAG recommendations for text styles
+  const result: any = { id: style.id };
+  const hints: string[] = [];
+  if (p.fontSize < 12) {
+    hints.push("WCAG: Min 12px text recommended.");
+  }
+  if (p.lineHeight !== undefined && p.lineHeight !== "AUTO") {
+    let lhPx: number | null = null;
+    if (typeof p.lineHeight === "number") lhPx = p.lineHeight;
+    else if (p.lineHeight.unit === "PIXELS") lhPx = p.lineHeight.value;
+    else if (p.lineHeight.unit === "PERCENT") lhPx = (p.lineHeight.value / 100) * p.fontSize;
+    if (lhPx !== null && lhPx / p.fontSize < 1.5) {
+      hints.push(`WCAG: Line height ${Math.ceil(p.fontSize * 1.5)}px (1.5×) recommended.`);
+    }
+  }
+  if (hints.length > 0) result.warning = hints.join(" ");
+
+  return result;
 }
 
 async function createEffectStyleSingle(p: any) {
