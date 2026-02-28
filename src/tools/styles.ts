@@ -359,7 +359,7 @@ async function updatePaintStyleSingle(p: any) {
     const { r, g, b, a = 1 } = p.color;
     style.paints = [{ type: "SOLID", color: { r, g, b }, opacity: a }];
   }
-  return { id: style.id };
+  return "ok";
 }
 
 async function updateTextStyleSingle(p: any) {
@@ -388,7 +388,6 @@ async function updateTextStyleSingle(p: any) {
   if (p.textDecoration !== undefined) style.textDecoration = p.textDecoration;
 
   // WCAG recommendations
-  const result: any = { id: style.id };
   const hints: string[] = [];
   const effectiveFontSize = p.fontSize ?? style.fontSize;
   if (effectiveFontSize < 12) {
@@ -404,8 +403,8 @@ async function updateTextStyleSingle(p: any) {
       hints.push(`WCAG: Line height ${Math.ceil(effectiveFontSize * 1.5)}px (1.5×) recommended.`);
     }
   }
-  if (hints.length > 0) result.warning = hints.join(" ");
-  return result;
+  if (hints.length > 0) return { warning: hints.join(" ") };
+  return "ok";
 }
 
 export const figmaHandlers: Record<string, (params: any) => Promise<any>> = {
