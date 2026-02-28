@@ -131,22 +131,33 @@ export function formatContrastFailures(
   newColor: { r: number; g: number; b: number },
   existingColors: Array<{ name: string; color: { r: number; g: number; b: number } }>,
 ): string | null {
-  const failures: string[] = [];
+  let worstRatio = Infinity;
+  let worstName = "";
+  let failCount = 0;
 
   for (const existing of existingColors) {
     const result = checkContrastPair(newColor, existing.color);
     if (!result.passesAA) {
-      failures.push(`${result.ratio}:1 vs '${existing.name}' (need ${result.aaRequired}:1)`);
+      failCount++;
+      if (result.ratio < worstRatio) {
+        worstRatio = result.ratio;
+        worstName = existing.name;
+      }
     }
+  }
+
+  const parts: string[] = [];
+  if (failCount > 0) {
+    parts.push(`Fails AA against ${failCount} style${failCount > 1 ? "s" : ""} (worst: ${worstRatio}:1 vs '${worstName}')`);
   }
 
   // Also check against white and black for non-text contrast (3:1)
   const whiteResult = checkContrastPair(newColor, { r: 1, g: 1, b: 1 });
   const blackResult = checkContrastPair(newColor, { r: 0, g: 0, b: 0 });
   if (whiteResult.ratio < 3 && blackResult.ratio < 3) {
-    failures.push(`<3:1 vs both white & black`);
+    parts.push("<3:1 vs both white & black");
   }
 
-  if (failures.length === 0) return null;
-  return "WCAG contrast: " + failures.join("; ");
+  if (parts.length === 0) return null;
+  return "WCAG: " + parts.join(". ") + ".";
 }
