@@ -360,6 +360,7 @@
         serverPort: 3055,
         pendingRequests: new Map(),
         channel: null,
+        lastError: null,
       };
 
       // UI Elements
@@ -479,6 +480,7 @@
               } else if (data.type === "error") {
                 console.error("Relay error:", data.message);
                 const prefix = data.code === "ROLE_OCCUPIED" ? "Connection rejected" : "Error";
+                state.lastError = data.message;
                 updateConnectionStatus(false, `${prefix}: ${data.message}`);
                 if (state.socket) { state.socket.close(); state.socket = null; }
               }
@@ -492,7 +494,11 @@
           state.socket.onclose = () => {
             state.connected = false;
             state.socket = null;
-            updateConnectionStatus(false, "Disconnected from server");
+            // Don't overwrite rejection/error messages
+            if (!state.lastError) {
+              updateConnectionStatus(false, "Disconnected from server");
+            }
+            state.lastError = null;
           };
 
           state.socket.onerror = (error) => {
