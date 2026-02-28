@@ -18,7 +18,7 @@ export function registerMcpTools(server: McpServer, sendCommand: SendCommandFn) 
 
   server.tool(
     "read_my_design",
-    "Get detailed information about the current selection, including all node details. Use depth to control traversal.",
+    "Read the nodes the user has selected in Figma (or set via set_selection). Returns nothing if no selection exists — ask the user to select something, or use get_node_info with specific node IDs. Use depth to control child traversal.",
     { depth: z.coerce.number().optional().describe("Levels of children to recurse. 0=selection only, -1 or omit for unlimited.") },
     async ({ depth }: any) => {
       try { return mcpJson(await sendCommand("read_my_design", { depth })); }
