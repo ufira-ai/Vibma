@@ -6,7 +6,7 @@ import { z } from "zod";
 import WebSocket from "ws";
 import { v4 as uuidv4 } from "uuid";
 import { readFileSync } from "fs";
-import { join } from "path";
+import { join, basename } from "path";
 import { registerAllTools } from "./tools/mcp-registry";
 
 // Read version — works with both tsx (source) and node (compiled dist/)
@@ -228,7 +228,7 @@ function sendCommandToFigma(
       id,
       type: command === "join" ? "join" : "message",
       ...(command === "join"
-        ? { channel: (params as any).channel, role: "mcp", version: VIBMA_VERSION }
+        ? { channel: (params as any).channel, role: "mcp", version: VIBMA_VERSION, name: basename(process.cwd()) }
         : { channel: currentChannel }),
       message: {
         id,

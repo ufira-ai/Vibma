@@ -11,6 +11,7 @@ interface ChannelMember {
   ws: WebSocket;
   role: Role;
   version: string | null;
+  name: string | null;
   joinedAt: number;
 }
 
@@ -44,10 +45,10 @@ const httpServer = createServer((req, res) => {
     channels.forEach((ch, name) => {
       snapshot[name] = {
         mcp: ch.mcp
-          ? { connected: true, version: ch.mcp.version, joinedAt: new Date(ch.mcp.joinedAt).toISOString() }
+          ? { connected: true, version: ch.mcp.version, name: ch.mcp.name, joinedAt: new Date(ch.mcp.joinedAt).toISOString() }
           : null,
         plugin: ch.plugin
-          ? { connected: true, version: ch.plugin.version, joinedAt: new Date(ch.plugin.joinedAt).toISOString() }
+          ? { connected: true, version: ch.plugin.version, name: ch.plugin.name, joinedAt: new Date(ch.plugin.joinedAt).toISOString() }
           : null,
       };
     });
@@ -135,7 +136,8 @@ wss.on("connection", (ws: WebSocket) => {
 
         // Assign the slot
         const version: string | null = data.version ?? null;
-        channel[role] = { ws, role: role as Role, version, joinedAt: Date.now() };
+        const name: string | null = data.name ?? null;
+        channel[role] = { ws, role: role as Role, version, name, joinedAt: Date.now() };
         clientInfo.set(ws, { channel: channelName, role: role as Role });
 
         // Send join-success
@@ -150,14 +152,26 @@ wss.on("connection", (ws: WebSocket) => {
           channel: channelName,
         }));
 
-        // Notify counterpart + version mismatch check
+        // Notify counterpart + tell newcomer about existing peer
         const otherRole: Role = role === "mcp" ? "plugin" : "mcp";
         const other = channel[otherRole];
         if (other && other.ws.readyState === WebSocket.OPEN) {
+          // Tell existing peer about newcomer
           other.ws.send(JSON.stringify({
             type: "system",
+            code: "PEER_JOINED",
             message: `A ${role} has joined the channel`,
             channel: channelName,
+            peer: { role, version, name },
+          }));
+
+          // Tell newcomer about existing peer
+          ws.send(JSON.stringify({
+            type: "system",
+            code: "PEER_JOINED",
+            message: `A ${otherRole} is already in the channel`,
+            channel: channelName,
+            peer: { role: otherRole, version: other.version, name: other.name },
           }));
 
           // Version mismatch warning
@@ -221,6 +235,7 @@ wss.on("connection", (ws: WebSocket) => {
 
     const channel = channels.get(channelName);
     if (channel) {
+      const member = channel[role]; // capture before clearing
       channel[role] = null;
 
       // Notify remaining occupant
@@ -229,8 +244,10 @@ wss.on("connection", (ws: WebSocket) => {
       if (other && other.ws.readyState === WebSocket.OPEN) {
         other.ws.send(JSON.stringify({
           type: "system",
+          code: "PEER_LEFT",
           message: `The ${role} has left the channel`,
           channel: channelName,
+          peer: { role, version: member?.version ?? null, name: member?.name ?? null },
         }));
       }
 
