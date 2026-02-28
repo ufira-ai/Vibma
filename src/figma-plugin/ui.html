@@ -258,7 +258,7 @@
     <div class="container">
       <div class="header">
         <div class="header-text">
-          <h1>Vibma Plugin</h1>
+          <h1>Vibma <span id="version-badge" style="font-weight:400;font-size:12px;color:#999"></span></h1>
           <p>Vibe Design meets Figma — AI-powered MCP bridge</p>
         </div>
       </div>
@@ -362,7 +362,11 @@
         channel: null,
         lastError: null,
         mcpPeer: null, // { name, version } of connected MCP session
+        versionWarning: null, // version mismatch message
       };
+
+      // Set version badge
+      document.getElementById("version-badge").textContent = `v${VIBMA_VERSION}`;
 
       // UI Elements
       const portInput = document.getElementById("port");
@@ -390,6 +394,9 @@
           msg += `<br>Session: <strong>${name}</strong>${ver}`;
         } else {
           msg += `<br><span style="color:#999">Waiting for Claude Code to connect…</span>`;
+        }
+        if (state.versionWarning) {
+          msg += `<br><span style="color:#f0ad4e">⚠ ${state.versionWarning}</span>`;
         }
         return msg;
       }
@@ -462,9 +469,14 @@
                 // Peer joined/left notifications
                 if (data.code === "PEER_JOINED" && data.peer && data.peer.role === "mcp") {
                   state.mcpPeer = { name: data.peer.name, version: data.peer.version };
+                  state.versionWarning = null; // clear on new peer
                   updateConnectionStatus(true, buildStatusMessage());
                 } else if (data.code === "PEER_LEFT" && data.peer && data.peer.role === "mcp") {
                   state.mcpPeer = null;
+                  state.versionWarning = null;
+                  updateConnectionStatus(true, buildStatusMessage());
+                } else if (data.code === "VERSION_MISMATCH") {
+                  state.versionWarning = data.message;
                   updateConnectionStatus(true, buildStatusMessage());
                 }
 
@@ -518,6 +530,7 @@
             state.connected = false;
             state.socket = null;
             state.mcpPeer = null;
+            state.versionWarning = null;
             // Don't overwrite rejection/error messages
             if (!state.lastError) {
               updateConnectionStatus(false, "Disconnected from server");
