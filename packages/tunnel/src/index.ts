@@ -24,8 +24,23 @@ const httpServer = createServer((req, res) => {
 
 const wss = new WebSocketServer({ server: httpServer });
 
+const HEARTBEAT_INTERVAL = 15_000;
+const aliveClients = new WeakSet<WebSocket>();
+
+const heartbeat = setInterval(() => {
+  wss.clients.forEach((ws) => {
+    if (!aliveClients.has(ws)) return ws.terminate();
+    aliveClients.delete(ws);
+    ws.ping();
+  });
+}, HEARTBEAT_INTERVAL);
+
+wss.on("close", () => clearInterval(heartbeat));
+
 wss.on("connection", (ws: WebSocket) => {
   console.log("New client connected");
+  aliveClients.add(ws);
+  ws.on("pong", () => aliveClients.add(ws));
 
   // Send welcome message to the new client
   ws.send(JSON.stringify({
@@ -89,8 +104,7 @@ wss.on("connection", (ws: WebSocket) => {
         return;
       }
 
-      // Handle regular messages
-      if (data.type === "message") {
+      if (data.type === "message" || data.type === "progress_update") {
         const channelName = data.channel;
         if (!channelName || typeof channelName !== "string") {
           ws.send(JSON.stringify({
@@ -109,14 +123,13 @@ wss.on("connection", (ws: WebSocket) => {
           return;
         }
 
-        // Broadcast to all clients in the channel
         channelClients.forEach((client) => {
-          if (client.readyState === WebSocket.OPEN) {
+          if (client !== ws && client.readyState === WebSocket.OPEN) {
             console.log("Broadcasting message to client:", data.message);
             client.send(JSON.stringify({
               type: "broadcast",
               message: data.message,
-              sender: client === ws ? "You" : "User",
+              sender: "User",
               channel: channelName
             }));
           }
@@ -134,6 +147,11 @@ wss.on("connection", (ws: WebSocket) => {
     channels.forEach((clients, channelName) => {
       if (clients.has(ws)) {
         clients.delete(ws);
+
+        if (clients.size === 0) {
+          channels.delete(channelName);
+          return;
+        }
 
         clients.forEach((client) => {
           if (client.readyState === WebSocket.OPEN) {
