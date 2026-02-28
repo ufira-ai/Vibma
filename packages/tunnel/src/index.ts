@@ -3,11 +3,32 @@ import { WebSocketServer, WebSocket } from "ws";
 
 const port = parseInt(process.env.VIBMA_PORT || "3055");
 
-// Store clients by channel
-const channels = new Map<string, Set<WebSocket>>();
+// ─── Types ──────────────────────────────────────────────────────
+
+type Role = "mcp" | "plugin";
+
+interface ChannelMember {
+  ws: WebSocket;
+  role: Role;
+  version: string | null;
+  name: string | null;
+  joinedAt: number;
+}
+
+interface Channel {
+  mcp: ChannelMember | null;
+  plugin: ChannelMember | null;
+}
+
+// ─── State ──────────────────────────────────────────────────────
+
+const channels = new Map<string, Channel>();
+// Reverse lookup: ws → { channel, role } for O(1) cleanup on disconnect
+const clientInfo = new WeakMap<WebSocket, { channel: string; role: Role }>();
+
+// ─── HTTP server (CORS + debug endpoint) ────────────────────────
 
 const httpServer = createServer((req, res) => {
-  // CORS headers
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
@@ -18,9 +39,29 @@ const httpServer = createServer((req, res) => {
     return;
   }
 
+  // Debug endpoint: GET /channels
+  if (req.method === "GET" && req.url === "/channels") {
+    const snapshot: Record<string, any> = {};
+    channels.forEach((ch, name) => {
+      snapshot[name] = {
+        mcp: ch.mcp
+          ? { connected: true, version: ch.mcp.version, name: ch.mcp.name, joinedAt: new Date(ch.mcp.joinedAt).toISOString() }
+          : null,
+        plugin: ch.plugin
+          ? { connected: true, version: ch.plugin.version, name: ch.plugin.name, joinedAt: new Date(ch.plugin.joinedAt).toISOString() }
+          : null,
+      };
+    });
+    res.writeHead(200, { "Content-Type": "application/json" });
+    res.end(JSON.stringify(snapshot, null, 2));
+    return;
+  }
+
   res.writeHead(200, { "Content-Type": "text/plain" });
   res.end("WebSocket server running");
 });
+
+// ─── WebSocket server ───────────────────────────────────────────
 
 const wss = new WebSocketServer({ server: httpServer });
 
@@ -37,12 +78,13 @@ const heartbeat = setInterval(() => {
 
 wss.on("close", () => clearInterval(heartbeat));
 
+// ─── Connection handler ─────────────────────────────────────────
+
 wss.on("connection", (ws: WebSocket) => {
   console.log("New client connected");
   aliveClients.add(ws);
   ws.on("pong", () => aliveClients.add(ws));
 
-  // Send welcome message to the new client
   ws.send(JSON.stringify({
     type: "system",
     message: "Please join a channel to start chatting",
@@ -51,119 +93,171 @@ wss.on("connection", (ws: WebSocket) => {
   ws.on("message", (raw: Buffer | string) => {
     try {
       const message = raw.toString();
-      console.log("Received message from client:", message);
       const data = JSON.parse(message);
 
+      // ── Join ────────────────────────────────────────────────
       if (data.type === "join") {
         const channelName = data.channel;
         if (!channelName || typeof channelName !== "string") {
+          ws.send(JSON.stringify({ type: "error", id: data.id, message: "Channel name is required" }));
+          return;
+        }
+
+        const role: string | undefined = data.role;
+        if (role !== "mcp" && role !== "plugin") {
           ws.send(JSON.stringify({
             type: "error",
-            message: "Channel name is required"
+            id: data.id,
+            code: "INVALID_ROLE",
+            message: `Invalid or missing role "${role ?? ""}". Must be "mcp" or "plugin". Please update your Vibma plugin and MCP server.`,
           }));
           return;
         }
 
-        // Create channel if it doesn't exist
+        // Create channel if needed
         if (!channels.has(channelName)) {
-          channels.set(channelName, new Set());
+          channels.set(channelName, { mcp: null, plugin: null });
         }
 
-        // Add client to channel
-        const channelClients = channels.get(channelName)!;
-        channelClients.add(ws);
+        const channel = channels.get(channelName)!;
 
-        // Notify client they joined successfully
+        // Enforce one-per-role
+        if (channel[role] !== null) {
+          const occupant = role === "mcp" ? "MCP server" : "Figma plugin";
+          ws.send(JSON.stringify({
+            type: "error",
+            id: data.id,
+            code: "ROLE_OCCUPIED",
+            message: `A ${occupant} is already connected to channel "${channelName}". Disconnect it first or use a different channel name.`,
+            channel: channelName,
+          }));
+          return;
+        }
+
+        // Assign the slot
+        const version: string | null = data.version ?? null;
+        const name: string | null = data.name ?? null;
+        channel[role] = { ws, role: role as Role, version, name, joinedAt: Date.now() };
+        clientInfo.set(ws, { channel: channelName, role: role as Role });
+
+        // Send join-success
         ws.send(JSON.stringify({
           type: "system",
           message: `Joined channel: ${channelName}`,
-          channel: channelName
+          channel: channelName,
         }));
-
-        console.log("Sending message to client:", data.id);
-
         ws.send(JSON.stringify({
           type: "system",
-          message: {
-            id: data.id,
-            result: "Connected to channel: " + channelName,
-          },
-          channel: channelName
+          message: { id: data.id, result: `Connected to channel: ${channelName}` },
+          channel: channelName,
         }));
 
-        // Notify other clients in channel
-        channelClients.forEach((client) => {
-          if (client !== ws && client.readyState === WebSocket.OPEN) {
-            client.send(JSON.stringify({
-              type: "system",
-              message: "A new user has joined the channel",
-              channel: channelName
-            }));
+        // Notify counterpart + tell newcomer about existing peer
+        const otherRole: Role = role === "mcp" ? "plugin" : "mcp";
+        const other = channel[otherRole];
+        if (other && other.ws.readyState === WebSocket.OPEN) {
+          // Tell existing peer about newcomer
+          other.ws.send(JSON.stringify({
+            type: "system",
+            code: "PEER_JOINED",
+            message: `A ${role} has joined the channel`,
+            channel: channelName,
+            peer: { role, version, name },
+          }));
+
+          // Tell newcomer about existing peer
+          ws.send(JSON.stringify({
+            type: "system",
+            code: "PEER_JOINED",
+            message: `A ${otherRole} is already in the channel`,
+            channel: channelName,
+            peer: { role: otherRole, version: other.version, name: other.name },
+          }));
+
+          // Version mismatch warning
+          if (version && other.version && version !== other.version) {
+            const warning = `Version mismatch: ${role}=${version}, ${otherRole}=${other.version}. Update both for best results.`;
+            const msg = JSON.stringify({ type: "system", code: "VERSION_MISMATCH", message: warning, channel: channelName });
+            ws.send(msg);
+            other.ws.send(msg);
+            console.log(`[WARN] ${warning}`);
           }
-        });
+        }
+
+        console.log(`[${role}] joined channel "${channelName}"${version ? ` (v${version})` : ""}`);
         return;
       }
 
+      // ── Message / Progress ──────────────────────────────────
       if (data.type === "message" || data.type === "progress_update") {
         const channelName = data.channel;
         if (!channelName || typeof channelName !== "string") {
-          ws.send(JSON.stringify({
-            type: "error",
-            message: "Channel name is required"
-          }));
+          ws.send(JSON.stringify({ type: "error", message: "Channel name is required" }));
           return;
         }
 
-        const channelClients = channels.get(channelName);
-        if (!channelClients || !channelClients.has(ws)) {
-          ws.send(JSON.stringify({
-            type: "error",
-            message: "You must join the channel first"
-          }));
+        const info = clientInfo.get(ws);
+        if (!info || info.channel !== channelName) {
+          ws.send(JSON.stringify({ type: "error", message: "You must join the channel first" }));
           return;
         }
 
-        channelClients.forEach((client) => {
-          if (client !== ws && client.readyState === WebSocket.OPEN) {
-            console.log("Broadcasting message to client:", data.message);
-            client.send(JSON.stringify({
-              type: "broadcast",
-              message: data.message,
-              sender: "User",
-              channel: channelName
-            }));
-          }
-        });
+        const channel = channels.get(channelName);
+        if (!channel) return;
+
+        // Send directly to the counterpart (not broadcast to all)
+        const targetRole: Role = info.role === "mcp" ? "plugin" : "mcp";
+        const target = channel[targetRole];
+        if (target && target.ws.readyState === WebSocket.OPEN) {
+          target.ws.send(JSON.stringify({
+            type: "broadcast",
+            message: data.message,
+            sender: info.role,
+            channel: channelName,
+          }));
+        }
       }
     } catch (err) {
       console.error("Error handling message:", err);
     }
   });
 
+  // ── Disconnect ────────────────────────────────────────────────
   ws.on("close", () => {
-    console.log("Client disconnected");
+    const info = clientInfo.get(ws);
+    if (!info) {
+      console.log("Unknown client disconnected");
+      return;
+    }
 
-    // Remove client from their channel and notify others
-    channels.forEach((clients, channelName) => {
-      if (clients.has(ws)) {
-        clients.delete(ws);
+    const { channel: channelName, role } = info;
+    console.log(`[${role}] disconnected from channel "${channelName}"`);
 
-        if (clients.size === 0) {
-          channels.delete(channelName);
-          return;
-        }
+    const channel = channels.get(channelName);
+    if (channel) {
+      const member = channel[role]; // capture before clearing
+      channel[role] = null;
 
-        clients.forEach((client) => {
-          if (client.readyState === WebSocket.OPEN) {
-            client.send(JSON.stringify({
-              type: "system",
-              message: "A user has left the channel",
-              channel: channelName
-            }));
-          }
-        });
+      // Notify remaining occupant
+      const otherRole: Role = role === "mcp" ? "plugin" : "mcp";
+      const other = channel[otherRole];
+      if (other && other.ws.readyState === WebSocket.OPEN) {
+        other.ws.send(JSON.stringify({
+          type: "system",
+          code: "PEER_LEFT",
+          message: `The ${role} has left the channel`,
+          channel: channelName,
+          peer: { role, version: member?.version ?? null, name: member?.name ?? null },
+        }));
       }
-    });
+
+      // Delete empty channels
+      if (!channel.mcp && !channel.plugin) {
+        channels.delete(channelName);
+      }
+    }
+
+    clientInfo.delete(ws);
   });
 });
 

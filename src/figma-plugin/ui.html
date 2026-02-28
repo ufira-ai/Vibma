@@ -258,7 +258,7 @@
     <div class="container">
       <div class="header">
         <div class="header-text">
-          <h1>Vibma Plugin</h1>
+          <h1>Vibma <span id="version-badge" style="font-weight:400;font-size:12px;color:#999"></span></h1>
           <p>Vibe Design meets Figma — AI-powered MCP bridge</p>
         </div>
       </div>
@@ -350,6 +350,9 @@
     </div>
 
     <script>
+      // Keep in sync with package.json version
+      const VIBMA_VERSION = "0.1.1";
+
       // WebSocket connection state
       const state = {
         connected: false,
@@ -357,7 +360,13 @@
         serverPort: 3055,
         pendingRequests: new Map(),
         channel: null,
+        lastError: null,
+        mcpPeer: null, // { name, version } of connected MCP session
+        versionWarning: null, // version mismatch message
       };
+
+      // Set version badge
+      document.getElementById("version-badge").textContent = `v${VIBMA_VERSION}`;
 
       // UI Elements
       const portInput = document.getElementById("port");
@@ -375,6 +384,22 @@
       const progressMessage = document.getElementById("progress-message");
       const progressStatus = document.getElementById("progress-status");
       const progressPercentage = document.getElementById("progress-percentage");
+
+      // Build the connection status message
+      function buildStatusMessage() {
+        let msg = `Connected to channel: <strong>${state.channel || "—"}</strong>`;
+        if (state.mcpPeer) {
+          const name = state.mcpPeer.name || "unknown";
+          const ver = state.mcpPeer.version ? ` (v${state.mcpPeer.version})` : "";
+          msg += `<br>Session: <strong>${name}</strong>${ver}`;
+        } else {
+          msg += `<br><span style="color:#999">Waiting for Claude Code to connect…</span>`;
+        }
+        if (state.versionWarning) {
+          msg += `<br><span style="color:#f0ad4e">⚠ ${state.versionWarning}</span>`;
+        }
+        return msg;
+      }
 
       // Initialize UI
       function updateConnectionStatus(isConnected, message) {
@@ -424,11 +449,13 @@
             console.log("Joining channel:", channelName);
             state.channel = channelName;
 
-            // Join the channel using the same format as App.tsx
+            // Join the channel with role identification
             state.socket.send(
               JSON.stringify({
                 type: "join",
                 channel: channelName.trim(),
+                role: "plugin",
+                version: VIBMA_VERSION,
               })
             );
           };
@@ -439,13 +466,27 @@
               console.log("Received message:", data);
 
               if (data.type === "system") {
+                // Peer joined/left notifications
+                if (data.code === "PEER_JOINED" && data.peer && data.peer.role === "mcp") {
+                  state.mcpPeer = { name: data.peer.name, version: data.peer.version };
+                  state.versionWarning = null; // clear on new peer
+                  updateConnectionStatus(true, buildStatusMessage());
+                } else if (data.code === "PEER_LEFT" && data.peer && data.peer.role === "mcp") {
+                  state.mcpPeer = null;
+                  state.versionWarning = null;
+                  updateConnectionStatus(true, buildStatusMessage());
+                } else if (data.code === "VERSION_MISMATCH") {
+                  state.versionWarning = data.message;
+                  updateConnectionStatus(true, buildStatusMessage());
+                }
+
                 // Successfully joined channel
                 if (data.message && data.message.result) {
                   state.connected = true;
                   const channelName = data.channel;
                   updateConnectionStatus(
                     true,
-                    `Connected to server in channel: <strong>${channelName}</strong>`
+                    buildStatusMessage()
                   );
 
                   // Notify the plugin code
@@ -472,9 +513,11 @@
                   );
                 }
               } else if (data.type === "error") {
-                console.error("Error:", data.message);
-                updateConnectionStatus(false, `Error: ${data.message}`);
-                state.socket.close();
+                console.error("Relay error:", data.message);
+                const prefix = data.code === "ROLE_OCCUPIED" ? "Connection rejected" : "Error";
+                state.lastError = data.message;
+                updateConnectionStatus(false, `${prefix}: ${data.message}`);
+                if (state.socket) { state.socket.close(); state.socket = null; }
               }
 
               handleSocketMessage(data);
@@ -486,7 +529,13 @@
           state.socket.onclose = () => {
             state.connected = false;
             state.socket = null;
-            updateConnectionStatus(false, "Disconnected from server");
+            state.mcpPeer = null;
+            state.versionWarning = null;
+            // Don't overwrite rejection/error messages
+            if (!state.lastError) {
+              updateConnectionStatus(false, "Disconnected from server");
+            }
+            state.lastError = null;
           };
 
           state.socket.onerror = (error) => {
