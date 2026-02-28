@@ -84,13 +84,23 @@ async function readMyDesign(params: any) {
     return { selectionCount: 0, warning: "Nothing selected. Use set_selection to select nodes first, or use get_node_info with specific node IDs." };
   }
 
-  const { serializeNode } = await import("../utils/serialize-node");
+  const { serializeNode, DEFAULT_NODE_BUDGET } = await import("../utils/serialize-node");
   const depth = params?.depth;
-  const responses = sel.map((node) => ({
-    nodeId: node.id,
-    document: serializeNode(node, depth !== undefined ? depth : -1),
-  }));
-  return { selectionCount: responses.length, nodes: responses };
+  const budget = { remaining: DEFAULT_NODE_BUDGET };
+  const responses: any[] = [];
+  for (const node of sel) {
+    responses.push({
+      nodeId: node.id,
+      document: await serializeNode(node, depth !== undefined ? depth : -1, 0, budget),
+    });
+  }
+  const out: any = { selectionCount: responses.length, nodes: responses };
+  if (budget.remaining <= 0) {
+    out._truncated = true;
+    out._notice = "Result was truncated (node budget exceeded). Nodes with _truncated: true are stubs. "
+      + "To inspect them, call get_node_info with their IDs directly, or use a shallower depth.";
+  }
+  return out;
 }
 
 async function setSelection(params: any) {
