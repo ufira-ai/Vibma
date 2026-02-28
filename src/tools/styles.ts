@@ -4,7 +4,7 @@ import * as S from "./schemas";
 import type { McpServer, SendCommandFn } from "./types";
 import { mcpJson, mcpError } from "./types";
 import { batchHandler } from "./helpers";
-import { formatContrastFailures } from "../utils/wcag";
+
 
 // ─── Schemas ─────────────────────────────────────────────────────
 
@@ -181,20 +181,7 @@ async function createPaintStyleSingle(p: any) {
   style.name = p.name;
   const { r, g, b, a = 1 } = p.color;
   style.paints = [{ type: "SOLID", color: { r, g, b }, opacity: a }];
-
-  // WCAG contrast recommendation against existing paint styles
-  const result: any = { id: style.id };
-  const existing = await figma.getLocalPaintStylesAsync();
-  const existingColors: Array<{ name: string; color: { r: number; g: number; b: number } }> = [];
-  for (const s of existing) {
-    if (s.id === style.id) continue;
-    const solid = s.paints.find((paint: any) => paint.type === "SOLID" && paint.visible !== false);
-    if (solid) existingColors.push({ name: s.name, color: (solid as SolidPaint).color });
-  }
-  const contrastReport = formatContrastFailures({ r, g, b }, existingColors);
-  if (contrastReport) result.warning = contrastReport;
-
-  return result;
+  return { id: style.id };
 }
 
 async function createTextStyleSingle(p: any) {
