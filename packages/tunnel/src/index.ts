@@ -188,6 +188,65 @@ wss.on("connection", (ws: WebSocket) => {
         return;
       }
 
+      // ── Reset channel ───────────────────────────────────────
+      if (data.type === "reset") {
+        // Accept channel from payload so any MCP can reset, even if not joined
+        const channelName = data.channel ?? clientInfo.get(ws)?.channel;
+        if (!channelName) {
+          ws.send(JSON.stringify({ type: "error", id: data.id, message: "Channel name is required" }));
+          return;
+        }
+        const channel = channels.get(channelName);
+        if (!channel) {
+          ws.send(JSON.stringify({
+            type: "system",
+            message: { id: data.id, result: `Channel "${channelName}" not found — nothing to reset.` },
+            channel: channelName,
+          }));
+          return;
+        }
+
+        const requesterRole = clientInfo.get(ws)?.role ?? "unknown";
+        console.log(`[${requesterRole}] requested reset of channel "${channelName}"`);
+
+        // Kick both occupants
+        for (const role of ["mcp", "plugin"] as Role[]) {
+          const member = channel[role];
+          if (member && member.ws !== ws && member.ws.readyState === WebSocket.OPEN) {
+            member.ws.send(JSON.stringify({
+              type: "system",
+              code: "CHANNEL_RESET",
+              message: `Channel "${channelName}" was reset by the ${requesterRole}`,
+              channel: channelName,
+            }));
+            member.ws.close(1000, "Channel reset");
+          }
+          if (member) {
+            clientInfo.delete(member.ws);
+          }
+          channel[role] = null;
+        }
+
+        // Also clear requester's own clientInfo if they were in this channel
+        const reqInfo = clientInfo.get(ws);
+        if (reqInfo?.channel === channelName) {
+          clientInfo.delete(ws);
+        }
+
+        // Clean up empty channel
+        channels.delete(channelName);
+
+        // Ack back to requester
+        ws.send(JSON.stringify({
+          type: "system",
+          message: { id: data.id, result: `Channel "${channelName}" reset. Rejoin to continue.` },
+          channel: channelName,
+        }));
+
+        console.log(`Channel "${channelName}" reset`);
+        return;
+      }
+
       // ── Message / Progress ──────────────────────────────────
       if (data.type === "message" || data.type === "progress_update") {
         const channelName = data.channel;

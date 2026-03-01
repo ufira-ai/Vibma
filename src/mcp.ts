@@ -315,20 +315,30 @@ server.tool(
   }
 );
 
-// Reset socket connection
+// Reset socket connection — sends a reset command to the relay to kick all clients off the channel
 server.tool(
   "reset_socket",
-  "Force-close and reconnect the WebSocket to the relay. Useful when the connection is stale or stuck. After reset you must call `join_channel` and `ping` again. The Figma plugin may also need to be reconnected — ask the user to check the plugin panel in Figma and click Connect if it disconnected.",
-  {},
-  async () => {
+  "Force-reset a channel on the relay, disconnecting ALL occupants (MCP + Figma plugin). Use this to reclaim a channel held by another MCP. The Figma plugin will auto-reconnect. After reset, call `join_channel` and `ping` to re-establish the connection.",
+  {
+    channel: z.string().describe("Channel to reset. Defaults to 'vibma'.").default("vibma"),
+  },
+  async ({ channel }: { channel: string }) => {
+    const targetChannel = channel || currentChannel || "vibma";
     try {
+      // Send reset command to relay — kicks ALL occupants off the channel
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        const id = uuidv4();
+        ws.send(JSON.stringify({ type: "reset", id, channel: targetChannel }));
+      }
+
       // Reject all pending requests
-      for (const [id, request] of pendingRequests.entries()) {
+      for (const [reqId, request] of pendingRequests.entries()) {
         clearTimeout(request.timeout);
         request.reject(new Error("Socket reset by user"));
-        pendingRequests.delete(id);
+        pendingRequests.delete(reqId);
       }
-      // Close existing connection (suppress auto-reconnect briefly)
+
+      // Close the local WebSocket (suppress auto-reconnect)
       if (ws) {
         const old = ws;
         ws = null;
@@ -337,16 +347,18 @@ server.tool(
       }
       currentChannel = null;
       rejected = false;
-      // Reconnect
+
+      // Reconnect to relay
       connectToFigma();
       await new Promise((resolve) => setTimeout(resolve, 1000));
       const connected = ws && ws.readyState === WebSocket.OPEN;
+
       return {
         content: [{
           type: "text",
           text: connected
-            ? `Socket reset and reconnected on port ${activePort}. Call \`join_channel\` to rejoin.`
-            : `Socket reset but reconnection is still in progress. Call \`join_channel\` to retry.`,
+            ? `Socket reset and reconnected on port ${activePort}. Call \`join_channel\` to rejoin.\n\nIMPORTANT: The reset also disconnected the Figma plugin. Ask the user to re-open the Vibma plugin panel in Figma (Plugins → Vibma) so it can reconnect to the relay. Then call \`join_channel\` followed by \`ping\` to verify.`
+            : `Socket reset but reconnection is still in progress. Call \`join_channel\` to retry.\n\nIMPORTANT: The reset also disconnected the Figma plugin. Ask the user to re-open the Vibma plugin panel in Figma (Plugins → Vibma) so it can reconnect to the relay.`,
         }],
       };
     } catch (error) {
