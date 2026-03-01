@@ -315,6 +315,51 @@ server.tool(
   }
 );
 
+// Reset socket connection
+server.tool(
+  "reset_socket",
+  "Force-close and reconnect the WebSocket to the relay. Useful when the connection is stale or stuck. After reset you must call `join_channel` and `ping` again. The Figma plugin may also need to be reconnected — ask the user to check the plugin panel in Figma and click Connect if it disconnected.",
+  {},
+  async () => {
+    try {
+      // Reject all pending requests
+      for (const [id, request] of pendingRequests.entries()) {
+        clearTimeout(request.timeout);
+        request.reject(new Error("Socket reset by user"));
+        pendingRequests.delete(id);
+      }
+      // Close existing connection (suppress auto-reconnect briefly)
+      if (ws) {
+        const old = ws;
+        ws = null;
+        old.removeAllListeners();
+        old.close(1000, "Socket reset");
+      }
+      currentChannel = null;
+      rejected = false;
+      // Reconnect
+      connectToFigma();
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+      const connected = ws && ws.readyState === WebSocket.OPEN;
+      return {
+        content: [{
+          type: "text",
+          text: connected
+            ? `Socket reset and reconnected on port ${activePort}. Call \`join_channel\` to rejoin.`
+            : `Socket reset but reconnection is still in progress. Call \`join_channel\` to retry.`,
+        }],
+      };
+    } catch (error) {
+      return {
+        content: [{
+          type: "text",
+          text: `Error resetting socket: ${error instanceof Error ? error.message : String(error)}`,
+        }],
+      };
+    }
+  }
+);
+
 // Register all per-tool-file tools and prompts
 registerAllTools(server, sendCommandToFigma);
 
