@@ -30,7 +30,7 @@ const clientInfo = new WeakMap<WebSocket, { channel: string; role: Role }>();
 
 const httpServer = createServer((req, res) => {
   res.setHeader("Access-Control-Allow-Origin", "*");
-  res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+  res.setHeader("Access-Control-Allow-Methods", "GET, POST, DELETE, OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
 
   if (req.method === "OPTIONS") {
@@ -54,6 +54,39 @@ const httpServer = createServer((req, res) => {
     });
     res.writeHead(200, { "Content-Type": "application/json" });
     res.end(JSON.stringify(snapshot, null, 2));
+    return;
+  }
+
+  // Factory reset: DELETE /channels/:name — kick all occupants via HTTP
+  if (req.method === "DELETE" && req.url?.startsWith("/channels/")) {
+    const channelName = decodeURIComponent(req.url.slice("/channels/".length));
+    const channel = channels.get(channelName);
+    if (!channel) {
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ ok: true, message: `Channel "${channelName}" already clear` }));
+      return;
+    }
+
+    for (const role of ["mcp", "plugin"] as Role[]) {
+      const member = channel[role];
+      if (member) {
+        if (member.ws.readyState === WebSocket.OPEN) {
+          member.ws.send(JSON.stringify({
+            type: "system",
+            code: "CHANNEL_RESET",
+            message: `Channel "${channelName}" was factory-reset`,
+            channel: channelName,
+          }));
+          member.ws.close(1000, "Channel reset");
+        }
+        clientInfo.delete(member.ws);
+      }
+    }
+    channels.delete(channelName);
+    console.log(`Channel "${channelName}" factory-reset via HTTP`);
+
+    res.writeHead(200, { "Content-Type": "application/json" });
+    res.end(JSON.stringify({ ok: true, message: `Channel "${channelName}" reset` }));
     return;
   }
 

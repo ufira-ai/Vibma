@@ -303,6 +303,10 @@
           <strong style="color: #f0ad4e;">Note:</strong> Vibma grants the connected AI agent full read &amp; write access to this Figma file. It can create, modify, and delete layers in your design. Use with care and on files you're comfortable editing.
         </div>
 
+        <div style="margin-top: 12px; font-size: 12px; color: #999;">
+          Having issues? <a id="btn-reset" class="link">Reset tunnel</a>
+        </div>
+
         <!-- Progress Bar Section -->
         <div id="progress-container" class="section hidden">
           <h2>Operation Progress</h2>
@@ -397,7 +401,7 @@
           const ver = state.mcpPeer.version ? ` (v${state.mcpPeer.version})` : "";
           msg += `<br>Session: <strong>${name}</strong>${ver}`;
         } else {
-          msg += `<br><span style="color:#999">Waiting for Claude Code to connect…</span>`;
+          msg += `<br><span style="color:#999">Waiting for MCP connection…</span>`;
         }
         if (state.versionWarning) {
           msg += `<br><span style="color:#f0ad4e">⚠ ${state.versionWarning}</span>`;
@@ -714,6 +718,39 @@
           const contentId = "content-" + tab.id.split("-")[1];
           document.getElementById(contentId).classList.add("active");
         });
+      });
+
+      // Reset tunnel — factory reset via HTTP, then reconnect fresh
+      document.getElementById("btn-reset").addEventListener("click", async () => {
+        const port = parseInt(portInput.value, 10) || 3055;
+        const channel = channelInput.value.trim() || "vibma";
+
+        // Force-kill local socket
+        if (state.socket) {
+          state.socket.onclose = null;
+          state.socket.onerror = null;
+          state.socket.onmessage = null;
+          state.socket.close();
+          state.socket = null;
+        }
+        state.connected = false;
+        state.mcpPeer = null;
+        state.versionWarning = null;
+        state.lastError = null;
+        state.pendingRequests.clear();
+
+        updateConnectionStatus(false, "Resetting tunnel...");
+        connectionStatus.className = "status info";
+
+        // Factory reset the channel on the relay via HTTP
+        try {
+          await fetch(`http://localhost:${port}/channels/${encodeURIComponent(channel)}`, { method: "DELETE" });
+        } catch (e) {
+          console.warn("Could not reach relay for reset:", e);
+        }
+
+        // Reconnect fresh
+        setTimeout(() => connectToServer(port), 500);
       });
 
       // Replace the separate connect/disconnect button listeners with a single toggle

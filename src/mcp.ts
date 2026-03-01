@@ -315,35 +315,36 @@ server.tool(
   }
 );
 
-// Reset socket connection — sends a reset command to the relay to kick all clients off the channel
+// Factory-reset the tunnel — clears channel on relay via HTTP, then reconnects
 server.tool(
-  "reset_socket",
-  "Force-reset a channel on the relay, disconnecting ALL occupants (MCP + Figma plugin). Use this to reclaim a channel held by another MCP. The Figma plugin will auto-reconnect. After reset, call `join_channel` and `ping` to re-establish the connection.",
+  "reset_tunnel",
+  "DESTRUCTIVE: Factory-reset a channel on the relay via HTTP, disconnecting ALL occupants (MCP + Figma plugin). Only use this when the channel is stuck or occupied by another MCP — do NOT use it just to reconnect yourself (use `join_channel` instead). After reset, ask the user to reopen the Vibma plugin in Figma, then call `join_channel` and `ping`.",
   {
     channel: z.string().describe("Channel to reset. Defaults to 'vibma'.").default("vibma"),
   },
   async ({ channel }: { channel: string }) => {
     const targetChannel = channel || currentChannel || "vibma";
     try {
-      // Send reset command to relay — kicks ALL occupants off the channel
-      if (ws && ws.readyState === WebSocket.OPEN) {
-        const id = uuidv4();
-        ws.send(JSON.stringify({ type: "reset", id, channel: targetChannel }));
-      }
+      // Factory reset the channel via HTTP — works regardless of socket state
+      const url = serverUrl === "localhost"
+        ? `http://localhost:${activePort}/channels/${encodeURIComponent(targetChannel)}`
+        : `https://${serverUrl}/channels/${encodeURIComponent(targetChannel)}`;
+      const res = await fetch(url, { method: "DELETE" });
+      const body = await res.json() as { ok: boolean; message: string };
 
       // Reject all pending requests
       for (const [reqId, request] of pendingRequests.entries()) {
         clearTimeout(request.timeout);
-        request.reject(new Error("Socket reset by user"));
+        request.reject(new Error("Tunnel reset by user"));
         pendingRequests.delete(reqId);
       }
 
-      // Close the local WebSocket (suppress auto-reconnect)
+      // Close the local WebSocket
       if (ws) {
         const old = ws;
         ws = null;
         old.removeAllListeners();
-        old.close(1000, "Socket reset");
+        old.close(1000, "Tunnel reset");
       }
       currentChannel = null;
       rejected = false;
@@ -357,15 +358,15 @@ server.tool(
         content: [{
           type: "text",
           text: connected
-            ? `Socket reset and reconnected on port ${activePort}. Call \`join_channel\` to rejoin.\n\nIMPORTANT: The reset also disconnected the Figma plugin. Ask the user to re-open the Vibma plugin panel in Figma (Plugins → Vibma) so it can reconnect to the relay. Then call \`join_channel\` followed by \`ping\` to verify.`
-            : `Socket reset but reconnection is still in progress. Call \`join_channel\` to retry.\n\nIMPORTANT: The reset also disconnected the Figma plugin. Ask the user to re-open the Vibma plugin panel in Figma (Plugins → Vibma) so it can reconnect to the relay.`,
+            ? `Tunnel reset: ${body.message}. Reconnected on port ${activePort}.\n\nIMPORTANT: The Figma plugin was also disconnected. Ask the user to reopen the Vibma plugin in Figma (or click "Reset tunnel" in the plugin panel). Then call \`join_channel\` followed by \`ping\`.`
+            : `Tunnel reset: ${body.message}. Reconnection in progress.\n\nIMPORTANT: The Figma plugin was also disconnected. Ask the user to reopen the Vibma plugin in Figma (or click "Reset tunnel" in the plugin panel). Then call \`join_channel\` to retry.`,
         }],
       };
     } catch (error) {
       return {
         content: [{
           type: "text",
-          text: `Error resetting socket: ${error instanceof Error ? error.message : String(error)}`,
+          text: `Error resetting tunnel: ${error instanceof Error ? error.message : String(error)}`,
         }],
       };
     }
