@@ -267,6 +267,7 @@ export interface GetStyleByIdResult {
   effects?: unknown[];
 }
 
+
 // Components
 export interface SearchComponentsResult {
   totalCount: number;
@@ -721,8 +722,7 @@ export const toolResponseSchemas: Record<string, SchemaEntry> = {
   }, {
     example: { results: [{ styleId: "S:abc123,", matchedStyle: "Primary/Blue" }] },
   }),
-  update_paint_style: okBatchSchema({ example: { results: ["ok"] } }),
-  update_text_style: okBatchSchema({ example: { results: ["ok"] } }),
+  patch_styles: okBatchSchema({ example: { results: ["ok"] } }),
 
   // ── Variables ──
   create_variable_collection: batchSchema({

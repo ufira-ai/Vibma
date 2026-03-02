@@ -36,28 +36,27 @@ const effectStyleItem = z.object({
   effects: flexJson(z.array(S.effectEntry)).describe("Array of effects"),
 });
 
-const updatePaintStyleItem = z.object({
+const patchStyleItem = z.object({
   id: z.string().describe("Style ID or name (case-insensitive match)"),
-  name: z.string().optional().describe("New name"),
-  color: flexJson(S.colorRgba).optional().describe('New color.'),
-});
-
-const updateTextStyleItem = z.object({
-  id: z.string().describe("Style ID or name (case-insensitive match)"),
-  name: z.string().optional().describe("New name"),
-  fontFamily: z.string().optional().describe("Font family"),
-  fontStyle: z.string().optional().describe("Font style (e.g. Regular, Bold)"),
-  fontSize: z.coerce.number().optional().describe("Font size"),
+  name: z.string().optional().describe("Rename the style"),
+  // Paint fields
+  color: flexJson(S.colorRgba).optional().describe('New color (paint styles).'),
+  // Text fields
+  fontFamily: z.string().optional().describe("Font family (text styles)"),
+  fontStyle: z.string().optional().describe("Font style, e.g. Regular, Bold (text styles)"),
+  fontSize: z.coerce.number().optional().describe("Font size (text styles)"),
   lineHeight: flexNum(z.union([
     z.number(),
     z.object({ value: z.coerce.number(), unit: z.enum(["PIXELS", "PERCENT", "AUTO"]) }),
-  ])).optional().describe("Line height — number (px) or {value, unit}. Default: auto."),
+  ])).optional().describe("Line height — number (px) or {value, unit} (text styles)"),
   letterSpacing: flexNum(z.union([
     z.number(),
     z.object({ value: z.coerce.number(), unit: z.enum(["PIXELS", "PERCENT"]) }),
-  ])).optional().describe("Letter spacing — number (px) or {value, unit}. Default: 0."),
+  ])).optional().describe("Letter spacing — number (px) or {value, unit} (text styles)"),
   textCase: z.enum(["ORIGINAL", "UPPER", "LOWER", "TITLE"]).optional(),
   textDecoration: z.enum(["NONE", "UNDERLINE", "STRIKETHROUGH"]).optional(),
+  // Effect fields
+  effects: flexJson(z.array(S.effectEntry)).optional().describe("Array of effects (effect styles)"),
 });
 
 const applyStyleItem = z.object({
@@ -141,22 +140,12 @@ export function registerMcpTools(server: McpServer, sendCommand: SendCommandFn) 
   );
 
   server.tool(
-    "update_paint_style",
-    "Update paint style color/name by ID or name. Changes propagate to all nodes using the style. Batch: pass multiple items.",
-    { items: flexJson(z.array(updatePaintStyleItem)).describe("Array of {id, name?, color?}") },
+    "patch_styles",
+    "Update any style (paint/text/effect) by ID or name. Returns full updated style data. Type is auto-detected. Batch: pass multiple items.",
+    { items: flexJson(z.array(patchStyleItem)).describe("Array of {id, name?, color?, fontFamily?, effects?, ...}") },
     async (params: any) => {
-      try { return mcpJson(await sendCommand("update_paint_style", params)); }
-      catch (e) { return mcpError("Error updating paint style", e); }
-    }
-  );
-
-  server.tool(
-    "update_text_style",
-    "Update text style properties by ID or name. Changes propagate to all nodes using the style. Batch: pass multiple items.",
-    { items: flexJson(z.array(updateTextStyleItem)).describe("Array of {id, name?, fontSize?, fontFamily?, ...}") },
-    async (params: any) => {
-      try { return mcpJson(await sendCommand("update_text_style", params)); }
-      catch (e) { return mcpError("Error updating text style", e); }
+      try { return mcpJson(await sendCommand("patch_styles", params)); }
+      catch (e) { return mcpError("Error patching styles", e); }
     }
   );
 }
@@ -351,59 +340,98 @@ async function resolveTextStyle(idOrName: string): Promise<TextStyle> {
   throw new Error(`Text style not found: '${idOrName}'`);
 }
 
-// ─── Update Handlers ────────────────────────────────────────────
-
-async function updatePaintStyleSingle(p: any) {
-  const style = await resolvePaintStyle(p.id);
-  if (p.name !== undefined) style.name = p.name;
-  if (p.color !== undefined) {
-    const { r, g, b, a = 1 } = p.color;
-    style.paints = [{ type: "SOLID", color: { r, g, b }, opacity: a }];
-  }
-  return "ok";
+async function resolveEffectStyle(idOrName: string): Promise<EffectStyle> {
+  const byId = await figma.getStyleByIdAsync(ensureStyleId(idOrName));
+  if (byId?.type === "EFFECT") return byId as EffectStyle;
+  const all = await figma.getLocalEffectStylesAsync();
+  const exact = all.find(s => s.name === idOrName);
+  if (exact) return exact;
+  const fuzzy = all.find(s => s.name.toLowerCase().includes(idOrName.toLowerCase()));
+  if (fuzzy) return fuzzy;
+  throw new Error(`Effect style not found: '${idOrName}'`);
 }
 
-async function updateTextStyleSingle(p: any) {
-  const style = await resolveTextStyle(p.id);
+/** Resolve any style by ID or name — tries all types. */
+async function resolveAnyStyle(idOrName: string): Promise<BaseStyle> {
+  const byId = await figma.getStyleByIdAsync(ensureStyleId(idOrName));
+  if (byId) return byId;
+  // Fallback: search by name across all types
+  const [paints, texts, effects] = await Promise.all([
+    figma.getLocalPaintStylesAsync(),
+    figma.getLocalTextStylesAsync(),
+    figma.getLocalEffectStylesAsync(),
+  ]);
+  const all = [...paints, ...texts, ...effects];
+  const exact = all.find(s => s.name === idOrName);
+  if (exact) return exact;
+  const fuzzy = all.find(s => s.name.toLowerCase().includes(idOrName.toLowerCase()));
+  if (fuzzy) return fuzzy;
+  throw new Error(`Style not found: '${idOrName}'`);
+}
+
+// ─── Patch Styles Handler ────────────────────────────────────────
+
+async function patchStyleSingle(p: any) {
+  const style = await resolveAnyStyle(p.id);
   if (p.name !== undefined) style.name = p.name;
 
-  // Font already preloaded by batch prep
-  const newFamily = p.fontFamily ?? style.fontName.family;
-  const newFontStyle = p.fontStyle ?? style.fontName.style;
-  if (p.fontFamily !== undefined || p.fontStyle !== undefined) {
-    style.fontName = { family: newFamily, style: newFontStyle };
-  }
-
-  if (p.fontSize !== undefined) style.fontSize = p.fontSize;
-  if (p.lineHeight !== undefined) {
-    if (typeof p.lineHeight === "number") style.lineHeight = { value: p.lineHeight, unit: "PIXELS" };
-    else if (p.lineHeight.unit === "AUTO") style.lineHeight = { unit: "AUTO" };
-    else style.lineHeight = { value: p.lineHeight.value, unit: p.lineHeight.unit };
-  }
-  if (p.letterSpacing !== undefined) {
-    if (typeof p.letterSpacing === "number") style.letterSpacing = { value: p.letterSpacing, unit: "PIXELS" };
-    else style.letterSpacing = { value: p.letterSpacing.value, unit: p.letterSpacing.unit };
-  }
-  if (p.textCase !== undefined) style.textCase = p.textCase;
-  if (p.textDecoration !== undefined) style.textDecoration = p.textDecoration;
-
-  // WCAG recommendations
-  const hints: string[] = [];
-  const effectiveFontSize = p.fontSize ?? style.fontSize;
-  if (effectiveFontSize < 12) {
-    hints.push("WCAG: Min 12px text recommended.");
-  }
-  const lh = p.lineHeight !== undefined ? p.lineHeight : style.lineHeight;
-  if (lh && lh !== "AUTO" && (lh as any).unit !== "AUTO") {
-    let lhPx: number | null = null;
-    if (typeof lh === "number") lhPx = lh;
-    else if (lh.unit === "PIXELS") lhPx = lh.value;
-    else if (lh.unit === "PERCENT") lhPx = (lh.value / 100) * effectiveFontSize;
-    if (lhPx !== null && lhPx / effectiveFontSize < 1.5) {
-      hints.push(`WCAG: Line height ${Math.ceil(effectiveFontSize * 1.5)}px (1.5×) recommended.`);
+  if (style.type === "PAINT") {
+    const ps = style as PaintStyle;
+    if (p.color !== undefined) {
+      const { r, g, b, a = 1 } = p.color;
+      ps.paints = [{ type: "SOLID", color: { r, g, b }, opacity: a }];
+    }
+  } else if (style.type === "TEXT") {
+    const ts = style as TextStyle;
+    // Font already preloaded by batch prep
+    const newFamily = p.fontFamily ?? ts.fontName.family;
+    const newFontStyle = p.fontStyle ?? ts.fontName.style;
+    if (p.fontFamily !== undefined || p.fontStyle !== undefined) {
+      ts.fontName = { family: newFamily, style: newFontStyle };
+    }
+    if (p.fontSize !== undefined) ts.fontSize = p.fontSize;
+    if (p.lineHeight !== undefined) {
+      if (typeof p.lineHeight === "number") ts.lineHeight = { value: p.lineHeight, unit: "PIXELS" };
+      else if (p.lineHeight.unit === "AUTO") ts.lineHeight = { unit: "AUTO" };
+      else ts.lineHeight = { value: p.lineHeight.value, unit: p.lineHeight.unit };
+    }
+    if (p.letterSpacing !== undefined) {
+      if (typeof p.letterSpacing === "number") ts.letterSpacing = { value: p.letterSpacing, unit: "PIXELS" };
+      else ts.letterSpacing = { value: p.letterSpacing.value, unit: p.letterSpacing.unit };
+    }
+    if (p.textCase !== undefined) ts.textCase = p.textCase;
+    if (p.textDecoration !== undefined) ts.textDecoration = p.textDecoration;
+  } else if (style.type === "EFFECT") {
+    const es = style as EffectStyle;
+    if (p.effects !== undefined) {
+      es.effects = p.effects.map((e: any) => {
+        const eff: any = { type: e.type, radius: e.radius, visible: e.visible ?? true };
+        if (e.type === "DROP_SHADOW" || e.type === "INNER_SHADOW") eff.blendMode = e.blendMode || "NORMAL";
+        if (e.color) eff.color = { r: e.color.r, g: e.color.g, b: e.color.b, a: e.color.a ?? 1 };
+        if (e.offset) eff.offset = { x: e.offset.x, y: e.offset.y };
+        if (e.spread !== undefined) eff.spread = e.spread;
+        return eff;
+      });
     }
   }
-  if (hints.length > 0) return { warning: hints.join(" ") };
+
+  // WCAG recommendations for text styles
+  if (style.type === "TEXT") {
+    const ts = style as TextStyle;
+    const hints: string[] = [];
+    if (ts.fontSize < 12) hints.push("WCAG: Min 12px text recommended.");
+    const lh = ts.lineHeight as any;
+    if (lh && lh.unit !== "AUTO") {
+      let lhPx: number | null = null;
+      if (lh.unit === "PIXELS") lhPx = lh.value;
+      else if (lh.unit === "PERCENT") lhPx = (lh.value / 100) * ts.fontSize;
+      if (lhPx !== null && lhPx / ts.fontSize < 1.5) {
+        hints.push(`WCAG: Line height ${Math.ceil(ts.fontSize * 1.5)}px (1.5×) recommended.`);
+      }
+    }
+    if (hints.length > 0) return { warning: hints.join(" ") };
+  }
+
   return "ok";
 }
 
@@ -451,50 +479,63 @@ async function createTextStyleBatch(params: any) {
   return result;
 }
 
-async function updateTextStyleBatch(params: any) {
+async function patchStylesBatch(params: any) {
   const items: any[] = params.items || [params];
 
-  // Resolve fonts for all items
-  const itemFontKeys: string[] = [];
+  // Resolve styles and collect font requirements for text styles
+  // Errors here are non-fatal — batchHandler will catch them per-item
+  const fontKeys: string[] = [];
   for (const p of items) {
-    const style = await resolveTextStyle(p.id);
-    const family = p.fontFamily ?? style.fontName.family;
-    const fontStyle = p.fontStyle ?? style.fontName.style;
-    itemFontKeys.push(`${family}::${fontStyle}`);
+    try {
+      const style = await resolveAnyStyle(p.id);
+      if (style.type === "TEXT") {
+        const ts = style as TextStyle;
+        const family = p.fontFamily ?? ts.fontName.family;
+        const fontStyle = p.fontStyle ?? ts.fontName.style;
+        fontKeys.push(`${family}::${fontStyle}`);
+      }
+    } catch { /* skip — will error in batchHandler */ }
   }
-  const uniqueFonts = [...new Set(itemFontKeys)];
 
-  // If within cap, process all
-  if (uniqueFonts.length <= MAX_FONTS_PER_BATCH) {
+  // Preload fonts for text styles
+  const uniqueFonts = [...new Set(fontKeys)];
+  if (uniqueFonts.length > 0) {
+    const toLoad = uniqueFonts.slice(0, MAX_FONTS_PER_BATCH);
     await Promise.all(
-      uniqueFonts.map(key => {
+      toLoad.map(key => {
         const [family, style] = key.split("::");
         return figma.loadFontAsync({ family, style });
       })
     );
-    return batchHandler(params, updateTextStyleSingle);
+
+    if (uniqueFonts.length > MAX_FONTS_PER_BATCH) {
+      // Identify which items have unloaded fonts and defer them
+      const loadedSet = new Set(toLoad);
+      const processItems: any[] = [];
+      const deferredItems: any[] = [];
+      let fontIdx = 0;
+      for (const p of items) {
+        try {
+          const style = await resolveAnyStyle(p.id);
+          if (style.type === "TEXT") {
+            if (loadedSet.has(fontKeys[fontIdx])) processItems.push(p);
+            else deferredItems.push(p);
+            fontIdx++;
+          } else {
+            processItems.push(p);
+          }
+        } catch {
+          processItems.push(p); // let batchHandler report per-item error
+        }
+      }
+      const deferredFonts = uniqueFonts.slice(MAX_FONTS_PER_BATCH).map(k => k.replace("::", " "));
+      const result = await batchHandler({ ...params, items: processItems }, patchStyleSingle);
+      result.deferred = `${deferredItems.length} text style(s) using fonts [${deferredFonts.join(", ")}] were NOT updated to avoid timeout. Call patch_styles again with those items.`;
+      return result;
+    }
   }
 
-  // Over cap: process items whose fonts fit, return remaining
-  const loadedFonts = new Set(uniqueFonts.slice(0, MAX_FONTS_PER_BATCH));
-  await Promise.all(
-    [...loadedFonts].map(key => {
-      const [family, style] = key.split("::");
-      return figma.loadFontAsync({ family, style });
-    })
-  );
-
-  const processItems: any[] = [];
-  const deferredItems: any[] = [];
-  for (let i = 0; i < items.length; i++) {
-    if (loadedFonts.has(itemFontKeys[i])) processItems.push(items[i]);
-    else deferredItems.push(items[i]);
-  }
-
-  const deferredFonts = uniqueFonts.slice(MAX_FONTS_PER_BATCH).map(k => k.replace("::", " "));
-  const result = await batchHandler({ ...params, items: processItems }, updateTextStyleSingle);
-  result.deferred = `${deferredItems.length} text style(s) using fonts [${deferredFonts.join(", ")}] were NOT updated to avoid timeout. Call update_text_style again with those items.`;
-  return result;
+  return batchHandler(params, patchStyleSingle);
 }
 
 export const figmaHandlers: Record<string, (params: any) => Promise<any>> = {
@@ -505,6 +546,5 @@ export const figmaHandlers: Record<string, (params: any) => Promise<any>> = {
   create_text_style: createTextStyleBatch,
   create_effect_style: (p) => batchHandler(p, createEffectStyleSingle),
   apply_style_to_node: (p) => batchHandler(p, applyStyleSingle),
-  update_paint_style: (p) => batchHandler(p, updatePaintStyleSingle),
-  update_text_style: updateTextStyleBatch,
+  patch_styles: patchStylesBatch,
 };

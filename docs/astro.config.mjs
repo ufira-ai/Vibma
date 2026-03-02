@@ -23,8 +23,6 @@ export default defineConfig({
             { label: "Node Inspection", slug: "tools/node-inspection" },
             { label: "Creation", slug: "tools/creation" },
             { label: "Modification", slug: "tools/modification" },
-            { label: "Appearance", slug: "tools/appearance" },
-            { label: "Layout", slug: "tools/layout" },
             { label: "Styles", slug: "tools/styles" },
             { label: "Variables", slug: "tools/variables" },
             { label: "Components", slug: "tools/components" },

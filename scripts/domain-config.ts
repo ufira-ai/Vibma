@@ -78,8 +78,7 @@ export const domains: DomainConfig[] = [
       "create_text_style",
       "create_effect_style",
       "apply_style_to_node",
-      "update_paint_style",
-      "update_text_style",
+      "patch_styles",
     ],
   },
   {

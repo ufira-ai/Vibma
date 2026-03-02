@@ -12,7 +12,7 @@
  */
 
 import { z } from "zod";
-import { writeFileSync, mkdirSync } from "fs";
+import { writeFileSync, mkdirSync, readdirSync, unlinkSync } from "fs";
 import { join, dirname } from "path";
 import { fileURLToPath } from "url";
 import { registerAllTools } from "../src/tools/mcp-registry";
@@ -194,6 +194,15 @@ writeFileSync(outPath, JSON.stringify(manifest, null, 2));
 // 7. Generate domain MDX pages with real ### headings for Starlight TOC
 const toolsDir = join(ROOT, "docs", "src", "content", "docs", "tools");
 mkdirSync(toolsDir, { recursive: true });
+
+// Clean stale MDX files from previous domains
+const validIds = new Set(domains.map((d) => d.id));
+for (const file of readdirSync(toolsDir)) {
+  if (file.endsWith(".mdx") && !validIds.has(file.replace(".mdx", ""))) {
+    unlinkSync(join(toolsDir, file));
+    console.log(`✓ Removed stale ${file}`);
+  }
+}
 
 for (const domain of domains) {
   const domainTools = capturedTools.filter((t) => t.domain === domain.id);
