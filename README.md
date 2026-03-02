@@ -26,6 +26,7 @@ Two paths:
 |---|---|---|
 | 📦 | [**DRAGME.md**](./DRAGME.md) | Clone the repo, build from source, full control |
 | ☁️ | [**CARRYME.md**](./CARRYME.md) | Install from npm, zero cloning |
+| 📖 | [**Docs**](https://ufira-ai.github.io/Vibma/) | Tool reference with parameters, response schemas, and examples |
 
 Or just paste this to your AI agent and let it figure it out:
 
