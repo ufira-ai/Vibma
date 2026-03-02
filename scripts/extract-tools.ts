@@ -17,6 +17,7 @@ import { join, dirname } from "path";
 import { fileURLToPath } from "url";
 import { registerAllTools } from "../src/tools/mcp-registry";
 import { domains, toolToDomain } from "./domain-config";
+import { toolResponseSchemas } from "../src/tools/response-types";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, "..");
@@ -27,6 +28,8 @@ interface ToolEntry {
   name: string;
   description: string;
   schema: Record<string, unknown>;
+  responseSchema?: Record<string, unknown>;
+  responseExample?: unknown;
   domain: string;
   batch: boolean;
 }
@@ -69,8 +72,7 @@ const mockServer = {
 
     const domain = toolToDomain.get(name) ?? "uncategorized";
     const batch = !!(jsonSchema as any)?.properties?.items;
-
-    capturedTools.push({ name, description, schema: jsonSchema, domain, batch });
+    capturedTools.push({ name, description, schema: jsonSchema, ...extractResponse(name), domain, batch });
   },
 
   prompt(name: string, description: string, _handler: any) {
@@ -81,6 +83,15 @@ const mockServer = {
 };
 
 // ─── Inline tools (from src/mcp.ts — they reference local WS state) ────
+
+function extractResponse(name: string) {
+  const entry = toolResponseSchemas[name];
+  if (!entry) return { responseSchema: undefined, responseExample: undefined };
+  const schema = { ...entry };
+  const example = schema.example;
+  delete schema.example;
+  return { responseSchema: schema, responseExample: example };
+}
 
 function addInlineTools() {
   capturedTools.push({
@@ -98,6 +109,7 @@ function addInlineTools() {
         },
       },
     },
+    ...extractResponse("join_channel"),
     domain: "connection",
     batch: false,
   });
@@ -107,6 +119,7 @@ function addInlineTools() {
     description:
       "Debug: inspect which clients (MCP, plugin) are connected to each relay channel. Useful for diagnosing connection issues. Does not require an active channel.",
     schema: { type: "object", properties: {} },
+    ...extractResponse("channel_info"),
     domain: "connection",
     batch: false,
   });
@@ -125,6 +138,7 @@ function addInlineTools() {
         },
       },
     },
+    ...extractResponse("reset_tunnel"),
     domain: "connection",
     batch: false,
   });
@@ -201,8 +215,14 @@ for (const domain of domains) {
     // Real ### heading — Starlight picks this up for TOC
     lines.push(`### ${tool.name}`);
     lines.push("");
+    const responseAttr = tool.responseSchema
+      ? ` responseSchema={${JSON.stringify(tool.responseSchema)}}`
+      : "";
+    const exampleAttr = tool.responseExample !== undefined
+      ? ` responseExample={${JSON.stringify(tool.responseExample)}}`
+      : "";
     lines.push(
-      `<ToolReference name="${tool.name}" description={${JSON.stringify(tool.description)}} schema={${JSON.stringify(tool.schema)}} batch={${tool.batch}} />`
+      `<ToolReference name="${tool.name}" description={${JSON.stringify(tool.description)}} schema={${JSON.stringify(tool.schema)}} batch={${tool.batch}}${responseAttr}${exampleAttr} />`
     );
     lines.push("");
   }

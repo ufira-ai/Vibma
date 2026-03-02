@@ -4,6 +4,7 @@ import * as S from "./schemas";
 import type { McpServer, SendCommandFn } from "./types";
 import { mcpJson, mcpError } from "./types";
 import { batchHandler } from "./helpers";
+import type { LintNodeResult, FixAutolayoutResult, FixAutolayoutSkippedResult, FixShapeToFrameResult } from "./response-types";
 import { rgbaToHex } from "../utils/color";
 import {
   alphaComposite, checkContrastPair, isLargeText, inferFontWeight,
@@ -101,7 +102,7 @@ interface Issue {
   extra?: Record<string, any>;
 }
 
-async function lintNodeHandler(params: any): Promise<any> {
+async function lintNodeHandler(params: any): Promise<LintNodeResult> {
   const ruleSet = new Set<string>(params?.rules || ["all"]);
   const runAll = ruleSet.has("all");
   // Expand "wcag" meta-rule into individual wcag-* rules
@@ -717,7 +718,7 @@ function getEffectiveOpacity(node: BaseNode): number {
 
 // ── Auto-fix handlers ──
 
-async function fixAutolayoutSingle(p: any) {
+async function fixAutolayoutSingle(p: any): Promise<FixAutolayoutResult | FixAutolayoutSkippedResult> {
   const node = await figma.getNodeByIdAsync(p.nodeId);
   if (!node) throw new Error(`Node not found: ${p.nodeId}`);
   if (!isFrame(node)) throw new Error(`Node ${p.nodeId} is ${node.type}, not a FRAME`);
@@ -731,7 +732,7 @@ async function fixAutolayoutSingle(p: any) {
   return { layoutMode: direction };
 }
 
-async function fixShapeToFrameSingle(p: any) {
+async function fixShapeToFrameSingle(p: any): Promise<FixShapeToFrameResult> {
   const shape = await figma.getNodeByIdAsync(p.nodeId);
   if (!shape) throw new Error(`Node not found: ${p.nodeId}`);
   if (!isShape(shape)) throw new Error(`Node ${p.nodeId} is ${shape.type}, not a shape (RECTANGLE, ELLIPSE, etc.)`);

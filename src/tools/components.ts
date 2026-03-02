@@ -4,6 +4,7 @@ import * as S from "./schemas";
 import type { McpServer, SendCommandFn } from "./types";
 import { mcpJson, mcpError } from "./types";
 import { batchHandler, appendToParent, solidPaint, styleNotFoundHint, suggestStyleForColor, findVariableById } from "./helpers";
+import type { IdResult, IdWithWarningResult, SearchComponentsResult, GetComponentByIdResult, GetInstanceOverridesResult } from "./response-types";
 
 // ─── Schemas ─────────────────────────────────────────────────────
 
@@ -214,7 +215,7 @@ function warnUnboundText(comp: ComponentNode, hints: string[]) {
   }
 }
 
-async function createComponentSingle(p: any) {
+async function createComponentSingle(p: any): Promise<IdWithWarningResult> {
   if (!p.name) throw new Error("Missing name");
   const {
     x = 0, y = 0, width = 100, height = 100, name, parentId,
@@ -297,7 +298,7 @@ async function createComponentSingle(p: any) {
   return result;
 }
 
-async function fromNodeSingle(p: any) {
+async function fromNodeSingle(p: any): Promise<IdWithWarningResult> {
   const node = await figma.getNodeByIdAsync(p.nodeId);
   if (!node) throw new Error(`Node not found: ${p.nodeId}`);
   if (!("parent" in node) || !node.parent) throw new Error("Node has no parent");
@@ -320,7 +321,7 @@ async function fromNodeSingle(p: any) {
   return result;
 }
 
-async function combineSingle(p: any) {
+async function combineSingle(p: any): Promise<IdResult> {
   if (!p.componentIds?.length || p.componentIds.length < 2) throw new Error("Need at least 2 components");
   const comps: ComponentNode[] = [];
   for (const id of p.componentIds) {
@@ -345,7 +346,7 @@ async function addPropSingle(p: any) {
   return {};
 }
 
-async function instanceSingle(p: any) {
+async function instanceSingle(p: any): Promise<IdResult> {
   let node: any = await figma.getNodeByIdAsync(p.componentId);
   if (!node) {
     // Component may be on another page — load all pages and retry
@@ -395,7 +396,7 @@ async function instanceSingle(p: any) {
   return { id: inst.id };
 }
 
-async function getLocalComponentsFigma(params: any) {
+async function getLocalComponentsFigma(params: any): Promise<SearchComponentsResult> {
   await figma.loadAllPagesAsync();
   const setsOnly = params?.setsOnly;
   const types = setsOnly ? ["COMPONENT_SET"] : ["COMPONENT", "COMPONENT_SET"];
@@ -423,7 +424,7 @@ async function getLocalComponentsFigma(params: any) {
   };
 }
 
-async function getComponentByIdFigma(params: any) {
+async function getComponentByIdFigma(params: any): Promise<GetComponentByIdResult> {
   const node = await figma.getNodeByIdAsync(params.componentId);
   if (!node) throw new Error(`Component not found: ${params.componentId}`);
   if (node.type !== "COMPONENT" && node.type !== "COMPONENT_SET") throw new Error(`Not a component: ${node.type}`);
@@ -444,7 +445,7 @@ async function getComponentByIdFigma(params: any) {
   return r;
 }
 
-async function getInstanceOverridesFigma(params: any) {
+async function getInstanceOverridesFigma(params: any): Promise<GetInstanceOverridesResult> {
   let inst: any = null;
   if (params?.instanceNodeId) {
     inst = await figma.getNodeByIdAsync(params.instanceNodeId);

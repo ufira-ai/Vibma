@@ -4,6 +4,7 @@ import * as S from "./schemas";
 import type { McpServer, SendCommandFn } from "./types";
 import { mcpJson, mcpError } from "./types";
 import { batchHandler, styleNotFoundHint, suggestStyleForColor } from "./helpers";
+import type { StyleMatchResult } from "./response-types";
 
 // ─── Schemas ─────────────────────────────────────────────────────
 
@@ -88,7 +89,7 @@ async function resolveStyle(name: string): Promise<{ match: { id: string; name: 
   return { match: null, available };
 }
 
-async function setFillSingle(p: any) {
+async function setFillSingle(p: any): Promise<StyleMatchResult> {
   const node = await figma.getNodeByIdAsync(p.nodeId);
   if (!node) throw new Error(`Node not found: ${p.nodeId}`);
   if (!("fills" in node)) throw new Error(`Node does not support fills: ${p.nodeId}`);
@@ -111,7 +112,7 @@ async function setFillSingle(p: any) {
   return {};
 }
 
-async function setStrokeSingle(p: any) {
+async function setStrokeSingle(p: any): Promise<StyleMatchResult> {
   const node = await figma.getNodeByIdAsync(p.nodeId);
   if (!node) throw new Error(`Node not found: ${p.nodeId}`);
   if (!("strokes" in node)) throw new Error(`Node does not support strokes: ${p.nodeId}`);

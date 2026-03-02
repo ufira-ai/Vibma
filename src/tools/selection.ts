@@ -2,6 +2,7 @@ import { z } from "zod";
 import { flexJson } from "../utils/coercion";
 import type { McpServer, SendCommandFn } from "./types";
 import { mcpJson, mcpError } from "./types";
+import type { GetSelectionResult, ReadMyDesignResult, SetSelectionResult, ZoomIntoViewResult, SetViewportResult } from "./response-types";
 
 // ─── MCP Registration ────────────────────────────────────────────
 
@@ -66,7 +67,7 @@ export function registerMcpTools(server: McpServer, sendCommand: SendCommandFn) 
 
 // ─── Figma Handlers ──────────────────────────────────────────────
 
-async function getSelection() {
+async function getSelection(): Promise<GetSelectionResult> {
   return {
     selectionCount: figma.currentPage.selection.length,
     selection: figma.currentPage.selection.map((node) => ({
@@ -78,7 +79,7 @@ async function getSelection() {
   };
 }
 
-async function readMyDesign(params: any) {
+async function readMyDesign(params: any): Promise<ReadMyDesignResult> {
   const sel = figma.currentPage.selection;
   if (sel.length === 0) {
     return { selectionCount: 0, warning: "Nothing selected. Use set_selection to select nodes first, or use get_node_info with specific node IDs." };
@@ -103,7 +104,7 @@ async function readMyDesign(params: any) {
   return out;
 }
 
-async function setSelection(params: any) {
+async function setSelection(params: any): Promise<SetSelectionResult> {
   const nodeIds = params?.nodeIds;
   if (!nodeIds || !Array.isArray(nodeIds) || nodeIds.length === 0) {
     throw new Error("Missing or empty nodeIds");
@@ -128,7 +129,7 @@ async function setSelection(params: any) {
   };
 }
 
-async function zoomIntoView(params: any) {
+async function zoomIntoView(params: any): Promise<ZoomIntoViewResult> {
   if (!params?.nodeIds?.length) throw new Error("Missing nodeIds");
   const nodes: SceneNode[] = [];
   const notFound: string[] = [];
@@ -147,7 +148,7 @@ async function zoomIntoView(params: any) {
   };
 }
 
-async function setViewport(params: any) {
+async function setViewport(params: any): Promise<SetViewportResult> {
   if (!params) throw new Error("Missing parameters");
   if (params.center) figma.viewport.center = { x: params.center.x, y: params.center.y };
   if (params.zoom !== undefined) figma.viewport.zoom = params.zoom;

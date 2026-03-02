@@ -4,6 +4,7 @@ import * as S from "./schemas";
 import type { McpServer, SendCommandFn } from "./types";
 import { mcpJson, mcpError } from "./types";
 import { batchHandler } from "./helpers";
+import type { StyleMatchResult } from "./response-types";
 
 // ─── Schemas ─────────────────────────────────────────────────────
 
@@ -87,7 +88,7 @@ export function registerMcpTools(server: McpServer, sendCommand: SendCommandFn) 
 
 // ─── Figma Handlers ──────────────────────────────────────────────
 
-async function setEffectsSingle(p: any) {
+async function setEffectsSingle(p: any): Promise<StyleMatchResult> {
   const node = await figma.getNodeByIdAsync(p.nodeId);
   if (!node) throw new Error(`Node not found: ${p.nodeId}`);
   if (!("effects" in node)) throw new Error(`Node does not support effects: ${p.nodeId}`);

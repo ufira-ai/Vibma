@@ -1,4 +1,5 @@
 import { serializeNode, DEFAULT_NODE_BUDGET } from "../utils/serialize-node";
+import type { BatchResult } from "./types";
 
 // ─── Figma Handler Utilities ────────────────────────────────────
 // Shared helpers for plugin-side (Figma) handler functions.
@@ -25,17 +26,17 @@ export async function nodeSnapshot(id: string, depth: number): Promise<any> {
  * Reads `items` (array) and `depth` (number|undefined) from params.
  * If depth is defined and a result has an `id`, merges node snapshot into the result.
  */
-export async function batchHandler(
-  params: any,
-  fn: (item: any) => Promise<any>,
-): Promise<any> {
-  const items = params.items || [params];
+export async function batchHandler<TItem, TResult>(
+  params: { items?: TItem[]; depth?: number } & Record<string, unknown>,
+  fn: (item: TItem) => Promise<TResult>,
+): Promise<BatchResult<TResult>> {
+  const items = (params.items || [params]) as TItem[];
   const depth = params.depth;
-  const results = [];
+  const results: Array<TResult | "ok" | { error: string }> = [];
   const warningSet = new Set<string>();
   for (const item of items) {
     try {
-      let result = await fn(item);
+      let result: any = await fn(item);
       if (depth !== undefined && result?.id) {
         const snapshot = await nodeSnapshot(result.id, depth);
         if (snapshot) result = { ...result, ...snapshot };
@@ -55,7 +56,7 @@ export async function batchHandler(
       results.push({ error: e.message });
     }
   }
-  const out: any = { results };
+  const out: BatchResult<TResult> = { results };
   if (warningSet.size > 0) out.warnings = [...warningSet];
   return out;
 }

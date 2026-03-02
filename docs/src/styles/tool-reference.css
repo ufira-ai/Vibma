@@ -140,6 +140,26 @@
   margin: 0.5rem 0;
 }
 
+/* ─── Response Section ────────────────────────────────── */
+
+.response-section {
+  margin-top: 1.25rem;
+  padding-top: 1rem;
+  border-top: 1px dashed var(--sl-color-gray-5);
+}
+
+.response-section h4 {
+  margin: 0 0 0.25rem;
+  font-size: 0.95rem;
+}
+
+.response-hint {
+  font-size: 0.7rem;
+  font-weight: 400;
+  color: var(--sl-color-gray-3);
+  font-style: italic;
+}
+
 /* ─── Schema Details ──────────────────────────────────── */
 
 .schema-details {

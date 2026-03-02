@@ -1,6 +1,7 @@
 import { z } from "zod";
 import type { McpServer, SendCommandFn } from "./types";
 import { mcpJson, mcpError } from "./types";
+import type { GetDocumentInfoResult, GetCurrentPageResult, GetPagesResult, SetCurrentPageResult, IdResult } from "./response-types";
 
 // ─── MCP Registration ────────────────────────────────────────────
 
@@ -74,7 +75,7 @@ export function registerMcpTools(server: McpServer, sendCommand: SendCommandFn) 
 
 // ─── Figma Handlers ──────────────────────────────────────────────
 
-async function getDocumentInfo() {
+async function getDocumentInfo(): Promise<GetDocumentInfoResult> {
   return {
     name: figma.root.name,
     currentPageId: figma.currentPage.id,
@@ -84,7 +85,7 @@ async function getDocumentInfo() {
   };
 }
 
-async function getCurrentPage() {
+async function getCurrentPage(): Promise<GetCurrentPageResult> {
   await figma.currentPage.loadAsync();
   const page = figma.currentPage;
   return {
@@ -94,7 +95,7 @@ async function getCurrentPage() {
   };
 }
 
-async function getPages() {
+async function getPages(): Promise<GetPagesResult> {
   return {
     currentPageId: figma.currentPage.id,
     pages: figma.root.children.map((p: any) => (
@@ -103,7 +104,7 @@ async function getPages() {
   };
 }
 
-async function setCurrentPage(params: any) {
+async function setCurrentPage(params: any): Promise<SetCurrentPageResult> {
   let page: any;
   if (params.pageId) {
     page = await figma.getNodeByIdAsync(params.pageId);
@@ -121,7 +122,7 @@ async function setCurrentPage(params: any) {
   return { id: page.id, name: page.name };
 }
 
-async function createPage(params: any) {
+async function createPage(params: any): Promise<IdResult> {
   const name = params?.name || "New Page";
   const page = figma.createPage();
   page.name = name;

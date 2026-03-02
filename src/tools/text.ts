@@ -4,6 +4,7 @@ import * as S from "./schemas";
 import type { McpServer, SendCommandFn } from "./types";
 import { mcpJson, mcpError } from "./types";
 import { batchHandler, suggestStyleForColor, suggestTextStyle } from "./helpers";
+import type { TextPropertyResult, ScanTextItemResult } from "./response-types";
 
 // ─── Schemas ─────────────────────────────────────────────────────
 
@@ -161,7 +162,7 @@ async function prepSetTextProperties(params: any): Promise<TextPropsContext> {
   return { nodeMap, textStyles };
 }
 
-async function setTextPropertiesSingle(p: any, ctx: TextPropsContext): Promise<any> {
+async function setTextPropertiesSingle(p: any, ctx: TextPropsContext): Promise<TextPropertyResult> {
   const node = ctx.nodeMap.get(p.nodeId);
   if (!node) {
     const raw = await figma.getNodeByIdAsync(p.nodeId);
@@ -242,7 +243,7 @@ function getFontStyle(weight: number): string {
   return map[weight] || "Regular";
 }
 
-async function scanTextSingle(p: any) {
+async function scanTextSingle(p: any): Promise<ScanTextItemResult> {
   const node = await figma.getNodeByIdAsync(p.nodeId);
   if (!node) throw new Error(`Node not found: ${p.nodeId}`);
 

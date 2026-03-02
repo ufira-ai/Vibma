@@ -1,10 +1,14 @@
 ---
 /**
  * Swagger-style parameter table for a JSON Schema.
- * Renders columns: Parameter, Type, Required, Description.
+ * Renders columns: Field, Type, Required (optional), Description.
  */
 interface Props {
   schema: Record<string, any>;
+  /** Hide the Required column (e.g. for response tables) */
+  hideRequired?: boolean;
+  /** Column header for the first column (default: "Parameter") */
+  fieldLabel?: string;
 }
 
 interface Row {
@@ -15,12 +19,23 @@ interface Row {
   indent: number;
 }
 
-const { schema } = Astro.props;
+const { schema, hideRequired = false, fieldLabel = "Parameter" } = Astro.props;
 const rows: Row[] = [];
 
 function formatType(prop: Record<string, any>): string {
+  if (prop.title) return prop.title;
+  if (prop.const) return `"${prop.const}"`;
   if (prop.enum) return prop.enum.map((v: string) => `"${v}"`).join(" | ");
+  if (prop.oneOf) {
+    const types = prop.oneOf.map((s: any) => formatType(s));
+    return types.join(" | ");
+  }
   if (prop.type === "array") {
+    if (prop.items?.oneOf) {
+      const types = prop.items.oneOf.map((s: any) => formatType(s));
+      return `(${types.join(" | ")})[]`;
+    }
+    if (prop.items?.const) return `"${prop.items.const}"[]`;
     if (prop.items?.type === "object") return "object[]";
     if (prop.items?.type) return `${prop.items.type}[]`;
     return "array";
@@ -48,8 +63,23 @@ function extractRows(
       extractRows(prop.properties, prop.required ?? [], indent + 1);
     }
 
+    // Expand oneOf branches (top-level union types)
+    if (prop.oneOf) {
+      for (const branch of prop.oneOf) {
+        if (branch.type === "object" && branch.properties) {
+          extractRows(branch.properties, branch.required ?? [], indent + 1);
+        }
+      }
+    }
+
     // Expand array item properties
-    if (prop.type === "array" && prop.items?.type === "object" && prop.items?.properties) {
+    if (prop.type === "array" && prop.items?.oneOf) {
+      for (const branch of prop.items.oneOf) {
+        if (branch.type === "object" && branch.properties) {
+          extractRows(branch.properties, branch.required ?? [], indent + 1);
+        }
+      }
+    } else if (prop.type === "array" && prop.items?.type === "object" && prop.items?.properties) {
       extractRows(prop.items.properties, prop.items.required ?? [], indent + 1);
     }
   }
@@ -63,9 +93,9 @@ extractRows(schema.properties, schema.required ?? [], 0);
     <table class="param-table">
       <thead>
         <tr>
-          <th>Parameter</th>
+          <th>{fieldLabel}</th>
           <th>Type</th>
-          <th>Required</th>
+          {!hideRequired && <th>Required</th>}
           <th>Description</th>
         </tr>
       </thead>
@@ -79,9 +109,11 @@ extractRows(schema.properties, schema.required ?? [], 0);
               </span>
             </td>
             <td class="param-type"><code>{row.type}</code></td>
-            <td class="param-required">
-              {row.required ? <span class="icon-check">✓</span> : <span class="icon-cross">✗</span>}
-            </td>
+            {!hideRequired && (
+              <td class="param-required">
+                {row.required ? <span class="icon-check">✓</span> : <span class="icon-cross">✗</span>}
+              </td>
+            )}
             <td class="param-desc">{row.description}</td>
           </tr>
         ))}

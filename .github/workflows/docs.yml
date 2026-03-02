@@ -2,12 +2,8 @@ name: Deploy Docs to GitHub Pages
 
 on:
   push:
-    branches: [main]
-    paths:
-      - "src/tools/**"
-      - "docs/**"
-      - "scripts/extract-tools.ts"
-      - "scripts/domain-config.ts"
+    tags:
+      - "v*"
   workflow_dispatch:
 
 permissions:

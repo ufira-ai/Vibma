@@ -1,6 +1,7 @@
 import { z } from "zod";
 import type { McpServer, SendCommandFn } from "./types";
 import { mcpJson, mcpError } from "./types";
+import type { GetAvailableFontsResult } from "./response-types";
 
 // ─── MCP Registration ────────────────────────────────────────────
 
@@ -18,7 +19,7 @@ export function registerMcpTools(server: McpServer, sendCommand: SendCommandFn) 
 
 // ─── Figma Handlers ──────────────────────────────────────────────
 
-async function getAvailableFonts(params: any) {
+async function getAvailableFonts(params: any): Promise<GetAvailableFontsResult> {
   const fonts = await figma.listAvailableFontsAsync();
   let result = fonts;
   if (params?.query) {

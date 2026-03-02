@@ -7,8 +7,11 @@ export type SendCommandFn = (command: string, params?: unknown, timeoutMs?: numb
 export type { McpServer };
 
 /** Standard batch result from Figma handlers */
-export interface BatchResult<T = any> {
-  results: Array<T & { error?: string }>;
+export interface BatchResult<T = unknown> {
+  results: Array<T | "ok" | { error: string }>;
+  warnings?: string[];
+  /** Set when some items were deferred (e.g. font loading cap exceeded) */
+  deferred?: string;
 }
 
 /** Max response size in characters (~12K tokens). Prevents LLM client-side truncation that corrupts JSON. */

@@ -4,6 +4,7 @@ import * as S from "./schemas";
 import type { McpServer, SendCommandFn } from "./types";
 import { mcpJson, mcpError } from "./types";
 import { batchHandler, appendToParent, styleNotFoundHint, suggestStyleForColor, suggestTextStyle, findVariableById } from "./helpers";
+import type { IdWithWarningResult } from "./response-types";
 
 // ─── Schema ──────────────────────────────────────────────────────
 
@@ -129,7 +130,7 @@ async function prepCreateText(params: any): Promise<CreateTextContext> {
  * Create a single text node. Returns { id, warning? }.
  * batchHandler handles depth enrichment, warning hoisting, and error wrapping.
  */
-async function createTextSingle(p: any, ctx: CreateTextContext): Promise<any> {
+async function createTextSingle(p: any, ctx: CreateTextContext): Promise<IdWithWarningResult> {
   const {
     x = 0, y = 0, text = "Text", fontSize = 14, fontWeight = 400,
     fontFamily = "Inter", fontStyle,

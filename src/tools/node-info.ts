@@ -3,6 +3,7 @@ import { flexJson, flexBool } from "../utils/coercion";
 import { serializeNode, DEFAULT_NODE_BUDGET } from "../utils/serialize-node";
 import type { McpServer, SendCommandFn } from "./types";
 import { mcpJson, mcpError } from "./types";
+import type { GetNodeInfoResult, GetNodeCssResult, SearchNodesResult, ExportNodeAsImageResult } from "./response-types";
 
 // ─── MCP Registration ────────────────────────────────────────────
 
@@ -88,7 +89,7 @@ function pickFields(node: any, keep: Set<string>): any {
   return out;
 }
 
-async function getNodeInfo(params: any) {
+async function getNodeInfo(params: any): Promise<GetNodeInfoResult> {
   const nodeIds: string[] = params.nodeIds || (params.nodeId ? [params.nodeId] : []);
   const depth = params.depth;
   const fields = params.fields;
@@ -124,7 +125,7 @@ async function getNodeInfo(params: any) {
   return out;
 }
 
-async function getNodeCss(params: any) {
+async function getNodeCss(params: any): Promise<GetNodeCssResult> {
   if (!params?.nodeId) throw new Error("Missing nodeId");
   const node = await figma.getNodeByIdAsync(params.nodeId);
   if (!node) throw new Error(`Node not found: ${params.nodeId}`);
@@ -133,7 +134,7 @@ async function getNodeCss(params: any) {
   return { id: node.id, name: node.name, css };
 }
 
-async function searchNodes(params: any) {
+async function searchNodes(params: any): Promise<SearchNodesResult> {
   if (!params) throw new Error("Missing parameters");
 
   let scopeNode: any;
@@ -184,7 +185,7 @@ async function searchNodes(params: any) {
   };
 }
 
-async function exportNodeAsImage(params: any) {
+async function exportNodeAsImage(params: any): Promise<ExportNodeAsImageResult> {
   const { customBase64Encode } = await import("../utils/base64");
   const { nodeId, scale = 1 } = params || {};
   const format = params.format || "PNG";

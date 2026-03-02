@@ -4,6 +4,7 @@ import * as S from "./schemas";
 import type { McpServer, SendCommandFn } from "./types";
 import { mcpJson, mcpError } from "./types";
 import { batchHandler } from "./helpers";
+import type { IdResult, IdWithWarningResult, ApplyStyleItemResult, GetStylesResult, GetStyleByIdResult } from "./response-types";
 
 
 // ─── Schemas ─────────────────────────────────────────────────────
@@ -168,7 +169,7 @@ function ensureStyleId(id: string): string {
   return id.startsWith("S:") && !id.endsWith(",") ? id + "," : id;
 }
 
-async function getStylesFigma() {
+async function getStylesFigma(): Promise<GetStylesResult> {
   const [colors, texts, effects, grids] = await Promise.all([
     figma.getLocalPaintStylesAsync(),
     figma.getLocalTextStylesAsync(),
@@ -192,7 +193,7 @@ function rgbaToHex(color: any): string {
   return `#${[r, g, b, a].map(x => x.toString(16).padStart(2, "0")).join("")}`;
 }
 
-async function getStyleByIdFigma(params: any) {
+async function getStyleByIdFigma(params: any): Promise<GetStyleByIdResult> {
   const style = await figma.getStyleByIdAsync(ensureStyleId(params.styleId));
   if (!style) throw new Error(`Style not found: ${params.styleId}`);
   const r: any = { id: style.id, name: style.name, type: style.type };
@@ -220,7 +221,7 @@ async function removeStyleFigma(params: any) {
   return "ok";
 }
 
-async function createPaintStyleSingle(p: any) {
+async function createPaintStyleSingle(p: any): Promise<IdResult> {
   const style = figma.createPaintStyle();
   style.name = p.name;
   const { r, g, b, a = 1 } = p.color;
@@ -228,7 +229,7 @@ async function createPaintStyleSingle(p: any) {
   return { id: style.id };
 }
 
-async function createTextStyleSingle(p: any) {
+async function createTextStyleSingle(p: any): Promise<IdWithWarningResult> {
   const style = figma.createTextStyle();
   style.name = p.name;
   const fontStyle = p.fontStyle || "Regular";
@@ -267,7 +268,7 @@ async function createTextStyleSingle(p: any) {
   return result;
 }
 
-async function createEffectStyleSingle(p: any) {
+async function createEffectStyleSingle(p: any): Promise<IdResult> {
   const style = figma.createEffectStyle();
   style.name = p.name;
   style.effects = p.effects.map((e: any) => {
@@ -281,7 +282,7 @@ async function createEffectStyleSingle(p: any) {
   return { id: style.id };
 }
 
-async function applyStyleSingle(p: any) {
+async function applyStyleSingle(p: any): Promise<ApplyStyleItemResult> {
   const node = await figma.getNodeByIdAsync(p.nodeId);
   if (!node) throw new Error(`Node not found: ${p.nodeId}`);
 

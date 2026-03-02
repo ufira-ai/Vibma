@@ -4,6 +4,7 @@ import * as S from "./schemas";
 import type { McpServer, SendCommandFn } from "./types";
 import { mcpJson, mcpError } from "./types";
 import { batchHandler, findVariableById } from "./helpers";
+import type { CollectionCreatedResult, IdResult, AddModeResult, ModesResult, GetLocalVariablesResult, GetLocalVariableCollectionsResult, GetVariableByIdResult, GetCollectionByIdResult, GetNodeVariablesResult } from "./response-types";
 
 
 // ─── Schemas ─────────────────────────────────────────────────────
@@ -213,12 +214,12 @@ async function findCollectionById(id: string): Promise<any> {
   return all.find(c => c.id === id) || null;
 }
 
-async function createCollectionSingle(p: any) {
+async function createCollectionSingle(p: any): Promise<CollectionCreatedResult> {
   const collection = figma.variables.createVariableCollection(p.name);
   return { id: collection.id, modes: collection.modes, defaultModeId: collection.defaultModeId };
 }
 
-async function createVariableSingle(p: any) {
+async function createVariableSingle(p: any): Promise<IdResult> {
   const collection = await findCollectionById(p.collectionId);
   if (!collection) throw new Error(`Collection not found: ${p.collectionId}`);
   const variable = figma.variables.createVariable(p.name, collection, p.resolvedType);
@@ -239,7 +240,7 @@ async function setValueSingle(p: any) {
   return {};
 }
 
-async function getLocalVariablesFigma(params: any) {
+async function getLocalVariablesFigma(params: any): Promise<GetLocalVariablesResult> {
   let variables = params?.type
     ? await figma.variables.getLocalVariablesAsync(params.type)
     : await figma.variables.getLocalVariablesAsync();
@@ -254,20 +255,20 @@ async function getLocalVariablesFigma(params: any) {
   };
 }
 
-async function getLocalCollectionsFigma() {
+async function getLocalCollectionsFigma(): Promise<GetLocalVariableCollectionsResult> {
   const collections = await figma.variables.getLocalVariableCollectionsAsync();
   return {
     collections: collections.map((c: any) => ({ id: c.id, name: c.name, modes: c.modes, defaultModeId: c.defaultModeId, variableIds: c.variableIds })),
   };
 }
 
-async function getVariableByIdFigma(params: any) {
+async function getVariableByIdFigma(params: any): Promise<GetVariableByIdResult> {
   const v = await findVariableById(params.variableId);
   if (!v) throw new Error(`Variable not found: ${params.variableId}`);
   return { id: v.id, name: v.name, resolvedType: v.resolvedType, variableCollectionId: v.variableCollectionId, valuesByMode: v.valuesByMode, description: v.description, scopes: v.scopes };
 }
 
-async function getCollectionByIdFigma(params: any) {
+async function getCollectionByIdFigma(params: any): Promise<GetCollectionByIdResult> {
   const c = await findCollectionById(params.collectionId);
   if (!c) throw new Error(`Collection not found: ${params.collectionId}`);
   return { id: c.id, name: c.name, modes: c.modes, defaultModeId: c.defaultModeId, variableIds: c.variableIds };
@@ -297,21 +298,21 @@ async function setBindingSingle(p: any) {
   return {};
 }
 
-async function addModeSingle(p: any) {
+async function addModeSingle(p: any): Promise<AddModeResult> {
   const c = await findCollectionById(p.collectionId);
   if (!c) throw new Error(`Collection not found: ${p.collectionId}`);
   const modeId = c.addMode(p.name);
   return { modeId, modes: c.modes };
 }
 
-async function renameModeSingle(p: any) {
+async function renameModeSingle(p: any): Promise<ModesResult> {
   const c = await findCollectionById(p.collectionId);
   if (!c) throw new Error(`Collection not found: ${p.collectionId}`);
   c.renameMode(p.modeId, p.name);
   return { modes: c.modes };
 }
 
-async function removeModeSingle(p: any) {
+async function removeModeSingle(p: any): Promise<ModesResult> {
   const c = await findCollectionById(p.collectionId);
   if (!c) throw new Error(`Collection not found: ${p.collectionId}`);
   c.removeMode(p.modeId);
@@ -332,7 +333,7 @@ async function setExplicitModeSingle(p: any) {
   return {};
 }
 
-async function getNodeVariablesFigma(params: any) {
+async function getNodeVariablesFigma(params: any): Promise<GetNodeVariablesResult> {
   const node = await figma.getNodeByIdAsync(params.nodeId);
   if (!node) throw new Error(`Node not found: ${params.nodeId}`);
   const result: any = { nodeId: params.nodeId };

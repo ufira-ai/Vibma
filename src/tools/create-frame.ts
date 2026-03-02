@@ -5,6 +5,7 @@ import type { McpServer, SendCommandFn } from "./types";
 import { mcpJson, mcpError } from "./types";
 import { batchHandler, appendToParent, solidPaint, styleNotFoundHint, suggestStyleForColor, findVariableById } from "./helpers";
 import { looksInteractive } from "../utils/wcag";
+import type { IdResult, IdWithWarningResult } from "./response-types";
 
 // ─── Schema ──────────────────────────────────────────────────────
 
@@ -88,7 +89,7 @@ async function resolvePaintStyle(name: string): Promise<{ id: string | null, ava
   return { id: fuzzy?.id ?? null, available };
 }
 
-async function createSingleFrame(p: any) {
+async function createSingleFrame(p: any): Promise<IdWithWarningResult> {
   const {
     x = 0, y = 0, width = 100, height = 100, name = "Frame", parentId,
     fillColor, strokeColor, strokeWeight, cornerRadius,
@@ -193,7 +194,7 @@ async function createSingleFrame(p: any) {
   return result;
 }
 
-async function createSingleAutoLayout(p: any) {
+async function createSingleAutoLayout(p: any): Promise<IdResult> {
   if (!p.nodeIds?.length) throw new Error("Missing nodeIds");
 
   const nodes: SceneNode[] = [];

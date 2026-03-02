@@ -4,6 +4,7 @@ import * as S from "./schemas";
 import type { McpServer, SendCommandFn } from "./types";
 import { mcpJson, mcpError } from "./types";
 import { batchHandler, appendToParent } from "./helpers";
+import type { IdResult, SvgCreateResult } from "./response-types";
 
 // ─── Schemas ─────────────────────────────────────────────────────
 
@@ -123,7 +124,7 @@ export function registerMcpTools(server: McpServer, sendCommand: SendCommandFn) 
 
 // ─── Figma Handlers ──────────────────────────────────────────────
 
-async function createSingleRect(p: any) {
+async function createSingleRect(p: any): Promise<IdResult> {
   const rect = figma.createRectangle();
   rect.x = p.x ?? 0;
   rect.y = p.y ?? 0;
@@ -133,7 +134,7 @@ async function createSingleRect(p: any) {
   return { id: rect.id };
 }
 
-async function createSingleEllipse(p: any) {
+async function createSingleEllipse(p: any): Promise<IdResult> {
   const el = figma.createEllipse();
   el.x = p.x ?? 0;
   el.y = p.y ?? 0;
@@ -143,7 +144,7 @@ async function createSingleEllipse(p: any) {
   return { id: el.id };
 }
 
-async function createSingleLine(p: any) {
+async function createSingleLine(p: any): Promise<IdResult> {
   const line = figma.createLine();
   line.x = p.x ?? 0;
   line.y = p.y ?? 0;
@@ -155,7 +156,7 @@ async function createSingleLine(p: any) {
   return { id: line.id };
 }
 
-async function createSingleSection(p: any) {
+async function createSingleSection(p: any): Promise<IdResult> {
   const section = figma.createSection();
   section.x = p.x ?? 0;
   section.y = p.y ?? 0;
@@ -165,7 +166,7 @@ async function createSingleSection(p: any) {
   return { id: section.id };
 }
 
-async function createSingleSvg(p: any) {
+async function createSingleSvg(p: any): Promise<SvgCreateResult> {
   const node = figma.createNodeFromSvg(p.svg);
   node.x = p.x ?? 0;
   node.y = p.y ?? 0;
@@ -174,7 +175,7 @@ async function createSingleSvg(p: any) {
   return { id: node.id, type: node.type };
 }
 
-async function createSingleBoolOp(p: any) {
+async function createSingleBoolOp(p: any): Promise<IdResult> {
   if (!p.nodeIds?.length || p.nodeIds.length < 2) throw new Error("Need at least 2 nodes");
   const nodes: SceneNode[] = [];
   for (const id of p.nodeIds) {

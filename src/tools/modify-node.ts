@@ -4,6 +4,7 @@ import * as S from "./schemas";
 import type { McpServer, SendCommandFn } from "./types";
 import { mcpJson, mcpError } from "./types";
 import { batchHandler } from "./helpers";
+import type { IdResult } from "./response-types";
 
 // ─── Schemas ─────────────────────────────────────────────────────
 
@@ -113,7 +114,7 @@ async function deleteSingle(p: any) {
   return {};
 }
 
-async function cloneSingle(p: any) {
+async function cloneSingle(p: any): Promise<IdResult> {
   const node = await figma.getNodeByIdAsync(p.nodeId);
   if (!node) throw new Error(`Node not found: ${p.nodeId}`);
   const clone = (node as any).clone();

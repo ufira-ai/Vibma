@@ -1,22 +1,55 @@
 ---
 title: Getting Started
-description: How to set up Vibma and connect Claude to Figma
+description: Set up Vibma and connect your AI agent to Figma
+slug: index
 ---
 
-## Installation
+No cloning, no building. Install the tunnel and MCP server from npm, grab the plugin from GitHub, and connect.
 
-### 1. Install the MCP server
+## Prerequisites
+
+- [Node.js](https://nodejs.org) (v18+)
+- [Figma](https://figma.com) desktop or web app
+- An AI coding tool with MCP support (Claude Code, Cursor, etc.)
+
+## 1. Download the Figma plugin
+
+Grab the latest **vibma-plugin** zip from [GitHub Releases](https://github.com/ufira-ai/vibma/releases) — it contains `manifest.json`, `code.js`, and `ui.html`.
+
+Unzip it somewhere convenient.
+
+## 2. Start the WebSocket tunnel
 
 ```bash
-npm install -g @ufira/vibma
+npx @ufira/vibma-tunnel
 ```
 
-Or add to your Claude Code MCP config (`~/.claude/settings.json`):
+You should see: `WebSocket server running on port 3055`
+
+### About ports
+
+Vibma defaults to port **3055**. The Figma plugin whitelists ports **3055–3058** so you have alternatives if 3055 is already in use:
+
+```bash
+VIBMA_PORT=3056 npx @ufira/vibma-tunnel
+```
+
+Update the **port field in the Figma plugin UI** before clicking Connect to match.
+
+## 3. Install the Figma plugin
+
+1. In Figma, go to **Plugins > Development > Import plugin from manifest...**
+2. Select the `manifest.json` from the unzipped plugin folder
+3. Run the plugin — it will show a connection panel
+
+## 4. Configure MCP in your AI tool
+
+Add to your MCP config (e.g. `.cursor/mcp.json`, `.claude.json`, or `.mcp.json`):
 
 ```json
 {
   "mcpServers": {
-    "vibma": {
+    "Vibma": {
       "command": "npx",
       "args": ["-y", "@ufira/vibma"]
     }
@@ -24,42 +57,30 @@ Or add to your Claude Code MCP config (`~/.claude/settings.json`):
 }
 ```
 
-### 2. Install the Figma plugin
+If using a non-default port:
 
-Install the [Vibma plugin](https://www.figma.com/community/plugin/vibma) from the Figma Community.
-
-### 3. Start the relay
-
-The relay bridges WebSocket connections between the MCP server and the Figma plugin.
-
-```bash
-npx @ufira/vibma-tunnel
+```json
+{
+  "mcpServers": {
+    "Vibma": {
+      "command": "npx",
+      "args": ["-y", "@ufira/vibma", "--port=3056"]
+    }
+  }
+}
 ```
 
-By default the relay runs on port **3055**.
+## 5. Connect
 
-### 4. Connect
-
-1. Open Figma and run the Vibma plugin — note the **channel name** (defaults to `vibma`)
-2. In Claude Code, the MCP server auto-connects to the relay
-3. Call `join_channel` with the channel name
-4. Call `ping` to verify end-to-end connectivity
-
-## First steps
-
-Once connected, try these tools:
-
-```
-get_document_info    → see the document structure
-get_current_page     → inspect the current page
-read_my_design       → read the user's selection
-create_frame         → create a frame on the canvas
-```
+1. In the Figma plugin, set the channel name to `vibma` (or any name you like)
+2. Click **Connect**
+3. In your AI tool, call `join_channel` with the same channel name (defaults to `vibma`)
+4. Call `ping` — you should get back `pong` with your document name
 
 ## Troubleshooting
 
 | Symptom | Fix |
 |---------|-----|
-| `ping` times out | Check that the Figma plugin shows the same port and channel |
-| "ROLE_OCCUPIED" error | Another MCP is connected — use `reset_tunnel` to clear it |
-| Version mismatch warning | Update the plugin or MCP server to matching versions |
+| Plugin won't connect to WebSocket | Make sure the tunnel is running. The plugin connects to `ws://localhost:3055` by default. |
+| MCP shows disconnected | Restart your AI tool after changing MCP config. Stdio-based MCP servers can't hot-reload. |
+| Port already in use | Kill the existing process (`lsof -ti:3055 \| xargs kill`) or use the next available port (3056–3058). |
