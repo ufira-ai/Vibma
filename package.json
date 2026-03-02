@@ -36,7 +36,10 @@
     "build:watch": "tsup --watch",
     "dev": "npm run build:watch",
     "dev:mcp": "tsx src/mcp.ts",
-    "pub:release": "npm run build && npm publish"
+    "pub:release": "npm run build && npm publish",
+    "docs:generate": "tsx scripts/extract-tools.ts",
+    "docs:dev": "npm run docs:generate && cd docs && npm run dev",
+    "docs:build": "npm run docs:generate && cd docs && npm run build"
   },
   "devDependencies": {
     "@figma/plugin-typings": "^1.123.0",

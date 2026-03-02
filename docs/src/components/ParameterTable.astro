@@ -1,0 +1,93 @@
+---
+/**
+ * Swagger-style parameter table for a JSON Schema.
+ * Renders columns: Parameter, Type, Required, Description.
+ */
+interface Props {
+  schema: Record<string, any>;
+}
+
+interface Row {
+  name: string;
+  type: string;
+  required: boolean;
+  description: string;
+  indent: number;
+}
+
+const { schema } = Astro.props;
+const rows: Row[] = [];
+
+function formatType(prop: Record<string, any>): string {
+  if (prop.enum) return prop.enum.map((v: string) => `"${v}"`).join(" | ");
+  if (prop.type === "array") {
+    if (prop.items?.type === "object") return "object[]";
+    if (prop.items?.type) return `${prop.items.type}[]`;
+    return "array";
+  }
+  return prop.type ?? "any";
+}
+
+function extractRows(
+  properties: Record<string, any> | undefined,
+  required: string[],
+  indent: number
+) {
+  if (!properties) return;
+  for (const [name, prop] of Object.entries(properties)) {
+    rows.push({
+      name,
+      type: formatType(prop),
+      required: required.includes(name),
+      description: prop.description ?? "",
+      indent,
+    });
+
+    // Expand nested object properties
+    if (prop.type === "object" && prop.properties) {
+      extractRows(prop.properties, prop.required ?? [], indent + 1);
+    }
+
+    // Expand array item properties
+    if (prop.type === "array" && prop.items?.type === "object" && prop.items?.properties) {
+      extractRows(prop.items.properties, prop.items.required ?? [], indent + 1);
+    }
+  }
+}
+
+extractRows(schema.properties, schema.required ?? [], 0);
+---
+
+{rows.length > 0 ? (
+  <div class="param-table-wrapper">
+    <table class="param-table">
+      <thead>
+        <tr>
+          <th>Parameter</th>
+          <th>Type</th>
+          <th>Required</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+        {rows.map((row) => (
+          <tr class={row.indent > 0 ? "nested" : ""}>
+            <td class="param-name">
+              <span style={`padding-left: ${row.indent * 1.2}rem`}>
+                {row.indent > 0 && <span class="indent-marker">↳ </span>}
+                <code>{row.name}</code>
+              </span>
+            </td>
+            <td class="param-type"><code>{row.type}</code></td>
+            <td class="param-required">
+              {row.required ? <span class="icon-check">✓</span> : <span class="icon-cross">✗</span>}
+            </td>
+            <td class="param-desc">{row.description}</td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  </div>
+) : (
+  <p class="no-params">No parameters</p>
+)}

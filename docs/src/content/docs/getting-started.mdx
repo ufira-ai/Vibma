@@ -1,0 +1,65 @@
+---
+title: Getting Started
+description: How to set up Vibma and connect Claude to Figma
+---
+
+## Installation
+
+### 1. Install the MCP server
+
+```bash
+npm install -g @ufira/vibma
+```
+
+Or add to your Claude Code MCP config (`~/.claude/settings.json`):
+
+```json
+{
+  "mcpServers": {
+    "vibma": {
+      "command": "npx",
+      "args": ["-y", "@ufira/vibma"]
+    }
+  }
+}
+```
+
+### 2. Install the Figma plugin
+
+Install the [Vibma plugin](https://www.figma.com/community/plugin/vibma) from the Figma Community.
+
+### 3. Start the relay
+
+The relay bridges WebSocket connections between the MCP server and the Figma plugin.
+
+```bash
+npx @ufira/vibma-tunnel
+```
+
+By default the relay runs on port **3055**.
+
+### 4. Connect
+
+1. Open Figma and run the Vibma plugin — note the **channel name** (defaults to `vibma`)
+2. In Claude Code, the MCP server auto-connects to the relay
+3. Call `join_channel` with the channel name
+4. Call `ping` to verify end-to-end connectivity
+
+## First steps
+
+Once connected, try these tools:
+
+```
+get_document_info    → see the document structure
+get_current_page     → inspect the current page
+read_my_design       → read the user's selection
+create_frame         → create a frame on the canvas
+```
+
+## Troubleshooting
+
+| Symptom | Fix |
+|---------|-----|
+| `ping` times out | Check that the Figma plugin shows the same port and channel |
+| "ROLE_OCCUPIED" error | Another MCP is connected — use `reset_tunnel` to clear it |
+| Version mismatch warning | Update the plugin or MCP server to matching versions |

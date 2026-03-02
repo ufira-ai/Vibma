@@ -5,3 +5,8 @@ dist/
 .idea/
 certs/
 plugin/
+docs/public/tools-manifest.json
+docs/src/content/docs/tools/
+docs/dist/
+docs/.astro/
+docs/node_modules/

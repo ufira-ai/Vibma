@@ -1,0 +1,39 @@
+---
+title: Prompts
+description: Built-in MCP prompts for design strategy and workflows
+---
+
+Vibma includes 4 built-in MCP prompts that provide best-practice guidance to AI agents. Agents can reference these prompts for context when working with Figma designs.
+
+## design_strategy
+
+Best practices for working with Figma designs. Covers:
+
+- **Understand before creating** — inspect documents, discover existing styles and variables
+- **Use design tokens** — prefer `fillStyleName`, `textStyleName`, and variable bindings over hardcoded values
+- **Auto-layout first** — use `layoutMode` on every container, avoid absolute positioning
+- **Naming conventions** — semantic names, `Property=Value` pattern for components
+- **Variable modes** — pin frames to specific modes (e.g. Dark)
+- **Quality checks** — run `lint_node` to catch hardcoded colors, missing text styles, and layout issues
+
+## read_design_strategy
+
+Best practices for reading Figma designs. Focuses on using `read_my_design()` and selection-based workflows to understand existing designs.
+
+## text_replacement_strategy
+
+A systematic approach for replacing text in Figma designs:
+
+1. **Analyze structure** — scan text nodes, identify logical groupings (tables, lists, cards)
+2. **Strategic chunking** — divide work by structure, spatial area, semantics, or components
+3. **Progressive replacement** — clone nodes, replace chunk by chunk, export and verify each step
+4. **Intelligent handling** — adapt to container constraints, maintain hierarchy, scale exports appropriately
+
+## swap_overrides_instances
+
+Guide for transferring content overrides between component instances:
+
+1. Identify source and target instances
+2. Extract overrides with `get_instance_overrides`
+3. Apply matching overrides (text, fills, styles) to target children
+4. Verify with `get_node_info` and `export_node_as_image`

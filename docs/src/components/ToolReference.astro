@@ -1,0 +1,26 @@
+---
+/**
+ * Single tool card — anchor-linkable heading, description, parameter table,
+ * and collapsible JSON Schema view.
+ */
+import ParameterTable from "./ParameterTable.astro";
+
+interface Props {
+  name: string;
+  description: string;
+  schema: Record<string, any>;
+  batch: boolean;
+}
+
+const { name, description, schema, batch } = Astro.props;
+---
+
+<div class="tool-card">
+  {batch && <span class="badge-batch">batch</span>}
+  <p class="tool-description">{description}</p>
+  <ParameterTable schema={schema} />
+  <details class="schema-details">
+    <summary>JSON Schema</summary>
+    <pre><code>{JSON.stringify(schema, null, 2)}</code></pre>
+  </details>
+</div>
