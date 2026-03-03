@@ -4,7 +4,7 @@ import * as S from "./schemas";
 import type { McpServer, SendCommandFn } from "./types";
 import { mcpJson, mcpError } from "./types";
 import { batchHandler, findVariableById } from "./helpers";
-import { endpointSchema, registerEndpoint, createDispatcher, paginate, pickFields } from "./endpoint";
+import { endpointSchema, createDispatcher, paginate, pickFields } from "./endpoint";
 import type { CollectionCreatedResult, IdResult, GetNodeVariablesResult } from "./response-types";
 
 

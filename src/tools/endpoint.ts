@@ -8,14 +8,12 @@
  *   update  → items[{...}]                        → { results: ["ok", ...] }
  *   delete  → { id } or items[{id}]               → "ok" or { results: ["ok", ...] }
  *
- * MCP side:  endpointSchema() + registerEndpoint()
+ * MCP side:  endpointSchema()
  * Figma side: createDispatcher() + paginate()
  */
 
 import { z } from "zod";
 import { flexJson } from "../utils/coercion";
-import type { McpServer, SendCommandFn } from "./types";
-import { mcpJson, mcpError } from "./types";
 
 // ─── Method Types ────────────────────────────────────────────────
 
@@ -114,25 +112,6 @@ export function endpointSchema(
     schema.limit = z.coerce.number().optional().describe("Max items per page (default 100)");
   }
   return { ...schema, ...extra };
-}
-
-// ─── MCP Registration ────────────────────────────────────────────
-
-/**
- * Register a CRUD endpoint tool on the MCP server.
- * Handles JSON serialization and error wrapping uniformly.
- */
-export function registerEndpoint(
-  server: McpServer,
-  sendCommand: SendCommandFn,
-  name: string,
-  description: string,
-  schema: Record<string, z.ZodTypeAny>,
-) {
-  server.tool(name, description, schema, async (params: any) => {
-    try { return mcpJson(await sendCommand(name, params)); }
-    catch (e) { return mcpError(`${name} error`, e); }
-  });
 }
 
 // ─── Figma Dispatcher ────────────────────────────────────────────
