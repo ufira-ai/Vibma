@@ -1,8 +1,7 @@
 import { z } from "zod";
 import { flexJson, flexBool } from "../utils/coercion";
 import * as S from "./schemas";
-import type { McpServer, SendCommandFn } from "./types";
-import { mcpJson, mcpError } from "./types";
+import type { ToolDef } from "./types";
 import { batchHandler, appendToParent, solidPaint, styleNotFoundHint, suggestStyleForColor, findVariableById } from "./helpers";
 import { endpointSchema, createDispatcher, paginate, pickFields } from "./endpoint";
 import type { IdResult, IdWithWarningResult, GetInstanceOverridesResult } from "./response-types";
@@ -80,26 +79,14 @@ const instanceUpdateItem = z.object({
   properties: flexJson(z.record(z.string(), z.union([z.string(), z.boolean()]))).describe('Property key→value map, e.g. {"Label#1:0":"Click Me"}'),
 });
 
-// ─── MCP Registration ────────────────────────────────────────────
+// ─── Tool Definitions ───────────────────────────────────────────
 
-export function registerMcpTools(server: McpServer, sendCommand: SendCommandFn) {
-
+export const tools: ToolDef[] = [
   // ── components endpoint ──
-
-  const cMethods = ["create", "get", "list", "update"];
-  const cSchema = endpointSchema(cMethods, {
-    items: flexJson(z.array(z.any())).optional()
-      .describe("create (component): [{name, parentId?, ...layout}]. create (from_node): [{nodeId}]. create (variant_set): [{componentIds, name?}]. update: [{id, propertyName, type, defaultValue}]."),
-    type: z.enum(["component", "from_node", "variant_set"]).optional()
-      .describe("Create type. Required for create: 'component' (from scratch), 'from_node' (convert existing), 'variant_set' (combine as variants)."),
-    depth: S.depth,
-    name: z.string().optional().describe("Filter list by name (case-insensitive substring)."),
-    setsOnly: flexBool(z.boolean()).optional().describe("If true, list returns only COMPONENT_SET nodes."),
-  });
-
-  server.tool(
-    "components",
-    `CRUD endpoint for components.
+  {
+    name: "components",
+    description:
+      `CRUD endpoint for components.
   create  → {type, items, depth?} → {results: [{id}, ...]}
     type 'component': create from scratch with layout/style params
     type 'from_node': convert existing nodes to components
@@ -107,54 +94,62 @@ export function registerMcpTools(server: McpServer, sendCommand: SendCommandFn) 
   get     → {id, fields?} → component object (full detail, field-filterable)
   list    → {name?, setsOnly?, fields?, offset?, limit?} → paginated stubs
   update  → {items: [{id, propertyName, type, defaultValue}]} → {results: ['ok', ...]}`,
-    cSchema,
-    async (params: any) => {
-      try {
-        // Validate items per method+type
-        if (params.items) {
-          if (params.method === "create") {
-            const schema = params.type && componentCreateSchemas[params.type];
-            if (!schema) throw new Error(`create requires type: component, from_node, or variant_set`);
-            params.items = z.array(schema).parse(params.items);
-          } else if (params.method === "update") {
-            params.items = z.array(updateComponentItem).parse(params.items);
-          }
+    schema: (caps) => endpointSchema(
+      ["create", "get", "list", "update"],
+      caps,
+      {
+        items: flexJson(z.array(z.any())).optional()
+          .describe("create (component): [{name, parentId?, ...layout}]. create (from_node): [{nodeId}]. create (variant_set): [{componentIds, name?}]. update: [{id, propertyName, type, defaultValue}]."),
+        type: z.enum(["component", "from_node", "variant_set"]).optional()
+          .describe("Create type. Required for create: 'component' (from scratch), 'from_node' (convert existing), 'variant_set' (combine as variants)."),
+        depth: S.depth,
+        name: z.string().optional().describe("Filter list by name (case-insensitive substring)."),
+        setsOnly: flexBool(z.boolean()).optional().describe("If true, list returns only COMPONENT_SET nodes."),
+      },
+    ),
+    tier: "read", // Always registered; methods filtered internally
+    validate: (params: any) => {
+      if (params.items) {
+        if (params.method === "create") {
+          const schema = params.type && componentCreateSchemas[params.type];
+          if (!schema) throw new Error(`create requires type: component, from_node, or variant_set`);
+          params.items = z.array(schema).parse(params.items);
+        } else if (params.method === "update") {
+          params.items = z.array(updateComponentItem).parse(params.items);
         }
-        return mcpJson(await sendCommand("components", params));
-      } catch (e) { return mcpError("components error", e); }
-    }
-  );
+      }
+    },
+  },
 
   // ── instances endpoint ──
-
-  const iMethods = ["create", "get", "update"];
-  const iSchema = endpointSchema(iMethods, {
-    items: flexJson(z.array(z.any())).optional()
-      .describe("create: [{componentId, variantProperties?, x?, y?, parentId?}]. update: [{id, properties}]."),
-    depth: S.depth,
-  });
-
-  server.tool(
-    "instances",
-    `CRUD endpoint for component instances.
+  {
+    name: "instances",
+    description:
+      `CRUD endpoint for component instances.
   create  → {items: [{componentId, variantProperties?, x?, y?, parentId?}], depth?} → {results: [{id}]}
   get     → {id} → {mainComponentId, overrides: [{id, fields}]}
   update  → {items: [{id, properties}]} → {results: ['ok', ...]}`,
-    iSchema,
-    async (params: any) => {
-      try {
-        if (params.items) {
-          if (params.method === "create") {
-            params.items = z.array(instanceCreateItem).parse(params.items);
-          } else if (params.method === "update") {
-            params.items = z.array(instanceUpdateItem).parse(params.items);
-          }
+    schema: (caps) => endpointSchema(
+      ["create", "get", "update"],
+      caps,
+      {
+        items: flexJson(z.array(z.any())).optional()
+          .describe("create: [{componentId, variantProperties?, x?, y?, parentId?}]. update: [{id, properties}]."),
+        depth: S.depth,
+      },
+    ),
+    tier: "read", // Always registered; methods filtered internally
+    validate: (params: any) => {
+      if (params.items) {
+        if (params.method === "create") {
+          params.items = z.array(instanceCreateItem).parse(params.items);
+        } else if (params.method === "update") {
+          params.items = z.array(instanceUpdateItem).parse(params.items);
         }
-        return mcpJson(await sendCommand("instances", params));
-      } catch (e) { return mcpError("instances error", e); }
-    }
-  );
-}
+      }
+    },
+  },
+];
 
 // ─── Figma Handlers ──────────────────────────────────────────────
 

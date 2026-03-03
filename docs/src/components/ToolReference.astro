@@ -9,16 +9,20 @@ interface Props {
   name: string;
   description: string;
   schema: Record<string, any>;
-  batch: boolean;
+  tier: "read" | "create" | "edit";
+  endpoint?: boolean;
   responseSchema?: Record<string, any>;
   responseExample?: unknown;
 }
 
-const { name, description, schema, batch, responseSchema, responseExample } = Astro.props;
+const { name, description, schema, tier, endpoint, responseSchema, responseExample } = Astro.props;
 ---
 
 <div class="tool-card">
-  {batch && <span class="badge-batch">batch</span>}
+  <div class="tool-badges">
+    {tier !== "read" && <span class={`badge-tier badge-${tier}`}>{tier}</span>}
+    {endpoint && <a href="/Vibma/endpoints/" class="badge-tier badge-endpoint">endpoint</a>}
+  </div>
   <p class="tool-description">{description}</p>
 
   <ParameterTable schema={schema} />

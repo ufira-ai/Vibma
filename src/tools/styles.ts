@@ -1,8 +1,7 @@
 import { z } from "zod";
 import { flexJson, flexNum } from "../utils/coercion";
 import * as S from "./schemas";
-import type { McpServer, SendCommandFn } from "./types";
-import { mcpJson, mcpError } from "./types";
+import type { ToolDef } from "./types";
 import { batchHandler } from "./helpers";
 import { endpointSchema, createDispatcher, paginate, pickFields } from "./endpoint";
 import type { ListResponse } from "./endpoint";
@@ -121,39 +120,39 @@ const updateSchemas: Record<string, z.ZodTypeAny> = {
   paint: patchPaintItem, text: patchTextItem, effect: patchEffectItem,
 };
 
-// ─── MCP Registration ────────────────────────────────────────────
+// ─── Tool Definitions ───────────────────────────────────────────
 
-export function registerMcpTools(server: McpServer, sendCommand: SendCommandFn) {
-  const schema = endpointSchema(["create", "get", "list", "update", "delete"], {
-    type: z.enum(["paint", "text", "effect"]).optional()
-      .describe("Style type. Required for create. Filters list by type. Optional for update (strict per-type validation; omit to auto-detect)."),
-    items: flexJson(z.array(z.any())).optional()
-      .describe("Create: [{name, color}] (paint), [{name, fontFamily, fontSize, ...}] (text), [{name, effects}] (effect). Update: [{id, ...fields}]. Delete (batch): [{id}, ...]."),
-    depth: S.depth,
-  });
-
-  server.tool("styles",
-    "CRUD endpoint for local styles (paint, text, effect).\n" +
-    "  list   → {type?, fields?, offset?, limit?} → {totalCount, items: [{id, name, type, ...}]}\n" +
-    "  get    → {id, fields?} → style object (full detail; fields to filter)\n" +
-    "  create → {type, items: [...]} → {results: [{id}, ...]}\n" +
-    "  update → {type?, items: [{id, ...}]} → {results: ['ok'|{warning}, ...]}\n" +
-    "  delete → {id} or {items: [{id}, ...]} → 'ok' or {results: ['ok', ...]}",
-    schema,
-    async (params: any) => {
-      try {
-        // Validate items with method+type-appropriate schema
-        if (params.items) {
-          const map = params.method === "update" ? updateSchemas : createSchemas;
-          const itemSchema = (params.type && map[params.type]) || patchAnyItem;
-          params.items = z.array(itemSchema).parse(params.items);
-        }
-        return mcpJson(await sendCommand("styles", params));
-      } catch (e) { return mcpError("styles error", e); }
+export const tools: ToolDef[] = [
+  {
+    name: "styles",
+    description:
+      "CRUD endpoint for local styles (paint, text, effect).\n" +
+      "  list   → {type?, fields?, offset?, limit?} → {totalCount, items: [{id, name, type, ...}]}\n" +
+      "  get    → {id, fields?} → style object (full detail; fields to filter)\n" +
+      "  create → {type, items: [...]} → {results: [{id}, ...]}\n" +
+      "  update → {type?, items: [{id, ...}]} → {results: ['ok'|{warning}, ...]}\n" +
+      "  delete → {id} or {items: [{id}, ...]} → 'ok' or {results: ['ok', ...]}",
+    schema: (caps) => endpointSchema(
+      ["create", "get", "list", "update", "delete"],
+      caps,
+      {
+        type: z.enum(["paint", "text", "effect"]).optional()
+          .describe("Style type. Required for create. Filters list by type. Optional for update (strict per-type validation; omit to auto-detect)."),
+        items: flexJson(z.array(z.any())).optional()
+          .describe("Create: [{name, color}] (paint), [{name, fontFamily, fontSize, ...}] (text), [{name, effects}] (effect). Update: [{id, ...fields}]. Delete (batch): [{id}, ...]."),
+        depth: S.depth,
+      },
+    ),
+    tier: "read", // Always registered; methods filtered internally by endpointSchema
+    validate: (params: any) => {
+      if (params.items) {
+        const map = params.method === "update" ? updateSchemas : createSchemas;
+        const itemSchema = (params.type && map[params.type]) || patchAnyItem;
+        params.items = z.array(itemSchema).parse(params.items);
+      }
     },
-  );
-
-}
+  },
+];
 
 // ─── Figma Handlers ──────────────────────────────────────────────
 

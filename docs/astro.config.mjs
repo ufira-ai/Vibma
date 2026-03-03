@@ -30,6 +30,7 @@ export default defineConfig({
             { label: "Lint & Export", slug: "tools/lint-export" },
           ],
         },
+        { label: "Endpoints", slug: "endpoints" },
         { label: "Prompts", slug: "prompts" },
       ],
       customCss: ["./src/styles/tool-reference.css"],

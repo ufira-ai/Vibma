@@ -1,8 +1,7 @@
 import { z } from "zod";
 import { flexJson } from "../utils/coercion";
 import * as S from "./schemas";
-import type { McpServer, SendCommandFn } from "./types";
-import { mcpJson, mcpError } from "./types";
+import type { ToolDef } from "./types";
 import { batchHandler } from "./helpers";
 import type { IdResult } from "./response-types";
 
@@ -33,41 +32,28 @@ const insertItem = z.object({
   index: z.coerce.number().optional().describe("Index to insert at (0=first). Omit to append."),
 });
 
-// ─── MCP Registration ────────────────────────────────────────────
+// ─── Tool Definitions ───────────────────────────────────────────
 
-export function registerMcpTools(server: McpServer, sendCommand: SendCommandFn) {
-  // move_node and resize_node merged into patch_nodes
-
-  server.tool(
-    "delete_node",
-    "Delete nodes. Batch: pass multiple items.",
-    { items: flexJson(z.array(deleteItem)).describe("Array of {nodeId}") },
-    async (params: any) => {
-      try { return mcpJson(await sendCommand("delete_node", params)); }
-      catch (e) { return mcpError("Error deleting nodes", e); }
-    }
-  );
-
-  server.tool(
-    "clone_node",
-    "Clone nodes. Batch: pass multiple items.",
-    { items: flexJson(z.array(cloneItem)).describe("Array of {nodeId, x?, y?}"), depth: S.depth },
-    async (params: any) => {
-      try { return mcpJson(await sendCommand("clone_node", params)); }
-      catch (e) { return mcpError("Error cloning nodes", e); }
-    }
-  );
-
-  server.tool(
-    "insert_child",
-    "Move nodes into a parent at a specific index (reorder/reparent). Batch: pass multiple items.",
-    { items: flexJson(z.array(insertItem)).describe("Array of {parentId, childId, index?}"), depth: S.depth },
-    async (params: any) => {
-      try { return mcpJson(await sendCommand("insert_child", params)); }
-      catch (e) { return mcpError("Error inserting children", e); }
-    }
-  );
-}
+export const tools: ToolDef[] = [
+  {
+    name: "delete_node",
+    description: "Delete nodes. Batch: pass multiple items.",
+    schema: { items: flexJson(z.array(deleteItem)).describe("Array of {nodeId}") },
+    tier: "edit",
+  },
+  {
+    name: "clone_node",
+    description: "Clone nodes. Batch: pass multiple items.",
+    schema: { items: flexJson(z.array(cloneItem)).describe("Array of {nodeId, x?, y?}"), depth: S.depth },
+    tier: "create",
+  },
+  {
+    name: "insert_child",
+    description: "Move nodes into a parent at a specific index (reorder/reparent). Batch: pass multiple items.",
+    schema: { items: flexJson(z.array(insertItem)).describe("Array of {parentId, childId, index?}"), depth: S.depth },
+    tier: "edit",
+  },
+];
 
 // ─── Figma Handlers ──────────────────────────────────────────────
 

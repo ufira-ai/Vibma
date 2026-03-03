@@ -43,17 +43,37 @@
   gap: 0.4rem;
 }
 
-.badge-batch {
+.badge-tier {
   font-size: 0.65rem;
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.05em;
   padding: 0.1rem 0.45rem;
   border-radius: 3px;
-  border: 1px solid var(--sl-color-gray-4);
-  color: var(--sl-color-gray-2);
   line-height: 1;
   align-self: center;
+}
+
+.badge-create {
+  border: 1px solid var(--sl-color-blue, #4385be);
+  color: var(--sl-color-blue, #4385be);
+}
+
+.badge-edit {
+  border: 1px solid var(--sl-color-orange, #bc5215);
+  color: var(--sl-color-orange, #bc5215);
+}
+
+a.badge-endpoint {
+  border: 1px solid var(--sl-color-purple, #8b7ec8);
+  color: var(--sl-color-purple, #8b7ec8);
+  text-decoration: none;
+  cursor: pointer;
+}
+
+a.badge-endpoint:hover {
+  background: var(--sl-color-purple, #8b7ec8);
+  color: var(--sl-color-bg-nav);
 }
 
 .icon-check {

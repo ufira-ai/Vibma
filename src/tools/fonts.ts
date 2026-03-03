@@ -1,21 +1,17 @@
 import { z } from "zod";
-import type { McpServer, SendCommandFn } from "./types";
-import { mcpJson, mcpError } from "./types";
+import type { ToolDef } from "./types";
 import type { GetAvailableFontsResult } from "./response-types";
 
-// ─── MCP Registration ────────────────────────────────────────────
+// ─── Tool Definitions ───────────────────────────────────────────
 
-export function registerMcpTools(server: McpServer, sendCommand: SendCommandFn) {
-  server.tool(
-    "get_available_fonts",
-    "Get available fonts in Figma. Optionally filter by query string.",
-    { query: z.string().optional().describe("Filter fonts by name (case-insensitive). Omit to list all fonts.") },
-    async ({ query }: any) => {
-      try { return mcpJson(await sendCommand("get_available_fonts", { query })); }
-      catch (e) { return mcpError("Error getting fonts", e); }
-    }
-  );
-}
+export const tools: ToolDef[] = [
+  {
+    name: "get_available_fonts",
+    description: "Get available fonts in Figma. Optionally filter by query string.",
+    schema: { query: z.string().optional().describe("Filter fonts by name (case-insensitive). Omit to list all fonts.") },
+    tier: "read",
+  },
+];
 
 // ─── Figma Handlers ──────────────────────────────────────────────
 

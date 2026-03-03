@@ -49,20 +49,34 @@ Add to your MCP config (e.g. `.cursor/mcp.json`, `.claude.json`, or `.mcp.json`)
   "mcpServers": {
     "Vibma": {
       "command": "npx",
-      "args": ["-y", "@ufira/vibma"]
+      "args": ["-y", "@ufira/vibma", "--edit"]
     }
   }
 }
 ```
 
-If using a non-default port:
+### Access tiers
+
+Vibma uses access tiers to control which tools are available. Pass a flag to set the tier:
+
+| Flag | Tools available | Use case |
+|------|----------------|----------|
+| _(none)_ | Read-only (inspect, search, export) | Safe browsing, audits |
+| `--create` | Read + create (frames, text, shapes) | Generating new designs |
+| `--edit` | All tools (read + create + edit + delete) | Full design workflow |
+
+Most users want `--edit` for full access. Omit the flag for read-only mode.
+
+### Non-default port
+
+If using a non-default port, add `--port=`:
 
 ```json
 {
   "mcpServers": {
     "Vibma": {
       "command": "npx",
-      "args": ["-y", "@ufira/vibma", "--port=3056"]
+      "args": ["-y", "@ufira/vibma", "--edit", "--port=3056"]
     }
   }
 }

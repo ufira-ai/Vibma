@@ -1,8 +1,7 @@
 import { z } from "zod";
 import { flexJson } from "../utils/coercion";
 import * as S from "./schemas";
-import type { McpServer, SendCommandFn } from "./types";
-import { mcpJson, mcpError } from "./types";
+import type { ToolDef } from "./types";
 import { batchHandler, appendToParent } from "./helpers";
 import type { IdResult } from "./response-types";
 
@@ -25,30 +24,22 @@ const svgItem = z.object({
   parentId: S.parentId,
 });
 
-// ─── MCP Registration ────────────────────────────────────────────
+// ─── Tool Definitions ───────────────────────────────────────────
 
-export function registerMcpTools(server: McpServer, sendCommand: SendCommandFn) {
-  server.tool(
-    "create_section",
-    "Create section nodes to organize content on the canvas.",
-    { items: flexJson(z.array(sectionItem)).describe("Array of sections to create"), depth: S.depth },
-    async (params: any) => {
-      try { return mcpJson(await sendCommand("create_section", params)); }
-      catch (e) { return mcpError("Error creating sections", e); }
-    }
-  );
-
-  server.tool(
-    "create_node_from_svg",
-    "Create nodes from SVG strings.",
-    { items: flexJson(z.array(svgItem)).describe("Array of SVG items to create"), depth: S.depth },
-    async (params: any) => {
-      try { return mcpJson(await sendCommand("create_node_from_svg", params)); }
-      catch (e) { return mcpError("Error creating SVG nodes", e); }
-    }
-  );
-
-}
+export const tools: ToolDef[] = [
+  {
+    name: "create_section",
+    description: "Create section nodes to organize content on the canvas.",
+    schema: { items: flexJson(z.array(sectionItem)).describe("Array of sections to create"), depth: S.depth },
+    tier: "create",
+  },
+  {
+    name: "create_node_from_svg",
+    description: "Create nodes from SVG strings.",
+    schema: { items: flexJson(z.array(svgItem)).describe("Array of SVG items to create"), depth: S.depth },
+    tier: "create",
+  },
+];
 
 // ─── Figma Handlers ──────────────────────────────────────────────
 

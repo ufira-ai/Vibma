@@ -1,35 +1,26 @@
 import { z } from "zod";
 import { flexJson } from "../utils/coercion";
-import type { McpServer, SendCommandFn } from "./types";
-import { mcpJson, mcpError } from "./types";
+import type { ToolDef } from "./types";
 import type { GetSelectionResult, SetSelectionResult } from "./response-types";
 
-// ─── MCP Registration ────────────────────────────────────────────
+// ─── Tool Definitions ───────────────────────────────────────────
 
-export function registerMcpTools(server: McpServer, sendCommand: SendCommandFn) {
-  server.tool(
-    "get_selection",
-    "Get the current selection. Without depth, returns stubs (id/name/type). With depth, returns full serialized node trees.",
-    { depth: z.coerce.number().optional().describe("Child recursion depth. Omit for stubs only, 0=selected nodes' properties, -1=unlimited.") },
-    async ({ depth }: any) => {
-      try { return mcpJson(await sendCommand("get_selection", { depth })); }
-      catch (e) { return mcpError("Error getting selection", e); }
-    }
-  );
-
-  server.tool(
-    "set_selection",
-    "Set selection to nodes and scroll viewport to show them. Also works as focus (single node).",
-    {
+export const tools: ToolDef[] = [
+  {
+    name: "get_selection",
+    description: "Get the current selection. Without depth, returns stubs (id/name/type). With depth, returns full serialized node trees.",
+    schema: { depth: z.coerce.number().optional().describe("Child recursion depth. Omit for stubs only, 0=selected nodes' properties, -1=unlimited.") },
+    tier: "read",
+  },
+  {
+    name: "set_selection",
+    description: "Set selection to nodes and scroll viewport to show them. Also works as focus (single node).",
+    schema: {
       nodeIds: flexJson(z.array(z.string())).describe('Array of node IDs to select. Example: ["1:2","1:3"]'),
     },
-    async ({ nodeIds }: any) => {
-      try { return mcpJson(await sendCommand("set_selection", { nodeIds })); }
-      catch (e) { return mcpError("Error setting selection", e); }
-    }
-  );
-
-}
+    tier: "read",
+  },
+];
 
 // ─── Figma Handlers ──────────────────────────────────────────────
 

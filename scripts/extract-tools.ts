@@ -12,12 +12,13 @@
  */
 
 import { z } from "zod";
-import { writeFileSync, mkdirSync, readdirSync, unlinkSync } from "fs";
+import { readFileSync, writeFileSync, mkdirSync, readdirSync, unlinkSync } from "fs";
 import { join, dirname } from "path";
 import { fileURLToPath } from "url";
-import { registerAllTools } from "../src/tools/mcp-registry";
+import { registerAllTools, allTools } from "../src/tools/mcp-registry";
 import { domains, toolToDomain } from "./domain-config";
 import { toolResponseSchemas } from "../src/tools/response-types";
+import type { ToolTier } from "../src/tools/types";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, "..");
@@ -31,7 +32,8 @@ interface ToolEntry {
   responseSchema?: Record<string, unknown>;
   responseExample?: unknown;
   domain: string;
-  batch: boolean;
+  tier: ToolTier;
+  endpoint: boolean;
 }
 
 interface PromptEntry {
@@ -45,6 +47,15 @@ interface Manifest {
   domains: typeof domains;
   tools: ToolEntry[];
   prompts: PromptEntry[];
+}
+
+// ─── Tier lookup from ToolDef arrays ─────────────────────────────
+
+const toolTierMap = new Map<string, ToolTier>();
+const toolEndpointSet = new Set<string>();
+for (const tool of allTools) {
+  toolTierMap.set(tool.name, tool.tier);
+  if (typeof tool.schema === "function") toolEndpointSet.add(tool.name);
 }
 
 // ─── Mock McpServer ──────────────────────────────────────────────
@@ -71,8 +82,9 @@ const mockServer = {
     }
 
     const domain = toolToDomain.get(name) ?? "uncategorized";
-    const batch = !!(jsonSchema as any)?.properties?.items;
-    capturedTools.push({ name, description, schema: jsonSchema, ...extractResponse(name), domain, batch });
+    const tier = toolTierMap.get(name) ?? "read";
+    const endpoint = toolEndpointSet.has(name);
+    capturedTools.push({ name, description, schema: jsonSchema, ...extractResponse(name), domain, tier, endpoint });
   },
 
   prompt(name: string, description: string, _handler: any) {
@@ -111,7 +123,8 @@ function addInlineTools() {
     },
     ...extractResponse("join_channel"),
     domain: "connection",
-    batch: false,
+    tier: "read",
+    endpoint: false,
   });
 
   capturedTools.push({
@@ -121,7 +134,8 @@ function addInlineTools() {
     schema: { type: "object", properties: {} },
     ...extractResponse("channel_info"),
     domain: "connection",
-    batch: false,
+    tier: "read",
+    endpoint: false,
   });
 
   capturedTools.push({
@@ -140,7 +154,8 @@ function addInlineTools() {
     },
     ...extractResponse("reset_tunnel"),
     domain: "connection",
-    batch: false,
+    tier: "edit",
+    endpoint: false,
   });
 }
 
@@ -151,9 +166,9 @@ console.log("Extracting tool schemas...\n");
 // 1. Add the 3 inline tools first
 addInlineTools();
 
-// 2. Run all registerMcpTools through the mock server
+// 2. Run all registerMcpTools through the mock server (full caps → all tools)
 const mockSendCommand = async () => ({});
-registerAllTools(mockServer as any, mockSendCommand);
+registerAllTools(mockServer as any, mockSendCommand, { create: true, edit: true });
 
 // 3. Sort tools by domain order, then by position in domain config
 const domainOrder = new Map(domains.map((d, i) => [d.id, i]));
@@ -230,8 +245,9 @@ for (const domain of domains) {
     const exampleAttr = tool.responseExample !== undefined
       ? ` responseExample={${JSON.stringify(tool.responseExample)}}`
       : "";
+    const endpointAttr = tool.endpoint ? ` endpoint` : "";
     lines.push(
-      `<ToolReference name="${tool.name}" description={${JSON.stringify(tool.description)}} schema={${JSON.stringify(tool.schema)}} batch={${tool.batch}}${responseAttr}${exampleAttr} />`
+      `<ToolReference name="${tool.name}" description={${JSON.stringify(tool.description)}} schema={${JSON.stringify(tool.schema)}} tier="${tool.tier}"${endpointAttr}${responseAttr}${exampleAttr} />`
     );
     lines.push("");
   }
@@ -240,7 +256,44 @@ for (const domain of domains) {
   writeFileSync(mdxPath, lines.join("\n"));
 }
 
+// 8. Generate getting-started.mdx from CARRYME.md
+const carryMePath = join(ROOT, "CARRYME.md");
+const carryMe = readFileSync(carryMePath, "utf-8");
+// Strip the H1 title line and the "> Prefer full source control?" blockquote
+// Keep content up to (but not including) the "Instructions for AI Agents" section
+const agentSectionIdx = carryMe.indexOf("\n---\n\n## Instructions for AI Agents");
+const userContent = agentSectionIdx !== -1 ? carryMe.slice(0, agentSectionIdx) : carryMe;
+// Remove the first H1 and the intro blockquote
+const lines = userContent.split("\n");
+let startIdx = 0;
+// Skip H1 line
+if (lines[0]?.startsWith("# ")) startIdx = 1;
+// Skip blank line after H1
+if (lines[startIdx]?.trim() === "") startIdx++;
+// Skip blockquote lines ("> ...")
+while (startIdx < lines.length && lines[startIdx]?.startsWith(">")) startIdx++;
+// Skip trailing blank line after blockquote
+if (lines[startIdx]?.trim() === "") startIdx++;
+const body = lines.slice(startIdx).join("\n").trim();
+
+const gettingStartedMdx = [
+  "---",
+  "title: Getting Started",
+  "description: Set up Vibma and connect your AI agent to Figma",
+  "slug: index",
+  "---",
+  "",
+  `{/* Auto-generated from CARRYME.md by extract-tools.ts — do not edit manually */}`,
+  "",
+  body,
+  "",
+].join("\n");
+
+const gettingStartedPath = join(ROOT, "docs", "src", "content", "docs", "getting-started.mdx");
+writeFileSync(gettingStartedPath, gettingStartedMdx);
+
 console.log(`✓ Extracted ${capturedTools.length} tools, ${capturedPrompts.length} prompts`);
 console.log(`✓ Domains: ${domains.map((d) => `${d.label} (${d.tools.length})`).join(", ")}`);
 console.log(`✓ Written manifest to ${outPath}`);
-console.log(`✓ Generated ${domains.length} domain MDX pages in ${toolsDir}\n`);
+console.log(`✓ Generated ${domains.length} domain MDX pages in ${toolsDir}`);
+console.log(`✓ Generated getting-started.mdx from CARRYME.md\n`);

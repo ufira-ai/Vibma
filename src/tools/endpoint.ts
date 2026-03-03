@@ -14,6 +14,7 @@
 
 import { z } from "zod";
 import { flexJson } from "../utils/coercion";
+import type { Capabilities } from "./types";
 
 // ─── Method Types ────────────────────────────────────────────────
 
@@ -84,6 +85,13 @@ export function paginate<T>(items: T[], offset = 0, limit = 100): ListResponse<T
 
 // ─── Schema Builder ──────────────────────────────────────────────
 
+/** Maps each endpoint method to the minimum tier required to use it. */
+export type MethodTier = "read" | "create" | "edit";
+
+const DEFAULT_TIERS: Record<string, MethodTier> = {
+  get: "read", list: "read", create: "create", update: "edit", delete: "edit",
+};
+
 /**
  * Build standard endpoint Zod schema fields.
  *
@@ -92,22 +100,53 @@ export function paginate<T>(items: T[], offset = 0, limit = 100): ListResponse<T
  * - `fields` when get or list are in the method list
  * - `offset`/`limit` when list is in the method list
  * Merge endpoint-specific fields (items, list filters) via `extra`.
+ *
+ * When `caps` is provided, methods are filtered by tier — only methods
+ * whose tier is enabled appear in the enum.
  */
 export function endpointSchema(
   methods: string[],
-  extra?: Record<string, z.ZodTypeAny>,
+  capsOrExtra?: Capabilities | Record<string, z.ZodTypeAny>,
+  extraOrTiers?: Record<string, z.ZodTypeAny>,
+  methodTiers?: Record<string, MethodTier>,
 ): Record<string, z.ZodTypeAny> {
+  // Overload resolution: (methods, extra?) or (methods, caps, extra?, tiers?)
+  let caps: Capabilities | undefined;
+  let extra: Record<string, z.ZodTypeAny> | undefined;
+
+  if (capsOrExtra && ("create" in capsOrExtra) && ("edit" in capsOrExtra)
+      && typeof (capsOrExtra as any).create === "boolean") {
+    caps = capsOrExtra as Capabilities;
+    extra = extraOrTiers;
+  } else {
+    extra = capsOrExtra as Record<string, z.ZodTypeAny> | undefined;
+    // methodTiers and extraOrTiers are unused in the legacy call signature
+  }
+
+  // Filter methods by capabilities
+  let filtered = methods;
+  if (caps) {
+    const tiers = { ...DEFAULT_TIERS, ...methodTiers };
+    filtered = methods.filter(m => {
+      const tier = tiers[m] ?? "edit"; // unknown methods default to edit
+      if (tier === "read") return true;
+      if (tier === "create") return caps!.create;
+      if (tier === "edit") return caps!.edit;
+      return false;
+    });
+  }
+
   const schema: Record<string, z.ZodTypeAny> = {
-    method: z.enum(methods as [string, ...string[]]),
+    method: z.enum(filtered as [string, ...string[]]),
   };
-  if (methods.includes("get") || methods.includes("delete")) {
+  if (filtered.includes("get") || filtered.includes("delete")) {
     schema.id = z.string().optional().describe("Resource ID (get, delete)");
   }
-  if (methods.includes("get") || methods.includes("list")) {
+  if (filtered.includes("get") || filtered.includes("list")) {
     schema.fields = flexJson(z.array(z.string())).optional()
       .describe('Property whitelist (get/list). Identity fields (id, name, type) always included. Omit for stubs on list, full detail on get. Pass ["*"] for all fields.');
   }
-  if (methods.includes("list")) {
+  if (filtered.includes("list")) {
     schema.offset = z.coerce.number().optional().describe("Skip N items for pagination (default 0)");
     schema.limit = z.coerce.number().optional().describe("Max items per page (default 100)");
   }

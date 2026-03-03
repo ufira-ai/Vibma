@@ -1,10 +1,36 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import type { z } from "zod";
 
 /** Function signature for sending commands to Figma via WebSocket */
 export type SendCommandFn = (command: string, params?: unknown, timeoutMs?: number) => Promise<unknown>;
 
 /** Re-export McpServer type for tool files */
 export type { McpServer };
+
+// ─── Tool Registry Types ────────────────────────────────────────
+
+/** Access tier for a tool */
+export type ToolTier = "read" | "create" | "edit";
+
+/** Which tiers are enabled for this MCP session */
+export interface Capabilities { create: boolean; edit: boolean }
+
+/** Declarative tool definition — replaces imperative registerMcpTools() */
+export interface ToolDef {
+  name: string;
+  description: string;
+  schema: Record<string, z.ZodTypeAny>
+        | ((caps: Capabilities) => Record<string, z.ZodTypeAny>);
+  tier: ToolTier;
+  /** Figma command name. Defaults to name. */
+  command?: string;
+  /** sendCommand timeout in ms (default: 30 000) */
+  timeout?: number;
+  /** Pre-send validation (e.g. per-method item parsing for endpoints) */
+  validate?: (params: any) => void;
+  /** Custom response formatter. Default: mcpJson */
+  formatResponse?: (result: unknown) => any;
+}
 
 /** Standard batch result from Figma handlers */
 export interface BatchResult<T = unknown> {

@@ -1,8 +1,7 @@
 import { z } from "zod";
 import { flexJson, flexBool } from "../utils/coercion";
 import * as S from "./schemas";
-import type { McpServer, SendCommandFn } from "./types";
-import { mcpJson, mcpError } from "./types";
+import type { ToolDef } from "./types";
 import { batchHandler } from "./helpers";
 import { setFillSingle, setStrokeSingle, setCornerSingle, setOpacitySingle } from "./fill-stroke";
 import { setEffectsSingle, setConstraintsSingle, setExportSettingsSingle, setNodePropertiesSingle } from "./effects";
@@ -99,19 +98,16 @@ const patchNodeItem = z.object({
     .describe("Arbitrary key-value properties to set directly on the node"),
 });
 
-// ─── MCP Registration ────────────────────────────────────────────
+// ─── Tool Definitions ───────────────────────────────────────────
 
-export function registerMcpTools(server: McpServer, sendCommand: SendCommandFn) {
-  server.tool(
-    "patch_nodes",
-    "Patch properties on nodes. Combines geometry (x/y/width/height), appearance (fill, stroke, cornerRadius, opacity, effects, constraints, exportSettings), layout (auto-layout), text (font props), and arbitrary properties in one call. Prefer styleName over hardcoded colors. Batch: pass multiple items.",
-    { items: flexJson(z.array(patchNodeItem)).describe("Array of nodes to patch"), depth: S.depth },
-    async (params: any) => {
-      try { return mcpJson(await sendCommand("patch_nodes", params)); }
-      catch (e) { return mcpError("Error patching nodes", e); }
-    }
-  );
-}
+export const tools: ToolDef[] = [
+  {
+    name: "patch_nodes",
+    description: "Patch properties on nodes. Combines geometry (x/y/width/height), appearance (fill, stroke, cornerRadius, opacity, effects, constraints, exportSettings), layout (auto-layout), text (font props), and arbitrary properties in one call. Prefer styleName over hardcoded colors. Batch: pass multiple items.",
+    schema: { items: flexJson(z.array(patchNodeItem)).describe("Array of nodes to patch"), depth: S.depth },
+    tier: "edit",
+  },
+];
 
 // ─── Figma Handlers ──────────────────────────────────────────────
 

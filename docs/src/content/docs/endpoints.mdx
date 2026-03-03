@@ -1,0 +1,77 @@
+---
+title: Endpoints
+description: How REST-style endpoint tools work in Vibma
+---
+
+Some Vibma tools are **endpoint tools** — they consolidate multiple operations (create, get, list, update, delete) into a single tool using a `method` parameter, similar to a REST API.
+
+## Why endpoints?
+
+Instead of separate tools like `create_style`, `get_style`, `list_styles`, `update_style`, `delete_style`, a single `styles` endpoint handles all operations. This reduces the total tool count and keeps related operations together.
+
+## Common contract
+
+Every endpoint follows the same pattern:
+
+| Method | Input | Output |
+|--------|-------|--------|
+| `create` | `{items: [{...}]}` | `{results: [{id}, ...]}` |
+| `get` | `{id, fields?}` | Resource object (field-filtered) |
+| `list` | `{fields?, offset?, limit?}` | `{totalCount, returned, offset, limit, items}` |
+| `update` | `{items: [{id, ...}]}` | `{results: ["ok", ...]}` |
+| `delete` | `{id}` or `{items: [{id}]}` | `"ok"` or `{results: ["ok", ...]}` |
+
+Not every endpoint supports all five methods. Check each tool's `method` enum for available operations.
+
+## Shared parameters
+
+These parameters are automatically available based on which methods an endpoint supports:
+
+- **`method`** (required) — the operation to perform
+- **`id`** — resource ID, used by `get` and `delete`
+- **`fields`** — property whitelist for `get` and `list`. Identity fields (`id`, `name`, `type`) are always included. Pass `["*"]` to return all fields.
+- **`offset`** / **`limit`** — pagination for `list` (default limit: 100)
+- **`items`** — array of objects for batch operations (`create`, `update`, `delete`)
+
+## Batch responses
+
+`create`, `update`, and `delete` return a `results` array with one entry per item in the same order. Each entry is either `"ok"`, an object with the result data (e.g. `{id: "..."}` for create), or `{error: "message"}` if that item failed. This allows partial success — some items can succeed while others fail.
+
+```json
+{
+  "results": [
+    {"id": "S:abc123"},
+    {"error": "Name already exists: Primary"}
+  ]
+}
+```
+
+## Field filtering
+
+Use `fields` on `get` and `list` to reduce response size. Without `fields`, `list` returns stubs (identity fields only) and `get` returns full detail.
+
+```json
+{"method": "list", "fields": ["description", "valuesByMode"]}
+```
+
+## Access tiers
+
+Each method within an endpoint is gated by [access tiers](/Vibma/):
+
+| Method | Required tier |
+|--------|--------------|
+| `get`, `list` | read (always available) |
+| `create` | `--create` |
+| `update`, `delete` | `--edit` |
+
+Some endpoints define custom method tiers. For example, `variable_collections` maps `add_mode` to `create` and `rename_mode` / `remove_mode` to `edit`.
+
+## Endpoint tools
+
+The following tools use the endpoint pattern:
+
+- [**styles**](/Vibma/tools/styles/) — paint, text, and effect styles
+- [**variable_collections**](/Vibma/tools/variables/#variable_collections) — collections and mode management
+- [**variables**](/Vibma/tools/variables/#variables) — design variables
+- [**components**](/Vibma/tools/components/#components) — components and variant sets
+- [**instances**](/Vibma/tools/components/#instances) — component instances

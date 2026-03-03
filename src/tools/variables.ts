@@ -1,10 +1,10 @@
 import { z } from "zod";
 import { flexJson, flexBool } from "../utils/coercion";
 import * as S from "./schemas";
-import type { McpServer, SendCommandFn } from "./types";
-import { mcpJson, mcpError } from "./types";
+import type { ToolDef } from "./types";
 import { batchHandler, findVariableById } from "./helpers";
 import { endpointSchema, createDispatcher, paginate, pickFields } from "./endpoint";
+import type { MethodTier } from "./endpoint";
 import type { CollectionCreatedResult, IdResult, GetNodeVariablesResult } from "./response-types";
 
 
@@ -78,105 +78,96 @@ const setExplicitModeItem = z.object({
   modeId: z.string().describe("Mode ID to pin (e.g. Dark mode)"),
 });
 
-// ─── MCP Registration ────────────────────────────────────────────
+// ─── Tool Definitions ───────────────────────────────────────────
 
-export function registerMcpTools(server: McpServer, sendCommand: SendCommandFn) {
+/** Custom method→tier map for variable_collections (non-standard methods) */
+const vcMethodTiers: Record<string, MethodTier> = {
+  add_mode: "create",
+  rename_mode: "edit",
+  remove_mode: "edit",
+};
 
+export const tools: ToolDef[] = [
   // ── variable_collections endpoint ──
-
-  const vcMethods = ["create", "get", "list", "delete", "add_mode", "rename_mode", "remove_mode"];
-  const vcSchema = endpointSchema(vcMethods, {
-    items: flexJson(z.array(z.any())).optional()
-      .describe("create: [{name}]. delete (batch): [{id}]. add_mode: [{collectionId, name}]. rename_mode: [{collectionId, modeId, name}]. remove_mode: [{collectionId, modeId}]."),
-  });
-
-  server.tool(
-    "variable_collections",
-    `CRUD endpoint for variable collections + mode management.
+  {
+    name: "variable_collections",
+    description:
+      `CRUD endpoint for variable collections + mode management.
   create       → {items: [{name}]}                          → {results: [{id, modes, defaultModeId}]}
   get          → {id, fields?}                              → collection object
   list         → {fields?, offset?, limit?}                 → paginated stubs
   delete       → {id} or {items: [{id}]}                    → 'ok' or {results: ['ok', ...]}
-  add_mode     → {items: [{collectionId, name}]}            → {results: [{modeId}]}
-  rename_mode  → {items: [{collectionId, modeId, name}]}    → {results: ['ok', ...]}
-  remove_mode  → {items: [{collectionId, modeId}]}          → {results: ['ok', ...]}`,
-    vcSchema,
-    async (params: any) => {
-      try {
-        // Validate items per method
-        if (params.items) {
-          const schema = collectionMethodSchemas[params.method];
-          if (schema) params.items = z.array(schema).parse(params.items);
-        }
-        return mcpJson(await sendCommand("variable_collections", params));
-      } catch (e) { return mcpError("variable_collections error", e); }
-    }
-  );
+  add_mode     → {items: [{collectionId, name}]}            → {results: [{modeId, modes}]}
+  rename_mode  → {items: [{collectionId, modeId, name}]}    → {results: [{modes}]}
+  remove_mode  → {items: [{collectionId, modeId}]}          → {results: [{modes}]}`,
+    schema: (caps) => endpointSchema(
+      ["create", "get", "list", "delete", "add_mode", "rename_mode", "remove_mode"],
+      caps,
+      {
+        items: flexJson(z.array(z.any())).optional()
+          .describe("create: [{name}]. delete (batch): [{id}]. add_mode: [{collectionId, name}]. rename_mode: [{collectionId, modeId, name}]. remove_mode: [{collectionId, modeId}]."),
+      },
+      vcMethodTiers,
+    ),
+    tier: "read", // Always registered; methods filtered internally
+    validate: (params: any) => {
+      if (params.items) {
+        const schema = collectionMethodSchemas[params.method];
+        if (schema) params.items = z.array(schema).parse(params.items);
+      }
+    },
+  },
 
   // ── variables endpoint ──
-
-  const vMethods = ["create", "get", "list", "update"];
-  const vSchema = endpointSchema(vMethods, {
-    items: flexJson(z.array(z.any())).optional()
-      .describe("create: [{collectionId, name, resolvedType}]. update: [{id, modeId, value}]."),
-    type: z.enum(["COLOR", "FLOAT", "STRING", "BOOLEAN"]).optional()
-      .describe("Filter list by variable type."),
-    collectionId: z.string().optional()
-      .describe("Filter list by collection ID."),
-  });
-
-  server.tool(
-    "variables",
-    `CRUD endpoint for design variables.
+  {
+    name: "variables",
+    description:
+      `CRUD endpoint for design variables.
   create  → {items: [{collectionId, name, resolvedType}]}   → {results: [{id}]}
   get     → {id, fields?}                                   → variable object (full detail)
   list    → {type?, collectionId?, fields?, offset?, limit?} → paginated stubs (fields for detail)
   update  → {items: [{id, modeId, value}]}                  → {results: ['ok', ...]}`,
-    vSchema,
-    async (params: any) => {
-      try {
-        // Validate items per method
-        if (params.items) {
-          const schema = variableMethodSchemas[params.method];
-          if (schema) params.items = z.array(schema).parse(params.items);
-        }
-        return mcpJson(await sendCommand("variables", params));
-      } catch (e) { return mcpError("variables error", e); }
-    }
-  );
+    schema: (caps) => endpointSchema(
+      ["create", "get", "list", "update"],
+      caps,
+      {
+        items: flexJson(z.array(z.any())).optional()
+          .describe("create: [{collectionId, name, resolvedType}]. update: [{id, modeId, value}]."),
+        type: z.enum(["COLOR", "FLOAT", "STRING", "BOOLEAN"]).optional()
+          .describe("Filter list by variable type."),
+        collectionId: z.string().optional()
+          .describe("Filter list by collection ID."),
+      },
+    ),
+    tier: "read", // Always registered; methods filtered internally
+    validate: (params: any) => {
+      if (params.items) {
+        const schema = variableMethodSchemas[params.method];
+        if (schema) params.items = z.array(schema).parse(params.items);
+      }
+    },
+  },
 
   // ── Standalone tools ──
-
-  server.tool(
-    "set_variable_binding",
-    "Bind variables to node properties. Common fields: 'fills/0/color', 'strokes/0/color', 'opacity', 'topLeftRadius', 'itemSpacing'. Batch: pass multiple items.",
-    { items: flexJson(z.array(bindingItem)).describe("Array of {nodeId, field, variableId}") },
-    async ({ items }: any) => {
-      try { return mcpJson(await sendCommand("set_variable_binding", { items })); }
-      catch (e) { return mcpError("Error binding variable", e); }
-    }
-  );
-
-  server.tool(
-    "set_explicit_variable_mode",
-    "Pin a variable collection mode on a frame (e.g. show Dark mode). Batch: pass multiple items.",
-    { items: flexJson(z.array(setExplicitModeItem)).describe("Array of {nodeId, collectionId, modeId}") },
-    async ({ items }: any) => {
-      try { return mcpJson(await sendCommand("set_explicit_variable_mode", { items })); }
-      catch (e) { return mcpError("Error setting variable mode", e); }
-    }
-  );
-
-  server.tool(
-    "get_node_variables",
-    "Get variable bindings on a node. Returns which variables are bound to fills, strokes, opacity, corner radius, etc.",
-    { nodeId: S.nodeId },
-    async ({ nodeId }: any) => {
-      try { return mcpJson(await sendCommand("get_node_variables", { nodeId })); }
-      catch (e) { return mcpError("Error getting node variables", e); }
-    }
-  );
-}
+  {
+    name: "set_variable_binding",
+    description: "Bind variables to node properties. Common fields: 'fills/0/color', 'strokes/0/color', 'opacity', 'topLeftRadius', 'itemSpacing'. Batch: pass multiple items.",
+    schema: { items: flexJson(z.array(bindingItem)).describe("Array of {nodeId, field, variableId}") },
+    tier: "edit",
+  },
+  {
+    name: "set_explicit_variable_mode",
+    description: "Pin a variable collection mode on a frame (e.g. show Dark mode). Batch: pass multiple items.",
+    schema: { items: flexJson(z.array(setExplicitModeItem)).describe("Array of {nodeId, collectionId, modeId}") },
+    tier: "edit",
+  },
+  {
+    name: "get_node_variables",
+    description: "Get variable bindings on a node. Returns which variables are bound to fills, strokes, opacity, corner radius, etc.",
+    schema: { nodeId: S.nodeId },
+    tier: "read",
+  },
+];
 
 // ─── Figma Handlers ──────────────────────────────────────────────
 

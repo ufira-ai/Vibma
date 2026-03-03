@@ -1,8 +1,7 @@
 import { z } from "zod";
 import { flexJson, flexBool } from "../utils/coercion";
 import * as S from "./schemas";
-import type { McpServer, SendCommandFn } from "./types";
-import { mcpJson, mcpError } from "./types";
+import type { ToolDef } from "./types";
 import { batchHandler, suggestStyleForColor, suggestTextStyle } from "./helpers";
 import type { TextPropertyResult, ScanTextItemResult } from "./response-types";
 
@@ -34,31 +33,22 @@ const scanTextItem = z.object({
   includeGeometry: flexBool(z.boolean()).optional().describe("Include absoluteX/absoluteY/width/height (default: true). Set false to reduce payload."),
 });
 
-// ─── MCP Registration ────────────────────────────────────────────
+// ─── Tool Definitions ───────────────────────────────────────────
 
-export function registerMcpTools(server: McpServer, sendCommand: SendCommandFn) {
-  server.tool(
-    "set_text_content",
-    "Set text content on text nodes. Batch: pass multiple items to replace text in multiple nodes at once.",
-    { items: flexJson(z.array(textContentItem)).describe("Array of {nodeId, text}"), depth: S.depth },
-    async (params: any) => {
-      try { return mcpJson(await sendCommand("set_text_content", params)); }
-      catch (e) { return mcpError("Error setting text content", e); }
-    }
-  );
-
-  // set_text_properties merged into patch_nodes
-
-  server.tool(
-    "scan_text_nodes",
-    "Scan all text nodes within a node tree. Batch: pass multiple items.",
-    { items: flexJson(z.array(scanTextItem)).describe("Array of {nodeId}") },
-    async (params: any) => {
-      try { return mcpJson(await sendCommand("scan_text_nodes", params)); }
-      catch (e) { return mcpError("Error scanning text nodes", e); }
-    }
-  );
-}
+export const tools: ToolDef[] = [
+  {
+    name: "set_text_content",
+    description: "Set text content on text nodes. Batch: pass multiple items to replace text in multiple nodes at once.",
+    schema: { items: flexJson(z.array(textContentItem)).describe("Array of {nodeId, text}"), depth: S.depth },
+    tier: "edit",
+  },
+  {
+    name: "scan_text_nodes",
+    description: "Scan all text nodes within a node tree. Batch: pass multiple items.",
+    schema: { items: flexJson(z.array(scanTextItem)).describe("Array of {nodeId}") },
+    tier: "read",
+  },
+];
 
 // ─── Figma Handlers ──────────────────────────────────────────────
 

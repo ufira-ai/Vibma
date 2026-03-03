@@ -84,6 +84,12 @@ const serverUrl = serverArg ? serverArg.split("=")[1] : "localhost";
 if (portArg) activePort = parseInt(portArg.split("=")[1]);
 const WS_URL = serverUrl === "localhost" ? `ws://${serverUrl}` : `wss://${serverUrl}`;
 
+// Access-tier flags: read is always on, --create / --edit opt-in
+const caps = {
+  create: args.includes("--create") || args.includes("--edit"),
+  edit: args.includes("--edit"),
+};
+
 // ─── WebSocket connection ────────────────────────────────────────
 
 function connectToFigma(port: number = activePort) {
@@ -406,7 +412,7 @@ server.tool(
 );
 
 // Register all per-tool-file tools and prompts
-registerAllTools(server, sendCommandToFigma);
+registerAllTools(server, sendCommandToFigma, caps);
 
 // ─── Start ───────────────────────────────────────────────────────
 

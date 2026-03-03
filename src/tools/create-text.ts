@@ -1,8 +1,7 @@
 import { z } from "zod";
 import { flexJson } from "../utils/coercion";
 import * as S from "./schemas";
-import type { McpServer, SendCommandFn } from "./types";
-import { mcpJson, mcpError } from "./types";
+import type { ToolDef } from "./types";
 import { batchHandler, appendToParent, styleNotFoundHint, suggestStyleForColor, suggestTextStyle, findVariableById } from "./helpers";
 import type { IdWithWarningResult } from "./response-types";
 
@@ -30,19 +29,16 @@ const textItem = z.object({
   textAutoResize: z.enum(["NONE", "WIDTH_AND_HEIGHT", "HEIGHT", "TRUNCATE"]).optional().describe("Text auto-resize behavior (default: WIDTH_AND_HEIGHT when FILL)"),
 });
 
-// ─── MCP Registration ────────────────────────────────────────────
+// ─── Tool Definitions ───────────────────────────────────────────
 
-export function registerMcpTools(server: McpServer, sendCommand: SendCommandFn) {
-  server.tool(
-    "create_text",
-    "Create text nodes. Max 10 per batch. Prefer textStyleName for typography and fontColorStyleName or fontColorVariableId for color — hardcoded values skip design tokens. Supports custom fonts via fontFamily.",
-    { items: flexJson(z.array(textItem).max(10)).describe("Array of text nodes to create (max 10)"), depth: S.depth },
-    async (params: any) => {
-      try { return mcpJson(await sendCommand("create_text", params)); }
-      catch (e) { return mcpError("Error creating text", e); }
-    }
-  );
-}
+export const tools: ToolDef[] = [
+  {
+    name: "create_text",
+    description: "Create text nodes. Max 10 per batch. Prefer textStyleName for typography and fontColorStyleName or fontColorVariableId for color — hardcoded values skip design tokens. Supports custom fonts via fontFamily.",
+    schema: { items: flexJson(z.array(textItem).max(10)).describe("Array of text nodes to create (max 10)"), depth: S.depth },
+    tier: "create",
+  },
+];
 
 // ─── Figma Handlers ──────────────────────────────────────────────
 
