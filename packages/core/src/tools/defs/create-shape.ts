@@ -10,6 +10,9 @@ const sectionItem = z.object({
   width: z.coerce.number().optional().describe("Width (default: 500)"),
   height: z.coerce.number().optional().describe("Height (default: 500)"),
   parentId: S.parentId,
+  fillColor: flexJson(S.colorRgba).optional().describe("Fill color. Default: no fill (transparent)."),
+  fillStyleName: z.string().optional().describe("Apply a fill paint style by name (case-insensitive)."),
+  fillVariableId: z.string().optional().describe("Bind a color variable to the fill."),
 });
 
 const svgItem = z.object({
@@ -23,7 +26,7 @@ const svgItem = z.object({
 export const tools: ToolDef[] = [
   {
     name: "create_section",
-    description: "Create section nodes to organize content on the canvas.",
+    description: "Create section nodes to organize content on the canvas. Default: no fill (transparent).",
     schema: { items: flexJson(z.array(sectionItem)).describe("Array of sections to create"), depth: S.depth },
     tier: "create",
   },

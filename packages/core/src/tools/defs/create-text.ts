@@ -28,8 +28,8 @@ const textItem = z.object({
 export const tools: ToolDef[] = [
   {
     name: "create_text",
-    description: "Create text nodes. Max 10 per batch. Prefer textStyleName for typography and fontColorStyleName or fontColorVariableId for color — hardcoded values skip design tokens. Supports custom fonts via fontFamily.",
-    schema: { items: flexJson(z.array(textItem).max(10)).describe("Array of text nodes to create (max 10)"), depth: S.depth },
+    description: "Create text nodes. Prefer textStyleName for typography and fontColorStyleName or fontColorVariableId for color — hardcoded values skip design tokens. Supports custom fonts via fontFamily.",
+    schema: { items: flexJson(z.array(textItem)).describe("Array of text nodes to create"), depth: S.depth },
     tier: "create",
   },
 ];
