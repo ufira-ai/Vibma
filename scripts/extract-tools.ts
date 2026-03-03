@@ -15,10 +15,10 @@ import { z } from "zod";
 import { readFileSync, writeFileSync, mkdirSync, readdirSync, unlinkSync } from "fs";
 import { join, dirname } from "path";
 import { fileURLToPath } from "url";
-import { registerAllTools, allTools } from "../src/tools/mcp-registry";
+import { registerAllTools, allTools } from "../packages/core/src/tools/mcp-registry";
 import { domains, toolToDomain } from "./domain-config";
-import { toolResponseSchemas } from "../src/tools/response-types";
-import type { ToolTier } from "../src/tools/types";
+import { toolResponseSchemas } from "../packages/core/src/tools/response-types";
+import type { ToolTier } from "../packages/core/src/tools/types";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, "..");

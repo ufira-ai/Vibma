@@ -1,58 +1,25 @@
 {
-  "name": "@ufira/vibma",
-  "description": "Vibma — Vibe Design meets Figma. AI-powered MCP bridge for designing in Figma.",
-  "version": "0.2.2",
+  "name": "vibma",
+  "private": true,
   "license": "MIT",
-  "author": "ufira <https://github.com/ufira-ai>",
-  "homepage": "https://github.com/ufira-ai/vibma",
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/ufira-ai/vibma.git"
-  },
-  "keywords": [
-    "figma",
-    "mcp",
-    "ai",
-    "design",
-    "model-context-protocol",
-    "vibe-coding"
+  "workspaces": [
+    "packages/*"
   ],
-  "module": "dist/mcp.js",
-  "main": "dist/mcp.js",
-  "bin": {
-    "vibma-mcp": "dist/mcp.js"
-  },
-  "files": [
-    "dist",
-    "README.md",
-    "LICENSE"
-  ],
-  "type": "module",
   "scripts": {
     "start": "node dist/mcp.js",
     "socket": "tsx packages/tunnel/src/index.ts",
     "setup": "./scripts/setup.sh",
-    "build": "tsup",
-    "build:watch": "tsup --watch",
+    "build": "npm run build -w packages/core && npm run build -w packages/adapter-figma",
+    "build:watch": "npm run build:watch -w packages/core & npm run build:watch -w packages/adapter-figma",
     "dev": "npm run build:watch",
-    "dev:mcp": "tsx src/mcp.ts",
-    "pub:release": "npm run build && npm publish",
+    "dev:mcp": "tsx packages/core/src/mcp.ts",
+    "pub:release": "npm run build && npm publish -w packages/core && npm publish -w packages/adapter-figma",
     "docs:generate": "tsx scripts/extract-tools.ts",
     "docs:dev": "npm run docs:generate && cd docs && npm run dev",
     "docs:build": "npm run docs:generate && cd docs && npm run build"
   },
   "devDependencies": {
-    "@figma/plugin-typings": "^1.123.0",
-    "@types/node": "^25.3.2",
-    "@types/ws": "^8.18.1",
-    "tsup": "^8.5.1",
     "tsx": "^4.21.0",
     "typescript": "^5.9.3"
-  },
-  "dependencies": {
-    "@modelcontextprotocol/sdk": "1.27.1",
-    "uuid": "latest",
-    "ws": "latest",
-    "zod": "4.3.6"
   }
 }

@@ -1,0 +1,83 @@
+{
+  "name": "@ufira/vibma",
+  "description": "Vibma — Vibe Design meets Figma. AI-powered MCP bridge for designing in Figma.",
+  "version": "0.3.0",
+  "license": "MIT",
+  "author": "ufira <https://github.com/ufira-ai>",
+  "homepage": "https://github.com/ufira-ai/vibma",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ufira-ai/vibma.git",
+    "directory": "packages/core"
+  },
+  "keywords": [
+    "figma",
+    "mcp",
+    "ai",
+    "design",
+    "model-context-protocol",
+    "vibe-coding"
+  ],
+  "module": "dist/mcp.js",
+  "main": "dist/mcp.js",
+  "bin": {
+    "vibma-mcp": "dist/mcp.js"
+  },
+  "exports": {
+    ".": {
+      "import": "./dist/mcp.js",
+      "require": "./dist/mcp.cjs"
+    },
+    "./types": {
+      "import": "./dist/tools/types.js",
+      "require": "./dist/tools/types.cjs"
+    },
+    "./endpoint": {
+      "import": "./dist/tools/endpoint.js",
+      "require": "./dist/tools/endpoint.cjs"
+    },
+    "./schemas": {
+      "import": "./dist/tools/schemas.js",
+      "require": "./dist/tools/schemas.cjs"
+    },
+    "./registry": {
+      "import": "./dist/tools/registry.js",
+      "require": "./dist/tools/registry.cjs"
+    },
+    "./utils/color": {
+      "import": "./dist/utils/color.js",
+      "require": "./dist/utils/color.cjs"
+    },
+    "./utils/wcag": {
+      "import": "./dist/utils/wcag.js",
+      "require": "./dist/utils/wcag.cjs"
+    },
+    "./utils/coercion": {
+      "import": "./dist/utils/coercion.js",
+      "require": "./dist/utils/coercion.cjs"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "type": "module",
+  "scripts": {
+    "build": "tsup",
+    "build:watch": "tsup --watch",
+    "pub:release": "npm run build && npm publish"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "1.27.1",
+    "uuid": "latest",
+    "ws": "latest",
+    "zod": "4.3.6"
+  },
+  "devDependencies": {
+    "@types/node": "^25.3.2",
+    "@types/ws": "^8.18.1",
+    "tsup": "^8.5.1",
+    "typescript": "^5.9.3"
+  }
+}
