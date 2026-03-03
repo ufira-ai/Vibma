@@ -4,9 +4,11 @@ import * as S from "./schemas";
 import type { McpServer, SendCommandFn } from "./types";
 import { mcpJson, mcpError } from "./types";
 import { batchHandler, appendToParent, solidPaint, styleNotFoundHint, suggestStyleForColor, findVariableById } from "./helpers";
-import type { IdResult, IdWithWarningResult, SearchComponentsResult, GetComponentByIdResult, GetInstanceOverridesResult } from "./response-types";
+import { endpointSchema, createDispatcher, paginate, pickFields } from "./endpoint";
+import type { IdResult, IdWithWarningResult, GetInstanceOverridesResult } from "./response-types";
 
-// ─── Schemas ─────────────────────────────────────────────────────
+
+// ─── Schemas: components ────────────────────────────────────────
 
 const componentItem = z.object({
   name: z.string().describe("Component name"),
@@ -45,8 +47,8 @@ const combineItem = z.object({
   name: z.string().optional().describe("Name for the component set. Omit to auto-generate."),
 });
 
-const propItem = z.object({
-  componentId: z.string().describe("Component node ID"),
+const updateComponentItem = z.object({
+  id: z.string().describe("Component node ID"),
   propertyName: z.string().describe("Property name"),
   type: z.enum(["BOOLEAN", "TEXT", "INSTANCE_SWAP", "VARIANT"]).describe("Property type"),
   defaultValue: flexBool(z.union([z.string(), z.boolean()])).describe("Default value (string for TEXT/VARIANT, boolean for BOOLEAN)"),
@@ -56,7 +58,16 @@ const propItem = z.object({
   })).optional()).describe("Preferred values for INSTANCE_SWAP type. Omit for none."),
 });
 
-const instanceItem = z.object({
+// Per-type create schema map
+const componentCreateSchemas: Record<string, z.ZodTypeAny> = {
+  component: componentItem,
+  from_node: fromNodeItem,
+  variant_set: combineItem,
+};
+
+// ─── Schemas: instances ─────────────────────────────────────────
+
+const instanceCreateItem = z.object({
   componentId: z.string().describe("Component or component set ID"),
   variantProperties: flexJson(z.record(z.string(), z.string())).optional().describe('Pick variant by properties, e.g. {"Style":"Secondary","Size":"Large"}. Ignored for plain COMPONENT IDs.'),
   x: z.coerce.number().optional().describe("X position. Omit to keep default."),
@@ -64,112 +75,90 @@ const instanceItem = z.object({
   parentId: S.parentId,
 });
 
+const instanceUpdateItem = z.object({
+  id: S.nodeId,
+  properties: flexJson(z.record(z.string(), z.union([z.string(), z.boolean()]))).describe('Property key→value map, e.g. {"Label#1:0":"Click Me"}'),
+});
+
 // ─── MCP Registration ────────────────────────────────────────────
 
 export function registerMcpTools(server: McpServer, sendCommand: SendCommandFn) {
+
+  // ── components endpoint ──
+
+  const cMethods = ["create", "get", "list", "update"];
+  const cSchema = endpointSchema(cMethods, {
+    items: flexJson(z.array(z.any())).optional()
+      .describe("create (component): [{name, parentId?, ...layout}]. create (from_node): [{nodeId}]. create (variant_set): [{componentIds, name?}]. update: [{id, propertyName, type, defaultValue}]."),
+    type: z.enum(["component", "from_node", "variant_set"]).optional()
+      .describe("Create type. Required for create: 'component' (from scratch), 'from_node' (convert existing), 'variant_set' (combine as variants)."),
+    depth: S.depth,
+    name: z.string().optional().describe("Filter list by name (case-insensitive substring)."),
+    setsOnly: flexBool(z.boolean()).optional().describe("If true, list returns only COMPONENT_SET nodes."),
+  });
+
   server.tool(
-    "create_component",
-    "Create components in Figma. Same layout params as create_frame. Name with 'Property=Value' pattern (e.g. 'Size=Small') if you plan to combine_as_variants later. Use fillStyleName/fillVariableId over hardcoded colors. After adding text children, use add_component_property to expose text as editable properties. Batch: pass multiple items.",
-    { items: flexJson(z.array(componentItem)).describe("Array of components to create"), depth: S.depth },
+    "components",
+    `CRUD endpoint for components.
+  create  → {type, items, depth?} → {results: [{id}, ...]}
+    type 'component': create from scratch with layout/style params
+    type 'from_node': convert existing nodes to components
+    type 'variant_set': combine components into variant sets
+  get     → {id, fields?} → component object (full detail, field-filterable)
+  list    → {name?, setsOnly?, fields?, offset?, limit?} → paginated stubs
+  update  → {items: [{id, propertyName, type, defaultValue}]} → {results: ['ok', ...]}`,
+    cSchema,
     async (params: any) => {
-      try { return mcpJson(await sendCommand("create_component", params)); }
-      catch (e) { return mcpError("Error creating component", e); }
+      try {
+        // Validate items per method+type
+        if (params.items) {
+          if (params.method === "create") {
+            const schema = params.type && componentCreateSchemas[params.type];
+            if (!schema) throw new Error(`create requires type: component, from_node, or variant_set`);
+            params.items = z.array(schema).parse(params.items);
+          } else if (params.method === "update") {
+            params.items = z.array(updateComponentItem).parse(params.items);
+          }
+        }
+        return mcpJson(await sendCommand("components", params));
+      } catch (e) { return mcpError("components error", e); }
     }
   );
 
-  server.tool(
-    "create_component_from_node",
-    "Convert existing nodes into components. Batch: pass multiple items.",
-    { items: flexJson(z.array(fromNodeItem)).describe("Array of {nodeId}"), depth: S.depth },
-    async (params: any) => {
-      try { return mcpJson(await sendCommand("create_component_from_node", params)); }
-      catch (e) { return mcpError("Error creating component from node", e); }
-    }
-  );
+  // ── instances endpoint ──
+
+  const iMethods = ["create", "get", "update"];
+  const iSchema = endpointSchema(iMethods, {
+    items: flexJson(z.array(z.any())).optional()
+      .describe("create: [{componentId, variantProperties?, x?, y?, parentId?}]. update: [{id, properties}]."),
+    depth: S.depth,
+  });
 
   server.tool(
-    "combine_as_variants",
-    "Combine components into variant sets. Name components with 'Property=Value' pattern (e.g. 'Style=Primary', 'Size=Large') BEFORE combining — Figma derives variant properties from component names. Avoid slashes in names. The resulting set is placed in the components' shared parent (or page root if parents differ). Batch: pass multiple items.",
-    { items: flexJson(z.array(combineItem)).describe("Array of {componentIds, name?}"), depth: S.depth },
+    "instances",
+    `CRUD endpoint for component instances.
+  create  → {items: [{componentId, variantProperties?, x?, y?, parentId?}], depth?} → {results: [{id}]}
+  get     → {id} → {mainComponentId, overrides: [{id, fields}]}
+  update  → {items: [{id, properties}]} → {results: ['ok', ...]}`,
+    iSchema,
     async (params: any) => {
-      try { return mcpJson(await sendCommand("combine_as_variants", params)); }
-      catch (e) { return mcpError("Error combining variants", e); }
-    }
-  );
-
-  server.tool(
-    "add_component_property",
-    "Add properties to components. Batch: pass multiple items.",
-    { items: flexJson(z.array(propItem)).describe("Array of {componentId, propertyName, type, defaultValue, preferredValues?}") },
-    async (params: any) => {
-      try { return mcpJson(await sendCommand("add_component_property", params)); }
-      catch (e) { return mcpError("Error adding component property", e); }
-    }
-  );
-
-  server.tool(
-    "create_instance_from_local",
-    "Create instances of local components. For COMPONENT_SET, use variantProperties to pick a specific variant (e.g. {\"Style\":\"Secondary\"}). Batch: pass multiple items.",
-    { items: flexJson(z.array(instanceItem)).describe("Array of {componentId, x?, y?, parentId?}") },
-    async (params: any) => {
-      try { return mcpJson(await sendCommand("create_instance_from_local", params)); }
-      catch (e) { return mcpError("Error creating instance", e); }
-    }
-  );
-
-  server.tool(
-    "search_components",
-    "Search local components and component sets across all pages. Returns component id, name, and which page it lives on.",
-    {
-      query: z.string().optional().describe("Filter by name (case-insensitive substring). Omit to list all."),
-      setsOnly: flexBool(z.boolean()).optional().describe("If true, return only COMPONENT_SET nodes"),
-      limit: z.coerce.number().optional().describe("Max results (default 100)"),
-      offset: z.coerce.number().optional().describe("Skip N results (default 0)"),
-    },
-    async (params: any) => {
-      try { return mcpJson(await sendCommand("search_components", params)); }
-      catch (e) { return mcpError("Error searching components", e); }
-    }
-  );
-
-  server.tool(
-    "get_component_by_id",
-    "Get detailed component info including property definitions and variants.",
-    {
-      componentId: z.string().describe("Component node ID"),
-      includeChildren: flexBool(z.boolean()).optional().describe("For COMPONENT_SETs: include variant children (default false)"),
-    },
-    async (params: any) => {
-      try { return mcpJson(await sendCommand("get_component_by_id", params)); }
-      catch (e) { return mcpError("Error getting component", e); }
-    }
-  );
-
-  server.tool(
-    "get_instance_overrides",
-    "Get override properties from a component instance.",
-    { nodeId: z.string().optional().describe("Instance node ID (uses selection if omitted)") },
-    async ({ nodeId }: any) => {
-      try { return mcpJson(await sendCommand("get_instance_overrides", { instanceNodeId: nodeId || null })); }
-      catch (e) { return mcpError("Error getting overrides", e); }
-    }
-  );
-
-  server.tool(
-    "set_instance_properties",
-    "Set component property values on instances (e.g. text, boolean, instance swap). Use get_component_by_id to discover property keys. Batch: pass multiple items.",
-    { items: flexJson(z.array(z.object({
-      nodeId: S.nodeId,
-      properties: flexJson(z.record(z.string(), z.union([z.string(), z.boolean()]))).describe('Property key→value map, e.g. {"Label#1:0":"Click Me"}'),
-    }))).describe("Array of {nodeId, properties}"), depth: S.depth },
-    async (params: any) => {
-      try { return mcpJson(await sendCommand("set_instance_properties", params)); }
-      catch (e) { return mcpError("Error setting instance properties", e); }
+      try {
+        if (params.items) {
+          if (params.method === "create") {
+            params.items = z.array(instanceCreateItem).parse(params.items);
+          } else if (params.method === "update") {
+            params.items = z.array(instanceUpdateItem).parse(params.items);
+          }
+        }
+        return mcpJson(await sendCommand("instances", params));
+      } catch (e) { return mcpError("instances error", e); }
     }
   );
 }
 
 // ─── Figma Handlers ──────────────────────────────────────────────
+
+// ── Shared helpers ──
 
 async function resolvePaintStyle(name: string): Promise<{ id: string | null, available: string[] }> {
   const styles = await figma.getLocalPaintStylesAsync();
@@ -211,9 +200,31 @@ function countTextNodes(node: BaseNode): number {
 function warnUnboundText(comp: ComponentNode, hints: string[]) {
   const textCount = countTextNodes(comp);
   if (textCount > 0) {
-    hints.push(`Component has ${textCount} text node${textCount > 1 ? "s" : ""} — use add_component_property to expose text as editable properties on instances.`);
+    hints.push(`Component has ${textCount} text node${textCount > 1 ? "s" : ""} — use components(method: "update") to expose text as editable properties on instances.`);
   }
 }
+
+// ── Serializer ──
+
+function serializeComponent(node: any): Record<string, any> {
+  const r: any = { id: node.id, name: node.name, type: node.type };
+  if ("description" in node) r.description = node.description;
+  if (node.parent) { r.parentId = node.parent.id; r.parentName = node.parent.name; }
+  if ("componentPropertyDefinitions" in node) r.propertyDefinitions = node.componentPropertyDefinitions;
+  if (node.type === "COMPONENT_SET" && "variantGroupProperties" in node) r.variantGroupProperties = node.variantGroupProperties;
+  if (node.type === "COMPONENT" && "variantProperties" in node) r.variantProperties = node.variantProperties;
+  if ("children" in node && node.children) {
+    if (node.type === "COMPONENT_SET") {
+      r.variantCount = node.children.length;
+      r.children = node.children.map((c: any) => ({ id: c.id, name: c.name, type: c.type }));
+    } else {
+      r.children = node.children.map((c: any) => ({ id: c.id, name: c.name, type: c.type }));
+    }
+  }
+  return r;
+}
+
+// ── components handlers ──
 
 async function createComponentSingle(p: any): Promise<IdWithWarningResult> {
   if (!p.name) throw new Error("Missing name");
@@ -250,7 +261,6 @@ async function createComponentSingle(p: any): Promise<IdWithWarningResult> {
     comp.itemSpacing = itemSpacing;
   }
 
-  // Fill: variableId > styleName > direct color
   const hints: string[] = [];
   if (fillVariableId) {
     const ok = await bindFillVariable(comp, fillVariableId, fillColor);
@@ -267,7 +277,6 @@ async function createComponentSingle(p: any): Promise<IdWithWarningResult> {
     if (suggestion) hints.push(suggestion);
   }
 
-  // Stroke: variableId > styleName > direct color
   if (strokeVariableId) {
     const ok = await bindStrokeVariable(comp, strokeVariableId, strokeColor);
     if (!ok) hints.push(`strokeVariableId '${strokeVariableId}' not found.`);
@@ -330,7 +339,6 @@ async function combineSingle(p: any): Promise<IdResult> {
     if (node.type !== "COMPONENT") throw new Error(`Node ${id} is not a COMPONENT`);
     comps.push(node as ComponentNode);
   }
-  // Use common parent of components (falls back to currentPage)
   const parent = comps[0].parent && comps.every(c => c.parent === comps[0].parent)
     ? comps[0].parent : figma.currentPage;
   const set = figma.combineAsVariants(comps, parent as any);
@@ -338,31 +346,70 @@ async function combineSingle(p: any): Promise<IdResult> {
   return { id: set.id };
 }
 
-async function addPropSingle(p: any) {
-  const node = await figma.getNodeByIdAsync(p.componentId);
-  if (!node) throw new Error(`Node not found: ${p.componentId}`);
-  if (node.type !== "COMPONENT" && node.type !== "COMPONENT_SET") throw new Error(`Node ${p.componentId} is a ${node.type}, not a COMPONENT or COMPONENT_SET. Property definitions can only be added to COMPONENT_SET nodes (or standalone COMPONENT nodes not inside a set).`);
+async function createComponentDispatch(params: any) {
+  switch (params.type) {
+    case "component": return batchHandler(params, createComponentSingle);
+    case "from_node": return batchHandler(params, fromNodeSingle);
+    case "variant_set": return batchHandler(params, combineSingle);
+    default: throw new Error(`Unknown create type: ${params.type}`);
+  }
+}
+
+async function getComponentFigma(params: any) {
+  const node = await figma.getNodeByIdAsync(params.id);
+  if (!node) throw new Error(`Component not found: ${params.id}`);
+  if (node.type !== "COMPONENT" && node.type !== "COMPONENT_SET") throw new Error(`Not a component: ${node.type}`);
+  return serializeComponent(node);
+}
+
+async function listComponentsFigma(params: any) {
+  await figma.loadAllPagesAsync();
+  const setsOnly = params?.setsOnly;
+  const types = setsOnly ? ["COMPONENT_SET"] : ["COMPONENT", "COMPONENT_SET"];
+  let components = figma.root.findAllWithCriteria({ types: types as any });
+  if (params?.name) {
+    const f = params.name.toLowerCase();
+    components = components.filter((c: any) => c.name.toLowerCase().includes(f));
+  }
+  const paged = paginate(components, params.offset, params.limit);
+  const fields = params.fields;
+  const items = paged.items.map((c: any) => {
+    const stub: any = { id: c.id, name: c.name, type: c.type };
+    if (c.type === "COMPONENT_SET" && "children" in c) stub.variantCount = c.children.length;
+    if (c.description) stub.description = c.description;
+    let p = c.parent;
+    while (p && p.type !== "PAGE") p = p.parent;
+    if (p) { stub.pageId = p.id; stub.pageName = p.name; }
+    if (fields?.length) return pickFields(stub, fields);
+    return stub;
+  });
+  return { ...paged, items };
+}
+
+async function addComponentPropertySingle(p: any) {
+  const node = await figma.getNodeByIdAsync(p.id);
+  if (!node) throw new Error(`Node not found: ${p.id}`);
+  if (node.type !== "COMPONENT" && node.type !== "COMPONENT_SET") throw new Error(`Node ${p.id} is a ${node.type}, not a COMPONENT or COMPONENT_SET.`);
   (node as any).addComponentProperty(p.propertyName, p.type, p.defaultValue);
   return {};
 }
 
-async function instanceSingle(p: any): Promise<IdResult> {
+// ── instances handlers ──
+
+async function instanceCreateSingle(p: any): Promise<IdResult> {
   let node: any = await figma.getNodeByIdAsync(p.componentId);
   if (!node) {
-    // Component may be on another page — load all pages and retry
     await figma.loadAllPagesAsync();
     node = await figma.getNodeByIdAsync(p.componentId);
   }
   if (!node) throw new Error(`Component not found: ${p.componentId}`);
   if (node.type === "COMPONENT_SET") {
     if (!node.children?.length) throw new Error("Component set has no variants");
-    // Match variant by properties if provided
     if (p.variantProperties && typeof p.variantProperties === "object") {
       const match = node.children.find((child: any) => {
         if (child.type !== "COMPONENT" || !child.variantProperties) return false;
         return Object.entries(p.variantProperties).every(
           ([k, v]) => {
-            // Try exact key first, then prefixed key (Figma may store as "SetName/Key")
             if (child.variantProperties[k] === v) return true;
             const prefixedKey = `${node.name}/${k}`;
             return child.variantProperties[prefixedKey] === v;
@@ -371,7 +418,6 @@ async function instanceSingle(p: any): Promise<IdResult> {
       });
       if (match) node = match;
       else {
-        // Show clean property names in error (strip component set prefix)
         const prefix = `${node.name}/`;
         const available = node.children
           .filter((c: any) => c.type === "COMPONENT")
@@ -396,66 +442,10 @@ async function instanceSingle(p: any): Promise<IdResult> {
   return { id: inst.id };
 }
 
-async function getLocalComponentsFigma(params: any): Promise<SearchComponentsResult> {
-  await figma.loadAllPagesAsync();
-  const setsOnly = params?.setsOnly;
-  const types = setsOnly ? ["COMPONENT_SET"] : ["COMPONENT", "COMPONENT_SET"];
-  let components = figma.root.findAllWithCriteria({ types: types as any });
-  if (params?.query) {
-    const f = params.query.toLowerCase();
-    components = components.filter((c: any) => c.name.toLowerCase().includes(f));
-  }
-  const total = components.length;
-  const limit = params?.limit || 100;
-  const offset = params?.offset || 0;
-  components = components.slice(offset, offset + limit);
-  return {
-    totalCount: total, returned: components.length, offset, limit,
-    components: components.map((c: any) => {
-      const e: any = { id: c.id, name: c.name, type: c.type };
-      if (c.type === "COMPONENT_SET" && "children" in c) e.variantCount = c.children.length;
-      if (c.description) e.description = c.description;
-      // Walk up to find containing page
-      let p = c.parent;
-      while (p && p.type !== "PAGE") p = p.parent;
-      if (p) { e.pageId = p.id; e.pageName = p.name; }
-      return e;
-    }),
-  };
-}
-
-async function getComponentByIdFigma(params: any): Promise<GetComponentByIdResult> {
-  const node = await figma.getNodeByIdAsync(params.componentId);
-  if (!node) throw new Error(`Component not found: ${params.componentId}`);
-  if (node.type !== "COMPONENT" && node.type !== "COMPONENT_SET") throw new Error(`Not a component: ${node.type}`);
-  const r: any = { id: node.id, name: node.name, type: node.type };
-  if ("description" in node) r.description = (node as any).description;
-  if (node.parent) { r.parentId = node.parent.id; r.parentName = node.parent.name; }
-  if ("componentPropertyDefinitions" in node) r.propertyDefinitions = (node as any).componentPropertyDefinitions;
-  if (node.type === "COMPONENT_SET" && "variantGroupProperties" in node) r.variantGroupProperties = (node as any).variantGroupProperties;
-  if (node.type === "COMPONENT" && "variantProperties" in node) r.variantProperties = (node as any).variantProperties;
-  if ("children" in node && (node as any).children) {
-    if (node.type === "COMPONENT_SET") {
-      r.variantCount = (node as any).children.length;
-      if (params.includeChildren) r.children = (node as any).children.map((c: any) => ({ id: c.id, name: c.name, type: c.type }));
-    } else {
-      r.children = (node as any).children.map((c: any) => ({ id: c.id, name: c.name, type: c.type }));
-    }
-  }
-  return r;
-}
-
-async function getInstanceOverridesFigma(params: any): Promise<GetInstanceOverridesResult> {
-  let inst: any = null;
-  if (params?.instanceNodeId) {
-    inst = await figma.getNodeByIdAsync(params.instanceNodeId);
-    if (!inst) throw new Error(`Instance not found: ${params.instanceNodeId}`);
-    if (inst.type !== "INSTANCE") throw new Error("Node is not an instance");
-  } else {
-    const sel = figma.currentPage.selection.filter((n: any) => n.type === "INSTANCE");
-    if (!sel.length) throw new Error("No instance selected");
-    inst = sel[0];
-  }
+async function instanceGetFigma(params: any): Promise<GetInstanceOverridesResult> {
+  const inst: any = await figma.getNodeByIdAsync(params.id);
+  if (!inst) throw new Error(`Instance not found: ${params.id}`);
+  if (inst.type !== "INSTANCE") throw new Error("Node is not an instance");
   const overrides = inst.overrides || [];
   const main = await inst.getMainComponentAsync();
   return {
@@ -464,22 +454,26 @@ async function getInstanceOverridesFigma(params: any): Promise<GetInstanceOverri
   };
 }
 
-async function setInstancePropertiesSingle(p: any) {
-  const node = await figma.getNodeByIdAsync(p.nodeId);
-  if (!node) throw new Error(`Node not found: ${p.nodeId}`);
-  if (node.type !== "INSTANCE") throw new Error(`Node ${p.nodeId} is ${node.type}, not an INSTANCE`);
+async function instanceUpdateSingle(p: any) {
+  const node = await figma.getNodeByIdAsync(p.id);
+  if (!node) throw new Error(`Node not found: ${p.id}`);
+  if (node.type !== "INSTANCE") throw new Error(`Node ${p.id} is ${node.type}, not an INSTANCE`);
   (node as InstanceNode).setProperties(p.properties);
   return {};
 }
 
+// ─── Handler Exports ─────────────────────────────────────────────
+
 export const figmaHandlers: Record<string, (params: any) => Promise<any>> = {
-  create_component: (p) => batchHandler(p, createComponentSingle),
-  create_component_from_node: (p) => batchHandler(p, fromNodeSingle),
-  combine_as_variants: (p) => batchHandler(p, combineSingle),
-  add_component_property: (p) => batchHandler(p, addPropSingle),
-  create_instance_from_local: (p) => batchHandler(p, instanceSingle),
-  set_instance_properties: (p) => batchHandler(p, setInstancePropertiesSingle),
-  search_components: getLocalComponentsFigma,
-  get_component_by_id: getComponentByIdFigma,
-  get_instance_overrides: getInstanceOverridesFigma,
+  components: createDispatcher({
+    create: createComponentDispatch,
+    get: getComponentFigma,
+    list: listComponentsFigma,
+    update: (p) => batchHandler(p, addComponentPropertySingle),
+  }),
+  instances: createDispatcher({
+    create: (p) => batchHandler(p, instanceCreateSingle),
+    get: instanceGetFigma,
+    update: (p) => batchHandler(p, instanceUpdateSingle),
+  }),
 };

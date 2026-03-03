@@ -4,33 +4,14 @@ import * as S from "./schemas";
 import type { McpServer, SendCommandFn } from "./types";
 import { mcpJson, mcpError } from "./types";
 import { batchHandler, findVariableById } from "./helpers";
-import type { CollectionCreatedResult, IdResult, AddModeResult, ModesResult, GetLocalVariablesResult, GetLocalVariableCollectionsResult, GetVariableByIdResult, GetCollectionByIdResult, GetNodeVariablesResult } from "./response-types";
+import { endpointSchema, registerEndpoint, createDispatcher, paginate, pickFields } from "./endpoint";
+import type { CollectionCreatedResult, IdResult, GetNodeVariablesResult } from "./response-types";
 
 
-// ─── Schemas ─────────────────────────────────────────────────────
+// ─── Schemas: variable_collections ──────────────────────────────
 
-const collectionItem = z.object({
+const collectionCreateItem = z.object({
   name: z.string().describe("Collection name"),
-});
-
-const variableItem = z.object({
-  collectionId: z.string().describe("Variable collection ID"),
-  name: z.string().describe("Variable name"),
-  resolvedType: z.enum(["COLOR", "FLOAT", "STRING", "BOOLEAN"]).describe("Variable type"),
-});
-
-const setValueItem = z.object({
-  variableId: z.string().describe("Variable ID (use full ID from create_variable response, e.g. VariableID:1:6)"),
-  modeId: z.string().describe("Mode ID"),
-  value: flexJson(z.union([
-    z.number(), z.boolean(), S.colorRgba,
-  ])).describe('Value: number, boolean, or color (hex "#RRGGBB" or {r,g,b,a?} 0-1)'),
-});
-
-const bindingItem = z.object({
-  nodeId: z.string().describe("Node ID"),
-  field: z.string().describe("Property field (e.g., 'opacity', 'fills/0/color')"),
-  variableId: z.string().describe("Variable ID (use full ID from create_variable response, e.g. VariableID:1:6)"),
 });
 
 const addModeItem = z.object({
@@ -49,6 +30,48 @@ const removeModeItem = z.object({
   modeId: z.string().describe("Mode ID"),
 });
 
+const deleteCollectionItem = z.object({
+  id: z.string().describe("Collection ID"),
+});
+
+// Schema map for per-method item validation
+const collectionMethodSchemas: Record<string, z.ZodTypeAny> = {
+  create: collectionCreateItem,
+  delete: deleteCollectionItem,
+  add_mode: addModeItem,
+  rename_mode: renameModeItem,
+  remove_mode: removeModeItem,
+};
+
+// ─── Schemas: variables ─────────────────────────────────────────
+
+const variableCreateItem = z.object({
+  collectionId: z.string().describe("Variable collection ID"),
+  name: z.string().describe("Variable name"),
+  resolvedType: z.enum(["COLOR", "FLOAT", "STRING", "BOOLEAN"]).describe("Variable type"),
+});
+
+const variableUpdateItem = z.object({
+  id: z.string().describe("Variable ID (full ID, e.g. VariableID:1:6)"),
+  modeId: z.string().describe("Mode ID"),
+  value: flexJson(z.union([
+    z.number(), z.boolean(), S.colorRgba,
+  ])).describe('Value: number, boolean, or color (hex "#RRGGBB" or {r,g,b,a?} 0-1)'),
+});
+
+const variableMethodSchemas: Record<string, z.ZodTypeAny> = {
+  create: variableCreateItem,
+  update: variableUpdateItem,
+};
+
+// ─── Schemas: standalone tools ──────────────────────────────────
+
+const bindingItem = z.object({
+  nodeId: z.string().describe("Node ID"),
+  field: z.string().describe("Property field (e.g., 'opacity', 'fills/0/color')"),
+  variableId: z.string().describe("Variable ID (use full ID from create_variable response, e.g. VariableID:1:6)"),
+});
+
 const setExplicitModeItem = z.object({
   nodeId: S.nodeId,
   collectionId: z.string().describe("Variable collection ID"),
@@ -58,79 +81,71 @@ const setExplicitModeItem = z.object({
 // ─── MCP Registration ────────────────────────────────────────────
 
 export function registerMcpTools(server: McpServer, sendCommand: SendCommandFn) {
-  server.tool(
-    "create_variable_collection",
-    "Create variable collections. Batch: pass multiple items.",
-    { items: flexJson(z.array(collectionItem)).describe("Array of {name}") },
-    async ({ items }: any) => {
-      try { return mcpJson(await sendCommand("create_variable_collection", { items })); }
-      catch (e) { return mcpError("Error creating variable collection", e); }
-    }
-  );
+
+  // ── variable_collections endpoint ──
+
+  const vcMethods = ["create", "get", "list", "delete", "add_mode", "rename_mode", "remove_mode"];
+  const vcSchema = endpointSchema(vcMethods, {
+    items: flexJson(z.array(z.any())).optional()
+      .describe("create: [{name}]. delete (batch): [{id}]. add_mode: [{collectionId, name}]. rename_mode: [{collectionId, modeId, name}]. remove_mode: [{collectionId, modeId}]."),
+  });
 
   server.tool(
-    "create_variable",
-    "Create variables in a collection. Batch: pass multiple items.",
-    { items: flexJson(z.array(variableItem)).describe("Array of {collectionId, name, resolvedType}") },
-    async ({ items }: any) => {
-      try { return mcpJson(await sendCommand("create_variable", { items })); }
-      catch (e) { return mcpError("Error creating variable", e); }
-    }
-  );
-
-  server.tool(
-    "set_variable_value",
-    "Set variable values for modes. Batch: pass multiple items.",
-    { items: flexJson(z.array(setValueItem)).describe("Array of {variableId, modeId, value}") },
-    async ({ items }: any) => {
-      try { return mcpJson(await sendCommand("set_variable_value", { items })); }
-      catch (e) { return mcpError("Error setting variable value", e); }
-    }
-  );
-
-  server.tool(
-    "get_local_variables",
-    "List local variables. Pass includeValues:true to get all mode values in bulk (avoids N separate get_variable_by_id calls).",
-    {
-      type: z.enum(["COLOR", "FLOAT", "STRING", "BOOLEAN"]).optional().describe("Filter by type"),
-      collectionId: z.string().optional().describe("Filter by collection. Omit for all collections."),
-      includeValues: flexBool(z.boolean()).optional().describe("Include valuesByMode for each variable (default: false)"),
-    },
+    "variable_collections",
+    `CRUD endpoint for variable collections + mode management.
+  create       → {items: [{name}]}                          → {results: [{id, modes, defaultModeId}]}
+  get          → {id, fields?}                              → collection object
+  list         → {fields?, offset?, limit?}                 → paginated stubs
+  delete       → {id} or {items: [{id}]}                    → 'ok' or {results: ['ok', ...]}
+  add_mode     → {items: [{collectionId, name}]}            → {results: [{modeId}]}
+  rename_mode  → {items: [{collectionId, modeId, name}]}    → {results: ['ok', ...]}
+  remove_mode  → {items: [{collectionId, modeId}]}          → {results: ['ok', ...]}`,
+    vcSchema,
     async (params: any) => {
-      try { return mcpJson(await sendCommand("get_local_variables", params)); }
-      catch (e) { return mcpError("Error getting variables", e); }
+      try {
+        // Validate items per method
+        if (params.items) {
+          const schema = collectionMethodSchemas[params.method];
+          if (schema) params.items = z.array(schema).parse(params.items);
+        }
+        return mcpJson(await sendCommand("variable_collections", params));
+      } catch (e) { return mcpError("variable_collections error", e); }
     }
   );
 
+  // ── variables endpoint ──
+
+  const vMethods = ["create", "get", "list", "update"];
+  const vSchema = endpointSchema(vMethods, {
+    items: flexJson(z.array(z.any())).optional()
+      .describe("create: [{collectionId, name, resolvedType}]. update: [{id, modeId, value}]."),
+    type: z.enum(["COLOR", "FLOAT", "STRING", "BOOLEAN"]).optional()
+      .describe("Filter list by variable type."),
+    collectionId: z.string().optional()
+      .describe("Filter list by collection ID."),
+  });
+
   server.tool(
-    "get_local_variable_collections",
-    "List all local variable collections.",
-    {},
-    async () => {
-      try { return mcpJson(await sendCommand("get_local_variable_collections")); }
-      catch (e) { return mcpError("Error getting variable collections", e); }
+    "variables",
+    `CRUD endpoint for design variables.
+  create  → {items: [{collectionId, name, resolvedType}]}   → {results: [{id}]}
+  get     → {id, fields?}                                   → variable object (full detail)
+  list    → {type?, collectionId?, fields?, offset?, limit?} → paginated stubs (fields for detail)
+  update  → {items: [{id, modeId, value}]}                  → {results: ['ok', ...]}`,
+    vSchema,
+    async (params: any) => {
+      try {
+        // Validate items per method
+        if (params.items) {
+          const schema = variableMethodSchemas[params.method];
+          if (schema) params.items = z.array(schema).parse(params.items);
+        }
+        return mcpJson(await sendCommand("variables", params));
+      } catch (e) { return mcpError("variables error", e); }
     }
   );
 
-  server.tool(
-    "get_variable_by_id",
-    "Get detailed variable info including all mode values.",
-    { variableId: z.string().describe("Variable ID") },
-    async ({ variableId }: any) => {
-      try { return mcpJson(await sendCommand("get_variable_by_id", { variableId })); }
-      catch (e) { return mcpError("Error getting variable", e); }
-    }
-  );
-
-  server.tool(
-    "get_variable_collection_by_id",
-    "Get detailed variable collection info including modes and variable IDs.",
-    { collectionId: z.string().describe("Collection ID") },
-    async ({ collectionId }: any) => {
-      try { return mcpJson(await sendCommand("get_variable_collection_by_id", { collectionId })); }
-      catch (e) { return mcpError("Error getting variable collection", e); }
-    }
-  );
+  // ── Standalone tools ──
 
   server.tool(
     "set_variable_binding",
@@ -139,36 +154,6 @@ export function registerMcpTools(server: McpServer, sendCommand: SendCommandFn) 
     async ({ items }: any) => {
       try { return mcpJson(await sendCommand("set_variable_binding", { items })); }
       catch (e) { return mcpError("Error binding variable", e); }
-    }
-  );
-
-  server.tool(
-    "add_mode",
-    "Add modes to variable collections. Batch: pass multiple items.",
-    { items: flexJson(z.array(addModeItem)).describe("Array of {collectionId, name}") },
-    async ({ items }: any) => {
-      try { return mcpJson(await sendCommand("add_mode", { items })); }
-      catch (e) { return mcpError("Error adding mode", e); }
-    }
-  );
-
-  server.tool(
-    "rename_mode",
-    "Rename modes in variable collections. Batch: pass multiple items.",
-    { items: flexJson(z.array(renameModeItem)).describe("Array of {collectionId, modeId, name}") },
-    async ({ items }: any) => {
-      try { return mcpJson(await sendCommand("rename_mode", { items })); }
-      catch (e) { return mcpError("Error renaming mode", e); }
-    }
-  );
-
-  server.tool(
-    "remove_mode",
-    "Remove modes from variable collections. Batch: pass multiple items.",
-    { items: flexJson(z.array(removeModeItem)).describe("Array of {collectionId, modeId}") },
-    async ({ items }: any) => {
-      try { return mcpJson(await sendCommand("remove_mode", { items })); }
-      catch (e) { return mcpError("Error removing mode", e); }
     }
   );
 
@@ -191,16 +176,6 @@ export function registerMcpTools(server: McpServer, sendCommand: SendCommandFn) 
       catch (e) { return mcpError("Error getting node variables", e); }
     }
   );
-
-  server.tool(
-    "delete_variable_collection",
-    "Delete a variable collection and all its variables. This is destructive and cannot be undone.",
-    { collectionId: z.string().describe("Collection ID to delete") },
-    async ({ collectionId }: any) => {
-      try { return mcpJson(await sendCommand("delete_variable_collection", { collectionId })); }
-      catch (e) { return mcpError("Error deleting variable collection", e); }
-    }
-  );
 }
 
 // ─── Figma Handlers ──────────────────────────────────────────────
@@ -214,10 +189,74 @@ async function findCollectionById(id: string): Promise<any> {
   return all.find(c => c.id === id) || null;
 }
 
+// ── Serializers ──
+
+function serializeCollection(c: any): Record<string, any> {
+  return { id: c.id, name: c.name, modes: c.modes, defaultModeId: c.defaultModeId, variableIds: c.variableIds };
+}
+
+function serializeVariable(v: any): Record<string, any> {
+  return {
+    id: v.id, name: v.name, resolvedType: v.resolvedType,
+    variableCollectionId: v.variableCollectionId,
+    valuesByMode: v.valuesByMode, description: v.description, scopes: v.scopes,
+  };
+}
+
+// ── variable_collections handlers ──
+
 async function createCollectionSingle(p: any): Promise<CollectionCreatedResult> {
   const collection = figma.variables.createVariableCollection(p.name);
   return { id: collection.id, modes: collection.modes, defaultModeId: collection.defaultModeId };
 }
+
+async function getCollectionFigma(params: any) {
+  const c = await findCollectionById(params.id);
+  if (!c) throw new Error(`Collection not found: ${params.id}`);
+  return serializeCollection(c);
+}
+
+async function listCollectionsFigma(params: any) {
+  const collections = await figma.variables.getLocalVariableCollectionsAsync();
+  const paged = paginate(collections, params.offset, params.limit);
+  const fields = params.fields;
+  const items = paged.items.map((c: any) => {
+    const full = serializeCollection(c);
+    if (!fields?.length) return pickFields(full, []); // stubs: id, name
+    return pickFields(full, fields);
+  });
+  return { ...paged, items };
+}
+
+async function deleteCollectionSingle(p: any) {
+  const c = await findCollectionById(p.id);
+  if (!c) throw new Error(`Collection not found: ${p.id}`);
+  c.remove();
+  return {};
+}
+
+async function addModeSingle(p: any): Promise<{ modeId: string }> {
+  const c = await findCollectionById(p.collectionId);
+  if (!c) throw new Error(`Collection not found: ${p.collectionId}`);
+  const modeId = c.addMode(p.name);
+  return { modeId };
+}
+
+async function renameModeSingle(p: any): Promise<Record<string, never>> {
+  const c = await findCollectionById(p.collectionId);
+  if (!c) throw new Error(`Collection not found: ${p.collectionId}`);
+  c.renameMode(p.modeId, p.name);
+  return {};
+}
+
+async function removeModeSingle(p: any): Promise<Record<string, never>> {
+  const c = await findCollectionById(p.collectionId);
+  if (!c) throw new Error(`Collection not found: ${p.collectionId}`);
+  c.removeMode(p.modeId);
+  return {};
+}
+
+// ── variables handlers ──
 
 async function createVariableSingle(p: any): Promise<IdResult> {
   const collection = await findCollectionById(p.collectionId);
@@ -226,53 +265,39 @@ async function createVariableSingle(p: any): Promise<IdResult> {
   return { id: variable.id };
 }
 
-async function setValueSingle(p: any) {
-  const variable = await findVariableById(p.variableId);
-  if (!variable) throw new Error(`Variable not found: ${p.variableId}`);
+async function getVariableFigma(params: any) {
+  const v = await findVariableById(params.id);
+  if (!v) throw new Error(`Variable not found: ${params.id}`);
+  return serializeVariable(v);
+}
+
+async function listVariablesFigma(params: any) {
+  let variables = params?.type
+    ? await figma.variables.getLocalVariablesAsync(params.type)
+    : await figma.variables.getLocalVariablesAsync();
+  if (params?.collectionId) variables = variables.filter((v: any) => v.variableCollectionId === params.collectionId);
+  const paged = paginate(variables, params.offset, params.limit);
+  const fields = params.fields;
+  const items = paged.items.map((v: any) => {
+    const full = serializeVariable(v);
+    if (!fields?.length) return pickFields(full, []); // stubs: id, name, resolvedType, variableCollectionId (identity)
+    return pickFields(full, fields);
+  });
+  return { ...paged, items };
+}
+
+async function updateVariableSingle(p: any) {
+  const variable = await findVariableById(p.id);
+  if (!variable) throw new Error(`Variable not found: ${p.id}`);
   let value = p.value;
   if (typeof value === "object" && value !== null && "r" in value) {
     value = { r: value.r, g: value.g, b: value.b, a: value.a ?? 1 };
   }
   variable.setValueForMode(p.modeId, value);
-
-  // WCAG contrast check disabled for now — too noisy for primitive color variables
-  // See: https://github.com/ufira-ai/Vibma/issues/11
   return {};
 }
 
-async function getLocalVariablesFigma(params: any): Promise<GetLocalVariablesResult> {
-  let variables = params?.type
-    ? await figma.variables.getLocalVariablesAsync(params.type)
-    : await figma.variables.getLocalVariablesAsync();
-  if (params?.collectionId) variables = variables.filter((v: any) => v.variableCollectionId === params.collectionId);
-  const includeValues = params?.includeValues === true;
-  return {
-    variables: variables.map((v: any) => {
-      const entry: any = { id: v.id, name: v.name, resolvedType: v.resolvedType, variableCollectionId: v.variableCollectionId };
-      if (includeValues) entry.valuesByMode = v.valuesByMode;
-      return entry;
-    }),
-  };
-}
-
-async function getLocalCollectionsFigma(): Promise<GetLocalVariableCollectionsResult> {
-  const collections = await figma.variables.getLocalVariableCollectionsAsync();
-  return {
-    collections: collections.map((c: any) => ({ id: c.id, name: c.name, modes: c.modes, defaultModeId: c.defaultModeId, variableIds: c.variableIds })),
-  };
-}
-
-async function getVariableByIdFigma(params: any): Promise<GetVariableByIdResult> {
-  const v = await findVariableById(params.variableId);
-  if (!v) throw new Error(`Variable not found: ${params.variableId}`);
-  return { id: v.id, name: v.name, resolvedType: v.resolvedType, variableCollectionId: v.variableCollectionId, valuesByMode: v.valuesByMode, description: v.description, scopes: v.scopes };
-}
-
-async function getCollectionByIdFigma(params: any): Promise<GetCollectionByIdResult> {
-  const c = await findCollectionById(params.collectionId);
-  if (!c) throw new Error(`Collection not found: ${params.collectionId}`);
-  return { id: c.id, name: c.name, modes: c.modes, defaultModeId: c.defaultModeId, variableIds: c.variableIds };
-}
+// ── Standalone handlers ──
 
 async function setBindingSingle(p: any) {
   const node = await figma.getNodeByIdAsync(p.nodeId);
@@ -296,27 +321,6 @@ async function setBindingSingle(p: any) {
     throw new Error("Node does not support variable binding");
   }
   return {};
-}
-
-async function addModeSingle(p: any): Promise<AddModeResult> {
-  const c = await findCollectionById(p.collectionId);
-  if (!c) throw new Error(`Collection not found: ${p.collectionId}`);
-  const modeId = c.addMode(p.name);
-  return { modeId, modes: c.modes };
-}
-
-async function renameModeSingle(p: any): Promise<ModesResult> {
-  const c = await findCollectionById(p.collectionId);
-  if (!c) throw new Error(`Collection not found: ${p.collectionId}`);
-  c.renameMode(p.modeId, p.name);
-  return { modes: c.modes };
-}
-
-async function removeModeSingle(p: any): Promise<ModesResult> {
-  const c = await findCollectionById(p.collectionId);
-  if (!c) throw new Error(`Collection not found: ${p.collectionId}`);
-  c.removeMode(p.modeId);
-  return { modes: c.modes };
 }
 
 async function setExplicitModeSingle(p: any) {
@@ -357,27 +361,25 @@ async function getNodeVariablesFigma(params: any): Promise<GetNodeVariablesResul
   return result;
 }
 
-
-async function deleteCollectionFigma(params: any) {
-  const c = await findCollectionById(params.collectionId);
-  if (!c) throw new Error(`Collection not found: ${params.collectionId}`);
-  c.remove();
-  return "ok";
-}
+// ─── Handler Exports ─────────────────────────────────────────────
 
 export const figmaHandlers: Record<string, (params: any) => Promise<any>> = {
-  create_variable_collection: (p) => batchHandler(p, createCollectionSingle),
-  create_variable: (p) => batchHandler(p, createVariableSingle),
-  set_variable_value: (p) => batchHandler(p, setValueSingle),
-  get_local_variables: getLocalVariablesFigma,
-  get_local_variable_collections: getLocalCollectionsFigma,
-  get_variable_by_id: getVariableByIdFigma,
-  get_variable_collection_by_id: getCollectionByIdFigma,
+  variable_collections: createDispatcher({
+    create: (p) => batchHandler(p, createCollectionSingle),
+    get: getCollectionFigma,
+    list: listCollectionsFigma,
+    delete: (p) => batchHandler(p, deleteCollectionSingle),
+    add_mode: (p) => batchHandler(p, addModeSingle),
+    rename_mode: (p) => batchHandler(p, renameModeSingle),
+    remove_mode: (p) => batchHandler(p, removeModeSingle),
+  }),
+  variables: createDispatcher({
+    create: (p) => batchHandler(p, createVariableSingle),
+    get: getVariableFigma,
+    list: listVariablesFigma,
+    update: (p) => batchHandler(p, updateVariableSingle),
+  }),
   set_variable_binding: (p) => batchHandler(p, setBindingSingle),
-  add_mode: (p) => batchHandler(p, addModeSingle),
-  rename_mode: (p) => batchHandler(p, renameModeSingle),
-  remove_mode: (p) => batchHandler(p, removeModeSingle),
   set_explicit_variable_mode: (p) => batchHandler(p, setExplicitModeSingle),
   get_node_variables: getNodeVariablesFigma,
-  delete_variable_collection: deleteCollectionFigma,
 };

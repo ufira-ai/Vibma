@@ -18,7 +18,7 @@ Best practices for working with Figma designs. Covers:
 
 ## read_design_strategy
 
-Best practices for reading Figma designs. Focuses on using `read_my_design()` and selection-based workflows to understand existing designs.
+Best practices for reading Figma designs. Focuses on using `get_selection()` and selection-based workflows to understand existing designs.
 
 ## text_replacement_strategy
 
@@ -34,6 +34,6 @@ A systematic approach for replacing text in Figma designs:
 Guide for transferring content overrides between component instances:
 
 1. Identify source and target instances
-2. Extract overrides with `get_instance_overrides`
+2. Extract overrides with `instances(method: "get")`
 3. Apply matching overrides (text, fills, styles) to target children
 4. Verify with `get_node_info` and `export_node_as_image`

@@ -88,6 +88,52 @@ async function myToolBatch(params: any) {
 
 `batchHandler` provides: depth enrichment, warning hoisting, `{}` → `"ok"` conversion, and error wrapping.
 
+## Resource Endpoint Pattern
+
+CRUD resources (styles, components, variables) use a single MCP tool with `method` dispatch instead of separate tools per operation. Infrastructure lives in `src/tools/endpoint.ts`.
+
+### Contract
+
+```
+resource(method, ...)
+  list    → { type?, fields?, offset?, limit? } → { totalCount, returned, offset, limit, items: [...] }
+  get     → { id, fields? }                     → resource object (full detail by default)
+  create  → { type, items }                     → { results: [{id}, ...] }
+  update  → { type?, items }                    → { results: ["ok"|{warning}, ...] }
+  delete  → { id } or { items: [{id}, ...] }    → "ok" or { results: ["ok", ...] }
+```
+
+**list = batch get.** Both return the same resource shape. `fields` controls which properties appear:
+- Omitted on list → stubs only (id, name, type)
+- Omitted on get → full detail
+- `fields: ["paints"]` → identity fields + requested
+- `fields: ["*"]` → everything
+
+**delete** supports both single (`id`) and batch (`items: [{id}, ...]`) via `batchHandler`.
+
+### Shared infrastructure (`endpoint.ts`)
+
+- **`endpointSchema(methods, extra?)`** — builds the Zod schema. Auto-adds: `id` (get/delete), `fields` (get), `offset`/`limit` (list). Merge resource-specific params via `extra`.
+- **`createDispatcher(handlers)`** — Figma-side method router. Auto-applies `pickFields` on get responses when `params.fields` is present.
+- **`paginate(items, offset?, limit?)`** — slices an array into a `{ totalCount, returned, offset, limit, items }` envelope. Call from list handlers after assembling the full result set.
+- **`pickFields(obj, fields)`** — top-level field filter. Always preserves identity fields (`id`, `name`, `type`).
+
+### Type discriminant
+
+The `type` parameter serves as a schema discriminant:
+- **create** — required. Selects per-type Zod validation and routes to the correct batch handler.
+- **update** — optional. When provided, enables strict per-type validation (e.g. `type: "paint"` rejects text/effect fields). When omitted, falls back to permissive validation with auto-detection in Figma.
+- **list** — optional. Filters results to one resource subtype.
+
+### Adding a new endpoint
+
+1. Define per-type Zod schemas for create and update items
+2. Define a `ResourceParams` discriminated union type (method + type variants)
+3. In `registerMcpTools`: call `endpointSchema()` with methods + extra fields, register via `server.tool()` with per-method item validation
+4. In `figmaHandlers`: use `createDispatcher()` with handler per method
+5. Update `response-types.ts` — add item type + `toolResponseSchemas` entry
+6. See `src/tools/styles.ts` as the reference implementation
+
 ## Response Schemas & Docs
 
 Tool response shapes are documented in `src/tools/response-types.ts`. This file serves dual purposes:

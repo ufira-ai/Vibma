@@ -13,7 +13,7 @@ export function registerPrompts(server: McpServer) {
 
 1. Understand Before Creating:
    - Use get_document_info() to see pages and current page
-   - Use get_styles() and get_local_variables() to discover existing design tokens
+   - Use styles(method: "list") and get_local_variables() to discover existing design tokens
    - Plan layout hierarchy before creating elements
 
 2. Use Design Tokens — Never Hardcode:
@@ -30,7 +30,7 @@ export function registerPrompts(server: McpServer) {
 
 4. Naming Conventions:
    - Use descriptive, semantic names for all elements
-   - Name components with Property=Value pattern (e.g. "Size=Small") before combine_as_variants
+   - Name components with Property=Value pattern (e.g. "Size=Small") before components(method: "create", type: "variant_set")
 
 5. Variable Modes:
    - Use set_explicit_variable_mode() to pin a frame to a specific mode (e.g. Dark)
@@ -42,7 +42,7 @@ export function registerPrompts(server: McpServer) {
      * no-text-style: text without a text style applied
      * no-autolayout: frames with children but no auto-layout
      * default-name: nodes still named "Frame", "Rectangle", etc.
-   - Use lint_fix_autolayout() and lint_fix_replace_shape_with_frame() to auto-fix
+   - Use lint_fix_autolayout() to auto-fix layout issues
    - Lint early and often — it is cheaper to fix issues during creation than after`,
         },
       }],
@@ -61,7 +61,7 @@ export function registerPrompts(server: McpServer) {
           text: `When reading Figma designs, follow these best practices:
 
 1. Start with selection:
-   - First use read_my_design() to understand the current selection
+   - First use get_selection() to understand the current selection
    - If no selection ask user to select single or multiple nodes
 `,
         },
@@ -218,12 +218,12 @@ Transfer content overrides from a source instance to target instances.
 - Use \`search_nodes(types: ["INSTANCE"])\` to find instances on the page
 
 ### 2. Extract Source Overrides
-- \`get_instance_overrides(nodeId: "source-instance-id")\`
+- \`instances(method: "get", id: "source-instance-id")\`
 - Returns mainComponentId and per-child override fields (characters, fills, fontSize, etc.)
 
 ### 3. Apply to Targets
 - For text overrides: use \`set_text_content\` on matching child node IDs
-- For style overrides: use \`set_fill_color\`, \`apply_style_to_node\`, etc.
+- For style overrides: use \`patch_nodes\` with fill/stroke/text/effects styleName fields
 - Match children by name path — source and target instances share the same internal structure
 
 ### 4. Verify

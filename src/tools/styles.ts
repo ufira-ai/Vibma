@@ -1,10 +1,12 @@
 import { z } from "zod";
-import { flexJson, flexBool, flexNum } from "../utils/coercion";
+import { flexJson, flexNum } from "../utils/coercion";
 import * as S from "./schemas";
 import type { McpServer, SendCommandFn } from "./types";
 import { mcpJson, mcpError } from "./types";
 import { batchHandler } from "./helpers";
-import type { IdResult, IdWithWarningResult, ApplyStyleItemResult, GetStylesResult, GetStyleByIdResult } from "./response-types";
+import { endpointSchema, createDispatcher, paginate, pickFields } from "./endpoint";
+import type { ListResponse } from "./endpoint";
+import type { IdResult, IdWithWarningResult, GetStyleByIdResult } from "./response-types";
 
 
 // ─── Schemas ─────────────────────────────────────────────────────
@@ -36,118 +38,121 @@ const effectStyleItem = z.object({
   effects: flexJson(z.array(S.effectEntry)).describe("Array of effects"),
 });
 
-const patchStyleItem = z.object({
+// Shared base for update items
+const patchBase = {
   id: z.string().describe("Style ID or name (case-insensitive match)"),
   name: z.string().optional().describe("Rename the style"),
-  // Paint fields
-  color: flexJson(S.colorRgba).optional().describe('New color (paint styles).'),
-  // Text fields
-  fontFamily: z.string().optional().describe("Font family (text styles)"),
-  fontStyle: z.string().optional().describe("Font style, e.g. Regular, Bold (text styles)"),
-  fontSize: z.coerce.number().optional().describe("Font size (text styles)"),
+};
+
+const patchPaintItem = z.object({
+  ...patchBase,
+  color: flexJson(S.colorRgba).optional().describe('New color.'),
+});
+
+const patchTextItem = z.object({
+  ...patchBase,
+  fontFamily: z.string().optional().describe("Font family"),
+  fontStyle: z.string().optional().describe("Font style, e.g. Regular, Bold"),
+  fontSize: z.coerce.number().optional().describe("Font size"),
   lineHeight: flexNum(z.union([
     z.number(),
     z.object({ value: z.coerce.number(), unit: z.enum(["PIXELS", "PERCENT", "AUTO"]) }),
-  ])).optional().describe("Line height — number (px) or {value, unit} (text styles)"),
+  ])).optional().describe("Line height — number (px) or {value, unit}"),
   letterSpacing: flexNum(z.union([
     z.number(),
     z.object({ value: z.coerce.number(), unit: z.enum(["PIXELS", "PERCENT"]) }),
-  ])).optional().describe("Letter spacing — number (px) or {value, unit} (text styles)"),
+  ])).optional().describe("Letter spacing — number (px) or {value, unit}"),
   textCase: z.enum(["ORIGINAL", "UPPER", "LOWER", "TITLE"]).optional(),
   textDecoration: z.enum(["NONE", "UNDERLINE", "STRIKETHROUGH"]).optional(),
-  // Effect fields
-  effects: flexJson(z.array(S.effectEntry)).optional().describe("Array of effects (effect styles)"),
 });
 
-const applyStyleItem = z.object({
-  nodeId: S.nodeId,
-  styleId: z.string().optional().describe("Style ID. Provide either styleId or styleName."),
-  styleName: z.string().optional().describe("Style name (case-insensitive substring match). Provide either styleId or styleName."),
-  styleType: z.preprocess((v) => typeof v === "string" ? v.toLowerCase() : v, z.enum(["fill", "stroke", "text", "effect"])).describe("Type of style: fill, stroke, text, or effect (case-insensitive)"),
+const patchEffectItem = z.object({
+  ...patchBase,
+  effects: flexJson(z.array(S.effectEntry)).optional().describe("Array of effects"),
 });
+
+/** Permissive fallback when type is omitted on update (auto-detect in Figma). */
+const patchAnyItem = z.object({
+  ...patchBase,
+  color: flexJson(S.colorRgba).optional(),
+  fontFamily: z.string().optional(),
+  fontStyle: z.string().optional(),
+  fontSize: z.coerce.number().optional(),
+  lineHeight: flexNum(z.union([
+    z.number(),
+    z.object({ value: z.coerce.number(), unit: z.enum(["PIXELS", "PERCENT", "AUTO"]) }),
+  ])).optional(),
+  letterSpacing: flexNum(z.union([
+    z.number(),
+    z.object({ value: z.coerce.number(), unit: z.enum(["PIXELS", "PERCENT"]) }),
+  ])).optional(),
+  textCase: z.enum(["ORIGINAL", "UPPER", "LOWER", "TITLE"]).optional(),
+  textDecoration: z.enum(["NONE", "UNDERLINE", "STRIKETHROUGH"]).optional(),
+  effects: flexJson(z.array(S.effectEntry)).optional(),
+});
+
+// ─── Typed Params ────────────────────────────────────────────────
+
+type PaintStyleItem  = z.infer<typeof paintStyleItem>;
+type TextStyleItem   = z.infer<typeof textStyleItem>;
+type EffectStyleItem = z.infer<typeof effectStyleItem>;
+type PatchPaintItem  = z.infer<typeof patchPaintItem>;
+type PatchTextItem   = z.infer<typeof patchTextItem>;
+type PatchEffectItem = z.infer<typeof patchEffectItem>;
+type PatchAnyItem    = z.infer<typeof patchAnyItem>;
+
+type StyleParams =
+  | { method: "create"; type: "paint";  items: PaintStyleItem[];  depth?: number }
+  | { method: "create"; type: "text";   items: TextStyleItem[];   depth?: number }
+  | { method: "create"; type: "effect"; items: EffectStyleItem[]; depth?: number }
+  | { method: "get";    id: string; fields?: string[] }
+  | { method: "list";   type?: "paint" | "text" | "effect"; fields?: string[]; offset?: number; limit?: number }
+  | { method: "update"; type: "paint";  items: PatchPaintItem[] }
+  | { method: "update"; type: "text";   items: PatchTextItem[] }
+  | { method: "update"; type: "effect"; items: PatchEffectItem[] }
+  | { method: "update"; items: PatchAnyItem[] }   // type omitted — permissive
+  | { method: "delete"; id?: string; items?: Array<{ id: string }> };
+
+/** Per-type schema lookup for items validation. */
+const createSchemas: Record<string, z.ZodTypeAny> = {
+  paint: paintStyleItem, text: textStyleItem, effect: effectStyleItem,
+};
+const updateSchemas: Record<string, z.ZodTypeAny> = {
+  paint: patchPaintItem, text: patchTextItem, effect: patchEffectItem,
+};
 
 // ─── MCP Registration ────────────────────────────────────────────
 
 export function registerMcpTools(server: McpServer, sendCommand: SendCommandFn) {
-  server.tool(
-    "get_styles",
-    "List local styles (paint, text, effect, grid). Returns IDs and names only.",
-    {},
-    async () => {
-      try { return mcpJson(await sendCommand("get_styles")); }
-      catch (e) { return mcpError("Error getting styles", e); }
-    }
-  );
+  const schema = endpointSchema(["create", "get", "list", "update", "delete"], {
+    type: z.enum(["paint", "text", "effect"]).optional()
+      .describe("Style type. Required for create. Filters list by type. Optional for update (strict per-type validation; omit to auto-detect)."),
+    items: flexJson(z.array(z.any())).optional()
+      .describe("Create: [{name, color}] (paint), [{name, fontFamily, fontSize, ...}] (text), [{name, effects}] (effect). Update: [{id, ...fields}]. Delete (batch): [{id}, ...]."),
+    depth: S.depth,
+  });
 
-  server.tool(
-    "get_style_by_id",
-    "Get detailed style info by ID. Returns full paint/font/effect/grid details.",
-    { styleId: z.string().describe("Style ID") },
-    async ({ styleId }: any) => {
-      try { return mcpJson(await sendCommand("get_style_by_id", { styleId })); }
-      catch (e) { return mcpError("Error getting style", e); }
-    }
-  );
-
-  server.tool(
-    "remove_style",
-    "Delete a style by ID.",
-    { styleId: z.string().describe("Style ID to remove") },
-    async ({ styleId }: any) => {
-      try { return mcpJson(await sendCommand("remove_style", { styleId })); }
-      catch (e) { return mcpError("Error removing style", e); }
-    }
-  );
-
-  server.tool(
-    "create_paint_style",
-    "Create color/paint styles. Batch: pass multiple items.",
-    { items: flexJson(z.array(paintStyleItem)).describe("Array of {name, color}") },
+  server.tool("styles",
+    "CRUD endpoint for local styles (paint, text, effect).\n" +
+    "  list   → {type?, fields?, offset?, limit?} → {totalCount, items: [{id, name, type, ...}]}\n" +
+    "  get    → {id, fields?} → style object (full detail; fields to filter)\n" +
+    "  create → {type, items: [...]} → {results: [{id}, ...]}\n" +
+    "  update → {type?, items: [{id, ...}]} → {results: ['ok'|{warning}, ...]}\n" +
+    "  delete → {id} or {items: [{id}, ...]} → 'ok' or {results: ['ok', ...]}",
+    schema,
     async (params: any) => {
-      try { return mcpJson(await sendCommand("create_paint_style", params)); }
-      catch (e) { return mcpError("Error creating paint style", e); }
-    }
+      try {
+        // Validate items with method+type-appropriate schema
+        if (params.items) {
+          const map = params.method === "update" ? updateSchemas : createSchemas;
+          const itemSchema = (params.type && map[params.type]) || patchAnyItem;
+          params.items = z.array(itemSchema).parse(params.items);
+        }
+        return mcpJson(await sendCommand("styles", params));
+      } catch (e) { return mcpError("styles error", e); }
+    },
   );
 
-  server.tool(
-    "create_text_style",
-    "Create text styles. Batch: pass multiple items.",
-    { items: flexJson(z.array(textStyleItem)).describe("Array of text style definitions") },
-    async (params: any) => {
-      try { return mcpJson(await sendCommand("create_text_style", params)); }
-      catch (e) { return mcpError("Error creating text style", e); }
-    }
-  );
-
-  server.tool(
-    "create_effect_style",
-    "Create effect styles (shadows, blurs). Batch: pass multiple items.",
-    { items: flexJson(z.array(effectStyleItem)).describe("Array of {name, effects}") },
-    async (params: any) => {
-      try { return mcpJson(await sendCommand("create_effect_style", params)); }
-      catch (e) { return mcpError("Error creating effect style", e); }
-    }
-  );
-
-  server.tool(
-    "apply_style_to_node",
-    "Apply a style to nodes by ID or name. Use styleName for convenience (case-insensitive). Batch: pass multiple items.",
-    { items: flexJson(z.array(applyStyleItem)).describe("Array of {nodeId, styleId?, styleName?, styleType}"), depth: S.depth },
-    async (params: any) => {
-      try { return mcpJson(await sendCommand("apply_style_to_node", params)); }
-      catch (e) { return mcpError("Error applying style", e); }
-    }
-  );
-
-  server.tool(
-    "patch_styles",
-    "Update any style (paint/text/effect) by ID or name. Returns full updated style data. Type is auto-detected. Batch: pass multiple items.",
-    { items: flexJson(z.array(patchStyleItem)).describe("Array of {id, name?, color?, fontFamily?, effects?, ...}") },
-    async (params: any) => {
-      try { return mcpJson(await sendCommand("patch_styles", params)); }
-      catch (e) { return mcpError("Error patching styles", e); }
-    }
-  );
 }
 
 // ─── Figma Handlers ──────────────────────────────────────────────
@@ -158,20 +163,9 @@ function ensureStyleId(id: string): string {
   return id.startsWith("S:") && !id.endsWith(",") ? id + "," : id;
 }
 
-async function getStylesFigma(): Promise<GetStylesResult> {
-  const [colors, texts, effects, grids] = await Promise.all([
-    figma.getLocalPaintStylesAsync(),
-    figma.getLocalTextStylesAsync(),
-    figma.getLocalEffectStylesAsync(),
-    figma.getLocalGridStylesAsync(),
-  ]);
-  return {
-    colors: colors.map(s => ({ id: s.id, name: s.name })),
-    texts: texts.map(s => ({ id: s.id, name: s.name })),
-    effects: effects.map(s => ({ id: s.id, name: s.name })),
-    grids: grids.map(s => ({ id: s.id, name: s.name })),
-  };
-}
+const TYPE_FILTER_MAP: Record<string, string> = {
+  paint: "PAINT", text: "TEXT", effect: "EFFECT",
+};
 
 function rgbaToHex(color: any): string {
   const r = Math.round(color.r * 255);
@@ -182,9 +176,8 @@ function rgbaToHex(color: any): string {
   return `#${[r, g, b, a].map(x => x.toString(16).padStart(2, "0")).join("")}`;
 }
 
-async function getStyleByIdFigma(params: any): Promise<GetStyleByIdResult> {
-  const style = await figma.getStyleByIdAsync(ensureStyleId(params.styleId));
-  if (!style) throw new Error(`Style not found: ${params.styleId}`);
+/** Serialize a Figma BaseStyle to a plain object. Shared by get and list. */
+function serializeStyle(style: BaseStyle): Record<string, any> {
   const r: any = { id: style.id, name: style.name, type: style.type };
   if (style.type === "PAINT") {
     r.paints = (style as PaintStyle).paints.map((p: any) => {
@@ -203,9 +196,41 @@ async function getStyleByIdFigma(params: any): Promise<GetStyleByIdResult> {
   return r;
 }
 
-async function removeStyleFigma(params: any) {
-  const style = await figma.getStyleByIdAsync(ensureStyleId(params.styleId));
-  if (!style) throw new Error(`Style not found: ${params.styleId}`);
+async function listStylesFigma(params: StyleParams & { method: "list" }): Promise<ListResponse<any>> {
+  const typeFilter = params.type ? TYPE_FILTER_MAP[params.type] : null;
+
+  // Fetch only the requested type, or all
+  const fetchers: Array<Promise<BaseStyle[]>> = [];
+  if (!typeFilter || typeFilter === "PAINT")  fetchers.push(figma.getLocalPaintStylesAsync());
+  if (!typeFilter || typeFilter === "TEXT")   fetchers.push(figma.getLocalTextStylesAsync());
+  if (!typeFilter || typeFilter === "EFFECT") fetchers.push(figma.getLocalEffectStylesAsync());
+  if (!typeFilter)                            fetchers.push(figma.getLocalGridStylesAsync());
+
+  const groups = await Promise.all(fetchers);
+  const allStyles = groups.flat();
+
+  // Paginate first, then serialize only the page
+  const paged = paginate(allStyles, params.offset, params.limit);
+  const fields = params.fields;
+  const items = paged.items.map(s => {
+    const full = serializeStyle(s);
+    // Stubs by default; fields to request more; ["*"] for everything
+    if (!fields?.length) return pickFields(full, []);
+    return pickFields(full, fields);
+  });
+
+  return { ...paged, items };
+}
+
+async function getStyleByIdFigma(params: any): Promise<GetStyleByIdResult> {
+  const style = await figma.getStyleByIdAsync(ensureStyleId(params.id));
+  if (!style) throw new Error(`Style not found: ${params.id}`);
+  return serializeStyle(style) as GetStyleByIdResult;
+}
+
+async function removeStyleSingle(p: any) {
+  const style = await figma.getStyleByIdAsync(ensureStyleId(p.id));
+  if (!style) throw new Error(`Style not found: ${p.id}`);
   style.remove();
   return "ok";
 }
@@ -269,49 +294,6 @@ async function createEffectStyleSingle(p: any): Promise<IdResult> {
     return eff;
   });
   return { id: style.id };
-}
-
-async function applyStyleSingle(p: any): Promise<ApplyStyleItemResult> {
-  const node = await figma.getNodeByIdAsync(p.nodeId);
-  if (!node) throw new Error(`Node not found: ${p.nodeId}`);
-
-  let styleId = p.styleId ? ensureStyleId(p.styleId) : null;
-  let matchedStyle: string | undefined;
-  if (!styleId && p.styleName) {
-    const [paints, texts, effects] = await Promise.all([
-      figma.getLocalPaintStylesAsync(), figma.getLocalTextStylesAsync(), figma.getLocalEffectStylesAsync(),
-    ]);
-    // Filter to styles relevant for the requested type
-    const typeMap: Record<string, any[]> = { fill: paints, stroke: paints, text: texts, effect: effects };
-    const relevant = typeMap[p.styleType] || [...paints, ...texts, ...effects];
-    const exact = relevant.find(s => s.name === p.styleName);
-    if (exact) { styleId = exact.id; matchedStyle = exact.name; }
-    else {
-      const fuzzy = relevant.find(s => s.name.toLowerCase().includes(p.styleName.toLowerCase()));
-      if (!fuzzy) {
-        const available = relevant.map(s => s.name).slice(0, 20);
-        const suffix = relevant.length > 20 ? `, … and ${relevant.length - 20} more` : "";
-        throw new Error(`styleName '${p.styleName}' not found for type '${p.styleType}'. Available: [${available.join(", ")}${suffix}]`);
-      }
-      styleId = fuzzy.id;
-      matchedStyle = fuzzy.name;
-    }
-  }
-
-  switch (p.styleType) {
-    case "fill": await (node as any).setFillStyleIdAsync(styleId); break;
-    case "stroke": await (node as any).setStrokeStyleIdAsync(styleId); break;
-    case "text": await (node as any).setTextStyleIdAsync(styleId); break;
-    case "effect": await (node as any).setEffectStyleIdAsync(styleId); break;
-    default: throw new Error(`Unknown style type: ${p.styleType}`);
-  }
-  const result: any = { styleId: styleId };
-  if (matchedStyle) result.matchedStyle = matchedStyle;
-  // Hint when both styleId and styleName provided
-  if (p.styleId && p.styleName) {
-    result.warning = "Both styleId and styleName provided — used styleId. Pass only one: styleName (by name lookup) or styleId (direct ID).";
-  }
-  return result;
 }
 
 // ─── Style Resolution Helpers ────────────────────────────────────
@@ -491,7 +473,7 @@ async function createTextStyleBatch(params: any) {
 
   const deferredFonts = uniqueFonts.slice(MAX_FONTS_PER_BATCH).map(k => k.replace("::", " "));
   const result = await batchHandler({ ...params, items: processItems }, createTextStyleSingle);
-  result.deferred = `${deferredItems.length} text style(s) using fonts [${deferredFonts.join(", ")}] were NOT created to avoid timeout. Call create_text_style again with those items.`;
+  result.deferred = `${deferredItems.length} text style(s) using fonts [${deferredFonts.join(", ")}] were NOT created to avoid timeout. Call styles(method: "create", type: "text") again with those items.`;
   return result;
 }
 
@@ -546,7 +528,7 @@ async function patchStylesBatch(params: any) {
       }
       const deferredFonts = uniqueFonts.slice(MAX_FONTS_PER_BATCH).map(k => k.replace("::", " "));
       const result = await batchHandler({ ...params, items: processItems }, patchStyleSingle);
-      result.deferred = `${deferredItems.length} text style(s) using fonts [${deferredFonts.join(", ")}] were NOT updated to avoid timeout. Call patch_styles again with those items.`;
+      result.deferred = `${deferredItems.length} text style(s) using fonts [${deferredFonts.join(", ")}] were NOT updated to avoid timeout. Call styles(method: "update") again with those items.`;
       return result;
     }
   }
@@ -554,13 +536,21 @@ async function patchStylesBatch(params: any) {
   return batchHandler(params, patchStyleSingle);
 }
 
+// ─── Figma Dispatcher ────────────────────────────────────────────
+
 export const figmaHandlers: Record<string, (params: any) => Promise<any>> = {
-  get_styles: getStylesFigma,
-  get_style_by_id: getStyleByIdFigma,
-  remove_style: removeStyleFigma,
-  create_paint_style: (p) => batchHandler(p, createPaintStyleSingle),
-  create_text_style: createTextStyleBatch,
-  create_effect_style: (p) => batchHandler(p, createEffectStyleSingle),
-  apply_style_to_node: (p) => batchHandler(p, applyStyleSingle),
-  patch_styles: patchStylesBatch,
+  styles: createDispatcher({
+    create: (p: StyleParams & { method: "create" }) => {
+      switch (p.type) {
+        case "paint":  return batchHandler(p, createPaintStyleSingle);
+        case "text":   return createTextStyleBatch(p);
+        case "effect": return batchHandler(p, createEffectStyleSingle);
+        default: throw new Error(`create requires type: "paint", "text", or "effect"`);
+      }
+    },
+    get:    (p: StyleParams & { method: "get" })    => getStyleByIdFigma(p),
+    list:   (p: StyleParams & { method: "list" })   => listStylesFigma(p),
+    update: (p: StyleParams & { method: "update" }) => patchStylesBatch(p),
+    delete: (p: StyleParams & { method: "delete" }) => batchHandler(p, removeStyleSingle),
+  }),
 };

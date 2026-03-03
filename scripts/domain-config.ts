@@ -69,16 +69,9 @@ export const domains: DomainConfig[] = [
   {
     id: "styles",
     label: "Styles",
-    description: "Tools for creating, applying, and managing paint, text, and effect styles",
+    description: "Tools for creating and managing paint, text, and effect styles",
     tools: [
-      "get_styles",
-      "get_style_by_id",
-      "remove_style",
-      "create_paint_style",
-      "create_text_style",
-      "create_effect_style",
-      "apply_style_to_node",
-      "patch_styles",
+      "styles",
     ],
   },
   {
@@ -86,20 +79,11 @@ export const domains: DomainConfig[] = [
     label: "Variables",
     description: "Tools for creating and managing design variables and modes",
     tools: [
-      "create_variable_collection",
-      "create_variable",
-      "set_variable_value",
-      "get_local_variables",
-      "get_local_variable_collections",
-      "get_variable_by_id",
-      "get_variable_collection_by_id",
+      "variable_collections",
+      "variables",
       "set_variable_binding",
-      "add_mode",
-      "rename_mode",
-      "remove_mode",
       "set_explicit_variable_mode",
       "get_node_variables",
-      "delete_variable_collection",
     ],
   },
   {
@@ -107,15 +91,8 @@ export const domains: DomainConfig[] = [
     label: "Components",
     description: "Tools for creating components, variants, and instances",
     tools: [
-      "create_component",
-      "create_component_from_node",
-      "combine_as_variants",
-      "add_component_property",
-      "create_instance_from_local",
-      "search_components",
-      "get_component_by_id",
-      "get_instance_overrides",
-      "set_instance_properties",
+      "components",
+      "instances",
     ],
   },
   {
@@ -135,7 +112,6 @@ export const domains: DomainConfig[] = [
     tools: [
       "lint_node",
       "lint_fix_autolayout",
-      "lint_fix_replace_shape_with_frame",
     ],
   },
 ];

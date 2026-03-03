@@ -4,7 +4,7 @@ import * as S from "./schemas";
 import type { McpServer, SendCommandFn } from "./types";
 import { mcpJson, mcpError } from "./types";
 import { batchHandler } from "./helpers";
-import type { LintNodeResult, FixAutolayoutResult, FixAutolayoutSkippedResult, FixShapeToFrameResult } from "./response-types";
+import type { LintNodeResult, FixAutolayoutResult, FixAutolayoutSkippedResult } from "./response-types";
 import { rgbaToHex } from "../utils/color";
 import {
   alphaComposite, checkContrastPair, isLargeText, inferFontWeight,
@@ -74,21 +74,6 @@ export function registerMcpTools(server: McpServer, sendCommand: SendCommandFn) 
     }
   );
 
-  server.tool(
-    "lint_fix_replace_shape_with_frame",
-    "Auto-fix: replace shapes with frames preserving visual properties. Overlapping siblings are re-parented into the new frame. Use after lint_node 'shape-instead-of-frame' results.",
-    {
-      items: flexJson(z.array(z.object({
-        nodeId: S.nodeId,
-        adoptChildren: flexBool(z.boolean()).optional().describe("Re-parent overlapping siblings into the new frame (default: true)"),
-      }))).describe("Array of shapes to convert to frames"),
-      depth: S.depth,
-    },
-    async (params: any) => {
-      try { return mcpJson(await sendCommand("lint_fix_replace_shape_with_frame", params)); }
-      catch (e) { return mcpError("Error converting shapes to frames", e); }
-    }
-  );
 }
 
 // ─── Figma Handlers ──────────────────────────────────────────────
@@ -195,14 +180,14 @@ async function lintNodeHandler(params: any): Promise<LintNodeResult> {
 /** Per-rule fix instructions — natural language, actionable, referencing MCP tools */
 const FIX_INSTRUCTIONS: Record<string, string> = {
   "no-autolayout": "Use lint_fix_autolayout or update_frame with layoutMode to add auto-layout to these frames.",
-  "shape-instead-of-frame": "Use lint_fix_replace_shape_with_frame to convert these shapes to frames with children.",
+  "shape-instead-of-frame": "Delete the shape, create_frame with the same position/size/fill, then insert_child to re-parent overlapping siblings into the new frame.",
   "hardcoded-color": "Check each node's 'matchName' for a suggested style or variable. For fills: use set_fill_color with styleName, or set_variable_binding with field 'fills/0/color'. For strokes: use set_stroke_color with styleName, or set_variable_binding with field 'strokes/0/color'.",
-  "no-text-style": "Use apply_style_to_node with styleType:\"text\" and styleName, or set_variable_binding to bind text properties to variables.",
+  "no-text-style": "Use patch_nodes with text.textStyleName to apply a text style, or set_variable_binding to bind text properties to variables.",
   "fixed-in-autolayout": "Use update_frame with layoutSizingHorizontal/layoutSizingVertical to set FILL or HUG instead of FIXED sizing.",
   "default-name": "Use set_node_properties to give descriptive names.",
   "empty-container": "These frames or components have auto-layout but no children. Delete them or add content.",
   "stale-text-name": "These text nodes have layer names that don't match their content. Use set_node_properties to rename, or leave if intentional.",
-  "no-text-property": "Use add_component_property to create a TEXT property on the component set, then set_node_properties with componentPropertyReferences: {characters: \"PropertyKey#id\"} to bind.",
+  "no-text-property": "Use components(method: \"update\") to create a TEXT property on the component set, then set_node_properties with componentPropertyReferences: {characters: \"PropertyKey#id\"} to bind.",
   // ── WCAG fix instructions ──
   "wcag-contrast": "Adjust fill or background to meet AA (4.5:1, 3:1 large text).",
   "wcag-contrast-enhanced": "Adjust to meet AAA (7:1, 4.5:1 large text).",
@@ -732,75 +717,7 @@ async function fixAutolayoutSingle(p: any): Promise<FixAutolayoutResult | FixAut
   return { layoutMode: direction };
 }
 
-async function fixShapeToFrameSingle(p: any): Promise<FixShapeToFrameResult> {
-  const shape = await figma.getNodeByIdAsync(p.nodeId);
-  if (!shape) throw new Error(`Node not found: ${p.nodeId}`);
-  if (!isShape(shape)) throw new Error(`Node ${p.nodeId} is ${shape.type}, not a shape (RECTANGLE, ELLIPSE, etc.)`);
-
-  const parent = shape.parent;
-  if (!parent || !("children" in parent)) throw new Error(`Shape has no valid parent`);
-
-  const s = shape as any;
-  const frame = figma.createFrame();
-  frame.name = s.name || "Container";
-  frame.x = s.x;
-  frame.y = s.y;
-  frame.resize(s.width, s.height);
-
-  // Copy visual properties
-  if (s.fills) frame.fills = s.fills;
-  if (s.strokes) frame.strokes = s.strokes;
-  if (s.strokeWeight !== undefined) frame.strokeWeight = s.strokeWeight;
-  if (s.strokeAlign) frame.strokeAlign = s.strokeAlign;
-  if (s.opacity !== undefined) frame.opacity = s.opacity;
-  if (s.cornerRadius !== undefined && s.cornerRadius !== figma.mixed) {
-    frame.cornerRadius = s.cornerRadius;
-  } else if ("topLeftRadius" in s) {
-    frame.topLeftRadius = s.topLeftRadius;
-    frame.topRightRadius = s.topRightRadius;
-    frame.bottomRightRadius = s.bottomRightRadius;
-    frame.bottomLeftRadius = s.bottomLeftRadius;
-  }
-  if (s.effects) frame.effects = s.effects;
-  if (s.blendMode) frame.blendMode = s.blendMode;
-  frame.clipsContent = true;
-
-  // Insert frame at the shape's position in parent
-  const shapeIndex = (parent as any).children.indexOf(shape);
-  (parent as any).insertChild(shapeIndex, frame);
-
-  // Adopt overlapping siblings if requested (default: true)
-  const adoptChildren = p.adoptChildren !== false;
-  const adopted: string[] = [];
-  if (adoptChildren) {
-    const shapeBounds = { x: s.x, y: s.y, width: s.width, height: s.height };
-    const siblings = (parent as any).children as SceneNode[];
-    const toAdopt: SceneNode[] = [];
-    for (const sib of siblings) {
-      if (sib.id === shape.id || sib.id === frame.id) continue;
-      if (!("x" in sib) || !("width" in sib)) continue;
-      const sx = (sib as any).x, sy = (sib as any).y;
-      const sw = (sib as any).width, sh = (sib as any).height;
-      if (sx >= shapeBounds.x && sy >= shapeBounds.y
-        && sx + sw <= shapeBounds.x + shapeBounds.width
-        && sy + sh <= shapeBounds.y + shapeBounds.height) {
-        toAdopt.push(sib);
-      }
-    }
-    for (const child of toAdopt) {
-      (child as any).x -= frame.x;
-      (child as any).y -= frame.y;
-      frame.appendChild(child);
-      adopted.push(child.id);
-    }
-  }
-
-  shape.remove();
-  return { id: frame.id, adoptedChildren: adopted };
-}
-
 export const figmaHandlers: Record<string, (params: any) => Promise<any>> = {
   lint_node: lintNodeHandler,
   lint_fix_autolayout: (p) => batchHandler(p, fixAutolayoutSingle),
-  lint_fix_replace_shape_with_frame: (p) => batchHandler(p, fixShapeToFrameSingle),
 };

@@ -1,0 +1,160 @@
+/**
+ * Shared endpoint infrastructure.
+ *
+ * Every resource endpoint follows the same contract:
+ *   create  → items[{...}]                        → { results: [{id}, ...] }
+ *   get     → { id, fields? }                     → resource object (field-filtered)
+ *   list    → { filters?, fields?, offset, limit } → { totalCount, returned, offset, limit, items: [...] }
+ *   update  → items[{...}]                        → { results: ["ok", ...] }
+ *   delete  → { id } or items[{id}]               → "ok" or { results: ["ok", ...] }
+ *
+ * MCP side:  endpointSchema() + registerEndpoint()
+ * Figma side: createDispatcher() + paginate()
+ */
+
+import { z } from "zod";
+import { flexJson } from "../utils/coercion";
+import type { McpServer, SendCommandFn } from "./types";
+import { mcpJson, mcpError } from "./types";
+
+// ─── Method Types ────────────────────────────────────────────────
+
+export type EndpointMethod = "create" | "get" | "list" | "update" | "delete";
+
+// ─── Response Types ──────────────────────────────────────────────
+
+/** Batch response envelope (create, update, delete). Produced by batchHandler. */
+export interface BatchResponse<T = { id: string }> {
+  results: Array<T | "ok" | { error: string }>;
+  warnings?: string[];
+  deferred?: string;
+}
+
+/** Paginated list response envelope. */
+export interface ListResponse<T = Record<string, any>> {
+  totalCount: number;
+  returned: number;
+  offset: number;
+  limit: number;
+  items: T[];
+}
+
+// ─── Discriminated Param Types ───────────────────────────────────
+//
+// Each endpoint specializes these with its own create/update item
+// types and list filters. Example:
+//
+//   type StyleParams = EndpointParams<StyleCreateItem, StyleUpdateItem, { type?: string }>;
+//
+
+export type EndpointParams<
+  TCreate = Record<string, any>,
+  TUpdate = Record<string, any>,
+  TListFilters = Record<string, never>,
+> =
+  | { method: "create"; items: TCreate[] }
+  | { method: "get"; id: string; fields?: string[] }
+  | ({ method: "list"; fields?: string[]; offset?: number; limit?: number } & TListFilters)
+  | { method: "update"; items: TUpdate[] }
+  | { method: "delete"; id?: string; items?: Array<{ id: string }> };
+
+// ─── Helpers ────────────────────────────────────────────────────
+
+/**
+ * Top-level field filter for get/list responses.
+ * Always preserves identity fields (id, name, type).
+ * Pass ["*"] to return all fields.
+ */
+export function pickFields(obj: Record<string, any>, fields: string[]): Record<string, any> {
+  if (fields.includes("*")) return obj;
+  const keep = new Set([...fields, "id", "name", "type"]);
+  const out: Record<string, any> = {};
+  for (const key of Object.keys(obj)) {
+    if (keep.has(key)) out[key] = obj[key];
+  }
+  return out;
+}
+
+/**
+ * Paginate an array of items. Default limit: 100.
+ * Call from list handlers after assembling the full result set.
+ */
+export function paginate<T>(items: T[], offset = 0, limit = 100): ListResponse<T> {
+  const sliced = items.slice(offset, offset + limit);
+  return { totalCount: items.length, returned: sliced.length, offset, limit, items: sliced };
+}
+
+// ─── Schema Builder ──────────────────────────────────────────────
+
+/**
+ * Build standard endpoint Zod schema fields.
+ *
+ * Always includes `method`. Auto-adds:
+ * - `id` when get/delete are in the method list
+ * - `fields` when get or list are in the method list
+ * - `offset`/`limit` when list is in the method list
+ * Merge endpoint-specific fields (items, list filters) via `extra`.
+ */
+export function endpointSchema(
+  methods: string[],
+  extra?: Record<string, z.ZodTypeAny>,
+): Record<string, z.ZodTypeAny> {
+  const schema: Record<string, z.ZodTypeAny> = {
+    method: z.enum(methods as [string, ...string[]]),
+  };
+  if (methods.includes("get") || methods.includes("delete")) {
+    schema.id = z.string().optional().describe("Resource ID (get, delete)");
+  }
+  if (methods.includes("get") || methods.includes("list")) {
+    schema.fields = flexJson(z.array(z.string())).optional()
+      .describe('Property whitelist (get/list). Identity fields (id, name, type) always included. Omit for stubs on list, full detail on get. Pass ["*"] for all fields.');
+  }
+  if (methods.includes("list")) {
+    schema.offset = z.coerce.number().optional().describe("Skip N items for pagination (default 0)");
+    schema.limit = z.coerce.number().optional().describe("Max items per page (default 100)");
+  }
+  return { ...schema, ...extra };
+}
+
+// ─── MCP Registration ────────────────────────────────────────────
+
+/**
+ * Register a CRUD endpoint tool on the MCP server.
+ * Handles JSON serialization and error wrapping uniformly.
+ */
+export function registerEndpoint(
+  server: McpServer,
+  sendCommand: SendCommandFn,
+  name: string,
+  description: string,
+  schema: Record<string, z.ZodTypeAny>,
+) {
+  server.tool(name, description, schema, async (params: any) => {
+    try { return mcpJson(await sendCommand(name, params)); }
+    catch (e) { return mcpError(`${name} error`, e); }
+  });
+}
+
+// ─── Figma Dispatcher ────────────────────────────────────────────
+
+type MethodHandlers = Record<string, (params: any) => Promise<any>>;
+
+/**
+ * Create a Figma handler that dispatches on `params.method`.
+ * Only methods with registered handlers are allowed.
+ * Automatically applies `fields` filtering on get responses.
+ */
+export function createDispatcher(handlers: MethodHandlers) {
+  const supported = Object.keys(handlers).join(", ");
+  return async (params: any): Promise<any> => {
+    const method = params.method as EndpointMethod;
+    const handler = handlers[method];
+    if (!handler) throw new Error(`Method '${method}' not supported. Available: ${supported}`);
+    let result = await handler(params);
+    // Auto-apply fields filtering on get responses (full detail by default)
+    if (method === "get" && params.fields?.length && result && typeof result === "object") {
+      result = pickFields(result, params.fields);
+    }
+    return result;
+  };
+}

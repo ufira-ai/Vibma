@@ -31,11 +31,9 @@ const SKIP_FOCUS = new Set([
   "join", "set_selection", "set_viewport", "zoom_into_view", "set_focus",
   "set_current_page", "create_page", "rename_page", "delete_node",
   "get_document_info", "get_current_page", "get_pages", "get_selection",
-  "read_my_design", "get_node_info", "get_node_css", "get_available_fonts",
-  "get_component_by_id", "get_instance_overrides", "get_styles",
-  "get_style_by_id", "get_local_variables", "get_local_variable_collections",
-  "get_variable_by_id", "get_variable_collection_by_id",
-  "search_nodes", "search_components", "scan_text_nodes", "export_node_as_image",
+  "get_node_info", "get_available_fonts",
+  "variable_collections", "variables",
+  "search_nodes", "scan_text_nodes", "export_node_as_image",
   "lint_node", "get_node_variables", "ping",
 ]);
 

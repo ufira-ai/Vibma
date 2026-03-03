@@ -56,7 +56,7 @@ export const colorRgba = z.preprocess((v) => {
   a: z.coerce.number().min(0).max(1).optional(),
 })).describe('Hex "#FF0000" or {r,g,b,a?} with values 0-1.');
 
-/** Single effect entry — shared by set_effects and create_effect_style */
+/** Single effect entry — shared by set_effects and styles create */
 export const effectEntry = z.object({
   type: z.enum(["DROP_SHADOW", "INNER_SHADOW", "LAYER_BLUR", "BACKGROUND_BLUR"]),
   color: flexJson(colorRgba).optional(),

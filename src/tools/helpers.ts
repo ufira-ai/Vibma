@@ -152,7 +152,7 @@ export async function suggestStyleForColor(
     }
   }
 
-  return `Hardcoded color ${hex} has no matching paint style or color variable. Create one with create_paint_style or create_variable, then use ${styleParam} for design token consistency.`;
+  return `Hardcoded color ${hex} has no matching paint style or color variable. Create one with styles(method: "create", type: "paint") or variables(method: "create"), then use ${styleParam} for design token consistency.`;
 }
 
 /**
@@ -170,5 +170,5 @@ export async function suggestTextStyle(
     const names = matching.map(s => s.name).slice(0, 5);
     return `Manual font (${fontSize}px / ${fontWeight}w) — text styles at same size: [${names.join(", ")}]. Use textStyleName to link to a design token.`;
   }
-  return `Manual font (${fontSize}px / ${fontWeight}w) has no text style. Create one with create_text_style, then use textStyleName for design token consistency.`;
+  return `Manual font (${fontSize}px / ${fontWeight}w) has no text style. Create one with styles(method: "create", type: "text"), then use textStyleName for design token consistency.`;
 }
