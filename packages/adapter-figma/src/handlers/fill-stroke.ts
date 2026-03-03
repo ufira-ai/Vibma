@@ -17,6 +17,11 @@ export async function setFillSingle(p: any): Promise<any> {
   if (!node) throw new Error(`Node not found: ${p.nodeId}`);
   if (!("fills" in node)) throw new Error(`Node does not support fills: ${p.nodeId}`);
 
+  if (p.clear) {
+    (node as any).fills = [];
+    return {};
+  }
+
   if (p.styleName) {
     const { match, available } = await resolveStyle(p.styleName);
     if (match) {

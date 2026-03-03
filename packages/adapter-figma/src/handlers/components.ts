@@ -32,20 +32,20 @@ async function bindStrokeVariable(node: any, variableId: string, fallbackColor?:
   return true;
 }
 
-function countTextNodes(node: BaseNode): number {
-  if (node.type === "TEXT") return 1;
+function findTextNodes(node: BaseNode): TextNode[] {
+  if (node.type === "TEXT") return [node as TextNode];
   if ("children" in node) {
-    let count = 0;
-    for (const child of (node as any).children) count += countTextNodes(child);
-    return count;
+    const result: TextNode[] = [];
+    for (const child of (node as any).children) result.push(...findTextNodes(child));
+    return result;
   }
-  return 0;
+  return [];
 }
 
 function warnUnboundText(comp: ComponentNode, hints: string[]) {
-  const textCount = countTextNodes(comp);
-  if (textCount > 0) {
-    hints.push(`Component has ${textCount} text node${textCount > 1 ? "s" : ""} — use components(method: "update") to expose text as editable properties on instances.`);
+  const textNodes = findTextNodes(comp);
+  if (textNodes.length > 0) {
+    hints.push(`Component has ${textNodes.length} text node${textNodes.length > 1 ? "s" : ""} — use components(method: "create", type: "from_node", exposeText: true) or components(method: "update") to expose text as editable properties on instances.`);
   }
 }
 
@@ -162,9 +162,27 @@ async function fromNodeSingle(p: any) {
   const comp = figma.createComponentFromNode(node as SceneNode);
 
   const hints: string[] = [];
-  warnUnboundText(comp, hints);
+  const exposedProperties: Record<string, string> = {};
+
+  if (p.exposeText) {
+    const textNodes = findTextNodes(comp);
+    for (const textNode of textNodes) {
+      const propName = textNode.name;
+      const defaultValue = textNode.characters;
+      comp.addComponentProperty(propName, "TEXT", defaultValue);
+      const defs = comp.componentPropertyDefinitions;
+      const key = Object.keys(defs).find(k => k === propName || k.startsWith(propName + "#"));
+      if (key) {
+        (textNode as any).componentPropertyReferences = { characters: key };
+        exposedProperties[key] = defaultValue;
+      }
+    }
+  } else {
+    warnUnboundText(comp, hints);
+  }
 
   const result: any = { id: comp.id };
+  if (Object.keys(exposedProperties).length > 0) result.exposedProperties = exposedProperties;
   if (hints.length > 0) result.warning = hints.join(" ");
   return result;
 }
@@ -182,7 +200,15 @@ async function combineSingle(p: any) {
     ? comps[0].parent : figma.currentPage;
   const set = figma.combineAsVariants(comps, parent as any);
   if (p.name) set.name = p.name;
-  return { id: set.id };
+  // Check for unbound text nodes across all variants
+  const unboundCount = comps.reduce((n, c) => {
+    return n + findTextNodes(c).filter(t => !(t as any).componentPropertyReferences?.characters).length;
+  }, 0);
+  const result: any = { id: set.id };
+  if (unboundCount > 0) {
+    result.warning = `${unboundCount} text node${unboundCount > 1 ? "s" : ""} across variants not exposed as properties — instances cannot edit this text via properties. Fix: components(method: "update", items: [{id: "${set.id}", propertyName: "<textNodeName>", type: "TEXT", defaultValue: "<text>"}])`;
+  }
+  return result;
 }
 
 async function createComponentDispatch(params: any) {
@@ -230,7 +256,21 @@ async function addComponentPropertySingle(p: any) {
   if (!node) throw new Error(`Node not found: ${p.id}`);
   if (node.type !== "COMPONENT" && node.type !== "COMPONENT_SET") throw new Error(`Node ${p.id} is a ${node.type}, not a COMPONENT or COMPONENT_SET.`);
   (node as any).addComponentProperty(p.propertyName, p.type, p.defaultValue);
-  return {};
+  const defs = (node as any).componentPropertyDefinitions;
+  const key = Object.keys(defs).find(k => k === p.propertyName || k.startsWith(p.propertyName + "#"));
+  if (key && p.type === "TEXT") {
+    // Auto-bind: find matching text nodes and set componentPropertyReferences
+    const roots = node.type === "COMPONENT_SET"
+      ? (node as any).children.filter((c: any) => c.type === "COMPONENT")
+      : [node];
+    for (const root of roots) {
+      const textNode = findTextNodes(root).find(
+        (t: TextNode) => t.name === p.propertyName || t.characters === p.defaultValue
+      );
+      if (textNode) (textNode as any).componentPropertyReferences = { characters: key };
+    }
+  }
+  return key ? { propertyKey: key } : {};
 }
 
 // -- instances handlers --

@@ -14,9 +14,13 @@ export async function moveSingle(p: any) {
 export async function resizeSingle(p: any) {
   const node = await figma.getNodeByIdAsync(p.nodeId);
   if (!node) throw new Error(`Node not found: ${p.nodeId}`);
+  const savedH = "layoutSizingHorizontal" in node ? (node as any).layoutSizingHorizontal : undefined;
+  const savedV = "layoutSizingVertical" in node ? (node as any).layoutSizingVertical : undefined;
   if ("resize" in node) (node as any).resize(p.width, p.height);
   else if ("resizeWithoutConstraints" in node) (node as any).resizeWithoutConstraints(p.width, p.height);
   else throw new Error(`Node does not support resize: ${p.nodeId}`);
+  if (savedH === "HUG") (node as any).layoutSizingHorizontal = "HUG";
+  if (savedV === "HUG") (node as any).layoutSizingVertical = "HUG";
   return {};
 }
 

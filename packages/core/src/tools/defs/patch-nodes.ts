@@ -26,7 +26,8 @@ const patchNodeItem = z.object({
   fill: flexJson(z.object({
     color: flexJson(S.colorRgba).optional(),
     styleName: z.string().optional().describe("Paint style name (preferred over color)"),
-  })).optional().describe("Fill color or style"),
+    clear: flexBool(z.boolean()).optional().describe("Set true to remove all fills"),
+  })).optional().describe("Fill color, style, or clear"),
 
   stroke: flexJson(z.object({
     color: flexJson(S.colorRgba).optional(),

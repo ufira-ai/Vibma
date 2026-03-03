@@ -34,6 +34,7 @@ const componentItem = z.object({
 
 const fromNodeItem = z.object({
   nodeId: S.nodeId,
+  exposeText: flexBool(z.boolean()).default(true).describe("Auto-expose text children as editable TEXT properties and bind them (default: true). Set false to skip."),
 });
 
 const combineItem = z.object({
@@ -78,17 +79,17 @@ export const tools: ToolDef[] = [
       `CRUD endpoint for components.
   create  → {type, items, depth?} → {results: [{id}, ...]}
     type 'component': create from scratch with layout/style params
-    type 'from_node': convert existing nodes to components
+    type 'from_node': convert existing nodes to components. Text children are auto-exposed as editable properties by default (exposeText: true) — instances can set text directly via properties.
     type 'variant_set': combine components into variant sets
   get     → {id, fields?} → component object (full detail, field-filterable)
   list    → {name?, setsOnly?, fields?, offset?, limit?} → paginated stubs
-  update  → {items: [{id, propertyName, type, defaultValue}]} → {results: ['ok', ...]}`,
+  update  → {items: [{id, propertyName, type, defaultValue}]} → creates property AND binds matching text node automatically`,
     schema: (caps) => endpointSchema(
       ["create", "get", "list", "update"],
       caps,
       {
         items: flexJson(z.array(z.any())).optional()
-          .describe("create (component): [{name, parentId?, ...layout}]. create (from_node): [{nodeId}]. create (variant_set): [{componentIds, name?}]. update: [{id, propertyName, type, defaultValue}]."),
+          .describe("create (component): [{name, parentId?, ...layout}]. create (from_node): [{nodeId, exposeText?}]. create (variant_set): [{componentIds, name?}]. update: [{id, propertyName, type, defaultValue}]."),
         type: z.enum(["component", "from_node", "variant_set"]).optional()
           .describe("Create type. Required for create: 'component' (from scratch), 'from_node' (convert existing), 'variant_set' (combine as variants)."),
         depth: S.depth,
