@@ -14,7 +14,7 @@ export default defineConfig({
   format: ['cjs', 'esm'],
   dts: true,
   clean: true,
-  outDir: 'dist',
+  outDir: '../../dist',
   target: 'node18',
   sourcemap: true,
   minify: false,
