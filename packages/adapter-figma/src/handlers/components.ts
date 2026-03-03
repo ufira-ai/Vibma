@@ -155,17 +155,11 @@ async function createComponentSingle(p: any) {
 async function fromNodeSingle(p: any) {
   const node = await figma.getNodeByIdAsync(p.nodeId);
   if (!node) throw new Error(`Node not found: ${p.nodeId}`);
-  if (!("parent" in node) || !node.parent) throw new Error("Node has no parent");
-  const parent = node.parent;
-  const index = (parent as any).children.indexOf(node);
-  const comp = figma.createComponent();
-  comp.name = node.name;
-  if ("width" in node && "height" in node) comp.resize((node as any).width, (node as any).height);
-  if ("x" in node && "y" in node) { comp.x = (node as any).x; comp.y = (node as any).y; }
-  const clone = (node as any).clone(); clone.x = 0; clone.y = 0;
-  comp.appendChild(clone);
-  (parent as any).insertChild(index, comp);
-  node.remove();
+  if (node.type === "DOCUMENT" || node.type === "PAGE") throw new Error(`Cannot convert ${node.type} to a component.`);
+  if (node.type === "COMPONENT") throw new Error(`Node "${node.name}" is already a COMPONENT.`);
+  if (node.type === "COMPONENT_SET") throw new Error(`Node "${node.name}" is already a COMPONENT_SET. Use components(method: "get") to inspect it.`);
+  if (node.type === "INSTANCE") throw new Error(`Node "${node.name}" is an INSTANCE. Detach it first with patch_nodes, or use the source component directly.`);
+  const comp = figma.createComponentFromNode(node as SceneNode);
 
   const hints: string[] = [];
   warnUnboundText(comp, hints);
