@@ -4,7 +4,7 @@
 
 > **No cloning, no building.** Install the tunnel and MCP server from npm, grab the plugin from GitHub, and connect.
 >
-> Prefer full source control? See the [clone-and-build guide](./DRAGME.md).
+> Prefer full source control? See the [clone-and-build guide](https://github.com/ufira-ai/Vibma/blob/main/DRAGME.md).
 
 ## Prerequisites
 

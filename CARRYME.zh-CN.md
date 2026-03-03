@@ -4,7 +4,7 @@
 
 > **无需克隆，无需构建。** 从 npm 安装 tunnel 和 MCP server，从 GitHub 获取插件，即可连接。
 >
-> 想要完全掌控源码？请参阅[克隆构建指南](./DRAGME.zh-CN.md)。
+> 想要完全掌控源码？请参阅[克隆构建指南](https://github.com/ufira-ai/Vibma/blob/main/DRAGME.zh-CN.md)。
 
 ## 前提条件
 

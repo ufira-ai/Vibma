@@ -309,9 +309,6 @@ try {
   // Skip H1
   if (linesZh[startIdxZh]?.startsWith("# ")) startIdxZh++;
   if (linesZh[startIdxZh]?.trim() === "") startIdxZh++;
-  // Skip intro blockquote
-  while (startIdxZh < linesZh.length && linesZh[startIdxZh]?.startsWith(">")) startIdxZh++;
-  if (linesZh[startIdxZh]?.trim() === "") startIdxZh++;
   const bodyZh = linesZh.slice(startIdxZh).join("\n").trim();
 
   const zhGettingStartedMdx = [
@@ -352,9 +349,6 @@ while (startIdx < lines.length && lines[startIdx]?.startsWith(">")) startIdx++;
 if (lines[startIdx]?.trim() === "") startIdx++;
 // Skip H1 line
 if (lines[startIdx]?.startsWith("# ")) startIdx++;
-if (lines[startIdx]?.trim() === "") startIdx++;
-// Skip intro blockquote
-while (startIdx < lines.length && lines[startIdx]?.startsWith(">")) startIdx++;
 if (lines[startIdx]?.trim() === "") startIdx++;
 const body = lines.slice(startIdx).join("\n").trim();
 
