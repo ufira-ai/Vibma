@@ -24,7 +24,7 @@ export function registerTools(
     const timeout = tool.timeout;
     const format = tool.formatResponse ?? mcpJson;
 
-    server.tool(tool.name, tool.description, schema, async (params: any) => {
+    server.registerTool(tool.name, { description: tool.description, inputSchema: schema }, async (params: any) => {
       try {
         if (tool.validate) tool.validate(params);
         const result = await sendCommand(command, params, timeout);

@@ -1,9 +1,9 @@
 import type { McpServer } from "./types";
 
 export function registerPrompts(server: McpServer) {
-  server.prompt(
+  server.registerPrompt(
     "design_strategy",
-    "Best practices for working with Figma designs",
+    { description: "Best practices for working with Figma designs" },
     () => ({
       messages: [{
         role: "assistant" as const,
@@ -50,9 +50,9 @@ export function registerPrompts(server: McpServer) {
     })
   );
 
-  server.prompt(
+  server.registerPrompt(
     "read_design_strategy",
-    "Best practices for reading Figma designs",
+    { description: "Best practices for reading Figma designs" },
     () => ({
       messages: [{
         role: "assistant" as const,
@@ -70,9 +70,9 @@ export function registerPrompts(server: McpServer) {
     })
   );
 
-  server.prompt(
+  server.registerPrompt(
     "text_replacement_strategy",
-    "Systematic approach for replacing text in Figma designs",
+    { description: "Systematic approach for replacing text in Figma designs" },
     () => ({
       messages: [{
         role: "assistant" as const,
@@ -198,9 +198,9 @@ Remember that text is never just text—it's a core design element that must wor
     })
   );
 
-  server.prompt(
+  server.registerPrompt(
     "swap_overrides_instances",
-    "Guide to swap instance overrides between instances",
+    { description: "Guide to swap instance overrides between instances" },
     () => ({
       messages: [{
         role: "assistant" as const,

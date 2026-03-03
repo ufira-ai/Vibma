@@ -301,10 +301,12 @@ const server = new McpServer({
 });
 
 // Register the join_channel tool directly (it uses local state)
-server.tool(
+server.registerTool(
   "join_channel",
-  "REQUIRED FIRST STEP: Join a channel before using any other tool. The channel name is shown in the Figma plugin UI (defaults to 'vibma' if not customised). After joining, call `ping` to verify the Figma plugin is connected. All subsequent commands are sent through this channel.",
-  { channel: z.string().describe("The channel name displayed in the Figma plugin panel. Defaults to 'vibma' if omitted.").default("vibma") },
+  {
+    description: "REQUIRED FIRST STEP: Join a channel before using any other tool. The channel name is shown in the Figma plugin UI (defaults to 'vibma' if not customised). After joining, call `ping` to verify the Figma plugin is connected. All subsequent commands are sent through this channel.",
+    inputSchema: { channel: z.string().describe("The channel name displayed in the Figma plugin panel. Defaults to 'vibma' if omitted.").default("vibma") },
+  },
   async ({ channel }: any) => {
     try {
       await joinChannel(channel);
@@ -327,10 +329,11 @@ server.tool(
 );
 
 // Debug tool: inspect relay channel occupancy
-server.tool(
+server.registerTool(
   "channel_info",
-  "Debug: inspect which clients (MCP, plugin) are connected to each relay channel. Useful for diagnosing connection issues. Does not require an active channel.",
-  {},
+  {
+    description: "Debug: inspect which clients (MCP, plugin) are connected to each relay channel. Useful for diagnosing connection issues. Does not require an active channel.",
+  },
   async () => {
     try {
       const url = serverUrl === "localhost"
@@ -354,11 +357,13 @@ server.tool(
 );
 
 // Factory-reset the tunnel — clears channel on relay via HTTP, then reconnects
-server.tool(
+server.registerTool(
   "reset_tunnel",
-  "DESTRUCTIVE: Factory-reset a channel on the relay via HTTP, disconnecting ALL occupants (MCP + Figma plugin). Only use this when the channel is stuck or occupied by another MCP — do NOT use it just to reconnect yourself (use `join_channel` instead). After reset, ask the user to reopen the Vibma plugin in Figma, then call `join_channel` and `ping`.",
   {
-    channel: z.string().describe("Channel to reset. Defaults to 'vibma'.").default("vibma"),
+    description: "DESTRUCTIVE: Factory-reset a channel on the relay via HTTP, disconnecting ALL occupants (MCP + Figma plugin). Only use this when the channel is stuck or occupied by another MCP — do NOT use it just to reconnect yourself (use `join_channel` instead). After reset, ask the user to reopen the Vibma plugin in Figma, then call `join_channel` and `ping`.",
+    inputSchema: {
+      channel: z.string().describe("Channel to reset. Defaults to 'vibma'.").default("vibma"),
+    },
   },
   async ({ channel }: { channel: string }) => {
     const targetChannel = channel || currentChannel || "vibma";

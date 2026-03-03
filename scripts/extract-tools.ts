@@ -64,8 +64,8 @@ const capturedTools: ToolEntry[] = [];
 const capturedPrompts: PromptEntry[] = [];
 
 const mockServer = {
-  tool(name: string, description: string, schema: Record<string, any>, _handler: any) {
-    // Convert Zod schema to JSON Schema
+  registerTool(name: string, config: { description?: string; inputSchema?: Record<string, any> }, _handler: any) {
+    const schema = config.inputSchema ?? {};
     let jsonSchema: Record<string, unknown> = {};
     try {
       if (schema && Object.keys(schema).length > 0) {
@@ -73,7 +73,6 @@ const mockServer = {
           io: "input",
           unrepresentable: "any",
         });
-        // Remove the $schema key — not needed in manifest
         delete jsonSchema.$schema;
       }
     } catch (e) {
@@ -84,11 +83,11 @@ const mockServer = {
     const domain = toolToDomain.get(name) ?? "uncategorized";
     const tier = toolTierMap.get(name) ?? "read";
     const endpoint = toolEndpointSet.has(name);
-    capturedTools.push({ name, description, schema: jsonSchema, ...extractResponse(name), domain, tier, endpoint });
+    capturedTools.push({ name, description: config.description ?? "", schema: jsonSchema, ...extractResponse(name), domain, tier, endpoint });
   },
 
-  prompt(name: string, description: string, _handler: any) {
-    capturedPrompts.push({ name, description });
+  registerPrompt(name: string, config: { description?: string }, _handler: any) {
+    capturedPrompts.push({ name, description: config.description ?? "" });
   },
 
   resource() {},
