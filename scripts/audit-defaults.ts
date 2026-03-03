@@ -7,7 +7,7 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
-import { registerAllTools } from "../src/tools/mcp-registry";
+import { registerAllTools } from "../packages/core/src/tools/mcp-registry";
 import { z } from "zod";
 
 const server = new McpServer({ name: "VibmaMCP", version: "1.0.0" });
