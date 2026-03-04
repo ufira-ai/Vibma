@@ -23,15 +23,15 @@ Vibma 兼容任何支持 MCP 的大语言模型，但只有 **Claude Opus 4.6** 
 
 | | 指南 | 适用场景 |
 |---|---|---|
-| 📦 | [**DRAGME.md**](./DRAGME.md) | 克隆仓库，从源码构建，完全掌控 |
-| ☁️ | [**CARRYME.md**](./CARRYME.md) | 从 npm 安装，无需克隆 |
-| 📖 | [**Docs**](https://ufira-ai.github.io/Vibma/) | 工具参考文档，包含参数、响应结构和示例 |
+| 📦 | [**DRAGME.md**](./DRAGME.zh-CN.md) | 克隆仓库，从源码构建，完全掌控 |
+| ☁️ | [**CARRYME.md**](./CARRYME.zh-CN.md) | 从 npm 安装，无需克隆 |
+| 📖 | [**Docs**](https://ufira-ai.github.io/Vibma/zh-CN) | 工具参考文档，包含参数、响应结构和示例 |
 
 或者直接把下面这段话发给你的 AI 代理，让它自行完成设置：
 
 ```
-Set up Vibma so I can vibe-design in Figma.
-Follow the instructions at https://raw.githubusercontent.com/ufira-ai/vibma/refs/heads/main/CARRYME.md
+帮我设置好Vibma
+指令在这里： https://raw.githubusercontent.com/ufira-ai/vibma/refs/heads/main/CARRYME.md
 ```
 
 ## 社区
