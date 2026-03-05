@@ -41,11 +41,17 @@ jobs:
           fi
 
       # ── npm publish (trusted publishing via OIDC) ────────────────────
+      # NODE_AUTH_TOKEN is intentionally empty — trusted publishing uses
+      # the OIDC identity token (id-token: write) instead of a static token.
       - name: Publish @ufira/vibma
+        env:
+          NODE_AUTH_TOKEN: ""
         run: npm publish -w packages/core --provenance --access public --tag ${{ steps.dist-tag.outputs.tag }}
 
       - name: Publish @ufira/vibma-tunnel
         continue-on-error: true
+        env:
+          NODE_AUTH_TOKEN: ""
         run: npm publish -w packages/tunnel --provenance --access public --tag ${{ steps.dist-tag.outputs.tag }}
 
       # ── Zip release assets ───────────────────────────────────────────
