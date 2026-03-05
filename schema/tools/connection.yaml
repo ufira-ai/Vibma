@@ -1,0 +1,61 @@
+endpoint: connection
+domain: connection
+description: "Manage the Figma plugin connection."
+description_zh: "管理 Figma 插件连接。"
+
+methods:
+  create:
+    command: join_channel
+    tier: read
+    inline: true
+    description: Join a relay channel (required first step before any other tool)
+    params:
+      channel:
+        type: string
+        default: vibma
+        description: The channel name displayed in the Figma plugin panel. Defaults to 'vibma' if omitted.
+    response:
+      type: string
+      description: Confirmation message with channel and port
+      example: 'Joined channel "vibma" on port 3055. Call `ping` now to verify the Figma plugin is connected.'
+
+  get:
+    command: ping
+    tier: read
+    timeout: 5000
+    description: Verify end-to-end connection to Figma
+    params: {}
+    response:
+      type: object
+      properties:
+        status: { type: string, const: pong }
+        documentName: { type: string, description: Active Figma document name }
+        currentPage: { type: string, description: Current page name }
+        timestamp: { type: number, description: Unix timestamp }
+      required: [status, documentName, currentPage, timestamp]
+      example: { status: pong, documentName: Design System, currentPage: Components, timestamp: 1709337600 }
+
+  list:
+    command: channel_info
+    tier: read
+    inline: true
+    description: Inspect which clients (MCP, plugin) are connected to each channel
+    params: {}
+    response:
+      type: object
+      description: Map of channel names to their connected clients
+
+  delete:
+    command: reset_tunnel
+    tier: edit
+    inline: true
+    description: Factory-reset a channel, disconnecting ALL clients
+    params:
+      channel:
+        type: string
+        default: vibma
+        description: Channel to reset. Defaults to 'vibma'.
+    response:
+      type: string
+      description: Confirmation of tunnel reset
+      example: "Channel vibma reset"

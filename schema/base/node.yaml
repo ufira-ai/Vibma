@@ -1,0 +1,182 @@
+# Base methods inherited by all scene-graph endpoints (frames, text, shapes, components, instances)
+# The compiler merges these into each endpoint that declares `extends: node`
+
+base: node
+
+notes: |
+  // depth: omit → id+name stubs | 0 → props + child stubs | N → recurse N | -1 → full tree
+  // fields: whitelist e.g. ["fills","opacity"] — id, name, type always included
+  // Color: hex "#FF0000" or {r: 0-1, g: 0-1, b: 0-1, a?: 0-1}
+  interface Node {
+    id: string; name: string; type: string;
+    visible?: boolean;       // omitted when true
+    opacity?: number;        // omitted when 1
+    absoluteBoundingBox: { x: number; y: number; width: number; height: number };
+    fills?: Paint[];         // solid: {type: "SOLID", color: {r, g, b, a}}
+    strokes?: Paint[];
+    effects?: Effect[];      // DROP_SHADOW | INNER_SHADOW | LAYER_BLUR | BACKGROUND_BLUR
+    children?: NodeStub[];   // stubs: {id, name, type} — use depth to expand
+  }
+  interface PatchItem {
+    id: string;
+    x?: number; y?: number; width?: number; height?: number;
+    opacity?: number; // 0-1
+    fill?: { color?: Color; styleName?: string; clear?: boolean };
+    stroke?: { color?: Color; weight?: number; styleName?: string };
+    cornerRadius?: { radius: number; corners?: [boolean, boolean, boolean, boolean] }; // [TL, TR, BR, BL]
+    effects?: { effects?: Effect[]; styleName?: string };
+    layout?: {
+      layoutMode?: "NONE" | "HORIZONTAL" | "VERTICAL";
+      paddingTop?: number; paddingRight?: number; paddingBottom?: number; paddingLeft?: number;
+      primaryAxisAlignItems?: "MIN" | "MAX" | "CENTER" | "SPACE_BETWEEN";
+      counterAxisAlignItems?: "MIN" | "MAX" | "CENTER" | "BASELINE";
+      layoutSizingHorizontal?: "FIXED" | "HUG" | "FILL";
+      layoutSizingVertical?: "FIXED" | "HUG" | "FILL";
+      itemSpacing?: number; counterAxisSpacing?: number;
+    };
+    text?: {
+      fontSize?: number; fontWeight?: number; fontColor?: Color;
+      textStyleId?: string; textStyleName?: string;
+      textAlignHorizontal?: "LEFT" | "CENTER" | "RIGHT" | "JUSTIFIED";
+      textAlignVertical?: "TOP" | "CENTER" | "BOTTOM";
+      textAutoResize?: "NONE" | "WIDTH_AND_HEIGHT" | "HEIGHT" | "TRUNCATE";
+    };
+    constraints?: { horizontal: "MIN" | "CENTER" | "MAX" | "STRETCH" | "SCALE"; vertical: "MIN" | "CENTER" | "MAX" | "STRETCH" | "SCALE" };
+    bindings?: { field: string; variableId: string }[]; // bind variables: field e.g. "fills/0/color", "opacity"
+    explicitMode?: { collectionId: string; modeId: string }; // pin variable mode on this node
+    properties?: Record<string, unknown>; // direct Figma API props (escape hatch)
+  }
+
+methods:
+  get:
+    # command auto-derived as {endpoint}.get
+    tier: read
+    description: Get serialized node data
+    params:
+      id:
+        $ref: nodeId
+        required: true
+      fields:
+        $ref: fields
+      depth:
+        $ref: depth
+    response:
+      type: object
+      description: Serialized node tree. Shape depends on depth parameter.
+      properties:
+        results: { type: array, tsType: "Node[]", description: Serialized node trees, items: { type: object } }
+        _truncated: { type: boolean, description: True when node budget exceeded }
+        _notice: { type: string, description: Human-readable truncation notice }
+      required: [results]
+
+  list:
+    # command auto-derived as {endpoint}.list
+    tier: read
+    description: Search for nodes
+    params:
+      query:
+        type: string
+        optional: true
+        description: Name search query (case-insensitive substring match)
+      types:
+        type: string[]
+        coerce: json
+        optional: true
+        description: Filter by node types (e.g. ["FRAME", "TEXT"])
+      parentId:
+        type: string
+        optional: true
+        description: Search only within this subtree
+      fields:
+        $ref: fields
+      offset:
+        $ref: offset
+      limit:
+        $ref: limit
+    response:
+      type: paginated
+      item:
+        type: object
+        properties:
+          id: { type: string, required: true }
+          name: { type: string, required: true }
+          type: { type: string, required: true }
+          parentId: { type: string, required: true }
+          parentName: { type: string }
+          bounds: { type: object, properties: { x: { type: number }, y: { type: number }, width: { type: number }, height: { type: number } } }
+
+  update:
+    # command auto-derived as {endpoint}.update
+    tier: edit
+    description: Patch node properties
+    params:
+      items:
+        type: array
+        coerce: json
+        required: true
+        tsType: "PatchItem[]"
+        description: "Array of {id, ...properties} to patch"
+        items:
+          type: object
+    response:
+      type: batch_mixed
+
+  delete:
+    # command auto-derived as {endpoint}.delete
+    tier: edit
+    description: Delete nodes
+    params:
+      id:
+        type: string
+        optional: true
+        description: Single node ID
+      items:
+        type: array
+        coerce: json
+        optional: true
+        description: "Batch: [{id}, ...]"
+        items:
+          type: object
+          properties:
+            id: { type: string }
+    response:
+      type: batch_ok
+
+  clone:
+    # command auto-derived as {endpoint}.clone
+    tier: create
+    description: Duplicate nodes
+    params:
+      id:
+        $ref: nodeId
+        required: true
+      parentId:
+        $ref: parentId
+      x:
+        $ref: xPos
+      y:
+        $ref: yPos
+      depth:
+        $ref: depth
+    response:
+      type: batch
+      item: { id: { type: string } }
+
+  reparent:
+    # command auto-derived as {endpoint}.reparent
+    tier: edit
+    description: Move nodes into a new parent
+    params:
+      items:
+        type: array
+        coerce: json
+        required: true
+        description: "Array of {id, parentId, index?}"
+        items:
+          type: object
+          properties:
+            id: { type: string, required: true }
+            parentId: { type: string, required: true }
+            index: { type: number, optional: true }
+    response:
+      type: batch_ok

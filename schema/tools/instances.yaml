@@ -1,0 +1,73 @@
+endpoint: instances
+domain: design-system
+description: "Create and manage component instances."
+description_zh: "创建和管理组件实例。"
+
+notes: |
+  interface InstanceCreateItem {
+    componentId: string;                     // component or component set ID
+    variantProperties?: Record<string, string>; // pick variant e.g. {"Style":"Secondary","Size":"Large"}
+    x?: number; y?: number; parentId?: string;
+  }
+  interface InstanceUpdateItem {
+    id: string;                              // instance node ID
+    properties: Record<string, string | boolean>; // key→value e.g. {"Label#1:0":"Click Me"}
+  }
+
+methods:
+  get:
+    tier: read
+    description: Get instance overrides and main component
+    params:
+      id:
+        type: string
+        required: true
+        description: "Instance node ID"
+      fields:
+        $ref: fields
+    response:
+      type: object
+      properties:
+        mainComponentId: { type: string }
+        overrides: { type: array }
+
+  create:
+    tier: create
+    description: Create component instances
+    params:
+      items:
+        type: array
+        coerce: json
+        required: true
+        tsType: "InstanceCreateItem[]"
+        description: "Array of {componentId, variantProperties?, x?, y?, parentId?}"
+        items:
+          type: object
+          properties:
+            componentId: { type: string, required: true, description: "Component or component set ID" }
+            variantProperties: { type: object, coerce: json, optional: true, description: 'Pick variant e.g. {"Style":"Secondary"}' }
+            x: { type: number, coerce: true, optional: true }
+            y: { type: number, coerce: true, optional: true }
+            parentId: { $ref: parentId }
+      depth: { $ref: depth }
+    response:
+      type: batch
+      item: { id: { type: string } }
+
+  update:
+    tier: edit
+    description: Set instance properties
+    params:
+      items:
+        type: array
+        coerce: json
+        required: true
+        tsType: "InstanceUpdateItem[]"
+        description: 'Array of {id, properties: {"Label#1:0":"text"}}'
+        items:
+          type: object
+          properties:
+            id: { type: string, required: true, description: "Instance node ID" }
+            properties: { type: object, coerce: json, required: true, description: "Property key→value map" }
+    response:
+      type: batch_mixed

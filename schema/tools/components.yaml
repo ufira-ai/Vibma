@@ -1,0 +1,136 @@
+endpoint: components
+domain: design-system
+description: "Create and manage reusable components and variant sets."
+description_zh: "创建和管理可复用组件和变体集。"
+
+notes: |
+  interface ComponentItem {
+    name: string; x?: number; y?: number; width?: number; height?: number; parentId?: string;
+    fillColor?: Color; fillStyleName?: string; fillVariableId?: string;
+    strokeColor?: Color; strokeStyleName?: string; strokeVariableId?: string;
+    strokeWeight?: number; cornerRadius?: number;
+    layoutMode?: "NONE"|"HORIZONTAL"|"VERTICAL"; layoutWrap?: "NO_WRAP"|"WRAP";
+    paddingTop?: number; paddingRight?: number; paddingBottom?: number; paddingLeft?: number;
+    primaryAxisAlignItems?: "MIN"|"MAX"|"CENTER"|"SPACE_BETWEEN";
+    counterAxisAlignItems?: "MIN"|"MAX"|"CENTER"|"BASELINE";
+    layoutSizingHorizontal?: "FIXED"|"HUG"|"FILL"; layoutSizingVertical?: "FIXED"|"HUG"|"FILL";
+    itemSpacing?: number;
+  }
+  interface FromNodeItem { nodeId: string; exposeText?: boolean } // default exposeText: true — auto-expose text as editable properties
+  interface VariantSetItem { componentIds: string[]; name?: string } // min 2 components
+  interface UpdatePropertyItem { id: string; propertyName: string; type: "BOOLEAN"|"TEXT"|"INSTANCE_SWAP"|"VARIANT"; defaultValue: string | boolean; preferredValues?: {type: "COMPONENT"|"COMPONENT_SET", key: string}[] }
+
+methods:
+  list:
+    tier: read
+    description: List components and component sets
+    params:
+      name:
+        type: string
+        optional: true
+        description: "Filter by name (case-insensitive substring)"
+      setsOnly:
+        type: boolean
+        coerce: true
+        optional: true
+        description: "If true, return only COMPONENT_SET nodes"
+      fields:
+        $ref: fields
+      offset:
+        $ref: offset
+      limit:
+        $ref: limit
+    response:
+      type: paginated
+      item:
+        type: object
+        properties:
+          id: { type: string, required: true }
+          name: { type: string, required: true }
+          type: { type: string, required: true }
+
+  get:
+    tier: read
+    description: Get component or component set detail
+    params:
+      id:
+        type: string
+        required: true
+        description: "Component or component set ID"
+      fields:
+        $ref: fields
+    response:
+      type: object
+      properties:
+        id: { type: string }
+        name: { type: string }
+        type: { type: string }
+        propertyDefinitions: { type: object }
+
+  create:
+    tier: create
+    description: Create components
+    discriminant: type
+    types:
+      component:
+        description: Create component from scratch with layout/style params
+        params:
+          name: { type: string, required: true, description: Component name }
+          parentId: { $ref: parentId }
+          x: { $ref: xPos }
+          y: { $ref: yPos }
+          width: { type: number, coerce: true, optional: true, description: "Width (default: 100)" }
+          height: { type: number, coerce: true, optional: true, description: "Height (default: 100)" }
+          fillColor: { $ref: color, optional: true, description: Fill color }
+          fillStyleName: { type: string, optional: true, description: "Paint style name for fill" }
+          fillVariableId: { type: string, optional: true, description: "Variable ID for fill" }
+          strokeColor: { $ref: color, optional: true, description: Stroke color }
+          strokeStyleName: { type: string, optional: true, description: "Paint style name for stroke" }
+          strokeVariableId: { type: string, optional: true, description: "Variable ID for stroke" }
+          strokeWeight: { type: number, coerce: true, optional: true, description: "Stroke weight (default: 1)" }
+          cornerRadius: { type: number, coerce: true, optional: true }
+          layoutMode: { type: enum, values: [NONE, HORIZONTAL, VERTICAL], optional: true, description: "Layout direction (default: NONE)" }
+          layoutWrap: { type: enum, values: [NO_WRAP, WRAP], optional: true }
+          paddingTop: { type: number, coerce: true, optional: true }
+          paddingRight: { type: number, coerce: true, optional: true }
+          paddingBottom: { type: number, coerce: true, optional: true }
+          paddingLeft: { type: number, coerce: true, optional: true }
+          primaryAxisAlignItems: { type: enum, values: [MIN, MAX, CENTER, SPACE_BETWEEN], optional: true }
+          counterAxisAlignItems: { type: enum, values: [MIN, MAX, CENTER, BASELINE], optional: true }
+          layoutSizingHorizontal: { type: enum, values: [FIXED, HUG, FILL], optional: true }
+          layoutSizingVertical: { type: enum, values: [FIXED, HUG, FILL], optional: true }
+          itemSpacing: { type: number, coerce: true, optional: true, description: "Spacing between children (default: 0)" }
+      from_node:
+        description: "Convert existing nodes to components. Text children auto-exposed as editable properties (exposeText: true)."
+        params:
+          nodeId: { type: string, required: true, description: Node ID to convert }
+          exposeText: { type: boolean, coerce: true, optional: true, description: "Auto-expose text as editable properties (default: true)" }
+      variant_set:
+        description: Combine components into a variant set
+        params:
+          componentIds: { type: "string[]", coerce: json, required: true, description: "Component IDs to combine (min 2)" }
+          name: { type: string, optional: true, description: "Name for the variant set" }
+    response:
+      type: batch
+      item: { id: { type: string } }
+
+  update:
+    tier: edit
+    description: Add or update component properties (TEXT, BOOLEAN, INSTANCE_SWAP, VARIANT)
+    params:
+      items:
+        type: array
+        coerce: json
+        required: true
+        tsType: "UpdatePropertyItem[]"
+        description: "Array of {id, propertyName, type, defaultValue}"
+        items:
+          type: object
+          properties:
+            id: { type: string, required: true, description: "Component node ID" }
+            propertyName: { type: string, required: true, description: "Property name" }
+            type: { type: enum, values: [BOOLEAN, TEXT, INSTANCE_SWAP, VARIANT], required: true, description: "Property type" }
+            defaultValue: { type: any, required: true, description: "Default value (string for TEXT/VARIANT, boolean for BOOLEAN)" }
+      depth: { $ref: depth }
+    response:
+      type: batch_mixed

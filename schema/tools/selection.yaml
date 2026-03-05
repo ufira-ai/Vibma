@@ -1,0 +1,64 @@
+endpoint: selection
+domain: node-inspection
+description: "Read and set the current Figma selection."
+description_zh: "读取和设置当前 Figma 选区。"
+
+methods:
+  get:
+    tier: read
+    description: Get the current selection
+    params:
+      depth:
+        $ref: depth
+        description: "Child recursion depth. Omit for stubs only, 0=selected nodes' properties, -1=unlimited."
+    response:
+      type: object
+      properties:
+        selectionCount: { type: number }
+        selection:
+          type: array
+          items:
+            type: object
+            description: Stubs (no depth) or full serialized nodes (with depth)
+            properties:
+              id: { type: string, required: true }
+              name: { type: string, required: true }
+              type: { type: string, required: true }
+        _truncated: { type: boolean }
+        _notice: { type: string }
+      required: [selectionCount, selection]
+      example:
+        selectionCount: 1
+        selection:
+          - { id: "1:2", name: Button, type: COMPONENT }
+
+  update:
+    tier: read
+    description: Set selection to nodes and scroll viewport to show them
+    params:
+      nodeIds:
+        type: string[]
+        coerce: json
+        required: true
+        description: 'Array of node IDs to select. Example: ["1:2","1:3"]'
+    response:
+      type: object
+      properties:
+        count: { type: number, description: Number of nodes selected }
+        selectedNodes:
+          type: array
+          items:
+            type: object
+            properties:
+              name: { type: string, required: true }
+              id: { type: string, required: true }
+        notFoundIds:
+          type: array
+          description: IDs that could not be found
+          items: { type: string }
+      required: [count, selectedNodes]
+      example:
+        count: 2
+        selectedNodes:
+          - { name: Button, id: "1:2" }
+          - { name: Card, id: "3:4" }

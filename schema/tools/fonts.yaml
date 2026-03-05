@@ -1,0 +1,20 @@
+endpoint: fonts
+domain: design-system
+description: "Search available fonts in Figma."
+description_zh: "搜索 Figma 中可用的字体。"
+
+methods:
+  list:
+    tier: read
+    description: List available font families, optionally filtered by name
+    params:
+      query:
+        type: string
+        optional: true
+        description: Filter by family name (case-insensitive substring)
+    response:
+      type: object
+      properties:
+        count: { type: number, required: true, description: Number of matching families }
+        fonts: { type: array, items: { type: object, properties: { family: { type: string, required: true }, styles: { type: array, items: { type: string } } } } }
+      required: [count, fonts]

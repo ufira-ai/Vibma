@@ -1,0 +1,75 @@
+endpoint: pages
+domain: document
+description: "Navigate and manage Figma pages."
+description_zh: "导航和管理 Figma 页面。"
+
+methods:
+  get:
+    tier: read
+    description: Get current page with top-level children
+    params: {}
+    response:
+      type: object
+      properties:
+        id: { type: string, required: true }
+        name: { type: string, required: true }
+        children: { type: array, tsType: "NodeStub[]" }
+      required: [id, name, children]
+
+  list:
+    tier: read
+    description: Get document name and list all pages
+    params: {}
+    response:
+      type: object
+      properties:
+        name: { type: string, required: true, description: Document name }
+        currentPageId: { type: string, required: true }
+        pages: { type: array, items: { type: object, properties: { id: { type: string, required: true }, name: { type: string, required: true } } } }
+      required: [name, currentPageId, pages]
+
+  set:
+    tier: read
+    description: Switch to a page by ID or name
+    params:
+      pageId:
+        type: string
+        optional: true
+        description: Page ID
+      pageName:
+        type: string
+        optional: true
+        description: Page name (case-insensitive, substring match)
+    response:
+      type: object
+      properties:
+        id: { type: string, required: true }
+        name: { type: string, required: true }
+      required: [id, name]
+
+  create:
+    tier: create
+    description: Create a new page
+    params:
+      name:
+        type: string
+        optional: true
+        description: "Page name (default: 'New Page')"
+    response:
+      type: batch
+      item: { id: { type: string } }
+
+  update:
+    tier: edit
+    description: Rename a page
+    params:
+      newName:
+        type: string
+        required: true
+        description: New page name
+      pageId:
+        type: string
+        optional: true
+        description: "Page ID (default: current page)"
+    response:
+      type: string

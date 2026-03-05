@@ -38,4 +38,113 @@ export const allFigmaHandlers: Record<string, (params: any) => Promise<any>> = {
   ...stylesHandlers,
   ...variablesHandlers,
   ...lintHandlers,
+
+  // ─── Endpoint-style command aliases (generated endpoints use {endpoint}.{method}) ───
+  // connection endpoint
+  "connection.get": connectionHandlers.ping,
+
+  // selection endpoint
+  "selection.get": selectionHandlers.get_selection,
+  "selection.update": selectionHandlers.set_selection,
+
+  // frames endpoint — own methods
+  "frames.create": async (params: any) => {
+    const type = params.type;
+    if (type === "frame") return createFrameHandlers.create_frame(params);
+    if (type === "auto_layout") return createFrameHandlers.create_auto_layout(params);
+    if (type === "section") return createShapeHandlers.create_section(params);
+    if (type === "svg") return createShapeHandlers.create_node_from_svg(params);
+    throw new Error(`frames.create: unknown type "${type}". Expected: frame, auto_layout, section, svg`);
+  },
+
+  // frames endpoint — inherited node base methods (translate endpoint params → legacy handler params)
+  "frames.get": (p: any) => nodeInfoHandlers.get_node_info({ ...p, nodeIds: p.id ? [p.id] : p.nodeIds }),
+  "frames.list": (p: any) => nodeInfoHandlers.search_nodes({ ...p, scopeNodeId: p.parentId }),
+  "frames.update": (p: any) => patchNodesHandlers.patch_nodes({
+    ...p,
+    items: p.items?.map((i: any) => ({ ...i, nodeId: i.nodeId ?? i.id })),
+  }),
+  "frames.delete": (p: any) => {
+    const items = p.items
+      ? p.items.map((i: any) => ({ ...i, nodeId: i.nodeId ?? i.id }))
+      : p.id ? [{ nodeId: p.id }] : [];
+    return modifyNodeHandlers.delete_node({ ...p, items });
+  },
+  "frames.clone": (p: any) => modifyNodeHandlers.clone_node({
+    ...p,
+    items: p.items ?? [{ nodeId: p.id, parentId: p.parentId, x: p.x, y: p.y }],
+  }),
+  "frames.reparent": modifyNodeHandlers.insert_child,
+  "frames.export": nodeInfoHandlers.export_node_as_image,
+
+  // ─── pages endpoint ───
+  "pages.get": documentHandlers.get_current_page,
+  "pages.list": documentHandlers.get_document_info,
+  "pages.set": documentHandlers.set_current_page,
+  "pages.create": documentHandlers.create_page,
+  "pages.update": documentHandlers.rename_page,
+
+  // ─── text endpoint — own methods ───
+  "text.create": createTextHandlers.create_text,
+  "text.set_content": textHandlers.set_text_content,
+  "text.scan": textHandlers.scan_text_nodes,
+
+  // text endpoint — inherited node base methods
+  "text.get": (p: any) => nodeInfoHandlers.get_node_info({ ...p, nodeIds: p.id ? [p.id] : p.nodeIds }),
+  "text.list": (p: any) => nodeInfoHandlers.search_nodes({ ...p, scopeNodeId: p.parentId }),
+  "text.update": (p: any) => patchNodesHandlers.patch_nodes({
+    ...p,
+    items: p.items?.map((i: any) => ({ ...i, nodeId: i.nodeId ?? i.id })),
+  }),
+  "text.delete": (p: any) => {
+    const items = p.items
+      ? p.items.map((i: any) => ({ ...i, nodeId: i.nodeId ?? i.id }))
+      : p.id ? [{ nodeId: p.id }] : [];
+    return modifyNodeHandlers.delete_node({ ...p, items });
+  },
+  "text.clone": (p: any) => modifyNodeHandlers.clone_node({
+    ...p,
+    items: p.items ?? [{ nodeId: p.id, parentId: p.parentId, x: p.x, y: p.y }],
+  }),
+  "text.reparent": modifyNodeHandlers.insert_child,
+
+  // ─── fonts endpoint ───
+  "fonts.list": fontsHandlers.get_available_fonts,
+
+  // ─── lint endpoint ───
+  "lint.check": lintHandlers.lint_node,
+  "lint.fix": lintHandlers.lint_fix_autolayout,
+
+  // ─── styles endpoint ───
+  "styles.list": stylesHandlers.styles,
+  "styles.get": stylesHandlers.styles,
+  "styles.create": stylesHandlers.styles,
+  "styles.update": stylesHandlers.styles,
+  "styles.delete": stylesHandlers.styles,
+
+  // ─── components endpoint ───
+  "components.list": componentsHandlers.components,
+  "components.get": componentsHandlers.components,
+  "components.create": componentsHandlers.components,
+  "components.update": componentsHandlers.components,
+
+  // ─── instances endpoint ───
+  "instances.get": componentsHandlers.instances,
+  "instances.create": componentsHandlers.instances,
+  "instances.update": componentsHandlers.instances,
+
+  // ─── variable_collections endpoint ───
+  "variable_collections.list": variablesHandlers.variable_collections,
+  "variable_collections.get": variablesHandlers.variable_collections,
+  "variable_collections.create": variablesHandlers.variable_collections,
+  "variable_collections.delete": variablesHandlers.variable_collections,
+  "variable_collections.add_mode": variablesHandlers.variable_collections,
+  "variable_collections.rename_mode": variablesHandlers.variable_collections,
+  "variable_collections.remove_mode": variablesHandlers.variable_collections,
+
+  // ─── variables endpoint ───
+  "variables.list": variablesHandlers.variables,
+  "variables.get": variablesHandlers.variables,
+  "variables.create": variablesHandlers.variables,
+  "variables.update": variablesHandlers.variables,
 };

@@ -1,0 +1,76 @@
+endpoint: lint
+domain: quality
+description: "Run design quality and accessibility checks."
+description_zh: "运行设计质量和无障碍检查。"
+
+notes: |
+  // rules: "all" (default) | "wcag" (all accessibility) | specific rules:
+  //   "no-autolayout" | "shape-instead-of-frame" | "hardcoded-color" | "no-text-style"
+  //   "fixed-in-autolayout" | "default-name" | "empty-container" | "stale-text-name" | "no-text-property"
+  //   "wcag-contrast" | "wcag-contrast-enhanced" | "wcag-non-text-contrast"
+  //   "wcag-target-size" | "wcag-text-size" | "wcag-line-height"
+  interface LintResult {
+    nodeId: string; nodeName: string;
+    categories: { rule: string; count: number; fix: string; nodes: { id: string; name: string; [k: string]: any }[] }[];
+    warning?: string;
+  }
+
+methods:
+  check:
+    tier: read
+    description: Run design linter on a node tree
+    params:
+      nodeId:
+        type: string
+        optional: true
+        description: "Node ID to lint (default: current selection or page)"
+      rules:
+        type: string[]
+        coerce: json
+        optional: true
+        description: 'Rules to run. Default: ["all"]. Use ["wcag"] for accessibility only.'
+      maxDepth:
+        type: number
+        coerce: true
+        optional: true
+        description: "Max tree depth (default: 10)"
+      maxFindings:
+        type: number
+        coerce: true
+        optional: true
+        description: "Max findings (default: 50)"
+    response:
+      type: object
+      properties:
+        nodeId: { type: string, required: true }
+        nodeName: { type: string, required: true }
+        categories: { type: array, tsType: "LintResult['categories']" }
+        warning: { type: string }
+      required: [nodeId, nodeName, categories]
+
+  fix:
+    tier: edit
+    description: Auto-fix frames to auto-layout
+    params:
+      items:
+        type: array
+        coerce: json
+        required: true
+        description: "Array of {nodeId, layoutMode?, itemSpacing?}"
+        items:
+          type: object
+          properties:
+            nodeId: { type: string, required: true, description: Frame node ID }
+            layoutMode:
+              type: enum
+              values: [VERTICAL, HORIZONTAL]
+              optional: true
+              description: "Direction (default: auto-detected)"
+            itemSpacing:
+              type: number
+              coerce: true
+              optional: true
+              description: "Spacing between children"
+      depth: { $ref: depth }
+    response:
+      type: batch_mixed

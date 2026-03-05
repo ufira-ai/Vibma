@@ -1,0 +1,79 @@
+endpoint: text
+extends: node
+domain: creation
+description: "Create and manage text nodes."
+description_zh: "创建和管理文本节点。"
+
+notes: |
+  interface TextItem {
+    text: string; name?: string;
+    x?: number; y?: number; parentId?: string;
+    fontFamily?: string; // default: Inter. Use fonts.list to find installed fonts.
+    fontStyle?: string;  // e.g. "Bold", "Italic" — overrides fontWeight
+    fontSize?: number;   // default: 14
+    fontWeight?: number; // 100-900, default: 400. Ignored when fontStyle is set.
+    fontColor?: Color;
+    fontColorVariableId?: string; // bind color variable — overrides fontColor
+    fontColorStyleName?: string;  // apply paint style — overrides fontColor
+    textStyleId?: string;    // apply text style — overrides fontSize/fontWeight
+    textStyleName?: string;  // text style by name (case-insensitive)
+    textAlignHorizontal?: "LEFT" | "CENTER" | "RIGHT" | "JUSTIFIED";
+    textAlignVertical?: "TOP" | "CENTER" | "BOTTOM";
+    layoutSizingHorizontal?: "FIXED" | "HUG" | "FILL";
+    layoutSizingVertical?: "FIXED" | "HUG" | "FILL";
+    textAutoResize?: "NONE" | "WIDTH_AND_HEIGHT" | "HEIGHT" | "TRUNCATE";
+  }
+  // Prefer textStyleName for typography, fontColorStyleName/fontColorVariableId for color.
+  interface ScanResult {
+    nodeId: string; count: number; truncated: boolean;
+    textNodes: { id: string; name: string; characters: string; fontSize: number; fontFamily: string; fontStyle: string; path?: string; depth?: number; absoluteX?: number; absoluteY?: number; width?: number; height?: number }[];
+  }
+
+methods:
+  create:
+    tier: create
+    description: Create text nodes
+    params:
+      items:
+        type: array
+        coerce: json
+        required: true
+        tsType: "TextItem[]"
+        description: "Array of text items to create"
+        items: { type: object }
+      depth: { $ref: depth }
+    response:
+      type: batch
+      item: { id: { type: string } }
+
+  set_content:
+    tier: edit
+    description: Replace text content on existing text nodes
+    params:
+      items:
+        type: array
+        coerce: json
+        required: true
+        description: "Array of {nodeId, text}"
+        items:
+          type: object
+          properties:
+            nodeId: { type: string, required: true, description: Text node ID }
+            text: { type: string, required: true, description: New text content }
+      depth: { $ref: depth }
+    response:
+      type: batch_ok
+
+  scan:
+    tier: read
+    description: Scan all text nodes within a subtree
+    params:
+      items:
+        type: array
+        coerce: json
+        required: true
+        tsType: "{ nodeId: string; limit?: number; includePath?: boolean; includeGeometry?: boolean }[]"
+        description: "Array of subtrees to scan"
+        items: { type: object }
+    response:
+      type: batch_mixed

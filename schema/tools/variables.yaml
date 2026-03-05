@@ -1,0 +1,95 @@
+endpoint: variables
+domain: design-system
+description: "CRUD for design variables (COLOR, FLOAT, STRING, BOOLEAN)."
+description_zh: "管理设计变量（颜色、数值、字符串、布尔）。"
+
+notes: |
+  interface Variable { id: string; name: string; resolvedType: "COLOR"|"FLOAT"|"STRING"|"BOOLEAN"; variableCollectionId: string; valuesByMode: Record<string, any> }
+  // update value: {id, modeId, value} — value is number, boolean, or Color ({r,g,b,a?} or hex)
+  // Use variable_collections to manage modes. Use set_variable_binding to bind variables to nodes.
+
+methods:
+  list:
+    tier: read
+    description: List variables with optional filters
+    params:
+      type:
+        type: enum
+        values: [COLOR, FLOAT, STRING, BOOLEAN]
+        optional: true
+        description: "Filter by variable type"
+      collectionId:
+        type: string
+        optional: true
+        description: "Filter by collection ID"
+      fields:
+        $ref: fields
+      offset:
+        $ref: offset
+      limit:
+        $ref: limit
+    response:
+      type: paginated
+      item:
+        type: object
+        properties:
+          id: { type: string, required: true }
+          name: { type: string, required: true }
+          resolvedType: { type: string, required: true }
+          variableCollectionId: { type: string, required: true }
+
+  get:
+    tier: read
+    description: Get variable detail
+    params:
+      id:
+        type: string
+        required: true
+        description: "Variable ID (e.g. VariableID:1:6)"
+      fields:
+        $ref: fields
+    response:
+      type: object
+      properties:
+        id: { type: string }
+        name: { type: string }
+        resolvedType: { type: string }
+        variableCollectionId: { type: string }
+        valuesByMode: { type: object }
+
+  create:
+    tier: create
+    description: Create variables
+    params:
+      items:
+        type: array
+        coerce: json
+        required: true
+        description: "Array of {collectionId, name, resolvedType}"
+        items:
+          type: object
+          properties:
+            collectionId: { type: string, required: true, description: "Variable collection ID" }
+            name: { type: string, required: true, description: "Variable name" }
+            resolvedType: { type: enum, values: [COLOR, FLOAT, STRING, BOOLEAN], required: true, description: "Variable type" }
+    response:
+      type: batch
+      item: { id: { type: string } }
+
+  update:
+    tier: edit
+    description: Set variable values per mode
+    params:
+      items:
+        type: array
+        coerce: json
+        required: true
+        description: "Array of {id, modeId, value}"
+        items:
+          type: object
+          properties:
+            id: { type: string, required: true, description: "Variable ID" }
+            modeId: { type: string, required: true, description: "Mode ID" }
+            value: { type: any, required: true, description: 'number, boolean, or Color (hex or {r,g,b,a?})' }
+    response:
+      type: batch_mixed

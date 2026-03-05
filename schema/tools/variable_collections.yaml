@@ -1,0 +1,137 @@
+endpoint: variable_collections
+domain: design-system
+description: "CRUD for variable collections and mode management."
+description_zh: "管理变量集合和模式。"
+
+notes: |
+  // Modes: each collection has 1+ modes (e.g. Light, Dark). Default mode always exists.
+  // Variables within a collection have values per mode.
+  interface Collection { id: string; name: string; modes: {modeId: string, name: string}[]; defaultModeId: string; variableIds: string[] }
+
+methods:
+  list:
+    tier: read
+    description: List variable collections
+    params:
+      fields:
+        $ref: fields
+      offset:
+        $ref: offset
+      limit:
+        $ref: limit
+    response:
+      type: paginated
+      item:
+        type: object
+        properties:
+          id: { type: string, required: true }
+          name: { type: string, required: true }
+
+  get:
+    tier: read
+    description: Get collection detail
+    params:
+      id:
+        type: string
+        required: true
+        description: "Collection ID"
+      fields:
+        $ref: fields
+    response:
+      type: object
+      properties:
+        id: { type: string }
+        name: { type: string }
+        modes: { type: array }
+        defaultModeId: { type: string }
+        variableIds: { type: array }
+
+  create:
+    tier: create
+    description: Create variable collections
+    params:
+      items:
+        type: array
+        coerce: json
+        required: true
+        description: "Array of {name}"
+        items:
+          type: object
+          properties:
+            name: { type: string, required: true, description: "Collection name" }
+    response:
+      type: batch
+      item: { id: { type: string } }
+
+  delete:
+    tier: edit
+    description: Delete collections
+    params:
+      id:
+        type: string
+        optional: true
+        description: Single collection ID
+      items:
+        type: array
+        coerce: json
+        optional: true
+        description: "Batch: [{id}, ...]"
+        items:
+          type: object
+          properties:
+            id: { type: string, required: true }
+    response:
+      type: batch_ok
+
+  add_mode:
+    tier: create
+    description: Add a mode to a collection
+    params:
+      items:
+        type: array
+        coerce: json
+        required: true
+        description: "Array of {collectionId, name}"
+        items:
+          type: object
+          properties:
+            collectionId: { type: string, required: true, description: "Collection ID" }
+            name: { type: string, required: true, description: "Mode name" }
+    response:
+      type: batch
+      item: { modeId: { type: string } }
+
+  rename_mode:
+    tier: edit
+    description: Rename a mode
+    params:
+      items:
+        type: array
+        coerce: json
+        required: true
+        description: "Array of {collectionId, modeId, name}"
+        items:
+          type: object
+          properties:
+            collectionId: { type: string, required: true, description: "Collection ID" }
+            modeId: { type: string, required: true, description: "Mode ID" }
+            name: { type: string, required: true, description: "New name" }
+    response:
+      type: batch_mixed
+
+  remove_mode:
+    tier: edit
+    description: Remove a mode from a collection
+    params:
+      items:
+        type: array
+        coerce: json
+        required: true
+        description: "Array of {collectionId, modeId}"
+        items:
+          type: object
+          properties:
+            collectionId: { type: string, required: true, description: "Collection ID" }
+            modeId: { type: string, required: true, description: "Mode ID" }
+    response:
+      type: batch_ok
