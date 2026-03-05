@@ -16,7 +16,7 @@ modify styles, and build entire design systems through conversation.
 
 ## Model Recommendations
 
-Vibma works with any LLM that supports MCP. Based on our [benchmark](./vibma-benchmark/):
+Vibma works with any LLM that supports MCP. Based on our [benchmark](https://github.com/ufira-ai/vibma-benchmark):
 
 - **Cheap one-shot builds:** GPT-5.3 Codex (medium reasoning) — proper components, all variables bound, clean output for under $1. Degrades on follow-up tasks.
 - **Iterative design work:** GPT-5.3 Codex (xhigh), Gemini 3.1 Pro, or Claude Opus 4.6 — these maintain quality as context grows and handle multi-pass workflows.
