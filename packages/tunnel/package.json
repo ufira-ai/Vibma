@@ -33,7 +33,7 @@
     "ws": "latest"
   },
   "devDependencies": {
-    "@types/node": "^25.3.2",
+    "@types/node": "^25.3.3",
     "@types/ws": "^8.18.1",
     "tsup": "^8.5.1",
     "typescript": "^5.9.3"
