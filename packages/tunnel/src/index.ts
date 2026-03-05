@@ -1,7 +1,12 @@
 import { createServer } from "http";
 import { WebSocketServer, WebSocket } from "ws";
 
-const port = parseInt(process.env.VIBMA_PORT || "3055");
+const rawPort = process.env.VIBMA_PORT || "3055";
+const port = parseInt(rawPort, 10);
+if (isNaN(port) || port < 1 || port > 65535) {
+  console.error(`Invalid VIBMA_PORT: "${rawPort}". Must be a number between 1 and 65535.`);
+  process.exit(1);
+}
 
 // ─── Types ──────────────────────────────────────────────────────
 
@@ -377,6 +382,11 @@ wss.on("connection", (ws: WebSocket) => {
 // Security note: bind to localhost by default so the tunnel isn't exposed to LAN.
 // Set VIBMA_HOST=0.0.0.0 to explicitly opt into LAN exposure (e.g. for WSL scenarios).
 const host = process.env.VIBMA_HOST || "127.0.0.1";
+const ipv4Re = /^(\d{1,3}\.){3}\d{1,3}$/;
+if (!ipv4Re.test(host) || host.split(".").some((o) => parseInt(o, 10) > 255)) {
+  console.error(`Invalid VIBMA_HOST: "${host}". Must be a valid IPv4 address (e.g. 127.0.0.1 or 0.0.0.0).`);
+  process.exit(1);
+}
 
 httpServer.listen(port, host, () => {
   console.log(`Vibma tunnel running on http://${host}:${port}`);
