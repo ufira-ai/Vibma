@@ -52,7 +52,7 @@ jobs:
       - name: Create zip assets
         run: |
           mkdir -p staging
-          (cd packages/adapter-figma/plugin && zip -q "$GITHUB_WORKSPACE/staging/vibma-plugin.zip" manifest.json code.js ui.html)
+          (cd plugin && zip -q "$GITHUB_WORKSPACE/staging/vibma-plugin.zip" manifest.json code.js ui.html)
           (cd packages/tunnel/dist && zip -q "$GITHUB_WORKSPACE/staging/vibma-tunnel.zip" index.js)
           (cd packages/core/dist && zip -qr "$GITHUB_WORKSPACE/staging/vibma-mcp.zip" .)
 
