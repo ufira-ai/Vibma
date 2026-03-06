@@ -23,34 +23,16 @@
         display: flex;
         flex-direction: column;
         gap: 12px;
+        min-height: 100vh;
       }
 
       /* Header */
       .header {
         display: flex;
         align-items: center;
-        gap: 8px;
+        justify-content: space-between;
         padding-bottom: 12px;
         border-bottom: 1px solid #272727;
-      }
-
-      .status-dot {
-        width: 7px;
-        height: 7px;
-        border-radius: 50%;
-        background-color: #3a3a3a;
-        transition: background-color 0.4s ease, box-shadow 0.4s ease;
-        flex-shrink: 0;
-      }
-
-      .status-dot.connected {
-        background-color: #4ade80;
-        box-shadow: 0 0 5px rgba(74, 222, 128, 0.35);
-      }
-
-      .status-dot.info {
-        background-color: #18a0fb;
-        box-shadow: 0 0 5px rgba(24, 160, 251, 0.35);
       }
 
       .header-title {
@@ -58,13 +40,138 @@
         font-weight: 600;
         color: #f5f5f5;
         letter-spacing: -0.02em;
-        flex: 1;
       }
 
       .version-chip {
         font-size: 11px;
         color: #b0b0b0;
         font-variant-numeric: tabular-nums;
+      }
+
+      /* Connection banner under title bar */
+      .connection-banner {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        padding: 6px 10px;
+        border: 1px solid #3a3a3a;
+        border-radius: 999px;
+        background-color: #222222;
+      }
+
+      .banner-primary {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        white-space: nowrap;
+        color: #e6e6e6;
+        font-size: 11px;
+        font-weight: 600;
+      }
+
+      .banner-icon {
+        width: 14px;
+        height: 14px;
+        border-radius: 999px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        border: 1px solid #5a5a5a;
+        color: #b0b0b0;
+        font-size: 12px;
+        line-height: 1;
+        flex-shrink: 0;
+      }
+
+      .connection-banner.connected .banner-icon {
+        border-color: #2f8c5c;
+        color: #5fd69a;
+      }
+
+      .connection-banner.info .banner-icon {
+        border-color: #2f7094;
+        color: #93c8f0;
+      }
+
+      .connection-banner.connecting .banner-icon {
+        border-color: #2f7094;
+        color: #93c8f0;
+      }
+
+      .connection-banner.connecting .banner-secondary {
+        color: #a6d5f7;
+      }
+
+      .connection-banner.error {
+        border-color: #6f2e2e;
+        background-color: #2a1717;
+      }
+
+      .connection-banner.error .banner-icon {
+        border-color: #a94040;
+        color: #ff7a7a;
+      }
+
+      .connection-banner.error .banner-secondary {
+        color: #f6b1b1;
+      }
+
+      .connection-banner.warning {
+        border-color: #705a1f;
+        background-color: #2a2414;
+      }
+
+      .connection-banner.warning .banner-icon {
+        border-color: #b18b2e;
+        color: #ffd36a;
+      }
+
+      .connection-banner.warning .banner-secondary {
+        color: #f3dca1;
+      }
+
+      .banner-warning-text {
+        color: #f3dca1;
+      }
+
+      .banner-icon.spinning {
+        animation: spin 1s linear infinite;
+      }
+
+      @keyframes spin {
+        from { transform: rotate(0deg); }
+        to { transform: rotate(360deg); }
+      }
+
+      .banner-divider {
+        width: 1px;
+        height: 18px;
+        background-color: #3b3b3b;
+        flex-shrink: 0;
+      }
+
+      .banner-secondary {
+        min-width: 0;
+        flex: 1;
+        color: #b8b8b8;
+        font-size: 11px;
+        white-space: normal;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        display: -webkit-box;
+        line-clamp: 2;
+        -webkit-line-clamp: 2;
+        -webkit-box-orient: vertical;
+        line-height: 1.25;
+        max-height: 2.5em;
+      }
+
+      .connection-banner.connected .banner-secondary {
+        color: #bfe7d1;
+      }
+
+      .connection-banner.info .banner-secondary {
+        color: #a6d5f7;
       }
 
       /* Form */
@@ -107,8 +214,9 @@
       }
 
       input:disabled, select:disabled {
-        opacity: 0.35;
+        opacity: 0.5;
         cursor: not-allowed;
+
       }
 
       select {
@@ -129,7 +237,7 @@
         padding: 8px 14px;
         border-radius: 6px;
         cursor: pointer;
-        font-size: 13px;
+        font-size: 12px;
         font-weight: 500;
         font-family: inherit;
         width: 100%;
@@ -160,43 +268,24 @@
         cursor: not-allowed;
       }
 
-      /* Status */
-      .status {
-        padding: 10px 12px;
-        border-radius: 6px;
-        font-size: 12px;
-        line-height: 1.6;
-        border-left: 2px solid transparent;
-        transition: border-color 0.25s ease, background-color 0.25s ease, color 0.25s ease;
-      }
-
-      .status.connected {
-        border-left-color: #4ade80;
-        color: #b5f0cc;
-        background-color: #0d1f14;
-      }
-
-      .status.disconnected {
-        border-left-color: #3a3a3a;
-        color: #b8b8b8;
-        background-color: #1c1c1c;
-      }
-
-      .status.info {
-        border-left-color: #18a0fb;
-        color: #93c8f0;
-        background-color: #0d1a26;
-      }
-
       /* Warning */
       #warning-box {
+        display: flex;
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 4px;
         font-size: 11.5px;
-        color: #c0c0c0;
-        line-height: 1.55;
+        color: #9cc9f4;
+        line-height: 1.45;
         padding: 10px 12px;
-        background-color: #1c1c1c;
-        border-radius: 6px;
-        border-left: 2px solid #c9890a;
+        background-color: #0f1f30;
+        border-radius: 10px;
+        border: 1px solid #2d5f8a;
+      }
+
+      #warning-box .warning-label {
+        color: #c5e2ff;
+        font-weight: 600;
       }
 
       /* Footer row */
@@ -204,6 +293,8 @@
         font-size: 11.5px;
         color: #b0b0b0;
         text-align: center;
+        margin-top: auto;
+        padding-top: 8px;
       }
 
       .link {
@@ -287,9 +378,18 @@
 
       <!-- Header -->
       <div class="header">
-        <div id="header-status-dot" class="status-dot"></div>
         <span class="header-title">Vibma</span>
         <span class="version-chip" id="version-badge"></span>
+      </div>
+
+      <!-- Connection banner -->
+      <div id="connection-banner" class="connection-banner disconnected">
+        <div class="banner-primary">
+          <span id="banner-icon" class="banner-icon">○</span>
+          <span id="banner-status-label">Disconnected</span>
+        </div>
+        <div class="banner-divider"></div>
+        <div id="connection-info" class="banner-secondary"></div>
       </div>
 
       <!-- Port + Channel -->
@@ -319,16 +419,8 @@
       <!-- Connect button -->
       <button id="btn-connect"></button>
 
-      <!-- Connection status -->
-      <div id="connection-status" class="status disconnected"></div>
-
       <!-- Warning -->
       <div id="warning-box"></div>
-
-      <!-- Reset -->
-      <div class="footer-row">
-        <span id="having-issues"></span> <a id="btn-reset" class="link"></a>
-      </div>
 
       <!-- Progress -->
       <div id="progress-container" class="progress-section hidden">
@@ -343,6 +435,11 @@
         <div class="progress-footer">
           <span id="progress-status"></span>
         </div>
+      </div>
+
+      <!-- Reset -->
+      <div class="footer-row">
+        <span id="having-issues"></span> <a id="btn-reset" class="link"></a>
       </div>
 
     </div>
@@ -361,6 +458,10 @@
           labelChannel: "Channel",
           statusDisconnected: "Not connected to Vibma relay",
           statusConnected: "Connected to Vibma relay",
+          statusBadgeConnected: "Connected",
+          statusBadgeDisconnected: "Disconnected",
+          statusBadgeConnecting: "Connecting",
+          statusBadgeError: "Error",
           statusConnecting: "Connecting...",
           statusDisconnecting: "Disconnecting...",
           statusResetting: "Resetting tunnel...",
@@ -400,7 +501,7 @@
         document.getElementById("label-port").textContent = t("labelPort");
         document.getElementById("label-channel").textContent = t("labelChannel");
         document.getElementById("warning-box").innerHTML =
-          `<strong style="color:#c9890a">${t("warningNote")}</strong> ${t("warningBody")}`;
+          `<span class="warning-label">${t("warningNote")}</span><span>${t("warningBody")}</span>`;
         document.getElementById("having-issues").textContent = t("havingIssues");
         document.getElementById("btn-reset").textContent = t("resetTunnel");
         document.getElementById("progress-heading").textContent = t("progressTitle");
@@ -410,7 +511,7 @@
         if (!state.connected) {
           updateConnectionStatus(false);
         } else {
-          updateConnectionStatus(true, buildStatusMessage());
+          updateConnectionStatus(true);
         }
       }
 
@@ -433,7 +534,10 @@
       const portInput = document.getElementById("port");
       const channelInput = document.getElementById("channel-name");
       const connectButton = document.getElementById("btn-connect");
-      const connectionStatus = document.getElementById("connection-status");
+      const connectionBanner = document.getElementById("connection-banner");
+      const bannerIcon = document.getElementById("banner-icon");
+      const bannerStatusLabel = document.getElementById("banner-status-label");
+      const connectionInfo = document.getElementById("connection-info");
 
       // Add UI elements for progress tracking
       const progressContainer = document.getElementById("progress-container");
@@ -442,51 +546,81 @@
       const progressStatus = document.getElementById("progress-status");
       const progressPercentage = document.getElementById("progress-percentage");
 
-      // ─── Status dot helper ────────────────────────────────────────
-      function setStatusDot(mode) {
-        const dot = document.getElementById("header-status-dot");
-        dot.className = "status-dot" + (mode ? " " + mode : "");
-      }
-
-      // Build the connection status message
-      function buildStatusMessage() {
-        let msg = t("connectedToChannel", { channel: state.channel || "\u2014" });
+      function buildBannerInfo(isConnected) {
+        if (!isConnected) {
+          return `<a class="link" onclick="window.open('https://github.com/ufira-ai/vibma', '_blank')">${t("setupGuide")}</a>`;
+        }
+        let info = "";
         if (state.mcpPeer) {
           const name = state.mcpPeer.name || "unknown";
           const ver = state.mcpPeer.version ? ` (v${state.mcpPeer.version})` : "";
-          msg += `<br>${t("sessionLabel", { name, version: ver })}`;
+          info += `<strong>${name}${ver}</strong>`;
         } else {
-          msg += `<br><span style="color:#7fa8c4">${t("waitingMcp")}</span>`;
+          info += `${t("waitingMcp")}`;
         }
         if (state.versionWarning) {
-          msg += `<br><span style="color:#c9890a">\u26a0 ${state.versionWarning}</span>`;
+          info += `<br><span class="banner-warning-text">${state.versionWarning}</span>`;
         }
-        return msg;
+        return info;
+      }
+
+      function renderBanner(visualState, infoHtml, labelText) {
+        const iconMap = {
+          connected: "✓",
+          connecting: "↻",
+          error: "!",
+          warning: "⚠",
+          disconnected: "○",
+          info: "○",
+        };
+        bannerStatusLabel.textContent = labelText;
+        bannerIcon.className = `banner-icon${visualState === "connecting" ? " spinning" : ""}`;
+        bannerIcon.textContent = iconMap[visualState] || "○";
+        connectionInfo.innerHTML = infoHtml;
+        connectionBanner.className = `connection-banner ${visualState}`;
       }
 
       // Initialize UI
       function updateConnectionStatus(isConnected, message) {
         state.connected = isConnected;
 
-        let statusMessage =
-          message ||
-          (isConnected
-            ? t("statusConnected")
-            : t("statusDisconnected"));
+        const isTransient =
+          message === t("statusConnecting") ||
+          message === t("statusDisconnecting") ||
+          message === t("statusResetting");
+        const isConnecting = message === t("statusConnecting");
+        const isError =
+          !isConnected &&
+          Boolean(message) &&
+          message !== t("statusDisconnected") &&
+          message !== t("statusDisconnectedFromServer") &&
+          !isTransient;
+        const isWarning = isConnected && Boolean(state.versionWarning);
 
-        if (!isConnected) {
-          statusMessage += `<br><a class="link" onclick="window.open('https://github.com/ufira-ai/vibma', '_blank')">${t("setupGuide")}</a>`;
+        let labelText = isConnected ? t("statusBadgeConnected") : t("statusBadgeDisconnected");
+        let infoHtml = isTransient ? message : buildBannerInfo(isConnected);
+        let visualState = isConnected ? "connected" : "disconnected";
+
+        if (!isConnected && isConnecting) {
+          labelText = t("statusBadgeConnecting");
+          infoHtml = buildBannerInfo(false);
+          visualState = "connecting";
+        } else if (isError) {
+          labelText = t("statusBadgeError");
+          infoHtml = message;
+          visualState = "error";
+        } else if (isWarning) {
+          visualState = "warning";
+        } else if (isTransient) {
+          visualState = "connecting";
         }
 
-        connectionStatus.innerHTML = statusMessage;
-        connectionStatus.className = `status ${isConnected ? "connected" : "disconnected"}`;
+        renderBanner(visualState, infoHtml, labelText);
 
         connectButton.textContent = isConnected ? t("btnDisconnect") : t("btnConnect");
         connectButton.className = isConnected ? "secondary" : "";
         portInput.disabled = isConnected;
         channelInput.disabled = isConnected;
-
-        setStatusDot(isConnected ? "connected" : "");
       }
 
       // Connect to WebSocket server
@@ -527,20 +661,20 @@
                 if (data.code === "PEER_JOINED" && data.peer && data.peer.role === "mcp") {
                   state.mcpPeer = { name: data.peer.name, version: data.peer.version };
                   state.versionWarning = null;
-                  updateConnectionStatus(true, buildStatusMessage());
+                  updateConnectionStatus(true);
                 } else if (data.code === "PEER_LEFT" && data.peer && data.peer.role === "mcp") {
                   state.mcpPeer = null;
                   state.versionWarning = null;
-                  updateConnectionStatus(true, buildStatusMessage());
+                  updateConnectionStatus(true);
                 } else if (data.code === "VERSION_MISMATCH") {
                   state.versionWarning = data.message;
-                  updateConnectionStatus(true, buildStatusMessage());
+                  updateConnectionStatus(true);
                 }
 
                 if (data.message && data.message.result) {
                   state.connected = true;
                   const channelName = data.channel;
-                  updateConnectionStatus(true, buildStatusMessage());
+                  updateConnectionStatus(true);
 
                   parent.postMessage(
                     {
@@ -586,7 +720,6 @@
               updateConnectionStatus(false, t("statusDisconnectedFromServer"));
             }
             state.lastError = null;
-            setStatusDot("");
           };
 
           state.socket.onerror = (error) => {
@@ -595,7 +728,6 @@
             updateConnectionStatus(false, state.lastError);
             state.connected = false;
             state.socket = null;
-            setStatusDot("");
           };
         } catch (error) {
           console.error("Connection error:", error);
@@ -747,8 +879,6 @@
         state.pendingRequests.clear();
 
         updateConnectionStatus(false, t("statusResetting"));
-        connectionStatus.className = "status info";
-        setStatusDot("info");
 
         try {
           await fetch(`http://localhost:${port}/channels/${encodeURIComponent(channel)}`, { method: "DELETE" });
@@ -763,14 +893,10 @@
       connectButton.addEventListener("click", () => {
         if (state.connected) {
           updateConnectionStatus(false, t("statusDisconnecting"));
-          connectionStatus.className = "status info";
-          setStatusDot("info");
           disconnectFromServer();
         } else {
           const port = parseInt(portInput.value, 10) || 3055;
           updateConnectionStatus(false, t("statusConnecting"));
-          connectionStatus.className = "status info";
-          setStatusDot("info");
           connectToServer(port);
         }
       });
