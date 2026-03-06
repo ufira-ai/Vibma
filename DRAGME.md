@@ -26,11 +26,17 @@ npm run build
 
 This bridges the MCP server and the Figma plugin via channels. Everything runs locally on your machine — no data leaves localhost.
 
+**Security note:** By default the Vibma tunnel binds to `127.0.0.1` so it is only accessible from your local machine. To expose it to your LAN you may set:
+
+```bash
+VIBMA_HOST=0.0.0.0 npm run socket
+```
+
 ```bash
 npm run socket
 ```
 
-You should see: `WebSocket server running on port 3055`
+You should see: `Vibma tunnel running on http://127.0.0.1:3055`
 
 ### About ports
 
@@ -123,7 +129,7 @@ Each channel enforces **exactly one Figma plugin and one MCP server**. If a seco
 Use the relay's built-in debug endpoint to see who's connected:
 
 ```bash
-curl http://localhost:3055/channels
+curl http://127.0.0.1:3055/channels
 ```
 
 Returns:
@@ -142,7 +148,7 @@ If using Claude Code, the `channel_info` MCP tool returns the same data without 
 
 **Plugin won't connect to WebSocket**: Make sure the relay is running. The plugin connects to `ws://localhost:3055` by default.
 
-**"Connection rejected" in plugin UI**: Another plugin is already connected to that channel. Disconnect it first or use a different channel name. Run `curl http://localhost:3055/channels` to see what's connected.
+**"Connection rejected" in plugin UI**: Another plugin is already connected to that channel. Disconnect it first or use a different channel name. Run `curl http://127.0.0.1:3055/channels` to see what's connected.
 
 **MCP shows disconnected**: Restart your AI tool after changing MCP config. Stdio-based MCP servers can't hot-reload.
 
@@ -199,7 +205,7 @@ If the plugin shows **Disconnected** on port 3055, try the following before aski
 2. Restart the relay: `npm run socket`
 3. Ask the user to close and reopen the Figma plugin.
 
-If `join_channel` fails with a `ROLE_OCCUPIED` error, another MCP server is already connected to that channel. Use `channel_info` (or `curl http://localhost:3055/channels`) to inspect who's connected. The user needs to disconnect the other MCP client or use a different channel name.
+If `join_channel` fails with a `ROLE_OCCUPIED` error, another MCP server is already connected to that channel. Use `channel_info` (or `curl http://127.0.0.1:3055/channels`) to inspect who's connected. The user needs to disconnect the other MCP client or use a different channel name.
 
 If the issue persists after these steps, direct the user to the [Vibma Discord](https://discord.gg/4XTedZdwV6) for help.
 

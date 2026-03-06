@@ -1,7 +1,7 @@
 {
   "name": "@ufira/vibma",
   "description": "Vibma — Vibe Design meets Figma. AI-powered MCP bridge for designing in Figma.",
-  "version": "0.3.1",
+  "version": "0.3.2",
   "license": "MIT",
   "author": "ufira <https://github.com/ufira-ai>",
   "homepage": "https://github.com/ufira-ai/vibma",
@@ -66,8 +66,7 @@
   "scripts": {
     "build": "tsup",
     "build:watch": "tsup --watch",
-    "prepack": "cp ../../README.md . 2>/dev/null || true",
-    "pub:release": "npm run build && npm publish"
+    "prepack": "cp ../../README.md . 2>/dev/null || true"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "1.27.1",
@@ -76,7 +75,7 @@
     "zod": "4.3.6"
   },
   "devDependencies": {
-    "@types/node": "^25.3.2",
+    "@types/node": "^25.3.3",
     "@types/ws": "^8.18.1",
     "tsup": "^8.5.1",
     "typescript": "^5.9.3"

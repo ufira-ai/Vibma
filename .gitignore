@@ -1,10 +1,14 @@
 node_modules/
+.DS_Store
 .cursor/
 .env
 dist/
+packages/*/dist/
 .idea/
 certs/
-plugin/
+**/plugin/
+!**/src/plugin/
+packages/adapter-figma/src/plugin/code.js
 docs/public/tools-manifest.json
 docs/src/content/docs/tools/
 docs/dist/

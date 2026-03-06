@@ -1,4 +1,5 @@
 import { defineConfig } from 'tsup';
+import { cpSync } from 'fs';
 
 export default defineConfig({
   entry: [
@@ -14,10 +15,15 @@ export default defineConfig({
   format: ['cjs', 'esm'],
   dts: true,
   clean: true,
-  outDir: '../../dist',
+  outDir: 'dist',
   target: 'node18',
   sourcemap: true,
   minify: false,
   splitting: false,
   bundle: true,
+  async onSuccess() {
+    // Keep the root-level `dist/` folder for the repo scripts/docs,
+    // but also emit `packages/core/dist/` so workspace imports resolve.
+    cpSync('dist', '../../dist', { recursive: true, force: true });
+  },
 });

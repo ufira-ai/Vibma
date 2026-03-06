@@ -1,0 +1,83 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  id-token: write
+  actions: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          registry-url: https://registry.npmjs.org
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build all packages
+        run: npm run build
+
+      # Detect pre-release tags like v0.4.0-rc.1, v0.4.0-beta.2
+      # Pre-releases publish to npm under a "next" dist-tag so
+      # `npm install @ufira/vibma` still gets the latest stable.
+      - name: Determine npm dist-tag
+        id: dist-tag
+        run: |
+          if [[ "$GITHUB_REF_NAME" =~ -[a-zA-Z] ]]; then
+            echo "tag=next" >> "$GITHUB_OUTPUT"
+            echo "prerelease=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "tag=latest" >> "$GITHUB_OUTPUT"
+            echo "prerelease=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      # ── npm publish (trusted publishing via OIDC, no token needed) ───
+      # Both steps tolerate "already published" so zip/GH release still run.
+      - name: Publish @ufira/vibma
+        run: npm publish -w packages/core --access public --tag ${{ steps.dist-tag.outputs.tag }} || echo "::warning::@ufira/vibma publish failed (version may already exist)"
+
+      - name: Publish @ufira/vibma-tunnel
+        run: npm publish -w packages/tunnel --access public --tag ${{ steps.dist-tag.outputs.tag }} || echo "::warning::@ufira/vibma-tunnel publish skipped (version may already exist)"
+
+      # ── Zip release assets ───────────────────────────────────────────
+      - name: Create zip assets
+        run: |
+          mkdir -p staging
+          (cd plugin && zip -q "$GITHUB_WORKSPACE/staging/vibma-plugin.zip" manifest.json code.js ui.html)
+          (cd packages/tunnel/dist && zip -q "$GITHUB_WORKSPACE/staging/vibma-tunnel.zip" index.js)
+          (cd packages/core/dist && zip -qr "$GITHUB_WORKSPACE/staging/vibma-mcp.zip" . -x '*.map' '*.d.ts' '*.d.cts')
+
+      # ── GitHub release ───────────────────────────────────────────────
+      - name: Create GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          PRERELEASE_FLAG=""
+          if [[ "${{ steps.dist-tag.outputs.prerelease }}" == "true" ]]; then
+            PRERELEASE_FLAG="--prerelease"
+          fi
+          gh release create "$GITHUB_REF_NAME" \
+            staging/vibma-plugin.zip \
+            staging/vibma-tunnel.zip \
+            staging/vibma-mcp.zip \
+            --title "$GITHUB_REF_NAME" \
+            --generate-notes \
+            $PRERELEASE_FLAG
+
+      # ── Deploy docs (stable releases only) ──────────────────────────
+      - name: Deploy docs
+        if: steps.dist-tag.outputs.prerelease == 'false'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run docs.yml --ref main

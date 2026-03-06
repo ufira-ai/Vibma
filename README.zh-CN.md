@@ -15,9 +15,13 @@ https://github.com/user-attachments/assets/bf38e37d-57bb-40b3-a2d1-f89216117c11
 
 ---
 
-## 前提条件
+## 模型推荐
 
-Vibma 兼容任何支持 MCP 的大语言模型，但只有 **Claude Opus 4.6** 能稳定达到演示中的效果。GPT-5.3-Codex 表现接近，但偶尔会出错。
+Vibma 兼容任何支持 MCP 的大语言模型。以下是基于[基准测试](https://github.com/ufira-ai/vibma-benchmark)的推荐：
+
+- **低成本一次性构建：** GPT-5.3 Codex（meidum）——正确创建组件、绑定所有变量，费用低于 $1。不适合后续迭代任务。
+- **迭代设计工作：** GPT-5.3 Codex（xhigh）、Gemini 3.1 Pro 或 Claude Opus 4.6——随上下文增长仍保持质量，适合多轮工作流。
+- **不推荐：** 跳过组件搭建的模型（如 Cursor Auto、Kimi K2.5）生成的画面看似正确，但结构不可用——没有实例、没有变体、没有组件库。
 
 ## 安装
 

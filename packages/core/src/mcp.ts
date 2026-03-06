@@ -435,6 +435,7 @@ function cleanup() {
 process.on("SIGINT", () => { cleanup(); process.exit(0); });
 process.on("SIGTERM", () => { cleanup(); process.exit(0); });
 process.on("exit", cleanup);
+process.stdin.on("end", () => { cleanup(); process.exit(0); });
 
 async function main() {
   try {

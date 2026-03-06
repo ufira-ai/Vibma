@@ -16,11 +16,13 @@ modify styles, and build entire design systems through conversation.
 
 ---
 
-## Prerequisites
+## Model Recommendations
 
-Vibma works with any LLM that supports MCP, but only **Claude Opus 4.6** 
-consistently achieves the demonstrated results. GPT-5.3-Codex comes close 
-but makes occasional mistakes.
+Vibma works with any LLM that supports MCP. Based on our [benchmark](https://github.com/ufira-ai/vibma-benchmark):
+
+- **Cheap one-shot builds:** GPT-5.3 Codex (medium reasoning) — proper components, all variables bound, clean output for under $1. Degrades on follow-up tasks.
+- **Iterative design work:** GPT-5.3 Codex (xhigh), Gemini 3.1 Pro, or Claude Opus 4.6 — these maintain quality as context grows and handle multi-pass workflows.
+- **Avoid:** Models that skip figma components building (e.g. Cursor Auto, Kimi K2.5) produce frames that look right but aren't structurally usable — no instances, no variants, no library.
 
 ## Setup
 

@@ -1,7 +1,7 @@
 {
   "name": "@ufira/vibma-tunnel",
   "description": "Local WebSocket relay server for Vibma — bridges Figma plugin and MCP server.",
-  "version": "0.3.1",
+  "version": "0.3.2",
   "license": "MIT",
   "author": "ufira <https://github.com/ufira-ai>",
   "homepage": "https://github.com/ufira-ai/vibma",
@@ -26,14 +26,13 @@
     "dist"
   ],
   "scripts": {
-    "build": "tsup",
-    "pub:release": "npm run build && npm publish --access public"
+    "build": "tsup"
   },
   "dependencies": {
     "ws": "latest"
   },
   "devDependencies": {
-    "@types/node": "^25.3.2",
+    "@types/node": "^25.3.3",
     "@types/ws": "^8.18.1",
     "tsup": "^8.5.1",
     "typescript": "^5.9.3"

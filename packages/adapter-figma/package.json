@@ -1,7 +1,7 @@
 {
   "name": "@ufira/vibma-figma",
   "description": "Figma adapter for Vibma — plugin + handler implementations.",
-  "version": "0.3.1",
+  "version": "0.3.2",
   "license": "MIT",
   "author": "ufira <https://github.com/ufira-ai>",
   "homepage": "https://github.com/ufira-ai/vibma",
@@ -23,8 +23,7 @@
   ],
   "scripts": {
     "build": "tsup",
-    "build:watch": "tsup --watch",
-    "pub:release": "npm run build && npm publish --access public"
+    "build:watch": "tsup --watch"
   },
   "dependencies": {
     "@ufira/vibma": "*"
