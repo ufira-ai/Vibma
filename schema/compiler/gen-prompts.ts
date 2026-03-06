@@ -61,17 +61,6 @@ export function generatePromptsTs(outDir: string): string {
 
 // ─── Docs MDX generation ────────────────────────────────────────
 
-/** Extract a short summary from the prompt text (first paragraph or first N lines) */
-function extractSummary(text: string): string[] {
-  const lines: string[] = [];
-  for (const line of text.trim().split("\n")) {
-    // Stop at first code block or heading after initial content
-    if (lines.length > 0 && (line.startsWith("```") || line.startsWith("## "))) break;
-    lines.push(line);
-  }
-  return lines;
-}
-
 export function generatePromptsDocs(docsRoot: string) {
   const prompts = loadPrompts();
 

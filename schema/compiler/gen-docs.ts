@@ -165,10 +165,6 @@ function responseToJsonSchema(response: RawResponse): Record<string, any> | null
   return null;
 }
 
-// ─── Tier badge helper ──────────────────────────────────────────
-
-const TIER_EMOJI: Record<string, string> = { read: "read", create: "create", edit: "edit" };
-
 // ─── Discriminated type docs ────────────────────────────────────
 
 function renderDiscriminatedTypes(method: ResolvedMethod): string[] {
@@ -237,7 +233,7 @@ export function generateDocs(
     // Frontmatter
     lines.push("---");
     lines.push(`title: "${titleCase(ep.name)}"`);
-    lines.push(`description: "${ep.description.replace(/"/g, '\\"')}"`);
+    lines.push(`description: "${ep.description.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`);
     lines.push("---");
     lines.push("");
     lines.push(`import ParameterTable from "../../../components/ParameterTable.astro";`);
@@ -264,7 +260,6 @@ export function generateDocs(
 
     // Methods
     for (const method of ep.methods) {
-      const commandName = method.command ?? `${ep.name}.${method.name}`;
       lines.push(`## ${method.name}`);
       lines.push("");
 
@@ -345,7 +340,7 @@ export function generateDocs(
 
     lines.push("---");
     lines.push(`title: "${titleCase(ep.name)}"`);
-    lines.push(`description: "${(ep.descriptionZh ?? ep.description).replace(/"/g, '\\"')}"`);
+    lines.push(`description: "${(ep.descriptionZh ?? ep.description).replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`);
     lines.push("---");
     lines.push("");
     lines.push(`import ParameterTable from "../../../../components/ParameterTable.astro";`);
