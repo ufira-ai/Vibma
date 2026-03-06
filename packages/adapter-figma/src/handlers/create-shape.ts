@@ -237,6 +237,6 @@ export const figmaHandlers: Record<string, (params: any) => Promise<any>> = {
   create_rectangle: (p) => batchHandler(p, createSingleRectangle),
   create_ellipse: (p) => batchHandler(p, createSingleEllipse),
   create_line: (p) => batchHandler(p, createSingleLine),
-  create_group: createSingleGroup,
-  create_boolean_operation: createSingleBooleanOperation,
+  create_group: (p) => batchHandler(p, createSingleGroup),
+  create_boolean_operation: (p) => batchHandler(p, createSingleBooleanOperation),
 };

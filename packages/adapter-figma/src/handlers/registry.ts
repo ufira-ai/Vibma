@@ -56,8 +56,8 @@ export const allFigmaHandlers: Record<string, (params: any) => Promise<any>> = {
     if (type === "rectangle") return createShapeHandlers.create_rectangle(params);
     if (type === "ellipse") return createShapeHandlers.create_ellipse(params);
     if (type === "line") return createShapeHandlers.create_line(params);
-    if (type === "group") return createShapeHandlers.create_group({ ...params, ...params.items?.[0] });
-    if (type === "boolean_operation") return createShapeHandlers.create_boolean_operation({ ...params, ...params.items?.[0] });
+    if (type === "group") return createShapeHandlers.create_group(params);
+    if (type === "boolean_operation") return createShapeHandlers.create_boolean_operation(params);
     if (type === "svg") return createShapeHandlers.create_node_from_svg(params);
     throw new Error(`frames.create: unknown type "${type}". Expected: frame, auto_layout, section, rectangle, ellipse, line, group, boolean_operation, svg`);
   },
