@@ -74,7 +74,10 @@ export const allFigmaHandlers: Record<string, (params: any) => Promise<any>> = {
     ...p,
     items: p.items ?? [{ nodeId: p.id, parentId: p.parentId, x: p.x, y: p.y }],
   }),
-  "frames.reparent": modifyNodeHandlers.insert_child,
+  "frames.reparent": (p: any) => modifyNodeHandlers.insert_child({
+    ...p,
+    items: (p.items || []).map((i: any) => ({ childId: i.id, parentId: i.parentId, index: i.index })),
+  }),
   "frames.export": nodeInfoHandlers.export_node_as_image,
 
   // ─── pages endpoint ───
@@ -106,7 +109,10 @@ export const allFigmaHandlers: Record<string, (params: any) => Promise<any>> = {
     ...p,
     items: p.items ?? [{ nodeId: p.id, parentId: p.parentId, x: p.x, y: p.y }],
   }),
-  "text.reparent": modifyNodeHandlers.insert_child,
+  "text.reparent": (p: any) => modifyNodeHandlers.insert_child({
+    ...p,
+    items: (p.items || []).map((i: any) => ({ childId: i.id, parentId: i.parentId, index: i.index })),
+  }),
 
   // ─── fonts endpoint ───
   "fonts.list": fontsHandlers.get_available_fonts,

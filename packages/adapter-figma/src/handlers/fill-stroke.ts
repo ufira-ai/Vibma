@@ -40,7 +40,8 @@ export async function setFillSingle(p: any): Promise<any> {
     }
     throw new Error(styleNotFoundHint("styleName", p.styleName, available));
   } else if (p.color) {
-    const c = coerceColor(p.color) ?? { r: 0, g: 0, b: 0, a: 1 };
+    const c = coerceColor(p.color);
+    if (!c) throw new Error(`Invalid fill color: ${JSON.stringify(p.color)}. Use hex "#FF0000" or {r, g, b, a?} with values 0-1.`);
     (node as any).fills = [{ type: "SOLID", color: { r: c.r, g: c.g, b: c.b }, opacity: c.a }];
     const suggestion = await suggestStyleForColor(c, "styleName");
     if (suggestion) return { warning: suggestion };
@@ -71,7 +72,8 @@ export async function setStrokeSingle(p: any): Promise<any> {
     }
     throw new Error(styleNotFoundHint("styleName", p.styleName, available));
   } else if (p.color) {
-    const c = coerceColor(p.color) ?? { r: 0, g: 0, b: 0, a: 1 };
+    const c = coerceColor(p.color);
+    if (!c) throw new Error(`Invalid stroke color: ${JSON.stringify(p.color)}. Use hex "#FF0000" or {r, g, b, a?} with values 0-1.`);
     (node as any).strokes = [{ type: "SOLID", color: { r: c.r, g: c.g, b: c.b }, opacity: c.a }];
   }
   if (p.strokeWeight !== undefined && "strokeWeight" in node) (node as any).strokeWeight = p.strokeWeight;

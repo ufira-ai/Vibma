@@ -72,9 +72,10 @@ async function prepCreateText(params: any): Promise<CreateTextContext> {
 
   // Preload all fonts in parallel
   await Promise.all(
-    [...fontKeys].map(key => {
+    [...fontKeys].map(async key => {
       const [family, style] = key.split("::");
-      return figma.loadFontAsync({ family, style });
+      try { await figma.loadFontAsync({ family, style }); }
+      catch { throw new Error(`Font "${family}" style "${style}" not found. Use fonts(method: "list") to see available fonts.`); }
     })
   );
 
