@@ -139,8 +139,26 @@ async function createSingleFrame(p: any) {
 }
 
 async function createSingleAutoLayout(p: any) {
-  if (!p.nodeIds?.length) throw new Error("Missing nodeIds");
+  // Expand padding shorthand
+  if (p.padding !== undefined) {
+    p.paddingTop ??= p.padding;
+    p.paddingRight ??= p.padding;
+    p.paddingBottom ??= p.padding;
+    p.paddingLeft ??= p.padding;
+  }
 
+  // If no nodeIds, create a fresh auto-layout frame (matching YAML schema)
+  if (!p.nodeIds?.length) {
+    return createSingleFrame({
+      ...p,
+      name: p.name || "Auto Layout",
+      layoutMode: p.layoutMode || "VERTICAL",
+      layoutSizingHorizontal: p.layoutSizingHorizontal || "HUG",
+      layoutSizingVertical: p.layoutSizingVertical || "HUG",
+    });
+  }
+
+  // Wrap existing nodes into an auto-layout frame
   const nodes: SceneNode[] = [];
   for (const id of p.nodeIds) {
     const node = await figma.getNodeByIdAsync(id);
