@@ -108,6 +108,12 @@ async function createSingleFrame(p: any) {
   if (p.strokeLeftWeight !== undefined) (frame as any).strokeLeftWeight = p.strokeLeftWeight;
   if (p.strokeRightWeight !== undefined) (frame as any).strokeRightWeight = p.strokeRightWeight;
 
+  // Min/max dimensions (responsive auto-layout constraints)
+  if (p.minWidth !== undefined) (frame as any).minWidth = p.minWidth;
+  if (p.maxWidth !== undefined) (frame as any).maxWidth = p.maxWidth;
+  if (p.minHeight !== undefined) (frame as any).minHeight = p.minHeight;
+  if (p.maxHeight !== undefined) (frame as any).maxHeight = p.maxHeight;
+
   // Append to parent or page (with deferred FILL sizing)
   const parent = await appendToParent(frame, parentId);
   const parentIsAL = parent && "layoutMode" in parent && (parent as any).layoutMode !== "NONE";

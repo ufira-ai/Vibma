@@ -8,6 +8,12 @@ notes: |
   // depth: omit → id+name stubs | 0 → props + child stubs | N → recurse N | -1 → full tree
   // fields: whitelist e.g. ["fills","opacity"] — id, name, type always included. Pass ["*"] for all.
   // visible: false hides the node. Omitted from response when true (the default).
+  // locked: true prevents editing in Figma UI. Omitted when false (the default).
+  // rotation: degrees (0-360). Omitted when 0.
+  // blendMode: layer blend mode. Omitted when PASS_THROUGH (the default).
+  // layoutPositioning: ABSOLUTE = floating inside auto-layout parent. Omitted when AUTO (the default).
+  // layoutSizingHorizontal/Vertical: FIXED | HUG | FILL — how the node sizes within auto-layout.
+  // minWidth/maxWidth/minHeight/maxHeight: responsive constraints for auto-layout children.
   // constraints: position behavior in non-auto-layout parents. Ignored inside auto-layout frames.
   // bindings: bind design variables to node properties. field uses slash path e.g. "fills/0/color", "opacity", "width".
   // explicitMode: pin a specific variable mode on this node (overrides inherited mode from parent).
@@ -15,7 +21,14 @@ notes: |
   interface Node {
     id: string; name: string; type: string;
     visible?: boolean;       // omitted when true
+    locked?: boolean;        // omitted when false
     opacity?: number;        // omitted when 1
+    rotation?: number;       // omitted when 0
+    blendMode?: string;      // omitted when PASS_THROUGH
+    layoutPositioning?: "AUTO" | "ABSOLUTE";
+    layoutSizingHorizontal?: "FIXED" | "HUG" | "FILL";
+    layoutSizingVertical?: "FIXED" | "HUG" | "FILL";
+    minWidth?: number; maxWidth?: number; minHeight?: number; maxHeight?: number;
     absoluteBoundingBox: { x: number; y: number; width: number; height: number };
     fills?: Paint[];         // solid: {type: "SOLID", color: {r, g, b, a}}
     strokes?: Paint[];
@@ -24,7 +37,15 @@ notes: |
   }
   interface PatchItem {
     id: string;
+    name?: string; // rename node
+    visible?: boolean; // show/hide (default true)
+    locked?: boolean; // lock/unlock (default false)
+    rotation?: number; // degrees (0-360)
+    blendMode?: "PASS_THROUGH" | "NORMAL" | "DARKEN" | "MULTIPLY" | "LINEAR_BURN" | "COLOR_BURN" | "LIGHTEN" | "SCREEN" | "LINEAR_DODGE" | "COLOR_DODGE" | "OVERLAY" | "SOFT_LIGHT" | "HARD_LIGHT" | "DIFFERENCE" | "EXCLUSION" | "HUE" | "SATURATION" | "COLOR" | "LUMINOSITY";
+    layoutPositioning?: "AUTO" | "ABSOLUTE"; // ABSOLUTE = floating inside auto-layout parent
     x?: number; y?: number; width?: number; height?: number;
+    minWidth?: number; maxWidth?: number; // responsive auto-layout constraints
+    minHeight?: number; maxHeight?: number;
     opacity?: number; // 0-1
     fill?: { color?: Color; styleName?: string; variableId?: string; clear?: boolean };
     stroke?: { color?: Color; weight?: number; styleName?: string; variableId?: string; strokeTopWeight?: number; strokeBottomWeight?: number; strokeLeftWeight?: number; strokeRightWeight?: number };
@@ -38,6 +59,7 @@ notes: |
       layoutSizingHorizontal?: "FIXED" | "HUG" | "FILL";
       layoutSizingVertical?: "FIXED" | "HUG" | "FILL";
       itemSpacing?: number; counterAxisSpacing?: number;
+      layoutWrap?: "NO_WRAP" | "WRAP";
     };
     text?: {
       fontSize?: number; fontWeight?: number; fontColor?: Color;

@@ -8,8 +8,11 @@ notes: |
   // Frames are the primary container in Figma — they hold children and can have auto-layout, fills, strokes, and effects.
   // Sizing: FIXED = explicit width/height, HUG = shrink to fit children, FILL = expand to fill parent auto-layout.
   //   HUG and FILL only work inside an auto-layout parent. Use FIXED for top-level frames.
+  //   minWidth/maxWidth/minHeight/maxHeight: responsive constraints for auto-layout children.
   // clipsContent: true (default) clips children to the frame bounds. Set false for overflow-visible.
   // Sections are top-level organizers (like artboards) — they cannot be nested inside frames.
+  // Shape primitives: rectangle, ellipse, line — for decorative/visual elements (not containers).
+  // group: wraps existing nodes into a Group. boolean_operation: UNION/SUBTRACT/INTERSECT/EXCLUDE combines shapes.
   // SVG create: pass raw SVG markup string (e.g. "<svg>...</svg>") — Figma converts it to vector nodes.
   // Inherits get, list, update, delete, clone, reparent from node base methods.
 
@@ -55,6 +58,10 @@ methods:
             values: [FIXED, HUG, FILL]
             optional: true
             description: "Vertical sizing in parent auto-layout"
+          minWidth: { type: number, coerce: true, optional: true, description: "Min width for responsive auto-layout" }
+          maxWidth: { type: number, coerce: true, optional: true, description: "Max width for responsive auto-layout" }
+          minHeight: { type: number, coerce: true, optional: true, description: "Min height for responsive auto-layout" }
+          maxHeight: { type: number, coerce: true, optional: true, description: "Max height for responsive auto-layout" }
       auto_layout:
         description: Auto-layout frame that arranges children automatically
         params:
@@ -98,6 +105,10 @@ methods:
           counterAxisSpacing: { type: number, coerce: true, optional: true, description: "Gap between wrapped rows (requires layoutWrap: WRAP)" }
           width: { type: number, coerce: true, optional: true }
           height: { type: number, coerce: true, optional: true }
+          minWidth: { type: number, coerce: true, optional: true, description: "Min width for responsive auto-layout" }
+          maxWidth: { type: number, coerce: true, optional: true, description: "Max width for responsive auto-layout" }
+          minHeight: { type: number, coerce: true, optional: true, description: "Min height for responsive auto-layout" }
+          maxHeight: { type: number, coerce: true, optional: true, description: "Max height for responsive auto-layout" }
           fillColor: { $ref: color, optional: true }
           fillStyleName: { type: string, optional: true }
           cornerRadius: { type: number, coerce: true, optional: true }
@@ -114,6 +125,72 @@ methods:
           fillColor: { $ref: color, optional: true, description: Background fill color }
           fillStyleName: { type: string, optional: true, description: Paint style name for fill }
           fillVariableId: { type: string, optional: true, description: Variable ID for fill }
+      rectangle:
+        description: Rectangle shape node
+        params:
+          name: { type: string, optional: true, description: "Layer name (default: 'Rectangle')" }
+          parentId: { $ref: parentId }
+          x: { $ref: xPos }
+          y: { $ref: yPos }
+          width: { type: number, coerce: true, optional: true, description: "Width in px (default: 100)" }
+          height: { type: number, coerce: true, optional: true, description: "Height in px (default: 100)" }
+          fillColor: { $ref: color, optional: true, description: Fill color }
+          fillStyleName: { type: string, optional: true, description: Paint style name for fill }
+          fillVariableId: { type: string, optional: true, description: Variable ID for fill }
+          strokeColor: { $ref: color, optional: true }
+          strokeWeight: { type: number, coerce: true, optional: true }
+          cornerRadius: { type: number, coerce: true, optional: true }
+          opacity: { type: number, coerce: true, optional: true }
+      ellipse:
+        description: Ellipse/circle shape node
+        params:
+          name: { type: string, optional: true, description: "Layer name (default: 'Ellipse')" }
+          parentId: { $ref: parentId }
+          x: { $ref: xPos }
+          y: { $ref: yPos }
+          width: { type: number, coerce: true, optional: true, description: "Width in px (default: 100)" }
+          height: { type: number, coerce: true, optional: true, description: "Height in px (default: 100, same as width for circle)" }
+          fillColor: { $ref: color, optional: true, description: Fill color }
+          fillStyleName: { type: string, optional: true, description: Paint style name for fill }
+          fillVariableId: { type: string, optional: true, description: Variable ID for fill }
+          strokeColor: { $ref: color, optional: true }
+          strokeWeight: { type: number, coerce: true, optional: true }
+          opacity: { type: number, coerce: true, optional: true }
+      line:
+        description: Line shape node
+        params:
+          name: { type: string, optional: true, description: "Layer name (default: 'Line')" }
+          parentId: { $ref: parentId }
+          x: { $ref: xPos }
+          y: { $ref: yPos }
+          length: { type: number, coerce: true, optional: true, description: "Line length in px (default: 100)" }
+          rotation: { type: number, coerce: true, optional: true, description: "Rotation in degrees (default: 0 = horizontal)" }
+          strokeColor: { $ref: color, optional: true, description: "Line color (default: black)" }
+          strokeWeight: { type: number, coerce: true, optional: true, description: "Line thickness (default: 1)" }
+          opacity: { type: number, coerce: true, optional: true }
+      group:
+        description: Group existing nodes together
+        params:
+          nodeIds:
+            type: string[]
+            required: true
+            description: "Node IDs to group (min 1)"
+          name: { type: string, optional: true, description: "Group name" }
+          parentId: { $ref: parentId }
+      boolean_operation:
+        description: Combine shapes with boolean operations (union, subtract, intersect, exclude)
+        params:
+          operation:
+            type: enum
+            values: [UNION, SUBTRACT, INTERSECT, EXCLUDE]
+            required: true
+            description: "Boolean operation type"
+          nodeIds:
+            type: string[]
+            required: true
+            description: "Node IDs to combine (min 2, first node is the base for SUBTRACT)"
+          name: { type: string, optional: true, description: "Result node name" }
+          parentId: { $ref: parentId }
       svg:
         description: Create node from SVG markup
         params:

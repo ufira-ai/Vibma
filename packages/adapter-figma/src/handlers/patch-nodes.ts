@@ -8,8 +8,22 @@ import type { TextPropsContext } from "./text";
 
 // ─── Figma Handlers ──────────────────────────────────────────────
 
+const SIMPLE_PROPS = ["name", "visible", "locked", "rotation", "blendMode", "layoutPositioning",
+  "minWidth", "maxWidth", "minHeight", "maxHeight"] as const;
+
 async function patchSingleNode(item: any, textCtx: TextPropsContext | null): Promise<any> {
   const result: any = {};
+
+  // 0. Simple scalar properties
+  const simpleUpdates = SIMPLE_PROPS.filter(k => item[k] !== undefined);
+  if (simpleUpdates.length > 0) {
+    const node = await figma.getNodeByIdAsync(item.nodeId);
+    if (!node) throw new Error(`Node not found: ${item.nodeId}`);
+    for (const key of simpleUpdates) {
+      if (key in node) (node as any)[key] = item[key];
+      else result.warning = appendWarning(result.warning, `Property '${key}' not supported on ${node.type}`);
+    }
+  }
 
   // 1. Geometry: move
   if (item.x !== undefined || item.y !== undefined) {
