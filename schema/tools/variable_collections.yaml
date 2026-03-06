@@ -63,6 +63,23 @@ methods:
       type: batch
       item: { id: { type: string } }
 
+  update:
+    tier: edit
+    description: Rename collections
+    params:
+      items:
+        type: array
+        coerce: json
+        required: true
+        description: "Array of {id, name}"
+        items:
+          type: object
+          properties:
+            id: { type: string, required: true, description: "Collection ID" }
+            name: { type: string, required: true, description: "New name" }
+    response:
+      type: batch_mixed
+
   delete:
     tier: edit
     description: Delete collections

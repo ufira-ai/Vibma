@@ -29,14 +29,14 @@ export const commandMap: Record<string, Record<string, string>> = {
   "connection": {"create":"connection.create","get":"connection.get","list":"connection.list","delete":"connection.delete"},
   "fonts": {"list":"fonts.list"},
   "frames": {"get":"frames.get","list":"frames.list","update":"frames.update","delete":"frames.delete","clone":"frames.clone","reparent":"frames.reparent","create":"frames.create","export":"frames.export"},
-  "instances": {"get":"instances.get","create":"instances.create","update":"instances.update"},
+  "instances": {"get":"instances.get","create":"instances.create","update":"instances.update","swap":"instances.swap","detach":"instances.detach","reset_overrides":"instances.reset_overrides"},
   "lint": {"check":"lint.check","fix":"lint.fix"},
   "pages": {"get":"pages.get","list":"pages.list","set":"pages.set","create":"pages.create","update":"pages.update"},
   "selection": {"get":"selection.get","update":"selection.update"},
   "styles": {"list":"styles.list","get":"styles.get","create":"styles.create","update":"styles.update","delete":"styles.delete"},
   "text": {"get":"text.get","list":"text.list","update":"text.update","delete":"text.delete","clone":"text.clone","reparent":"text.reparent","create":"text.create","set_content":"text.set_content","scan":"text.scan"},
-  "variable_collections": {"list":"variable_collections.list","get":"variable_collections.get","create":"variable_collections.create","delete":"variable_collections.delete","add_mode":"variable_collections.add_mode","rename_mode":"variable_collections.rename_mode","remove_mode":"variable_collections.remove_mode"},
-  "variables": {"list":"variables.list","get":"variables.get","create":"variables.create","update":"variables.update"},
+  "variable_collections": {"list":"variable_collections.list","get":"variable_collections.get","create":"variable_collections.create","update":"variable_collections.update","delete":"variable_collections.delete","add_mode":"variable_collections.add_mode","rename_mode":"variable_collections.rename_mode","remove_mode":"variable_collections.remove_mode"},
+  "variables": {"list":"variables.list","get":"variables.get","create":"variables.create","update":"variables.update","delete":"variables.delete"},
 };
 
 /** Methods handled inline (local WS state, not sent to Figma) */
@@ -47,7 +47,7 @@ export const inlineMethods: Record<string, Record<string, boolean>> = {
 export const tools: ToolDef[] = [
   {
     name: "components",
-    description: "/** Create and manage reusable components and variant sets. */\n  list      (name?, setsOnly?, fields?, offset?, limit?) → { totalCount, items }  // List components and component sets\n  get       (id, fields?) → { id?, name?, type?, propertyDefinitions? }  // Get component or component set detail\n  create    (type: component|from_node|variant_set, items: (ComponentItem | FromNodeItem | VariantSetItem)[]) → { results: {id}[] }  // Create components\n  update    (items: UpdatePropertyItem[], depth?) → { results: (\"ok\" | {error})[] }  // Add or update component properties (TEXT, BOOLEAN, INSTANCE_SWAP, VARIANT)\n  interface ComponentItem {\n    name: string; // Component name\n    parentId?: string; // Parent node ID. Omit to place on current page.\n    x?: number; // X position (default: 0)\n    y?: number; // Y position (default: 0)\n    width?: number; // Width (default: 100)\n    height?: number; // Height (default: 100)\n    fillColor?: Color; // Fill color\n    fillStyleName?: string; // Paint style name for fill\n    fillVariableId?: string; // Variable ID for fill\n    strokeColor?: Color; // Stroke color\n    strokeStyleName?: string; // Paint style name for stroke\n    strokeVariableId?: string; // Variable ID for stroke\n    strokeWeight?: number; // Stroke weight (default: 1)\n    cornerRadius?: number;\n    layoutMode?: \"NONE\" | \"HORIZONTAL\" | \"VERTICAL\"; // Layout direction (default: NONE)\n    layoutWrap?: \"NO_WRAP\" | \"WRAP\";\n    paddingTop?: number;\n    paddingRight?: number;\n    paddingBottom?: number;\n    paddingLeft?: number;\n    primaryAxisAlignItems?: \"MIN\" | \"MAX\" | \"CENTER\" | \"SPACE_BETWEEN\";\n    counterAxisAlignItems?: \"MIN\" | \"MAX\" | \"CENTER\" | \"BASELINE\";\n    layoutSizingHorizontal?: \"FIXED\" | \"HUG\" | \"FILL\";\n    layoutSizingVertical?: \"FIXED\" | \"HUG\" | \"FILL\";\n    itemSpacing?: number; // Spacing between children (default: 0)\n  }\n  interface FromNodeItem {\n    nodeId: string; // Node ID to convert\n    exposeText?: boolean; // Auto-expose text as editable properties (default: true)\n  }\n  interface VariantSetItem {\n    componentIds: string[]; // Component IDs to combine (min 2)\n    name?: string; // Name for the variant set\n  }\ninterface ComponentItem {\n  name: string; x?: number; y?: number; width?: number; height?: number; parentId?: string;\n  fillColor?: Color; fillStyleName?: string; fillVariableId?: string;\n  strokeColor?: Color; strokeStyleName?: string; strokeVariableId?: string;\n  strokeWeight?: number; cornerRadius?: number;\n  layoutMode?: \"NONE\"|\"HORIZONTAL\"|\"VERTICAL\"; layoutWrap?: \"NO_WRAP\"|\"WRAP\";\n  paddingTop?: number; paddingRight?: number; paddingBottom?: number; paddingLeft?: number;\n  primaryAxisAlignItems?: \"MIN\"|\"MAX\"|\"CENTER\"|\"SPACE_BETWEEN\";\n  counterAxisAlignItems?: \"MIN\"|\"MAX\"|\"CENTER\"|\"BASELINE\";\n  layoutSizingHorizontal?: \"FIXED\"|\"HUG\"|\"FILL\"; layoutSizingVertical?: \"FIXED\"|\"HUG\"|\"FILL\";\n  itemSpacing?: number;\n}\ninterface FromNodeItem { nodeId: string; exposeText?: boolean } // default exposeText: true — auto-expose text as editable properties\ninterface VariantSetItem { componentIds: string[]; name?: string } // min 2 components\ninterface UpdatePropertyItem { id: string; propertyName: string; type: \"BOOLEAN\"|\"TEXT\"|\"INSTANCE_SWAP\"|\"VARIANT\"; defaultValue: string | boolean; preferredValues?: {type: \"COMPONENT\"|\"COMPONENT_SET\", key: string}[] }",
+    description: "/** Create and manage reusable components and variant sets. */\n  list      (name?, setsOnly?, fields?, offset?, limit?) → { totalCount, items }  // List components and component sets\n  get       (id, fields?) → { id?, name?, type?, propertyDefinitions? }  // Get component or component set detail\n  create    (type: component|from_node|variant_set, items: (ComponentItem | FromNodeItem | VariantSetItem)[]) → { results: {id}[] }  // Create components\n  update    (items: UpdatePropertyItem[], depth?) → { results: (\"ok\" | {error})[] }  // Add, edit, or delete component properties\n  interface ComponentItem {\n    name: string; // Component name\n    parentId?: string; // Parent node ID. Omit to place on current page.\n    x?: number; // X position (default: 0)\n    y?: number; // Y position (default: 0)\n    width?: number; // Width (default: 100)\n    height?: number; // Height (default: 100)\n    fillColor?: Color; // Fill color\n    fillStyleName?: string; // Paint style name for fill\n    fillVariableId?: string; // Variable ID for fill\n    strokeColor?: Color; // Stroke color\n    strokeStyleName?: string; // Paint style name for stroke\n    strokeVariableId?: string; // Variable ID for stroke\n    strokeWeight?: number; // Stroke weight (default: 1)\n    cornerRadius?: number;\n    layoutMode?: \"NONE\" | \"HORIZONTAL\" | \"VERTICAL\"; // Layout direction (default: NONE)\n    layoutWrap?: \"NO_WRAP\" | \"WRAP\";\n    paddingTop?: number;\n    paddingRight?: number;\n    paddingBottom?: number;\n    paddingLeft?: number;\n    primaryAxisAlignItems?: \"MIN\" | \"MAX\" | \"CENTER\" | \"SPACE_BETWEEN\";\n    counterAxisAlignItems?: \"MIN\" | \"MAX\" | \"CENTER\" | \"BASELINE\";\n    layoutSizingHorizontal?: \"FIXED\" | \"HUG\" | \"FILL\";\n    layoutSizingVertical?: \"FIXED\" | \"HUG\" | \"FILL\";\n    itemSpacing?: number; // Spacing between children (default: 0)\n  }\n  interface FromNodeItem {\n    nodeId: string; // Node ID to convert\n    exposeText?: boolean; // Auto-expose text as editable properties (default: true)\n  }\n  interface VariantSetItem {\n    componentIds: string[]; // Component IDs to combine (min 2)\n    name?: string; // Name for the variant set\n  }\ninterface ComponentItem {\n  name: string; x?: number; y?: number; width?: number; height?: number; parentId?: string;\n  fillColor?: Color; fillStyleName?: string; fillVariableId?: string;\n  strokeColor?: Color; strokeStyleName?: string; strokeVariableId?: string;\n  strokeWeight?: number; cornerRadius?: number;\n  layoutMode?: \"NONE\"|\"HORIZONTAL\"|\"VERTICAL\"; layoutWrap?: \"NO_WRAP\"|\"WRAP\";\n  paddingTop?: number; paddingRight?: number; paddingBottom?: number; paddingLeft?: number;\n  primaryAxisAlignItems?: \"MIN\"|\"MAX\"|\"CENTER\"|\"SPACE_BETWEEN\";\n  counterAxisAlignItems?: \"MIN\"|\"MAX\"|\"CENTER\"|\"BASELINE\";\n  layoutSizingHorizontal?: \"FIXED\"|\"HUG\"|\"FILL\"; layoutSizingVertical?: \"FIXED\"|\"HUG\"|\"FILL\";\n  itemSpacing?: number;\n}\ninterface FromNodeItem { nodeId: string; exposeText?: boolean } // default exposeText: true — auto-expose text as editable properties\ninterface VariantSetItem { componentIds: string[]; name?: string } // min 2 components\ninterface UpdatePropertyItem { id: string; propertyName: string; action?: \"add\"|\"edit\"|\"delete\"; type?: \"BOOLEAN\"|\"TEXT\"|\"INSTANCE_SWAP\"|\"VARIANT\"; defaultValue?: string | boolean; name?: string; preferredValues?: {type: \"COMPONENT\"|\"COMPONENT_SET\", key: string}[] }\n// action: \"add\" (default) adds property, \"edit\" renames/changes default, \"delete\" removes property",
     schema: (caps) => filterMethodsByTier({    method: z.enum(["list", "get", "create", "update"]),
     name: z.string().optional().describe("Filter by name (case-insensitive substring)"),
     setsOnly: flexBool(z.boolean()).optional().describe("If true, return only COMPONENT_SET nodes"),
@@ -106,10 +106,13 @@ export const tools: ToolDef[] = [
       }
       if (m === "update") {
         params.items = z.array(z.object({
-          id: z.string().describe("Component node ID"),
-          propertyName: z.string().describe("Property name"),
-          type: z.enum(["BOOLEAN", "TEXT", "INSTANCE_SWAP", "VARIANT"]).describe("Property type"),
-          defaultValue: z.any().describe("Default value (string for TEXT/VARIANT, boolean for BOOLEAN)"),
+          id: z.string().describe("Component or component set ID"),
+          propertyName: z.string().describe("Property name (include #suffix for edit/delete)"),
+          action: z.enum(["add", "edit", "delete"]).optional().describe("Action: \"add\" (default), \"edit\", or \"delete\""),
+          type: z.enum(["BOOLEAN", "TEXT", "INSTANCE_SWAP", "VARIANT"]).optional().describe("Property type (required for add)"),
+          defaultValue: z.any().optional().describe("Default value (required for add)"),
+          name: z.string().optional().describe("New name (for edit action)"),
+          preferredValues: flexJson(z.array(z.any())).optional().describe("Preferred values for INSTANCE_SWAP"),
         })).parse(params.items);
       }
     },
@@ -136,7 +139,7 @@ export const tools: ToolDef[] = [
   },
   {
     name: "frames",
-    description: "/** Create and manage frames, auto-layout containers, and sections. */\n  get       (id, fields?, depth?) → { results: Node[], _truncated?, _notice? }  // Get serialized node data\n  list      (query?, types?, parentId?, fields?, offset?, limit?) → { totalCount, items }  // Search for nodes\n  update    (items: PatchItem[]) → { results: (\"ok\" | {error})[] }  // Patch node properties\n  delete    (id?, items?: { id?: string }[]) → { results: \"ok\"[] }  // Delete nodes\n  clone     (id, parentId?, x?, y?, depth?) → { results: {id}[] }  // Duplicate nodes\n  reparent  (items: { id: string; parentId: string; index?: number }[]) → { results: \"ok\"[] }  // Move nodes into a new parent\n  create    (type: frame|auto_layout|section|svg, items: (FrameItem | AutoLayoutItem | SectionItem | SvgItem)[]) → { results: {id}[] }  // Create frame-like containers\n  export    (nodeId, format: PNG|JPG|SVG|PDF, scale?) → { imageData?, mimeType? }  // Export a node as PNG, JPG, SVG, or PDF image\n  interface FrameItem {\n    name?: string; // Frame name\n    parentId?: string; // Parent node ID. Omit to place on current page.\n    x?: number; // X position (default: 0)\n    y?: number; // Y position (default: 0)\n    width?: number; // Width in px (default: 100)\n    height?: number; // Height in px (default: 100)\n    fillColor?: Color; // Background fill color\n    fillStyleName?: string; // Paint style name for fill\n    fillVariableId?: string; // Variable ID for fill\n    strokeColor?: Color; // Hex \"#FF0000\" or {r,g,b,a?} with values 0-1.\n    strokeWeight?: number;\n    cornerRadius?: number;\n    opacity?: number;\n    clipsContent?: boolean;\n  }\n  interface AutoLayoutItem {\n    name?: string;\n    parentId?: string; // Parent node ID. Omit to place on current page.\n    x?: number; // X position (default: 0)\n    y?: number; // Y position (default: 0)\n    layoutMode: \"HORIZONTAL\" | \"VERTICAL\"; // Primary axis direction\n    itemSpacing?: number; // Gap between children (px)\n    paddingTop?: number;\n    paddingBottom?: number;\n    paddingLeft?: number;\n    paddingRight?: number;\n    padding?: number; // Shorthand: sets all 4 paddings\n    primaryAxisAlignItems?: \"MIN\" | \"CENTER\" | \"MAX\" | \"SPACE_BETWEEN\"; // Alignment on primary axis\n    counterAxisAlignItems?: \"MIN\" | \"CENTER\" | \"MAX\" | \"BASELINE\"; // Alignment on counter axis\n    layoutSizingHorizontal?: \"FIXED\" | \"HUG\" | \"FILL\";\n    layoutSizingVertical?: \"FIXED\" | \"HUG\" | \"FILL\";\n    layoutWrap?: \"NO_WRAP\" | \"WRAP\";\n    width?: number;\n    height?: number;\n    fillColor?: Color; // Hex \"#FF0000\" or {r,g,b,a?} with values 0-1.\n    fillStyleName?: string;\n    cornerRadius?: number;\n    clipsContent?: boolean;\n  }\n  interface SectionItem {\n    name: string; // Section name\n    parentId?: string; // Parent node ID. Omit to place on current page.\n    x?: number; // X position (default: 0)\n    y?: number; // Y position (default: 0)\n    width?: number; // Width (default: 500)\n    height?: number; // Height (default: 500)\n  }\n  interface SvgItem {\n    svg: string; // SVG markup string\n    name?: string; // Layer name (default: 'SVG')\n    parentId?: string; // Parent node ID. Omit to place on current page.\n    x?: number; // X position (default: 0)\n    y?: number; // Y position (default: 0)\n  }\n// depth: omit → id+name stubs | 0 → props + child stubs | N → recurse N | -1 → full tree\n// fields: whitelist e.g. [\"fills\",\"opacity\"] — id, name, type always included\n// Color: hex \"#FF0000\" or {r: 0-1, g: 0-1, b: 0-1, a?: 0-1}\ninterface Node {\n  id: string; name: string; type: string;\n  visible?: boolean;       // omitted when true\n  opacity?: number;        // omitted when 1\n  absoluteBoundingBox: { x: number; y: number; width: number; height: number };\n  fills?: Paint[];         // solid: {type: \"SOLID\", color: {r, g, b, a}}\n  strokes?: Paint[];\n  effects?: Effect[];      // DROP_SHADOW | INNER_SHADOW | LAYER_BLUR | BACKGROUND_BLUR\n  children?: NodeStub[];   // stubs: {id, name, type} — use depth to expand\n}\ninterface PatchItem {\n  id: string;\n  x?: number; y?: number; width?: number; height?: number;\n  opacity?: number; // 0-1\n  fill?: { color?: Color; styleName?: string; clear?: boolean };\n  stroke?: { color?: Color; weight?: number; styleName?: string };\n  cornerRadius?: { radius: number; corners?: [boolean, boolean, boolean, boolean] }; // [TL, TR, BR, BL]\n  effects?: { effects?: Effect[]; styleName?: string };\n  layout?: {\n    layoutMode?: \"NONE\" | \"HORIZONTAL\" | \"VERTICAL\";\n    paddingTop?: number; paddingRight?: number; paddingBottom?: number; paddingLeft?: number;\n    primaryAxisAlignItems?: \"MIN\" | \"MAX\" | \"CENTER\" | \"SPACE_BETWEEN\";\n    counterAxisAlignItems?: \"MIN\" | \"MAX\" | \"CENTER\" | \"BASELINE\";\n    layoutSizingHorizontal?: \"FIXED\" | \"HUG\" | \"FILL\";\n    layoutSizingVertical?: \"FIXED\" | \"HUG\" | \"FILL\";\n    itemSpacing?: number; counterAxisSpacing?: number;\n  };\n  text?: {\n    fontSize?: number; fontWeight?: number; fontColor?: Color;\n    textStyleId?: string; textStyleName?: string;\n    textAlignHorizontal?: \"LEFT\" | \"CENTER\" | \"RIGHT\" | \"JUSTIFIED\";\n    textAlignVertical?: \"TOP\" | \"CENTER\" | \"BOTTOM\";\n    textAutoResize?: \"NONE\" | \"WIDTH_AND_HEIGHT\" | \"HEIGHT\" | \"TRUNCATE\";\n  };\n  constraints?: { horizontal: \"MIN\" | \"CENTER\" | \"MAX\" | \"STRETCH\" | \"SCALE\"; vertical: \"MIN\" | \"CENTER\" | \"MAX\" | \"STRETCH\" | \"SCALE\" };\n  bindings?: { field: string; variableId: string }[]; // bind variables: field e.g. \"fills/0/color\", \"opacity\"\n  explicitMode?: { collectionId: string; modeId: string }; // pin variable mode on this node\n  properties?: Record<string, unknown>; // direct Figma API props (escape hatch)\n}",
+    description: "/** Create and manage frames, auto-layout containers, and sections. */\n  get       (id, fields?, depth?) → { results: Node[], _truncated?, _notice? }  // Get serialized node data\n  list      (query?, types?, parentId?, fields?, offset?, limit?) → { totalCount, items }  // Search for nodes\n  update    (items: PatchItem[]) → { results: (\"ok\" | {error})[] }  // Patch node properties\n  delete    (id?, items?: { id?: string }[]) → { results: \"ok\"[] }  // Delete nodes\n  clone     (id, parentId?, x?, y?, depth?) → { results: {id}[] }  // Duplicate nodes\n  reparent  (items: { id: string; parentId: string; index?: number }[]) → { results: \"ok\"[] }  // Move nodes into a new parent\n  create    (type: frame|auto_layout|section|svg, items: (FrameItem | AutoLayoutItem | SectionItem | SvgItem)[]) → { results: {id}[] }  // Create frame-like containers\n  export    (nodeId, format: PNG|JPG|SVG|SVG_STRING|PDF, scale?) → { imageData?, mimeType? }  // Export a node as PNG, JPG, SVG, SVG_STRING, or PDF\n  interface FrameItem {\n    name?: string; // Frame name\n    parentId?: string; // Parent node ID. Omit to place on current page.\n    x?: number; // X position (default: 0)\n    y?: number; // Y position (default: 0)\n    width?: number; // Width in px (default: 100)\n    height?: number; // Height in px (default: 100)\n    fillColor?: Color; // Background fill color\n    fillStyleName?: string; // Paint style name for fill\n    fillVariableId?: string; // Variable ID for fill\n    strokeColor?: Color; // Hex \"#FF0000\" or {r,g,b,a?} with values 0-1.\n    strokeWeight?: number;\n    cornerRadius?: number;\n    opacity?: number;\n    clipsContent?: boolean;\n  }\n  interface AutoLayoutItem {\n    name?: string;\n    parentId?: string; // Parent node ID. Omit to place on current page.\n    x?: number; // X position (default: 0)\n    y?: number; // Y position (default: 0)\n    layoutMode: \"HORIZONTAL\" | \"VERTICAL\"; // Primary axis direction\n    itemSpacing?: number; // Gap between children (px)\n    paddingTop?: number;\n    paddingBottom?: number;\n    paddingLeft?: number;\n    paddingRight?: number;\n    padding?: number; // Shorthand: sets all 4 paddings\n    primaryAxisAlignItems?: \"MIN\" | \"CENTER\" | \"MAX\" | \"SPACE_BETWEEN\"; // Alignment on primary axis\n    counterAxisAlignItems?: \"MIN\" | \"CENTER\" | \"MAX\" | \"BASELINE\"; // Alignment on counter axis\n    layoutSizingHorizontal?: \"FIXED\" | \"HUG\" | \"FILL\";\n    layoutSizingVertical?: \"FIXED\" | \"HUG\" | \"FILL\";\n    layoutWrap?: \"NO_WRAP\" | \"WRAP\";\n    width?: number;\n    height?: number;\n    fillColor?: Color; // Hex \"#FF0000\" or {r,g,b,a?} with values 0-1.\n    fillStyleName?: string;\n    cornerRadius?: number;\n    clipsContent?: boolean;\n  }\n  interface SectionItem {\n    name: string; // Section name\n    parentId?: string; // Parent node ID. Omit to place on current page.\n    x?: number; // X position (default: 0)\n    y?: number; // Y position (default: 0)\n    width?: number; // Width (default: 500)\n    height?: number; // Height (default: 500)\n  }\n  interface SvgItem {\n    svg: string; // SVG markup string\n    name?: string; // Layer name (default: 'SVG')\n    parentId?: string; // Parent node ID. Omit to place on current page.\n    x?: number; // X position (default: 0)\n    y?: number; // Y position (default: 0)\n  }\n// depth: omit → id+name stubs | 0 → props + child stubs | N → recurse N | -1 → full tree\n// fields: whitelist e.g. [\"fills\",\"opacity\"] — id, name, type always included\n// Color: hex \"#FF0000\" or {r: 0-1, g: 0-1, b: 0-1, a?: 0-1}\ninterface Node {\n  id: string; name: string; type: string;\n  visible?: boolean;       // omitted when true\n  opacity?: number;        // omitted when 1\n  absoluteBoundingBox: { x: number; y: number; width: number; height: number };\n  fills?: Paint[];         // solid: {type: \"SOLID\", color: {r, g, b, a}}\n  strokes?: Paint[];\n  effects?: Effect[];      // DROP_SHADOW | INNER_SHADOW | LAYER_BLUR | BACKGROUND_BLUR\n  children?: NodeStub[];   // stubs: {id, name, type} — use depth to expand\n}\ninterface PatchItem {\n  id: string;\n  x?: number; y?: number; width?: number; height?: number;\n  opacity?: number; // 0-1\n  fill?: { color?: Color; styleName?: string; clear?: boolean };\n  stroke?: { color?: Color; weight?: number; styleName?: string };\n  cornerRadius?: { radius: number; corners?: [boolean, boolean, boolean, boolean] }; // [TL, TR, BR, BL]\n  effects?: { effects?: Effect[]; styleName?: string };\n  layout?: {\n    layoutMode?: \"NONE\" | \"HORIZONTAL\" | \"VERTICAL\";\n    paddingTop?: number; paddingRight?: number; paddingBottom?: number; paddingLeft?: number;\n    primaryAxisAlignItems?: \"MIN\" | \"MAX\" | \"CENTER\" | \"SPACE_BETWEEN\";\n    counterAxisAlignItems?: \"MIN\" | \"MAX\" | \"CENTER\" | \"BASELINE\";\n    layoutSizingHorizontal?: \"FIXED\" | \"HUG\" | \"FILL\";\n    layoutSizingVertical?: \"FIXED\" | \"HUG\" | \"FILL\";\n    itemSpacing?: number; counterAxisSpacing?: number;\n  };\n  text?: {\n    fontSize?: number; fontWeight?: number; fontColor?: Color;\n    textStyleId?: string; textStyleName?: string;\n    textAlignHorizontal?: \"LEFT\" | \"CENTER\" | \"RIGHT\" | \"JUSTIFIED\";\n    textAlignVertical?: \"TOP\" | \"CENTER\" | \"BOTTOM\";\n    textAutoResize?: \"NONE\" | \"WIDTH_AND_HEIGHT\" | \"HEIGHT\" | \"TRUNCATE\";\n  };\n  constraints?: { horizontal: \"MIN\" | \"CENTER\" | \"MAX\" | \"STRETCH\" | \"SCALE\"; vertical: \"MIN\" | \"CENTER\" | \"MAX\" | \"STRETCH\" | \"SCALE\" };\n  bindings?: { field: string; variableId: string }[]; // bind variables: field e.g. \"fills/0/color\", \"opacity\"\n  explicitMode?: { collectionId: string; modeId: string }; // pin variable mode on this node\n  properties?: Record<string, unknown>; // direct Figma API props (escape hatch)\n}",
     schema: (caps) => filterMethodsByTier({    method: z.enum(["get", "list", "update", "delete", "clone", "reparent", "create", "export"]),
     id: z.string().optional().describe("Node ID"),
     fields: flexJson(z.array(z.string())).optional().describe("Property whitelist. Identity fields (id, name, type) always included. Omit for stubs on list, full on get. Pass [\"*\"] for all."),
@@ -151,8 +154,8 @@ export const tools: ToolDef[] = [
     y: z.coerce.number().optional().describe("Y position (default: 0)"),
     type: z.enum(["frame", "auto_layout", "section", "svg"]).optional().describe("Discriminant for create method"),
     nodeId: z.string().optional().describe("Node ID to export"),
-    format: z.enum(["PNG", "JPG", "SVG", "PDF"]).optional().describe("Export format (default: PNG)"),
-    scale: z.coerce.number().optional().describe("Export scale (default: 1)"),
+    format: z.enum(["PNG", "JPG", "SVG", "SVG_STRING", "PDF"]).optional().describe("Export format (default: PNG). SVG_STRING returns raw SVG text."),
+    scale: z.coerce.number().optional().describe("Export scale (default: 1, only for PNG/JPG)"),
     }, caps, {"get":"read","list":"read","update":"edit","delete":"edit","clone":"create","reparent":"edit","create":"create","export":"read"}),
     tier: "read" as const,
     validate: (params: any) => {
@@ -224,13 +227,13 @@ export const tools: ToolDef[] = [
   },
   {
     name: "instances",
-    description: "/** Create and manage component instances. */\n  get       (id, fields?) → { mainComponentId?, overrides? }  // Get instance overrides and main component\n  create    (items: InstanceCreateItem[], depth?) → { results: {id}[] }  // Create component instances\n  update    (items: InstanceUpdateItem[]) → { results: (\"ok\" | {error})[] }  // Set instance properties\ninterface InstanceCreateItem {\n  componentId: string;                     // component or component set ID\n  variantProperties?: Record<string, string>; // pick variant e.g. {\"Style\":\"Secondary\",\"Size\":\"Large\"}\n  x?: number; y?: number; parentId?: string;\n}\ninterface InstanceUpdateItem {\n  id: string;                              // instance node ID\n  properties: Record<string, string | boolean>; // key→value e.g. {\"Label#1:0\":\"Click Me\"}\n}",
-    schema: (caps) => filterMethodsByTier({    method: z.enum(["get", "create", "update"]),
+    description: "/** Create and manage component instances. */\n  get       (id, fields?) → { mainComponentId?, componentProperties?, overrides? }  // Get instance properties, overrides, and main component\n  create    (items: InstanceCreateItem[], depth?) → { results: {id}[] }  // Create component instances\n  update    (items: InstanceUpdateItem[]) → { results: (\"ok\" | {error})[] }  // Set instance properties\n  swap      (items: { id: string; componentId: string }[]) → { results: (\"ok\" | {error})[] }  // Swap instance component (preserves overrides)\n  detach    (items: { id: string }[]) → { results: {id}[] }  // Detach instances from their component (converts to frame)\n  reset_overrides(items: { id: string }[]) → { results: (\"ok\" | {error})[] }  // Reset all overrides on instances to match their main component\ninterface InstanceCreateItem {\n  componentId: string;                     // component or component set ID\n  variantProperties?: Record<string, string>; // pick variant e.g. {\"Style\":\"Secondary\",\"Size\":\"Large\"}\n  x?: number; y?: number; parentId?: string;\n}\ninterface InstanceUpdateItem {\n  id: string;                              // instance node ID\n  properties: Record<string, string | boolean>; // key→value e.g. {\"Label#1:0\":\"Click Me\"}\n}\n// swap: override-preserving component swap. detach: convert to frame. reset_overrides: revert all overrides.",
+    schema: (caps) => filterMethodsByTier({    method: z.enum(["get", "create", "update", "swap", "detach", "reset_overrides"]),
     id: z.string().optional().describe("Instance node ID"),
     fields: flexJson(z.array(z.string())).optional().describe("Property whitelist. Identity fields (id, name, type) always included. Omit for stubs on list, full on get. Pass [\"*\"] for all."),
     items: flexJson(z.array(z.any())).optional().describe("Array of {componentId, variantProperties?, x?, y?, parentId?}"),
     depth: z.coerce.number().optional().describe("Response detail: omit for id+name only. 0=properties + child stubs. N=recurse N levels. -1=unlimited."),
-    }, caps, {"get":"read","create":"create","update":"edit"}),
+    }, caps, {"get":"read","create":"create","update":"edit","swap":"edit","detach":"edit","reset_overrides":"edit"}),
     tier: "read" as const,
     validate: (params: any) => {
       if (!params.items) return;
@@ -250,8 +253,24 @@ export const tools: ToolDef[] = [
           properties: z.record(z.any()).describe("Property key→value map"),
         })).parse(params.items);
       }
+      if (m === "swap") {
+        params.items = z.array(z.object({
+          id: z.string().describe("Instance node ID"),
+          componentId: z.string().describe("New component or component set ID"),
+        })).parse(params.items);
+      }
+      if (m === "detach") {
+        params.items = z.array(z.object({
+          id: z.string().describe("Instance node ID"),
+        })).parse(params.items);
+      }
+      if (m === "reset_overrides") {
+        params.items = z.array(z.object({
+          id: z.string().describe("Instance node ID"),
+        })).parse(params.items);
+      }
     },
-    commandMap: {"get":"instances.get","create":"instances.create","update":"instances.update"},
+    commandMap: {"get":"instances.get","create":"instances.create","update":"instances.update","swap":"instances.swap","detach":"instances.detach","reset_overrides":"instances.reset_overrides"},
   },
   {
     name: "lint",
@@ -302,9 +321,9 @@ export const tools: ToolDef[] = [
   },
   {
     name: "styles",
-    description: "/** CRUD for local paint, text, and effect styles. */\n  list      (type: paint|text|effect, fields?, offset?, limit?) → { totalCount, items }  // List local styles with optional type filter\n  get       (id, fields?) → { id?, name?, type? }  // Get full style detail by ID\n  create    (type: paint|text|effect, items: (PaintItem | TextItem | EffectItem)[]) → { results: {id}[] }  // Create local styles\n  update    (type: paint|text|effect, items: PatchStyleItem[], depth?) → { results: (\"ok\" | {error})[] }  // Update styles by ID or name\n  delete    (id?, items?: { id: string }[]) → { results: \"ok\"[] }  // Delete styles\n  interface PaintItem {\n    name: string; // Style name\n    color: Color; // Color value\n  }\n  interface TextItem {\n    name: string; // Style name\n    fontFamily: string; // Font family\n    fontStyle?: string; // Font style (default: Regular)\n    fontSize: number; // Font size\n    lineHeight?: any; // number (px) or {value, unit: PIXELS|PERCENT|AUTO}\n    letterSpacing?: any; // number (px) or {value, unit: PIXELS|PERCENT}\n    textCase?: \"ORIGINAL\" | \"UPPER\" | \"LOWER\" | \"TITLE\";\n    textDecoration?: \"NONE\" | \"UNDERLINE\" | \"STRIKETHROUGH\";\n  }\n  interface EffectItem {\n    name: string; // Style name\n    effects: any[]; // Array of Effect objects\n  }\ninterface PaintStyleItem { name: string; color: Color }\ninterface TextStyleItem {\n  name: string; fontFamily: string; fontStyle?: string; fontSize: number;\n  lineHeight?: number | {value: number, unit: \"PIXELS\"|\"PERCENT\"|\"AUTO\"};\n  letterSpacing?: number | {value: number, unit: \"PIXELS\"|\"PERCENT\"};\n  textCase?: \"ORIGINAL\"|\"UPPER\"|\"LOWER\"|\"TITLE\";\n  textDecoration?: \"NONE\"|\"UNDERLINE\"|\"STRIKETHROUGH\";\n}\ninterface EffectStyleItem { name: string; effects: Effect[] }\ninterface PatchStyleItem {\n  id: string; name?: string;\n  color?: Color;                    // paint styles\n  fontFamily?: string; fontStyle?: string; fontSize?: number;\n  lineHeight?: number | {value, unit}; letterSpacing?: number | {value, unit};\n  textCase?: string; textDecoration?: string;   // text styles\n  effects?: Effect[];               // effect styles\n}\n// Effect: {type: \"DROP_SHADOW\"|\"INNER_SHADOW\"|\"LAYER_BLUR\"|\"BACKGROUND_BLUR\", radius, color?, offset?: {x,y}, spread?}",
+    description: "/** CRUD for local paint, text, effect, and grid styles. */\n  list      (type: paint|text|effect|grid, fields?, offset?, limit?) → { totalCount, items }  // List local styles with optional type filter\n  get       (id, fields?) → { id?, name?, type? }  // Get full style detail by ID\n  create    (type: paint|text|effect|grid, items: (PaintItem | TextItem | EffectItem | GridItem)[]) → { results: {id}[] }  // Create local styles\n  update    (type: paint|text|effect|grid, items: PatchStyleItem[], depth?) → { results: (\"ok\" | {error})[] }  // Update styles by ID or name\n  delete    (id?, items?: { id: string }[]) → { results: \"ok\"[] }  // Delete styles\n  interface PaintItem {\n    name: string; // Style name\n    color: Color; // Color value\n    description?: string; // Style description\n  }\n  interface TextItem {\n    name: string; // Style name\n    fontFamily: string; // Font family\n    fontStyle?: string; // Font style (default: Regular)\n    fontSize: number; // Font size\n    lineHeight?: any; // number (px) or {value, unit: PIXELS|PERCENT|AUTO}\n    letterSpacing?: any; // number (px) or {value, unit: PIXELS|PERCENT}\n    textCase?: \"ORIGINAL\" | \"UPPER\" | \"LOWER\" | \"TITLE\" | \"SMALL_CAPS\" | \"SMALL_CAPS_FORCED\";\n    textDecoration?: \"NONE\" | \"UNDERLINE\" | \"STRIKETHROUGH\";\n    paragraphIndent?: number; // Paragraph indent (px)\n    paragraphSpacing?: number; // Paragraph spacing (px)\n    leadingTrim?: \"CAP_HEIGHT\" | \"NONE\"; // Leading trim mode\n    description?: string; // Style description\n  }\n  interface EffectItem {\n    name: string; // Style name\n    effects: any[]; // Array of Effect objects\n    description?: string; // Style description\n  }\n  interface GridItem {\n    name: string; // Style name\n    layoutGrids: any[]; // Array of LayoutGrid objects\n    description?: string; // Style description\n  }\ninterface PaintStyleItem { name: string; color: Color; description?: string }\ninterface TextStyleItem {\n  name: string; fontFamily: string; fontStyle?: string; fontSize: number;\n  lineHeight?: number | {value: number, unit: \"PIXELS\"|\"PERCENT\"|\"AUTO\"};\n  letterSpacing?: number | {value: number, unit: \"PIXELS\"|\"PERCENT\"};\n  textCase?: \"ORIGINAL\"|\"UPPER\"|\"LOWER\"|\"TITLE\"|\"SMALL_CAPS\"|\"SMALL_CAPS_FORCED\";\n  textDecoration?: \"NONE\"|\"UNDERLINE\"|\"STRIKETHROUGH\";\n  paragraphIndent?: number; paragraphSpacing?: number;\n  leadingTrim?: \"CAP_HEIGHT\"|\"NONE\"; description?: string;\n}\ninterface EffectStyleItem { name: string; effects: Effect[]; description?: string }\ninterface GridStyleItem { name: string; layoutGrids: LayoutGrid[]; description?: string }\ninterface PatchStyleItem {\n  id: string; name?: string; description?: string;\n  color?: Color;                    // paint styles\n  fontFamily?: string; fontStyle?: string; fontSize?: number;\n  lineHeight?: number | {value, unit}; letterSpacing?: number | {value, unit};\n  textCase?: string; textDecoration?: string;\n  paragraphIndent?: number; paragraphSpacing?: number;\n  leadingTrim?: \"CAP_HEIGHT\"|\"NONE\";   // text styles\n  effects?: Effect[];               // effect styles\n  layoutGrids?: LayoutGrid[];       // grid styles\n}\n// Effect: {type: \"DROP_SHADOW\"|\"INNER_SHADOW\"|\"LAYER_BLUR\"|\"BACKGROUND_BLUR\", radius, color?, offset?: {x,y}, spread?}\n// LayoutGrid: {pattern: \"COLUMNS\"|\"ROWS\"|\"GRID\", sectionSize: number, count: number, offset?: number, gutterSize?: number}",
     schema: (caps) => filterMethodsByTier({    method: z.enum(["list", "get", "create", "update", "delete"]),
-    type: z.enum(["paint", "text", "effect"]).optional().describe("Filter by style type"),
+    type: z.enum(["paint", "text", "effect", "grid"]).optional().describe("Filter by style type"),
     fields: flexJson(z.array(z.string())).optional().describe("Property whitelist. Identity fields (id, name, type) always included. Omit for stubs on list, full on get. Pass [\"*\"] for all."),
     offset: z.coerce.number().optional().default(0).describe("Skip N items for pagination (default 0)"),
     limit: z.coerce.number().optional().default(100).describe("Max items per page (default 100)"),
@@ -321,6 +340,7 @@ export const tools: ToolDef[] = [
           "paint": z.object({
             name: z.string().describe("Style name"),
             color: S.colorRgba.describe("Color value"),
+            description: z.string().optional().describe("Style description"),
           }),
           "text": z.object({
             name: z.string().describe("Style name"),
@@ -329,12 +349,22 @@ export const tools: ToolDef[] = [
             fontSize: z.coerce.number().describe("Font size"),
             lineHeight: z.any().optional().describe("number (px) or {value, unit: PIXELS|PERCENT|AUTO}"),
             letterSpacing: z.any().optional().describe("number (px) or {value, unit: PIXELS|PERCENT}"),
-            textCase: z.enum(["ORIGINAL", "UPPER", "LOWER", "TITLE"]).optional(),
+            textCase: z.enum(["ORIGINAL", "UPPER", "LOWER", "TITLE", "SMALL_CAPS", "SMALL_CAPS_FORCED"]).optional(),
             textDecoration: z.enum(["NONE", "UNDERLINE", "STRIKETHROUGH"]).optional(),
+            paragraphIndent: z.coerce.number().optional().describe("Paragraph indent (px)"),
+            paragraphSpacing: z.coerce.number().optional().describe("Paragraph spacing (px)"),
+            leadingTrim: z.enum(["CAP_HEIGHT", "NONE"]).optional().describe("Leading trim mode"),
+            description: z.string().optional().describe("Style description"),
           }),
           "effect": z.object({
             name: z.string().describe("Style name"),
             effects: flexJson(z.array(z.any())).describe("Array of Effect objects"),
+            description: z.string().optional().describe("Style description"),
+          }),
+          "grid": z.object({
+            name: z.string().describe("Style name"),
+            layoutGrids: flexJson(z.array(z.any())).describe("Array of LayoutGrid objects"),
+            description: z.string().optional().describe("Style description"),
           }),
         };
         const s = params.type && schemas[params.type];
@@ -344,13 +374,18 @@ export const tools: ToolDef[] = [
         params.items = z.array(z.object({
           id: z.string().describe("Style ID or name (case-insensitive match)"),
           name: z.string().optional().describe("Rename the style"),
+          description: z.string().optional().describe("Style description"),
           color: S.colorRgba.optional().describe("New color (paint styles)"),
           fontFamily: z.string().optional(),
           fontStyle: z.string().optional(),
           fontSize: z.coerce.number().optional(),
-          textCase: z.enum(["ORIGINAL", "UPPER", "LOWER", "TITLE"]).optional(),
+          textCase: z.enum(["ORIGINAL", "UPPER", "LOWER", "TITLE", "SMALL_CAPS", "SMALL_CAPS_FORCED"]).optional(),
           textDecoration: z.enum(["NONE", "UNDERLINE", "STRIKETHROUGH"]).optional(),
+          paragraphIndent: z.coerce.number().optional().describe("Paragraph indent (px)"),
+          paragraphSpacing: z.coerce.number().optional().describe("Paragraph spacing (px)"),
+          leadingTrim: z.enum(["CAP_HEIGHT", "NONE"]).optional(),
           effects: flexJson(z.array(z.any())).optional().describe("Array of Effect objects"),
+          layoutGrids: flexJson(z.array(z.any())).optional().describe("Array of LayoutGrid objects (grid styles)"),
         })).parse(params.items);
       }
       if (m === "delete") {
@@ -392,14 +427,14 @@ export const tools: ToolDef[] = [
   },
   {
     name: "variable_collections",
-    description: "/** CRUD for variable collections and mode management. */\n  list      (fields?, offset?, limit?) → { totalCount, items }  // List variable collections\n  get       (id, fields?) → { id?, name?, modes?, defaultModeId?, variableIds? }  // Get collection detail\n  create    (items: { name: string }[]) → { results: {id}[] }  // Create variable collections\n  delete    (id?, items?: { id: string }[]) → { results: \"ok\"[] }  // Delete collections\n  add_mode  (items: { collectionId: string; name: string }[]) → { results: {id}[] }  // Add a mode to a collection\n  rename_mode(items: { collectionId: string; modeId: string; name: string }[]) → { results: (\"ok\" | {error})[] }  // Rename a mode\n  remove_mode(items: { collectionId: string; modeId: string }[]) → { results: \"ok\"[] }  // Remove a mode from a collection\n// Modes: each collection has 1+ modes (e.g. Light, Dark). Default mode always exists.\n// Variables within a collection have values per mode.\ninterface Collection { id: string; name: string; modes: {modeId: string, name: string}[]; defaultModeId: string; variableIds: string[] }",
-    schema: (caps) => filterMethodsByTier({    method: z.enum(["list", "get", "create", "delete", "add_mode", "rename_mode", "remove_mode"]),
+    description: "/** CRUD for variable collections and mode management. */\n  list      (fields?, offset?, limit?) → { totalCount, items }  // List variable collections\n  get       (id, fields?) → { id?, name?, modes?, defaultModeId?, variableIds? }  // Get collection detail\n  create    (items: { name: string }[]) → { results: {id}[] }  // Create variable collections\n  update    (items: { id: string; name: string }[]) → { results: (\"ok\" | {error})[] }  // Rename collections\n  delete    (id?, items?: { id: string }[]) → { results: \"ok\"[] }  // Delete collections\n  add_mode  (items: { collectionId: string; name: string }[]) → { results: {id}[] }  // Add a mode to a collection\n  rename_mode(items: { collectionId: string; modeId: string; name: string }[]) → { results: (\"ok\" | {error})[] }  // Rename a mode\n  remove_mode(items: { collectionId: string; modeId: string }[]) → { results: \"ok\"[] }  // Remove a mode from a collection\n// Modes: each collection has 1+ modes (e.g. Light, Dark). Default mode always exists.\n// Variables within a collection have values per mode.\ninterface Collection { id: string; name: string; modes: {modeId: string, name: string}[]; defaultModeId: string; variableIds: string[] }",
+    schema: (caps) => filterMethodsByTier({    method: z.enum(["list", "get", "create", "update", "delete", "add_mode", "rename_mode", "remove_mode"]),
     fields: flexJson(z.array(z.string())).optional().describe("Property whitelist. Identity fields (id, name, type) always included. Omit for stubs on list, full on get. Pass [\"*\"] for all."),
     offset: z.coerce.number().optional().default(0).describe("Skip N items for pagination (default 0)"),
     limit: z.coerce.number().optional().default(100).describe("Max items per page (default 100)"),
     id: z.string().optional().describe("Collection ID"),
     items: flexJson(z.array(z.any())).optional().describe("Array of {name}"),
-    }, caps, {"list":"read","get":"read","create":"create","delete":"edit","add_mode":"create","rename_mode":"edit","remove_mode":"edit"}),
+    }, caps, {"list":"read","get":"read","create":"create","update":"edit","delete":"edit","add_mode":"create","rename_mode":"edit","remove_mode":"edit"}),
     tier: "read" as const,
     validate: (params: any) => {
       if (!params.items) return;
@@ -407,6 +442,12 @@ export const tools: ToolDef[] = [
       if (m === "create") {
         params.items = z.array(z.object({
           name: z.string().describe("Collection name"),
+        })).parse(params.items);
+      }
+      if (m === "update") {
+        params.items = z.array(z.object({
+          id: z.string().describe("Collection ID"),
+          name: z.string().describe("New name"),
         })).parse(params.items);
       }
       if (m === "delete") {
@@ -434,12 +475,12 @@ export const tools: ToolDef[] = [
         })).parse(params.items);
       }
     },
-    commandMap: {"list":"variable_collections.list","get":"variable_collections.get","create":"variable_collections.create","delete":"variable_collections.delete","add_mode":"variable_collections.add_mode","rename_mode":"variable_collections.rename_mode","remove_mode":"variable_collections.remove_mode"},
+    commandMap: {"list":"variable_collections.list","get":"variable_collections.get","create":"variable_collections.create","update":"variable_collections.update","delete":"variable_collections.delete","add_mode":"variable_collections.add_mode","rename_mode":"variable_collections.rename_mode","remove_mode":"variable_collections.remove_mode"},
   },
   {
     name: "variables",
-    description: "/** CRUD for design variables (COLOR, FLOAT, STRING, BOOLEAN). */\n  list      (type: COLOR|FLOAT|STRING|BOOLEAN, collectionId?, fields?, offset?, limit?) → { totalCount, items }  // List variables with optional filters\n  get       (id, fields?) → { id?, name?, resolvedType?, variableCollectionId?, valuesByMode? }  // Get variable detail\n  create    (items: { collectionId: string; name: string; resolvedType: \"COLOR\" | \"FLOAT\" | \"STRING\" | \"BOOLEAN\" }[]) → { results: {id}[] }  // Create variables\n  update    (items: { id: string; modeId: string; value: any }[]) → { results: (\"ok\" | {error})[] }  // Set variable values per mode\ninterface Variable { id: string; name: string; resolvedType: \"COLOR\"|\"FLOAT\"|\"STRING\"|\"BOOLEAN\"; variableCollectionId: string; valuesByMode: Record<string, any> }\n// update value: {id, modeId, value} — value is number, boolean, or Color ({r,g,b,a?} or hex)\n// Use variable_collections to manage modes. Use set_variable_binding to bind variables to nodes.",
-    schema: (caps) => filterMethodsByTier({    method: z.enum(["list", "get", "create", "update"]),
+    description: "/** CRUD for design variables (COLOR, FLOAT, STRING, BOOLEAN). */\n  list      (type: COLOR|FLOAT|STRING|BOOLEAN, collectionId?, fields?, offset?, limit?) → { totalCount, items }  // List variables with optional filters\n  get       (id, fields?) → { id?, name?, resolvedType?, variableCollectionId?, valuesByMode? }  // Get variable detail\n  create    (items: { collectionId: string; name: string; resolvedType: \"COLOR\" | \"FLOAT\" | \"STRING\" | \"BOOLEAN\" }[]) → { results: {id}[] }  // Create variables\n  update    (items: { id: string; name?: string; description?: string; scopes?: any[]; modeId?: string; value?: any }[]) → { results: (\"ok\" | {error})[] }  // Update variable metadata and/or set values per mode\n  delete    (id?, items?: { id: string }[]) → { results: \"ok\"[] }  // Delete variables\ninterface Variable { id: string; name: string; resolvedType: \"COLOR\"|\"FLOAT\"|\"STRING\"|\"BOOLEAN\"; variableCollectionId: string; valuesByMode: Record<string, any> }\n// update: {id, name?, description?, scopes?, modeId?, value?}\n// value: number, boolean, Color ({r,g,b,a?} or hex), or alias {type:\"VARIABLE_ALIAS\", id:\"VariableID:...\"}\n// Use variable_collections to manage modes. Bind to nodes via frames/text update PatchItem.bindings.",
+    schema: (caps) => filterMethodsByTier({    method: z.enum(["list", "get", "create", "update", "delete"]),
     type: z.enum(["COLOR", "FLOAT", "STRING", "BOOLEAN"]).optional().describe("Filter by variable type"),
     collectionId: z.string().optional().describe("Filter by collection ID"),
     fields: flexJson(z.array(z.string())).optional().describe("Property whitelist. Identity fields (id, name, type) always included. Omit for stubs on list, full on get. Pass [\"*\"] for all."),
@@ -447,7 +488,7 @@ export const tools: ToolDef[] = [
     limit: z.coerce.number().optional().default(100).describe("Max items per page (default 100)"),
     id: z.string().optional().describe("Variable ID (e.g. VariableID:1:6)"),
     items: flexJson(z.array(z.any())).optional().describe("Array of {collectionId, name, resolvedType}"),
-    }, caps, {"list":"read","get":"read","create":"create","update":"edit"}),
+    }, caps, {"list":"read","get":"read","create":"create","update":"edit","delete":"edit"}),
     tier: "read" as const,
     validate: (params: any) => {
       if (!params.items) return;
@@ -462,11 +503,19 @@ export const tools: ToolDef[] = [
       if (m === "update") {
         params.items = z.array(z.object({
           id: z.string().describe("Variable ID"),
-          modeId: z.string().describe("Mode ID"),
-          value: z.any().describe("number, boolean, or Color (hex or {r,g,b,a?})"),
+          name: z.string().optional().describe("Rename the variable"),
+          description: z.string().optional().describe("Set description"),
+          scopes: flexJson(z.array(z.any())).optional().describe("UI scopes e.g. [\"ALL_SCOPES\"] or [\"WIDTH_HEIGHT\",\"CORNER_RADIUS\"]"),
+          modeId: z.string().optional().describe("Mode ID (required when setting value)"),
+          value: z.any().optional().describe("number, boolean, Color, or alias {type:\"VARIABLE_ALIAS\",id:\"VariableID:...\"}"),
+        })).parse(params.items);
+      }
+      if (m === "delete") {
+        params.items = z.array(z.object({
+          id: z.string(),
         })).parse(params.items);
       }
     },
-    commandMap: {"list":"variables.list","get":"variables.get","create":"variables.create","update":"variables.update"},
+    commandMap: {"list":"variables.list","get":"variables.get","create":"variables.create","update":"variables.update","delete":"variables.delete"},
   }
 ];

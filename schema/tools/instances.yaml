@@ -13,11 +13,12 @@ notes: |
     id: string;                              // instance node ID
     properties: Record<string, string | boolean>; // key→value e.g. {"Label#1:0":"Click Me"}
   }
+  // swap: override-preserving component swap. detach: convert to frame. reset_overrides: revert all overrides.
 
 methods:
   get:
     tier: read
-    description: Get instance overrides and main component
+    description: Get instance properties, overrides, and main component
     params:
       id:
         type: string
@@ -29,6 +30,7 @@ methods:
       type: object
       properties:
         mainComponentId: { type: string }
+        componentProperties: { type: object }
         overrides: { type: array }
 
   create:
@@ -69,5 +71,55 @@ methods:
           properties:
             id: { type: string, required: true, description: "Instance node ID" }
             properties: { type: object, coerce: json, required: true, description: "Property key→value map" }
+    response:
+      type: batch_mixed
+
+  swap:
+    tier: edit
+    description: "Swap instance component (preserves overrides)"
+    params:
+      items:
+        type: array
+        coerce: json
+        required: true
+        description: "Array of {id, componentId}"
+        items:
+          type: object
+          properties:
+            id: { type: string, required: true, description: "Instance node ID" }
+            componentId: { type: string, required: true, description: "New component or component set ID" }
+    response:
+      type: batch_mixed
+
+  detach:
+    tier: edit
+    description: "Detach instances from their component (converts to frame)"
+    params:
+      items:
+        type: array
+        coerce: json
+        required: true
+        description: "Array of {id}"
+        items:
+          type: object
+          properties:
+            id: { type: string, required: true, description: "Instance node ID" }
+    response:
+      type: batch
+      item: { id: { type: string } }
+
+  reset_overrides:
+    tier: edit
+    description: "Reset all overrides on instances to match their main component"
+    params:
+      items:
+        type: array
+        coerce: json
+        required: true
+        description: "Array of {id}"
+        items:
+          type: object
+          properties:
+            id: { type: string, required: true, description: "Instance node ID" }
     response:
       type: batch_mixed

@@ -1,27 +1,34 @@
 endpoint: styles
 domain: design-system
-description: "CRUD for local paint, text, and effect styles."
-description_zh: "管理本地颜色、文字和效果样式。"
+description: "CRUD for local paint, text, effect, and grid styles."
+description_zh: "管理本地颜色、文字、效果和网格样式。"
 
 notes: |
-  interface PaintStyleItem { name: string; color: Color }
+  interface PaintStyleItem { name: string; color: Color; description?: string }
   interface TextStyleItem {
     name: string; fontFamily: string; fontStyle?: string; fontSize: number;
     lineHeight?: number | {value: number, unit: "PIXELS"|"PERCENT"|"AUTO"};
     letterSpacing?: number | {value: number, unit: "PIXELS"|"PERCENT"};
-    textCase?: "ORIGINAL"|"UPPER"|"LOWER"|"TITLE";
+    textCase?: "ORIGINAL"|"UPPER"|"LOWER"|"TITLE"|"SMALL_CAPS"|"SMALL_CAPS_FORCED";
     textDecoration?: "NONE"|"UNDERLINE"|"STRIKETHROUGH";
+    paragraphIndent?: number; paragraphSpacing?: number;
+    leadingTrim?: "CAP_HEIGHT"|"NONE"; description?: string;
   }
-  interface EffectStyleItem { name: string; effects: Effect[] }
+  interface EffectStyleItem { name: string; effects: Effect[]; description?: string }
+  interface GridStyleItem { name: string; layoutGrids: LayoutGrid[]; description?: string }
   interface PatchStyleItem {
-    id: string; name?: string;
+    id: string; name?: string; description?: string;
     color?: Color;                    // paint styles
     fontFamily?: string; fontStyle?: string; fontSize?: number;
     lineHeight?: number | {value, unit}; letterSpacing?: number | {value, unit};
-    textCase?: string; textDecoration?: string;   // text styles
+    textCase?: string; textDecoration?: string;
+    paragraphIndent?: number; paragraphSpacing?: number;
+    leadingTrim?: "CAP_HEIGHT"|"NONE";   // text styles
     effects?: Effect[];               // effect styles
+    layoutGrids?: LayoutGrid[];       // grid styles
   }
   // Effect: {type: "DROP_SHADOW"|"INNER_SHADOW"|"LAYER_BLUR"|"BACKGROUND_BLUR", radius, color?, offset?: {x,y}, spread?}
+  // LayoutGrid: {pattern: "COLUMNS"|"ROWS"|"GRID", sectionSize: number, count: number, offset?: number, gutterSize?: number}
 
 methods:
   list:
@@ -30,7 +37,7 @@ methods:
     params:
       type:
         type: enum
-        values: [paint, text, effect]
+        values: [paint, text, effect, grid]
         optional: true
         description: "Filter by style type"
       fields:
@@ -75,6 +82,7 @@ methods:
         params:
           name: { type: string, required: true, description: Style name }
           color: { $ref: color, required: true, description: Color value }
+          description: { type: string, optional: true, description: "Style description" }
       text:
         description: Text style
         params:
@@ -84,13 +92,24 @@ methods:
           fontSize: { type: number, coerce: true, required: true, description: Font size }
           lineHeight: { type: any, optional: true, description: "number (px) or {value, unit: PIXELS|PERCENT|AUTO}" }
           letterSpacing: { type: any, optional: true, description: "number (px) or {value, unit: PIXELS|PERCENT}" }
-          textCase: { type: enum, values: [ORIGINAL, UPPER, LOWER, TITLE], optional: true }
+          textCase: { type: enum, values: [ORIGINAL, UPPER, LOWER, TITLE, SMALL_CAPS, SMALL_CAPS_FORCED], optional: true }
           textDecoration: { type: enum, values: [NONE, UNDERLINE, STRIKETHROUGH], optional: true }
+          paragraphIndent: { type: number, coerce: true, optional: true, description: "Paragraph indent (px)" }
+          paragraphSpacing: { type: number, coerce: true, optional: true, description: "Paragraph spacing (px)" }
+          leadingTrim: { type: enum, values: [CAP_HEIGHT, NONE], optional: true, description: "Leading trim mode" }
+          description: { type: string, optional: true, description: "Style description" }
       effect:
         description: Effect style
         params:
           name: { type: string, required: true, description: Style name }
           effects: { type: array, coerce: json, required: true, description: "Array of Effect objects" }
+          description: { type: string, optional: true, description: "Style description" }
+      grid:
+        description: Grid/layout grid style
+        params:
+          name: { type: string, required: true, description: Style name }
+          layoutGrids: { type: array, coerce: json, required: true, description: "Array of LayoutGrid objects" }
+          description: { type: string, optional: true, description: "Style description" }
     response:
       type: batch
       item: { id: { type: string } }
@@ -101,7 +120,7 @@ methods:
     params:
       type:
         type: enum
-        values: [paint, text, effect]
+        values: [paint, text, effect, grid]
         optional: true
         description: "Style type hint for strict validation (optional, auto-detected)"
       items:
@@ -115,13 +134,18 @@ methods:
           properties:
             id: { type: string, required: true, description: "Style ID or name (case-insensitive match)" }
             name: { type: string, optional: true, description: Rename the style }
+            description: { type: string, optional: true, description: "Style description" }
             color: { $ref: color, optional: true, description: "New color (paint styles)" }
             fontFamily: { type: string, optional: true }
             fontStyle: { type: string, optional: true }
             fontSize: { type: number, coerce: true, optional: true }
-            textCase: { type: enum, values: [ORIGINAL, UPPER, LOWER, TITLE], optional: true }
+            textCase: { type: enum, values: [ORIGINAL, UPPER, LOWER, TITLE, SMALL_CAPS, SMALL_CAPS_FORCED], optional: true }
             textDecoration: { type: enum, values: [NONE, UNDERLINE, STRIKETHROUGH], optional: true }
+            paragraphIndent: { type: number, coerce: true, optional: true, description: "Paragraph indent (px)" }
+            paragraphSpacing: { type: number, coerce: true, optional: true, description: "Paragraph spacing (px)" }
+            leadingTrim: { type: enum, values: [CAP_HEIGHT, NONE], optional: true }
             effects: { type: array, coerce: json, optional: true, description: "Array of Effect objects" }
+            layoutGrids: { type: array, coerce: json, optional: true, description: "Array of LayoutGrid objects (grid styles)" }
       depth: { $ref: depth }
     response:
       type: batch_mixed

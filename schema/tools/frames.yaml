@@ -96,7 +96,7 @@ methods:
 
   export:
     tier: read
-    description: Export a node as PNG, JPG, SVG, or PDF image
+    description: "Export a node as PNG, JPG, SVG, SVG_STRING, or PDF"
     params:
       nodeId:
         type: string
@@ -104,17 +104,17 @@ methods:
         description: Node ID to export
       format:
         type: enum
-        values: [PNG, JPG, SVG, PDF]
+        values: [PNG, JPG, SVG, SVG_STRING, PDF]
         optional: true
-        description: "Export format (default: PNG)"
+        description: "Export format (default: PNG). SVG_STRING returns raw SVG text."
       scale:
         type: number
         coerce: true
         optional: true
-        description: "Export scale (default: 1)"
+        description: "Export scale (default: 1, only for PNG/JPG)"
     response:
       type: object
-      description: Binary image data returned as MCP image content
+      description: Binary image data returned as MCP image content (SVG_STRING returns text)
       properties:
         imageData: { type: string }
         mimeType: { type: string }

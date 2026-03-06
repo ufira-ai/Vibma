@@ -5,8 +5,9 @@ description_zh: "管理设计变量（颜色、数值、字符串、布尔）。
 
 notes: |
   interface Variable { id: string; name: string; resolvedType: "COLOR"|"FLOAT"|"STRING"|"BOOLEAN"; variableCollectionId: string; valuesByMode: Record<string, any> }
-  // update value: {id, modeId, value} — value is number, boolean, or Color ({r,g,b,a?} or hex)
-  // Use variable_collections to manage modes. Use set_variable_binding to bind variables to nodes.
+  // update: {id, name?, description?, scopes?, modeId?, value?}
+  // value: number, boolean, Color ({r,g,b,a?} or hex), or alias {type:"VARIABLE_ALIAS", id:"VariableID:..."}
+  // Use variable_collections to manage modes. Bind to nodes via frames/text update PatchItem.bindings.
 
 methods:
   list:
@@ -78,18 +79,41 @@ methods:
 
   update:
     tier: edit
-    description: Set variable values per mode
+    description: "Update variable metadata and/or set values per mode"
     params:
       items:
         type: array
         coerce: json
         required: true
-        description: "Array of {id, modeId, value}"
+        description: "Array of {id, name?, description?, scopes?, modeId?, value?}"
         items:
           type: object
           properties:
             id: { type: string, required: true, description: "Variable ID" }
-            modeId: { type: string, required: true, description: "Mode ID" }
-            value: { type: any, required: true, description: 'number, boolean, or Color (hex or {r,g,b,a?})' }
+            name: { type: string, optional: true, description: "Rename the variable" }
+            description: { type: string, optional: true, description: "Set description" }
+            scopes: { type: array, coerce: json, optional: true, description: 'UI scopes e.g. ["ALL_SCOPES"] or ["WIDTH_HEIGHT","CORNER_RADIUS"]' }
+            modeId: { type: string, optional: true, description: "Mode ID (required when setting value)" }
+            value: { type: any, optional: true, description: 'number, boolean, Color, or alias {type:"VARIABLE_ALIAS",id:"VariableID:..."}' }
     response:
       type: batch_mixed
+
+  delete:
+    tier: edit
+    description: Delete variables
+    params:
+      id:
+        type: string
+        optional: true
+        description: Single variable ID
+      items:
+        type: array
+        coerce: json
+        optional: true
+        description: "Batch: [{id}, ...]"
+        items:
+          type: object
+          properties:
+            id: { type: string, required: true }
+    response:
+      type: batch_ok

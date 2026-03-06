@@ -112,11 +112,35 @@ async function listVariablesFigma(params: any) {
 async function updateVariableSingle(p: any) {
   const variable = await findVariableById(p.id);
   if (!variable) throw new Error(`Variable not found: ${p.id}`);
-  let value = p.value;
-  if (typeof value === "object" && value !== null && "r" in value) {
-    value = { r: value.r, g: value.g, b: value.b, a: value.a ?? 1 };
+  // Metadata updates
+  if (p.name !== undefined) variable.name = p.name;
+  if (p.description !== undefined) variable.description = p.description;
+  if (p.scopes !== undefined) variable.scopes = p.scopes;
+  // Value update (requires modeId)
+  if (p.modeId !== undefined && p.value !== undefined) {
+    let value = p.value;
+    // Alias: {type: "VARIABLE_ALIAS", id: "VariableID:..."} — create proper alias
+    if (typeof value === "object" && value !== null && value.type === "VARIABLE_ALIAS" && value.id) {
+      value = await figma.variables.createVariableAliasByIdAsync(value.id);
+    } else if (typeof value === "object" && value !== null && "r" in value) {
+      value = { r: value.r, g: value.g, b: value.b, a: value.a ?? 1 };
+    }
+    variable.setValueForMode(p.modeId, value);
   }
-  variable.setValueForMode(p.modeId, value);
+  return {};
+}
+
+async function deleteVariableSingle(p: any) {
+  const variable = await findVariableById(p.id);
+  if (!variable) throw new Error(`Variable not found: ${p.id}`);
+  variable.remove();
+  return {};
+}
+
+async function renameCollectionSingle(p: any) {
+  const c = await findCollectionById(p.id);
+  if (!c) throw new Error(`Collection not found: ${p.id}`);
+  if (p.name !== undefined) c.name = p.name;
   return {};
 }
 
@@ -191,6 +215,7 @@ export const figmaHandlers: Record<string, (params: any) => Promise<any>> = {
     create: (p) => batchHandler(p, createCollectionSingle),
     get: getCollectionFigma,
     list: listCollectionsFigma,
+    update: (p) => batchHandler(p, renameCollectionSingle),
     delete: (p) => batchHandler(p, deleteCollectionSingle),
     add_mode: (p) => batchHandler(p, addModeSingle),
     rename_mode: (p) => batchHandler(p, renameModeSingle),
@@ -201,6 +226,7 @@ export const figmaHandlers: Record<string, (params: any) => Promise<any>> = {
     get: getVariableFigma,
     list: listVariablesFigma,
     update: (p) => batchHandler(p, updateVariableSingle),
+    delete: (p) => batchHandler(p, deleteVariableSingle),
   }),
   set_variable_binding: (p) => batchHandler(p, setBindingSingle),
   set_explicit_variable_mode: (p) => batchHandler(p, setExplicitModeSingle),

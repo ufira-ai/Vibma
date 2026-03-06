@@ -132,11 +132,15 @@ export const allFigmaHandlers: Record<string, (params: any) => Promise<any>> = {
   "instances.get": componentsHandlers.instances,
   "instances.create": componentsHandlers.instances,
   "instances.update": componentsHandlers.instances,
+  "instances.swap": componentsHandlers.instances,
+  "instances.detach": componentsHandlers.instances,
+  "instances.reset_overrides": componentsHandlers.instances,
 
   // ─── variable_collections endpoint ───
   "variable_collections.list": variablesHandlers.variable_collections,
   "variable_collections.get": variablesHandlers.variable_collections,
   "variable_collections.create": variablesHandlers.variable_collections,
+  "variable_collections.update": variablesHandlers.variable_collections,
   "variable_collections.delete": variablesHandlers.variable_collections,
   "variable_collections.add_mode": variablesHandlers.variable_collections,
   "variable_collections.rename_mode": variablesHandlers.variable_collections,
@@ -147,4 +151,5 @@ export const allFigmaHandlers: Record<string, (params: any) => Promise<any>> = {
   "variables.get": variablesHandlers.variables,
   "variables.create": variablesHandlers.variables,
   "variables.update": variablesHandlers.variables,
+  "variables.delete": variablesHandlers.variables,
 };

@@ -15,6 +15,10 @@ if (framesTool) {
   framesTool.methodFormatters = {
     export: (result: unknown) => {
       const r = result as any;
+      // SVG_STRING returns raw text, not binary
+      if (r.isString) {
+        return { content: [{ type: "text" as const, text: r.imageData }] };
+      }
       return {
         content: [{ type: "image" as const, data: r.imageData, mimeType: r.mimeType || "image/png" }],
       };

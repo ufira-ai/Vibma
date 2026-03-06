@@ -251,17 +251,36 @@ async function listComponentsFigma(params: any) {
   return { ...paged, items };
 }
 
-async function addComponentPropertySingle(p: any) {
+async function updateComponentPropertySingle(p: any) {
   const node = await figma.getNodeByIdAsync(p.id);
   if (!node) throw new Error(`Node not found: ${p.id}`);
   if (node.type !== "COMPONENT" && node.type !== "COMPONENT_SET") throw new Error(`Node ${p.id} is a ${node.type}, not a COMPONENT or COMPONENT_SET.`);
-  (node as any).addComponentProperty(p.propertyName, p.type, p.defaultValue);
-  const defs = (node as any).componentPropertyDefinitions;
+  const comp = node as any;
+
+  // Delete property
+  if (p.action === "delete") {
+    comp.deleteComponentProperty(p.propertyName);
+    return {};
+  }
+
+  // Edit existing property
+  if (p.action === "edit") {
+    const edit: any = {};
+    if (p.name !== undefined) edit.name = p.name;
+    if (p.defaultValue !== undefined) edit.defaultValue = p.defaultValue;
+    if (p.preferredValues !== undefined) edit.preferredValues = p.preferredValues;
+    const newKey = comp.editComponentProperty(p.propertyName, edit);
+    return { propertyKey: newKey };
+  }
+
+  // Default: add property (backward compat)
+  const options = p.preferredValues ? { preferredValues: p.preferredValues } : undefined;
+  comp.addComponentProperty(p.propertyName, p.type, p.defaultValue, options);
+  const defs = comp.componentPropertyDefinitions;
   const key = Object.keys(defs).find(k => k === p.propertyName || k.startsWith(p.propertyName + "#"));
   if (key && p.type === "TEXT") {
-    // Auto-bind: find matching text nodes and set componentPropertyReferences
     const roots = node.type === "COMPONENT_SET"
-      ? (node as any).children.filter((c: any) => c.type === "COMPONENT")
+      ? comp.children.filter((c: any) => c.type === "COMPONENT")
       : [node];
     for (const root of roots) {
       const textNode = findTextNodes(root).find(
@@ -329,6 +348,7 @@ async function instanceGetFigma(params: any) {
   const main = await inst.getMainComponentAsync();
   return {
     mainComponentId: main?.id,
+    componentProperties: inst.componentProperties,
     overrides: overrides.map((o: any) => ({ id: o.id, fields: o.overriddenFields })),
   };
 }
@@ -341,6 +361,34 @@ async function instanceUpdateSingle(p: any) {
   return {};
 }
 
+async function instanceSwapSingle(p: any) {
+  const node = await figma.getNodeByIdAsync(p.id);
+  if (!node) throw new Error(`Node not found: ${p.id}`);
+  if (node.type !== "INSTANCE") throw new Error(`Node ${p.id} is ${node.type}, not an INSTANCE`);
+  let comp: any = await figma.getNodeByIdAsync(p.componentId);
+  if (!comp) throw new Error(`Component not found: ${p.componentId}`);
+  if (comp.type === "COMPONENT_SET") comp = comp.defaultVariant || comp.children?.[0];
+  if (comp.type !== "COMPONENT") throw new Error(`Node ${p.componentId} is ${comp.type}, not a COMPONENT`);
+  (node as InstanceNode).swapComponent(comp as ComponentNode);
+  return {};
+}
+
+async function instanceDetachSingle(p: any) {
+  const node = await figma.getNodeByIdAsync(p.id);
+  if (!node) throw new Error(`Node not found: ${p.id}`);
+  if (node.type !== "INSTANCE") throw new Error(`Node ${p.id} is ${node.type}, not an INSTANCE`);
+  const frame = (node as InstanceNode).detachInstance();
+  return { id: frame.id };
+}
+
+async function instanceResetOverridesSingle(p: any) {
+  const node = await figma.getNodeByIdAsync(p.id);
+  if (!node) throw new Error(`Node not found: ${p.id}`);
+  if (node.type !== "INSTANCE") throw new Error(`Node ${p.id} is ${node.type}, not an INSTANCE`);
+  (node as any).removeOverrides();
+  return {};
+}
+
 // ─── Handler Exports ─────────────────────────────────────────────
 
 export const figmaHandlers: Record<string, (params: any) => Promise<any>> = {
@@ -348,11 +396,14 @@ export const figmaHandlers: Record<string, (params: any) => Promise<any>> = {
     create: createComponentDispatch,
     get: getComponentFigma,
     list: listComponentsFigma,
-    update: (p) => batchHandler(p, addComponentPropertySingle),
+    update: (p) => batchHandler(p, updateComponentPropertySingle),
   }),
   instances: createDispatcher({
     create: (p) => batchHandler(p, instanceCreateSingle),
     get: instanceGetFigma,
     update: (p) => batchHandler(p, instanceUpdateSingle),
+    swap: (p) => batchHandler(p, instanceSwapSingle),
+    detach: (p) => batchHandler(p, instanceDetachSingle),
+    reset_overrides: (p) => batchHandler(p, instanceResetOverridesSingle),
   }),
 };
