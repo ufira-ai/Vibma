@@ -87,8 +87,11 @@ export async function setStrokeSingle(p: any): Promise<any> {
   }
   const result: any = {};
   if (p.color) {
-    const suggestion = await suggestStyleForColor(p.color, "styleName");
-    if (suggestion) result.warning = suggestion;
+    const c = coerceColor(p.color);
+    if (c) {
+      const suggestion = await suggestStyleForColor(c, "styleName");
+      if (suggestion) result.warning = suggestion;
+    }
   }
   return result;
 }

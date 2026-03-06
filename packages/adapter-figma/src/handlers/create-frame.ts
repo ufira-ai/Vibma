@@ -110,9 +110,22 @@ async function createSingleFrame(p: any) {
 
   // Append to parent or page (with deferred FILL sizing)
   const parent = await appendToParent(frame, parentId);
+  const parentIsAL = parent && "layoutMode" in parent && (parent as any).layoutMode !== "NONE";
   if (parent) {
-    if (deferH) { try { frame.layoutSizingHorizontal = "FILL"; } catch {} }
-    if (deferV) { try { frame.layoutSizingVertical = "FILL"; } catch {} }
+    if (deferH) {
+      if (parentIsAL) { frame.layoutSizingHorizontal = "FILL"; }
+      else { hints.push("layoutSizingHorizontal 'FILL' ignored — parent is not an auto-layout frame. Add layoutMode to parent first."); }
+    }
+    if (deferV) {
+      if (parentIsAL) { frame.layoutSizingVertical = "FILL"; }
+      else { hints.push("layoutSizingVertical 'FILL' ignored — parent is not an auto-layout frame. Add layoutMode to parent first."); }
+    }
+    // Warn if child defaults to FIXED inside an auto-layout parent
+    if (!deferH && !deferV && parentIsAL) {
+      if (layoutSizingHorizontal === "FIXED" && layoutSizingVertical === "FIXED" && layoutMode === "NONE") {
+        hints.push("Child has FIXED sizing inside auto-layout parent. Consider layoutSizingHorizontal/Vertical: 'FILL' or 'HUG' for responsive layout.");
+      }
+    }
   }
 
   // WCAG 2.5.8: target size recommendation for interactive elements

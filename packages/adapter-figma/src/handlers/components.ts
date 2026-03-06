@@ -140,9 +140,16 @@ async function createComponentSingle(p: any) {
   if (cornerRadius !== undefined) comp.cornerRadius = cornerRadius;
 
   const parent = await appendToParent(comp, parentId);
+  const parentIsAL = parent && "layoutMode" in parent && (parent as any).layoutMode !== "NONE";
   if (parent) {
-    if (deferH) { try { comp.layoutSizingHorizontal = "FILL"; } catch {} }
-    if (deferV) { try { comp.layoutSizingVertical = "FILL"; } catch {} }
+    if (deferH) {
+      if (parentIsAL) { comp.layoutSizingHorizontal = "FILL"; }
+      else { hints.push("layoutSizingHorizontal 'FILL' ignored — parent is not an auto-layout frame."); }
+    }
+    if (deferV) {
+      if (parentIsAL) { comp.layoutSizingVertical = "FILL"; }
+      else { hints.push("layoutSizingVertical 'FILL' ignored — parent is not an auto-layout frame."); }
+    }
   }
 
   warnUnboundText(comp, hints);

@@ -188,10 +188,14 @@ async function createTextSingle(p: any, ctx: CreateTextContext) {
   }
 
   if (layoutSizingHorizontal) {
-    try { textNode.layoutSizingHorizontal = layoutSizingHorizontal; } catch {}
+    const parentIsAL = textNode.parent && "layoutMode" in textNode.parent && (textNode.parent as any).layoutMode !== "NONE";
+    if (parentIsAL || layoutSizingHorizontal !== "FILL") { textNode.layoutSizingHorizontal = layoutSizingHorizontal; }
+    else { hints.push(`layoutSizingHorizontal '${layoutSizingHorizontal}' ignored — text node is not inside an auto-layout frame.`); }
   }
   if (layoutSizingVertical) {
-    try { textNode.layoutSizingVertical = layoutSizingVertical; } catch {}
+    const parentIsAL = textNode.parent && "layoutMode" in textNode.parent && (textNode.parent as any).layoutMode !== "NONE";
+    if (parentIsAL || layoutSizingVertical !== "FILL") { textNode.layoutSizingVertical = layoutSizingVertical; }
+    else { hints.push(`layoutSizingVertical '${layoutSizingVertical}' ignored — text node is not inside an auto-layout frame.`); }
   }
 
   const result: any = { id: textNode.id };

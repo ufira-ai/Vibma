@@ -145,15 +145,18 @@ export async function setTextPropertiesSingle(p: any, ctx: TextPropsContext) {
   if (p.textAlignHorizontal) node.textAlignHorizontal = p.textAlignHorizontal;
   if (p.textAlignVertical) node.textAlignVertical = p.textAlignVertical;
   if (p.textAutoResize) node.textAutoResize = p.textAutoResize;
-  if (p.layoutSizingHorizontal) {
-    try { node.layoutSizingHorizontal = p.layoutSizingHorizontal; } catch {}
-  }
-  if (p.layoutSizingVertical) {
-    try { node.layoutSizingVertical = p.layoutSizingVertical; } catch {}
-  }
-
   // Warnings
   const warnings: string[] = [];
+  if (p.layoutSizingHorizontal) {
+    const parentIsAL = node.parent && "layoutMode" in node.parent && (node.parent as any).layoutMode !== "NONE";
+    if (parentIsAL || p.layoutSizingHorizontal !== "FILL") { node.layoutSizingHorizontal = p.layoutSizingHorizontal; }
+    else { warnings.push(`layoutSizingHorizontal '${p.layoutSizingHorizontal}' ignored — node is not inside an auto-layout frame.`); }
+  }
+  if (p.layoutSizingVertical) {
+    const parentIsAL = node.parent && "layoutMode" in node.parent && (node.parent as any).layoutMode !== "NONE";
+    if (parentIsAL || p.layoutSizingVertical !== "FILL") { node.layoutSizingVertical = p.layoutSizingVertical; }
+    else { warnings.push(`layoutSizingVertical '${p.layoutSizingVertical}' ignored — node is not inside an auto-layout frame.`); }
+  }
   if (p.textStyleName && p.textStyleId) {
     warnings.push("Both textStyleName and textStyleId provided — used textStyleId. Pass only one.");
   }
