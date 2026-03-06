@@ -24,6 +24,10 @@ methods:
           fillVariableId: { type: string, optional: true, description: Variable ID for fill }
           strokeColor: { $ref: color, optional: true }
           strokeWeight: { type: number, coerce: true, optional: true }
+          strokeTopWeight: { type: number, coerce: true, optional: true, description: "Top stroke weight (per-side)" }
+          strokeBottomWeight: { type: number, coerce: true, optional: true, description: "Bottom stroke weight (per-side)" }
+          strokeLeftWeight: { type: number, coerce: true, optional: true, description: "Left stroke weight (per-side)" }
+          strokeRightWeight: { type: number, coerce: true, optional: true, description: "Right stroke weight (per-side)" }
           cornerRadius: { type: number, coerce: true, optional: true }
           opacity: { type: number, coerce: true, optional: true }
           clipsContent: { type: boolean, coerce: true, optional: true }
@@ -67,6 +71,7 @@ methods:
             type: enum
             values: [NO_WRAP, WRAP]
             optional: true
+          counterAxisSpacing: { type: number, coerce: true, optional: true, description: "Gap between wrapped rows (requires layoutWrap: WRAP)" }
           width: { type: number, coerce: true, optional: true }
           height: { type: number, coerce: true, optional: true }
           fillColor: { $ref: color, optional: true }
@@ -82,6 +87,9 @@ methods:
           y: { $ref: yPos }
           width: { type: number, coerce: true, optional: true, description: "Width (default: 500)" }
           height: { type: number, coerce: true, optional: true, description: "Height (default: 500)" }
+          fillColor: { $ref: color, optional: true, description: Background fill color }
+          fillStyleName: { type: string, optional: true, description: Paint style name for fill }
+          fillVariableId: { type: string, optional: true, description: Variable ID for fill }
       svg:
         description: Create node from SVG markup
         params:
@@ -90,6 +98,8 @@ methods:
           parentId: { $ref: parentId }
           x: { $ref: xPos }
           y: { $ref: yPos }
+          fillStyleName: { type: string, optional: true, description: "Paint style to apply to vector fills" }
+          fillVariableId: { type: string, optional: true, description: "Variable ID to bind to vector fills" }
     response:
       type: batch
       item: { id: { type: string } }

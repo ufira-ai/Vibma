@@ -13,6 +13,7 @@ methods:
       properties:
         id: { type: string, required: true }
         name: { type: string, required: true }
+        backgroundColor: { type: string, description: 'Canvas background hex color (e.g. "#F5F5F5")' }
         children: { type: array, tsType: "NodeStub[]" }
       required: [id, name, children]
 

@@ -21,8 +21,8 @@ notes: |
     id: string;
     x?: number; y?: number; width?: number; height?: number;
     opacity?: number; // 0-1
-    fill?: { color?: Color; styleName?: string; clear?: boolean };
-    stroke?: { color?: Color; weight?: number; styleName?: string };
+    fill?: { color?: Color; styleName?: string; variableId?: string; clear?: boolean };
+    stroke?: { color?: Color; weight?: number; styleName?: string; variableId?: string; strokeTopWeight?: number; strokeBottomWeight?: number; strokeLeftWeight?: number; strokeRightWeight?: number };
     cornerRadius?: { radius: number; corners?: [boolean, boolean, boolean, boolean] }; // [TL, TR, BR, BL]
     effects?: { effects?: Effect[]; styleName?: string };
     layout?: {

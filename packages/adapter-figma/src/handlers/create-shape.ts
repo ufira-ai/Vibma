@@ -53,7 +53,38 @@ async function createSingleSvg(p: any) {
   node.y = p.y ?? 0;
   if (p.name) node.name = p.name;
   await appendToParent(node, p.parentId);
-  return {};
+
+  // Bind fill style/variable to all vector children
+  if (p.fillStyleName || p.fillVariableId) {
+    const vectors: SceneNode[] = [];
+    const collect = (n: SceneNode) => {
+      if (n.type === "VECTOR" || n.type === "BOOLEAN_OPERATION" || n.type === "STAR" || n.type === "LINE" || n.type === "ELLIPSE" || n.type === "POLYGON") vectors.push(n);
+      if ("children" in n) (n as any).children.forEach(collect);
+    };
+    collect(node);
+
+    if (p.fillVariableId) {
+      const v = await findVariableById(p.fillVariableId);
+      if (v) {
+        for (const vec of vectors) {
+          if ("fills" in vec && (vec as any).fills.length > 0) {
+            const paints = (vec as any).fills.slice();
+            paints[0] = figma.variables.setBoundVariableForPaint(paints[0], "color", v);
+            (vec as any).fills = paints;
+          }
+        }
+      }
+    } else if (p.fillStyleName) {
+      const { id: sid } = await resolvePaintStyle(p.fillStyleName);
+      if (sid) {
+        for (const vec of vectors) {
+          try { await (vec as any).setFillStyleIdAsync(sid); } catch {}
+        }
+      }
+    }
+  }
+
+  return { id: node.id };
 }
 
 export const figmaHandlers: Record<string, (params: any) => Promise<any>> = {

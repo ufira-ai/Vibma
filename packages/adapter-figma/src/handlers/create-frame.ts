@@ -48,6 +48,9 @@ async function createSingleFrame(p: any) {
     frame.layoutSizingHorizontal = deferH ? "FIXED" : layoutSizingHorizontal;
     frame.layoutSizingVertical = deferV ? "FIXED" : layoutSizingVertical;
     frame.itemSpacing = itemSpacing;
+    if (p.counterAxisSpacing !== undefined && layoutWrap === "WRAP") {
+      (frame as any).counterAxisSpacing = p.counterAxisSpacing;
+    }
   }
 
   // Fill: variableId > styleName > direct color
@@ -99,6 +102,11 @@ async function createSingleFrame(p: any) {
     if (suggestion) hints.push(suggestion);
   }
   if (strokeWeight !== undefined) frame.strokeWeight = strokeWeight;
+  // Per-side stroke weights
+  if (p.strokeTopWeight !== undefined) (frame as any).strokeTopWeight = p.strokeTopWeight;
+  if (p.strokeBottomWeight !== undefined) (frame as any).strokeBottomWeight = p.strokeBottomWeight;
+  if (p.strokeLeftWeight !== undefined) (frame as any).strokeLeftWeight = p.strokeLeftWeight;
+  if (p.strokeRightWeight !== undefined) (frame as any).strokeRightWeight = p.strokeRightWeight;
 
   // Append to parent or page (with deferred FILL sizing)
   const parent = await appendToParent(frame, parentId);

@@ -38,6 +38,11 @@ async function patchSingleNode(item: any, textCtx: TextPropsContext | null): Pro
       color: item.stroke.color,
       strokeWeight: item.stroke.weight,
       styleName: item.stroke.styleName,
+      variableId: item.stroke.variableId,
+      strokeTopWeight: item.stroke.strokeTopWeight,
+      strokeBottomWeight: item.stroke.strokeBottomWeight,
+      strokeLeftWeight: item.stroke.strokeLeftWeight,
+      strokeRightWeight: item.stroke.strokeRightWeight,
     });
     if (r.matchedStyle) result.matchedStrokeStyle = r.matchedStyle;
     if (r.warning) result.warning = appendWarning(result.warning, r.warning);
@@ -98,7 +103,10 @@ async function patchSingleNode(item: any, textCtx: TextPropsContext | null): Pro
         const index = parseInt(paintMatch[2], 10);
         if (!(prop in node)) throw new Error(`Node does not have ${prop}`);
         const paints = (node as any)[prop].slice();
-        if (index >= paints.length) throw new Error(`${prop} index ${index} out of range`);
+        // Auto-create default solid paints if index doesn't exist yet
+        while (index >= paints.length) {
+          paints.push({ type: "SOLID", color: { r: 0, g: 0, b: 0 }, opacity: 1 });
+        }
         paints[index] = figma.variables.setBoundVariableForPaint(paints[index], "color", variable);
         (node as any)[prop] = paints;
       } else if ("setBoundVariable" in node) {

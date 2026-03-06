@@ -66,10 +66,20 @@ export type EndpointParams<
  */
 export function pickFields(obj: Record<string, any>, fields: string[]): Record<string, any> {
   if (fields.includes("*")) return obj;
-  const keep = new Set([...fields, "id", "name", "type"]);
+  const identity = ["id", "name", "type"];
+  const keep = new Set([...fields, ...identity]);
   const out: Record<string, any> = {};
   for (const key of Object.keys(obj)) {
     if (keep.has(key)) out[key] = obj[key];
+  }
+  // Warn when all non-identity requested fields were unknown
+  const requested = fields.filter(f => !identity.includes(f));
+  if (requested.length > 0) {
+    const found = requested.filter(f => f in obj);
+    if (found.length === 0) {
+      const available = Object.keys(obj).filter(k => !identity.includes(k));
+      out._warning = `Requested fields [${requested.join(", ")}] not found. Available: [${available.join(", ")}]`;
+    }
   }
   return out;
 }

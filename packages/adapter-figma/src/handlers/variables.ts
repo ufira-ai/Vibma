@@ -159,7 +159,10 @@ async function setBindingSingle(p: any) {
     const index = parseInt(paintMatch[2], 10);
     if (!(prop in node)) throw new Error(`Node does not have ${prop}`);
     const paints = (node as any)[prop].slice();
-    if (index >= paints.length) throw new Error(`${prop} index ${index} out of range`);
+    // Auto-create default solid paints if index doesn't exist yet
+    while (index >= paints.length) {
+      paints.push({ type: "SOLID", color: { r: 0, g: 0, b: 0 }, opacity: 1 });
+    }
     const newPaint = figma.variables.setBoundVariableForPaint(paints[index], "color", variable);
     paints[index] = newPaint;
     (node as any)[prop] = paints;

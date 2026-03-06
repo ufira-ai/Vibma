@@ -1,4 +1,4 @@
-import { batchHandler, coerceColor, styleNotFoundHint, suggestStyleForColor } from "./helpers";
+import { batchHandler, coerceColor, findVariableById, solidPaint, styleNotFoundHint, suggestStyleForColor } from "./helpers";
 
 // ─── Figma Handlers ──────────────────────────────────────────────
 
@@ -22,7 +22,15 @@ export async function setFillSingle(p: any): Promise<any> {
     return {};
   }
 
-  if (p.styleName) {
+  if (p.variableId) {
+    const v = await findVariableById(p.variableId);
+    if (!v) throw new Error(`Fill variableId '${p.variableId}' not found`);
+    const c = coerceColor(p.color) ?? { r: 0, g: 0, b: 0, a: 1 };
+    (node as any).fills = [solidPaint(c)];
+    const bound = figma.variables.setBoundVariableForPaint((node as any).fills[0], "color", v);
+    (node as any).fills = [bound];
+    return {};
+  } else if (p.styleName) {
     const { match, available } = await resolveStyle(p.styleName);
     if (match) {
       await (node as any).setFillStyleIdAsync(match.id);
@@ -45,7 +53,14 @@ export async function setStrokeSingle(p: any): Promise<any> {
   if (!node) throw new Error(`Node not found: ${p.nodeId}`);
   if (!("strokes" in node)) throw new Error(`Node does not support strokes: ${p.nodeId}`);
 
-  if (p.styleName) {
+  if (p.variableId) {
+    const v = await findVariableById(p.variableId);
+    if (!v) throw new Error(`Stroke variableId '${p.variableId}' not found`);
+    const c = coerceColor(p.color) ?? { r: 0, g: 0, b: 0, a: 1 };
+    (node as any).strokes = [solidPaint(c)];
+    const bound = figma.variables.setBoundVariableForPaint((node as any).strokes[0], "color", v);
+    (node as any).strokes = [bound];
+  } else if (p.styleName) {
     const { match, available } = await resolveStyle(p.styleName);
     if (match) {
       await (node as any).setStrokeStyleIdAsync(match.id);
@@ -60,6 +75,16 @@ export async function setStrokeSingle(p: any): Promise<any> {
     (node as any).strokes = [{ type: "SOLID", color: { r: c.r, g: c.g, b: c.b }, opacity: c.a }];
   }
   if (p.strokeWeight !== undefined && "strokeWeight" in node) (node as any).strokeWeight = p.strokeWeight;
+  // Per-side stroke weights (requires individual stroke weights enabled)
+  if (p.strokeTopWeight !== undefined || p.strokeBottomWeight !== undefined ||
+      p.strokeLeftWeight !== undefined || p.strokeRightWeight !== undefined) {
+    if ("strokeTopWeight" in node) {
+      if (p.strokeTopWeight !== undefined) (node as any).strokeTopWeight = p.strokeTopWeight;
+      if (p.strokeBottomWeight !== undefined) (node as any).strokeBottomWeight = p.strokeBottomWeight;
+      if (p.strokeLeftWeight !== undefined) (node as any).strokeLeftWeight = p.strokeLeftWeight;
+      if (p.strokeRightWeight !== undefined) (node as any).strokeRightWeight = p.strokeRightWeight;
+    }
+  }
   const result: any = {};
   if (p.color) {
     const suggestion = await suggestStyleForColor(p.color, "styleName");
