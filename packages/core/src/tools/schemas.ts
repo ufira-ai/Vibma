@@ -56,6 +56,33 @@ export const colorRgba = z.preprocess((v) => {
   a: z.coerce.number().min(0).max(1).optional(),
 })).describe('Hex "#FF0000" or {r,g,b,a?} with values 0-1.');
 
+/** Variable value — color (hex or RGBA), number, boolean, string, or alias */
+export const variableValue = z.preprocess((v) => {
+  if (typeof v === "string") return parseHex(v) ?? v;
+  return v;
+}, z.union([
+  z.number(),
+  z.boolean(),
+  z.string(),
+  z.object({ r: z.number(), g: z.number(), b: z.number(), a: z.number().optional() }),
+  z.object({ type: z.literal("VARIABLE_ALIAS"), id: z.string() }),
+])).describe('number, boolean, string, hex "#FF0000", {r,g,b,a?}, or {type:"VARIABLE_ALIAS",id:"VariableID:..."}');
+
+/** Line height — number (px) or {value, unit} */
+export const lineHeight = z.union([
+  z.coerce.number(),
+  z.object({ value: z.coerce.number(), unit: z.enum(["PIXELS", "PERCENT", "AUTO"]) }),
+]).describe('number (px) or {value, unit: "PIXELS"|"PERCENT"|"AUTO"}');
+
+/** Letter spacing — number (px) or {value, unit} */
+export const letterSpacing = z.union([
+  z.coerce.number(),
+  z.object({ value: z.coerce.number(), unit: z.enum(["PIXELS", "PERCENT"]) }),
+]).describe('number (px) or {value, unit: "PIXELS"|"PERCENT"}');
+
+/** String or boolean — for component property defaults */
+export const stringOrBoolean = z.union([z.string(), z.boolean()]);
+
 /** Single effect entry — shared by set_effects and styles create */
 export const effectEntry = z.object({
   type: z.enum(["DROP_SHADOW", "INNER_SHADOW", "LAYER_BLUR", "BACKGROUND_BLUR"]),

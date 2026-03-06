@@ -1,4 +1,4 @@
-import { batchHandler, findVariableById } from "./helpers";
+import { batchHandler, coerceColor, findVariableById } from "./helpers";
 import { createDispatcher, paginate, pickFields } from "@ufira/vibma/endpoint";
 
 // ─── Figma Handlers ──────────────────────────────────────────────
@@ -122,8 +122,9 @@ async function updateVariableSingle(p: any) {
     // Alias: {type: "VARIABLE_ALIAS", id: "VariableID:..."} — create proper alias
     if (typeof value === "object" && value !== null && value.type === "VARIABLE_ALIAS" && value.id) {
       value = await figma.variables.createVariableAliasByIdAsync(value.id);
-    } else if (typeof value === "object" && value !== null && "r" in value) {
-      value = { r: value.r, g: value.g, b: value.b, a: value.a ?? 1 };
+    } else {
+      const asColor = coerceColor(value);
+      if (asColor) value = asColor;
     }
     variable.setValueForMode(p.modeId, value);
   }

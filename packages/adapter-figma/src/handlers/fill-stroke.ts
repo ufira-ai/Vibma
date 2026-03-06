@@ -1,4 +1,4 @@
-import { batchHandler, styleNotFoundHint, suggestStyleForColor } from "./helpers";
+import { batchHandler, coerceColor, styleNotFoundHint, suggestStyleForColor } from "./helpers";
 
 // ─── Figma Handlers ──────────────────────────────────────────────
 
@@ -32,9 +32,9 @@ export async function setFillSingle(p: any): Promise<any> {
     }
     throw new Error(styleNotFoundHint("styleName", p.styleName, available));
   } else if (p.color) {
-    const { r = 0, g = 0, b = 0, a = 1 } = p.color;
-    (node as any).fills = [{ type: "SOLID", color: { r, g, b }, opacity: a }];
-    const suggestion = await suggestStyleForColor(p.color, "styleName");
+    const c = coerceColor(p.color) ?? { r: 0, g: 0, b: 0, a: 1 };
+    (node as any).fills = [{ type: "SOLID", color: { r: c.r, g: c.g, b: c.b }, opacity: c.a }];
+    const suggestion = await suggestStyleForColor(c, "styleName");
     if (suggestion) return { warning: suggestion };
   }
   return {};
@@ -56,8 +56,8 @@ export async function setStrokeSingle(p: any): Promise<any> {
     }
     throw new Error(styleNotFoundHint("styleName", p.styleName, available));
   } else if (p.color) {
-    const { r = 0, g = 0, b = 0, a = 1 } = p.color;
-    (node as any).strokes = [{ type: "SOLID", color: { r, g, b }, opacity: a }];
+    const c = coerceColor(p.color) ?? { r: 0, g: 0, b: 0, a: 1 };
+    (node as any).strokes = [{ type: "SOLID", color: { r: c.r, g: c.g, b: c.b }, opacity: c.a }];
   }
   if (p.strokeWeight !== undefined && "strokeWeight" in node) (node as any).strokeWeight = p.strokeWeight;
   const result: any = {};

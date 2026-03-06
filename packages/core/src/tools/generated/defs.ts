@@ -61,8 +61,11 @@ export const tools: ToolDef[] = [
     }, caps, {"list":"read","get":"read","create":"create","update":"edit"}),
     tier: "read" as const,
     validate: (params: any) => {
-      if (!params.items) return;
       const m = params.method;
+      if (m === "get") {
+        if (params.id === undefined) throw new Error("get requires \"id\"");
+      }
+      if (!params.items) return;
       if (m === "create") {
         const schemas: Record<string, z.ZodTypeAny> = {
           "component": z.object({
@@ -110,7 +113,7 @@ export const tools: ToolDef[] = [
           propertyName: z.string().describe("Property name (include #suffix for edit/delete)"),
           action: z.enum(["add", "edit", "delete"]).optional().describe("Action: \"add\" (default), \"edit\", or \"delete\""),
           type: z.enum(["BOOLEAN", "TEXT", "INSTANCE_SWAP", "VARIANT"]).optional().describe("Property type (required for add)"),
-          defaultValue: z.any().optional().describe("Default value (required for add)"),
+          defaultValue: S.stringOrBoolean.optional().describe("Default value (required for add)"),
           name: z.string().optional().describe("New name (for edit action)"),
           preferredValues: flexJson(z.array(z.any())).optional().describe("Preferred values for INSTANCE_SWAP"),
         })).parse(params.items);
@@ -159,8 +162,11 @@ export const tools: ToolDef[] = [
     }, caps, {"get":"read","list":"read","update":"edit","delete":"edit","clone":"create","reparent":"edit","create":"create","export":"read"}),
     tier: "read" as const,
     validate: (params: any) => {
-      if (!params.items) return;
       const m = params.method;
+      if (m === "export") {
+        if (params.nodeId === undefined) throw new Error("export requires \"nodeId\"");
+      }
+      if (!params.items) return;
       if (m === "create") {
         const schemas: Record<string, z.ZodTypeAny> = {
           "frame": z.object({
@@ -236,8 +242,11 @@ export const tools: ToolDef[] = [
     }, caps, {"get":"read","create":"create","update":"edit","swap":"edit","detach":"edit","reset_overrides":"edit"}),
     tier: "read" as const,
     validate: (params: any) => {
-      if (!params.items) return;
       const m = params.method;
+      if (m === "get") {
+        if (params.id === undefined) throw new Error("get requires \"id\"");
+      }
+      if (!params.items) return;
       if (m === "create") {
         params.items = z.array(z.object({
           componentId: z.string().describe("Component or component set ID"),
@@ -285,8 +294,8 @@ export const tools: ToolDef[] = [
     }, caps, {"check":"read","fix":"edit"}),
     tier: "read" as const,
     validate: (params: any) => {
-      if (!params.items) return;
       const m = params.method;
+      if (!params.items) return;
       if (m === "fix") {
         params.items = z.array(z.object({
           nodeId: z.string().describe("Frame node ID"),
@@ -307,6 +316,12 @@ export const tools: ToolDef[] = [
     newName: z.string().optional().describe("New page name"),
     }, caps, {"get":"read","list":"read","set":"read","create":"create","update":"edit"}),
     tier: "read" as const,
+    validate: (params: any) => {
+      const m = params.method;
+      if (m === "update") {
+        if (params.newName === undefined) throw new Error("update requires \"newName\"");
+      }
+    },
     commandMap: {"get":"pages.get","list":"pages.list","set":"pages.set","create":"pages.create","update":"pages.update"},
   },
   {
@@ -317,11 +332,17 @@ export const tools: ToolDef[] = [
     nodeIds: flexJson(z.array(z.string())).optional().describe("Array of node IDs to select. Example: [\"1:2\",\"1:3\"]"),
     }, caps, {"get":"read","update":"read"}),
     tier: "read" as const,
+    validate: (params: any) => {
+      const m = params.method;
+      if (m === "update") {
+        if (params.nodeIds === undefined) throw new Error("update requires \"nodeIds\"");
+      }
+    },
     commandMap: {"get":"selection.get","update":"selection.update"},
   },
   {
     name: "styles",
-    description: "/** CRUD for local paint, text, effect, and grid styles. */\n  list      (type: paint|text|effect|grid, fields?, offset?, limit?) → { totalCount, items }  // List local styles with optional type filter\n  get       (id, fields?) → { id?, name?, type? }  // Get full style detail by ID\n  create    (type: paint|text|effect|grid, items: (PaintItem | TextItem | EffectItem | GridItem)[]) → { results: {id}[] }  // Create local styles\n  update    (type: paint|text|effect|grid, items: PatchStyleItem[], depth?) → { results: (\"ok\" | {error})[] }  // Update styles by ID or name\n  delete    (id?, items?: { id: string }[]) → { results: \"ok\"[] }  // Delete styles\n  interface PaintItem {\n    name: string; // Style name\n    color: Color; // Color value\n    description?: string; // Style description\n  }\n  interface TextItem {\n    name: string; // Style name\n    fontFamily: string; // Font family\n    fontStyle?: string; // Font style (default: Regular)\n    fontSize: number; // Font size\n    lineHeight?: any; // number (px) or {value, unit: PIXELS|PERCENT|AUTO}\n    letterSpacing?: any; // number (px) or {value, unit: PIXELS|PERCENT}\n    textCase?: \"ORIGINAL\" | \"UPPER\" | \"LOWER\" | \"TITLE\" | \"SMALL_CAPS\" | \"SMALL_CAPS_FORCED\";\n    textDecoration?: \"NONE\" | \"UNDERLINE\" | \"STRIKETHROUGH\";\n    paragraphIndent?: number; // Paragraph indent (px)\n    paragraphSpacing?: number; // Paragraph spacing (px)\n    leadingTrim?: \"CAP_HEIGHT\" | \"NONE\"; // Leading trim mode\n    description?: string; // Style description\n  }\n  interface EffectItem {\n    name: string; // Style name\n    effects: any[]; // Array of Effect objects\n    description?: string; // Style description\n  }\n  interface GridItem {\n    name: string; // Style name\n    layoutGrids: any[]; // Array of LayoutGrid objects\n    description?: string; // Style description\n  }\ninterface PaintStyleItem { name: string; color: Color; description?: string }\ninterface TextStyleItem {\n  name: string; fontFamily: string; fontStyle?: string; fontSize: number;\n  lineHeight?: number | {value: number, unit: \"PIXELS\"|\"PERCENT\"|\"AUTO\"};\n  letterSpacing?: number | {value: number, unit: \"PIXELS\"|\"PERCENT\"};\n  textCase?: \"ORIGINAL\"|\"UPPER\"|\"LOWER\"|\"TITLE\"|\"SMALL_CAPS\"|\"SMALL_CAPS_FORCED\";\n  textDecoration?: \"NONE\"|\"UNDERLINE\"|\"STRIKETHROUGH\";\n  paragraphIndent?: number; paragraphSpacing?: number;\n  leadingTrim?: \"CAP_HEIGHT\"|\"NONE\"; description?: string;\n}\ninterface EffectStyleItem { name: string; effects: Effect[]; description?: string }\ninterface GridStyleItem { name: string; layoutGrids: LayoutGrid[]; description?: string }\ninterface PatchStyleItem {\n  id: string; name?: string; description?: string;\n  color?: Color;                    // paint styles\n  fontFamily?: string; fontStyle?: string; fontSize?: number;\n  lineHeight?: number | {value, unit}; letterSpacing?: number | {value, unit};\n  textCase?: string; textDecoration?: string;\n  paragraphIndent?: number; paragraphSpacing?: number;\n  leadingTrim?: \"CAP_HEIGHT\"|\"NONE\";   // text styles\n  effects?: Effect[];               // effect styles\n  layoutGrids?: LayoutGrid[];       // grid styles\n}\n// Effect: {type: \"DROP_SHADOW\"|\"INNER_SHADOW\"|\"LAYER_BLUR\"|\"BACKGROUND_BLUR\", radius, color?, offset?: {x,y}, spread?}\n// LayoutGrid: {pattern: \"COLUMNS\"|\"ROWS\"|\"GRID\", sectionSize: number, count: number, offset?: number, gutterSize?: number}",
+    description: "/** CRUD for local paint, text, effect, and grid styles. */\n  list      (type: paint|text|effect|grid, fields?, offset?, limit?) → { totalCount, items }  // List local styles with optional type filter\n  get       (id, fields?) → { id?, name?, type? }  // Get full style detail by ID\n  create    (type: paint|text|effect|grid, items: (PaintItem | TextItem | EffectItem | GridItem)[]) → { results: {id}[] }  // Create local styles\n  update    (type: paint|text|effect|grid, items: PatchStyleItem[], depth?) → { results: (\"ok\" | {error})[] }  // Update styles by ID or name\n  delete    (id?, items?: { id: string }[]) → { results: \"ok\"[] }  // Delete styles\n  interface PaintItem {\n    name: string; // Style name\n    color: Color; // Color value\n    description?: string; // Style description\n  }\n  interface TextItem {\n    name: string; // Style name\n    fontFamily: string; // Font family\n    fontStyle?: string; // Font style (default: Regular)\n    fontSize: number; // Font size\n    lineHeight?: any;\n    letterSpacing?: any;\n    textCase?: \"ORIGINAL\" | \"UPPER\" | \"LOWER\" | \"TITLE\" | \"SMALL_CAPS\" | \"SMALL_CAPS_FORCED\";\n    textDecoration?: \"NONE\" | \"UNDERLINE\" | \"STRIKETHROUGH\";\n    paragraphIndent?: number; // Paragraph indent (px)\n    paragraphSpacing?: number; // Paragraph spacing (px)\n    leadingTrim?: \"CAP_HEIGHT\" | \"NONE\"; // Leading trim mode\n    description?: string; // Style description\n  }\n  interface EffectItem {\n    name: string; // Style name\n    effects: any[]; // Array of Effect objects\n    description?: string; // Style description\n  }\n  interface GridItem {\n    name: string; // Style name\n    layoutGrids: any[]; // Array of LayoutGrid objects\n    description?: string; // Style description\n  }\ninterface PaintStyleItem { name: string; color: Color; description?: string }\ninterface TextStyleItem {\n  name: string; fontFamily: string; fontStyle?: string; fontSize: number;\n  lineHeight?: number | {value: number, unit: \"PIXELS\"|\"PERCENT\"|\"AUTO\"};\n  letterSpacing?: number | {value: number, unit: \"PIXELS\"|\"PERCENT\"};\n  textCase?: \"ORIGINAL\"|\"UPPER\"|\"LOWER\"|\"TITLE\"|\"SMALL_CAPS\"|\"SMALL_CAPS_FORCED\";\n  textDecoration?: \"NONE\"|\"UNDERLINE\"|\"STRIKETHROUGH\";\n  paragraphIndent?: number; paragraphSpacing?: number;\n  leadingTrim?: \"CAP_HEIGHT\"|\"NONE\"; description?: string;\n}\ninterface EffectStyleItem { name: string; effects: Effect[]; description?: string }\ninterface GridStyleItem { name: string; layoutGrids: LayoutGrid[]; description?: string }\ninterface PatchStyleItem {\n  id: string; name?: string; description?: string;\n  color?: Color;                    // paint styles\n  fontFamily?: string; fontStyle?: string; fontSize?: number;\n  lineHeight?: number | {value, unit}; letterSpacing?: number | {value, unit};\n  textCase?: string; textDecoration?: string;\n  paragraphIndent?: number; paragraphSpacing?: number;\n  leadingTrim?: \"CAP_HEIGHT\"|\"NONE\";   // text styles\n  effects?: Effect[];               // effect styles\n  layoutGrids?: LayoutGrid[];       // grid styles\n}\n// Effect: {type: \"DROP_SHADOW\"|\"INNER_SHADOW\"|\"LAYER_BLUR\"|\"BACKGROUND_BLUR\", radius, color?, offset?: {x,y}, spread?}\n// LayoutGrid: {pattern: \"COLUMNS\"|\"ROWS\"|\"GRID\", sectionSize: number, count: number, offset?: number, gutterSize?: number}",
     schema: (caps) => filterMethodsByTier({    method: z.enum(["list", "get", "create", "update", "delete"]),
     type: z.enum(["paint", "text", "effect", "grid"]).optional().describe("Filter by style type"),
     fields: flexJson(z.array(z.string())).optional().describe("Property whitelist. Identity fields (id, name, type) always included. Omit for stubs on list, full on get. Pass [\"*\"] for all."),
@@ -333,8 +354,11 @@ export const tools: ToolDef[] = [
     }, caps, {"list":"read","get":"read","create":"create","update":"edit","delete":"edit"}),
     tier: "read" as const,
     validate: (params: any) => {
-      if (!params.items) return;
       const m = params.method;
+      if (m === "get") {
+        if (params.id === undefined) throw new Error("get requires \"id\"");
+      }
+      if (!params.items) return;
       if (m === "create") {
         const schemas: Record<string, z.ZodTypeAny> = {
           "paint": z.object({
@@ -347,8 +371,8 @@ export const tools: ToolDef[] = [
             fontFamily: z.string().describe("Font family"),
             fontStyle: z.string().optional().describe("Font style (default: Regular)"),
             fontSize: z.coerce.number().describe("Font size"),
-            lineHeight: z.any().optional().describe("number (px) or {value, unit: PIXELS|PERCENT|AUTO}"),
-            letterSpacing: z.any().optional().describe("number (px) or {value, unit: PIXELS|PERCENT}"),
+            lineHeight: S.lineHeight.optional(),
+            letterSpacing: S.letterSpacing.optional(),
             textCase: z.enum(["ORIGINAL", "UPPER", "LOWER", "TITLE", "SMALL_CAPS", "SMALL_CAPS_FORCED"]).optional(),
             textDecoration: z.enum(["NONE", "UNDERLINE", "STRIKETHROUGH"]).optional(),
             paragraphIndent: z.coerce.number().optional().describe("Paragraph indent (px)"),
@@ -379,6 +403,8 @@ export const tools: ToolDef[] = [
           fontFamily: z.string().optional(),
           fontStyle: z.string().optional(),
           fontSize: z.coerce.number().optional(),
+          lineHeight: S.lineHeight.optional(),
+          letterSpacing: S.letterSpacing.optional(),
           textCase: z.enum(["ORIGINAL", "UPPER", "LOWER", "TITLE", "SMALL_CAPS", "SMALL_CAPS_FORCED"]).optional(),
           textDecoration: z.enum(["NONE", "UNDERLINE", "STRIKETHROUGH"]).optional(),
           paragraphIndent: z.coerce.number().optional().describe("Paragraph indent (px)"),
@@ -414,8 +440,8 @@ export const tools: ToolDef[] = [
     }, caps, {"get":"read","list":"read","update":"edit","delete":"edit","clone":"create","reparent":"edit","create":"create","set_content":"edit","scan":"read"}),
     tier: "read" as const,
     validate: (params: any) => {
-      if (!params.items) return;
       const m = params.method;
+      if (!params.items) return;
       if (m === "set_content") {
         params.items = z.array(z.object({
           nodeId: z.string().describe("Text node ID"),
@@ -437,8 +463,11 @@ export const tools: ToolDef[] = [
     }, caps, {"list":"read","get":"read","create":"create","update":"edit","delete":"edit","add_mode":"create","rename_mode":"edit","remove_mode":"edit"}),
     tier: "read" as const,
     validate: (params: any) => {
-      if (!params.items) return;
       const m = params.method;
+      if (m === "get") {
+        if (params.id === undefined) throw new Error("get requires \"id\"");
+      }
+      if (!params.items) return;
       if (m === "create") {
         params.items = z.array(z.object({
           name: z.string().describe("Collection name"),
@@ -479,7 +508,7 @@ export const tools: ToolDef[] = [
   },
   {
     name: "variables",
-    description: "/** CRUD for design variables (COLOR, FLOAT, STRING, BOOLEAN). */\n  list      (type: COLOR|FLOAT|STRING|BOOLEAN, collectionId?, fields?, offset?, limit?) → { totalCount, items }  // List variables with optional filters\n  get       (id, fields?) → { id?, name?, resolvedType?, variableCollectionId?, valuesByMode? }  // Get variable detail\n  create    (items: { collectionId: string; name: string; resolvedType: \"COLOR\" | \"FLOAT\" | \"STRING\" | \"BOOLEAN\" }[]) → { results: {id}[] }  // Create variables\n  update    (items: { id: string; name?: string; description?: string; scopes?: any[]; modeId?: string; value?: any }[]) → { results: (\"ok\" | {error})[] }  // Update variable metadata and/or set values per mode\n  delete    (id?, items?: { id: string }[]) → { results: \"ok\"[] }  // Delete variables\ninterface Variable { id: string; name: string; resolvedType: \"COLOR\"|\"FLOAT\"|\"STRING\"|\"BOOLEAN\"; variableCollectionId: string; valuesByMode: Record<string, any> }\n// update: {id, name?, description?, scopes?, modeId?, value?}\n// value: number, boolean, Color ({r,g,b,a?} or hex), or alias {type:\"VARIABLE_ALIAS\", id:\"VariableID:...\"}\n// Use variable_collections to manage modes. Bind to nodes via frames/text update PatchItem.bindings.",
+    description: "/** CRUD for design variables (COLOR, FLOAT, STRING, BOOLEAN). */\n  list      (type: COLOR|FLOAT|STRING|BOOLEAN, collectionId?, fields?, offset?, limit?) → { totalCount, items }  // List variables with optional filters\n  get       (id, fields?) → { id?, name?, resolvedType?, variableCollectionId?, valuesByMode? }  // Get variable detail\n  create    (items: { collectionId: string; name: string; resolvedType: \"COLOR\" | \"FLOAT\" | \"STRING\" | \"BOOLEAN\" }[]) → { results: {id}[] }  // Create variables\n  update    (items: { id: string; name?: string; description?: string; scopes?: string[]; modeId?: string; value?: any }[]) → { results: (\"ok\" | {error})[] }  // Update variable metadata and/or set values per mode\n  delete    (id?, items?: { id: string }[]) → { results: \"ok\"[] }  // Delete variables\ninterface Variable { id: string; name: string; resolvedType: \"COLOR\"|\"FLOAT\"|\"STRING\"|\"BOOLEAN\"; variableCollectionId: string; valuesByMode: Record<string, any> }\n// update: {id, name?, description?, scopes?, modeId?, value?}\n// value: number, boolean, Color ({r,g,b,a?} or hex), or alias {type:\"VARIABLE_ALIAS\", id:\"VariableID:...\"}\n// Use variable_collections to manage modes. Bind to nodes via frames/text update PatchItem.bindings.",
     schema: (caps) => filterMethodsByTier({    method: z.enum(["list", "get", "create", "update", "delete"]),
     type: z.enum(["COLOR", "FLOAT", "STRING", "BOOLEAN"]).optional().describe("Filter by variable type"),
     collectionId: z.string().optional().describe("Filter by collection ID"),
@@ -491,8 +520,11 @@ export const tools: ToolDef[] = [
     }, caps, {"list":"read","get":"read","create":"create","update":"edit","delete":"edit"}),
     tier: "read" as const,
     validate: (params: any) => {
-      if (!params.items) return;
       const m = params.method;
+      if (m === "get") {
+        if (params.id === undefined) throw new Error("get requires \"id\"");
+      }
+      if (!params.items) return;
       if (m === "create") {
         params.items = z.array(z.object({
           collectionId: z.string().describe("Variable collection ID"),
@@ -505,9 +537,9 @@ export const tools: ToolDef[] = [
           id: z.string().describe("Variable ID"),
           name: z.string().optional().describe("Rename the variable"),
           description: z.string().optional().describe("Set description"),
-          scopes: flexJson(z.array(z.any())).optional().describe("UI scopes e.g. [\"ALL_SCOPES\"] or [\"WIDTH_HEIGHT\",\"CORNER_RADIUS\"]"),
+          scopes: flexJson(z.array(z.string())).optional().describe("UI scopes e.g. [\"ALL_SCOPES\"] or [\"WIDTH_HEIGHT\",\"CORNER_RADIUS\"]"),
           modeId: z.string().optional().describe("Mode ID (required when setting value)"),
-          value: z.any().optional().describe("number, boolean, Color, or alias {type:\"VARIABLE_ALIAS\",id:\"VariableID:...\"}"),
+          value: S.variableValue.optional(),
         })).parse(params.items);
       }
       if (m === "delete") {

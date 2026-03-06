@@ -92,9 +92,9 @@ methods:
             id: { type: string, required: true, description: "Variable ID" }
             name: { type: string, optional: true, description: "Rename the variable" }
             description: { type: string, optional: true, description: "Set description" }
-            scopes: { type: array, coerce: json, optional: true, description: 'UI scopes e.g. ["ALL_SCOPES"] or ["WIDTH_HEIGHT","CORNER_RADIUS"]' }
+            scopes: { type: "string[]", coerce: json, optional: true, description: 'UI scopes e.g. ["ALL_SCOPES"] or ["WIDTH_HEIGHT","CORNER_RADIUS"]' }
             modeId: { type: string, optional: true, description: "Mode ID (required when setting value)" }
-            value: { type: any, optional: true, description: 'number, boolean, Color, or alias {type:"VARIABLE_ALIAS",id:"VariableID:..."}' }
+            value: { type: variable_value, optional: true }
     response:
       type: batch_mixed
 

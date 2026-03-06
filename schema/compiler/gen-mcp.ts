@@ -33,6 +33,16 @@ function paramToZod(name: string, param: RawParam, indent = 2): string {
   } else if (type === "array") {
     const inner = "z.array(z.any())";
     zod = param.coerce === "json" ? `flexJson(${inner})` : inner;
+  } else if (type === "color") {
+    zod = "S.colorRgba";
+  } else if (type === "variable_value") {
+    zod = "S.variableValue";
+  } else if (type === "line_height") {
+    zod = "S.lineHeight";
+  } else if (type === "letter_spacing") {
+    zod = "S.letterSpacing";
+  } else if (type === "string_or_boolean") {
+    zod = "S.stringOrBoolean";
   } else if (type === "object") {
     if (param.coerce === "hex_or_rgba") {
       zod = "S.colorRgba";
@@ -167,11 +177,35 @@ function generateItemZodObject(properties: Record<string, RawParam>, indent: num
   return `z.object({\n${lines.join("\n")}\n${pad}})`;
 }
 
+/** Collect top-level required params for a method (excluding items/method). */
+function getRequiredParams(method: ResolvedMethod): string[] {
+  if (method.inherited || !method.params) return [];
+  const required: string[] = [];
+  for (const [name, param] of Object.entries(method.params)) {
+    if (name === "items" || name === "method") continue;
+    if (param.required === true) required.push(name);
+  }
+  return required;
+}
+
 /** Generate a validate function for an endpoint. Returns null if no validation needed. */
 function generateValidate(endpoint: ResolvedEndpoint): string | null {
-  const branches: string[] = [];
+  const itemBranches: string[] = [];
+  const requiredBranches: string[] = [];
 
   for (const method of endpoint.methods) {
+    // Required param checks (e.g. get needs id)
+    const required = getRequiredParams(method);
+    if (required.length > 0) {
+      const checks = required.map(p =>
+        `        if (params.${p} === undefined) throw new Error(${JSON.stringify(`${method.name} requires "${p}"`)});`
+      );
+      requiredBranches.push(
+        `      if (m === ${JSON.stringify(method.name)}) {\n${checks.join("\n")}\n      }`
+      );
+    }
+
+    // Item validation
     if (!methodNeedsValidation(method)) continue;
 
     if (method.discriminant && method.types) {
@@ -181,7 +215,7 @@ function generateValidate(endpoint: ResolvedEndpoint): string | null {
         const zodObj = generateItemZodObject(variant.params, 10);
         schemaLines.push(`          ${JSON.stringify(typeName)}: ${zodObj},`);
       }
-      branches.push(
+      itemBranches.push(
         `      if (m === ${JSON.stringify(method.name)}) {\n` +
         `        const schemas: Record<string, z.ZodTypeAny> = {\n${schemaLines.join("\n")}\n        };\n` +
         `        const s = params.${method.discriminant} && schemas[params.${method.discriminant}];\n` +
@@ -193,7 +227,7 @@ function generateValidate(endpoint: ResolvedEndpoint): string | null {
       const items = method.params?.items;
       if (items?.items && typeof items.items === "object" && "properties" in items.items && items.items.properties) {
         const zodObj = generateItemZodObject(items.items.properties, 8);
-        branches.push(
+        itemBranches.push(
           `      if (m === ${JSON.stringify(method.name)}) {\n` +
           `        params.items = z.array(${zodObj}).parse(params.items);\n` +
           `      }`
@@ -202,13 +236,18 @@ function generateValidate(endpoint: ResolvedEndpoint): string | null {
     }
   }
 
-  if (branches.length === 0) return null;
+  if (itemBranches.length === 0 && requiredBranches.length === 0) return null;
 
-  return `(params: any) => {\n` +
-    `      if (!params.items) return;\n` +
-    `      const m = params.method;\n` +
-    branches.join("\n") + `\n` +
-    `    }`;
+  const lines: string[] = [`(params: any) => {`, `      const m = params.method;`];
+  if (requiredBranches.length > 0) {
+    lines.push(...requiredBranches);
+  }
+  if (itemBranches.length > 0) {
+    lines.push(`      if (!params.items) return;`);
+    lines.push(...itemBranches);
+  }
+  lines.push(`    }`);
+  return lines.join("\n");
 }
 
 /** Generate a single ToolDef */

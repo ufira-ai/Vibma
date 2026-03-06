@@ -132,7 +132,7 @@ methods:
             propertyName: { type: string, required: true, description: "Property name (include #suffix for edit/delete)" }
             action: { type: enum, values: [add, edit, delete], optional: true, description: 'Action: "add" (default), "edit", or "delete"' }
             type: { type: enum, values: [BOOLEAN, TEXT, INSTANCE_SWAP, VARIANT], optional: true, description: "Property type (required for add)" }
-            defaultValue: { type: any, optional: true, description: "Default value (required for add)" }
+            defaultValue: { type: string_or_boolean, optional: true, description: "Default value (required for add)" }
             name: { type: string, optional: true, description: "New name (for edit action)" }
             preferredValues: { type: array, coerce: json, optional: true, description: "Preferred values for INSTANCE_SWAP" }
       depth: { $ref: depth }

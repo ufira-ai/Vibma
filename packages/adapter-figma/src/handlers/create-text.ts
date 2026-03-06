@@ -1,4 +1,4 @@
-import { batchHandler, appendToParent, styleNotFoundHint, suggestStyleForColor, suggestTextStyle, findVariableById } from "./helpers";
+import { batchHandler, appendToParent, coerceColor, styleNotFoundHint, suggestStyleForColor, suggestTextStyle, findVariableById } from "./helpers";
 
 // ─── Figma Handlers ──────────────────────────────────────────────
 
@@ -90,7 +90,7 @@ async function createTextSingle(p: any, ctx: CreateTextContext) {
   const {
     x = 0, y = 0, text = "Text", fontSize = 14, fontWeight = 400,
     fontFamily = "Inter", fontStyle,
-    fontColor, fontColorVariableId, fontColorStyleName, name = "",
+    fontColor: rawFontColor, fontColorVariableId, fontColorStyleName, name = "",
     parentId, textStyleId, textStyleName,
     textAlignHorizontal, textAlignVertical,
     layoutSizingHorizontal, layoutSizingVertical, textAutoResize,
@@ -101,6 +101,7 @@ async function createTextSingle(p: any, ctx: CreateTextContext) {
   textNode.y = y;
   textNode.name = name || text;
 
+  const fontColor = rawFontColor ? coerceColor(rawFontColor) : undefined;
   const style = fontStyle || getFontStyle(fontWeight);
   textNode.fontName = { family: fontFamily, style };
   textNode.fontSize = parseInt(String(fontSize));

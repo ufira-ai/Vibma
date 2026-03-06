@@ -1,4 +1,4 @@
-import { batchHandler, suggestStyleForColor, suggestTextStyle } from "./helpers";
+import { batchHandler, coerceColor, suggestStyleForColor, suggestTextStyle } from "./helpers";
 
 // ─── Figma Handlers ──────────────────────────────────────────────
 
@@ -134,10 +134,11 @@ export async function setTextPropertiesSingle(p: any, ctx: TextPropsContext) {
   }
 
   if (p.fontColor) {
+    const fc = coerceColor(p.fontColor) ?? { r: 0, g: 0, b: 0, a: 1 };
     node.fills = [{
       type: "SOLID",
-      color: { r: p.fontColor.r ?? 0, g: p.fontColor.g ?? 0, b: p.fontColor.b ?? 0 },
-      opacity: p.fontColor.a ?? 1,
+      color: { r: fc.r, g: fc.g, b: fc.b },
+      opacity: fc.a,
     }];
   }
 
@@ -163,7 +164,8 @@ export async function setTextPropertiesSingle(p: any, ctx: TextPropsContext) {
     warnings.push(await suggestTextStyle(fs, fw));
   }
   if (p.fontColor) {
-    const suggestion = await suggestStyleForColor(p.fontColor, "fontColorStyleName");
+    const fc = coerceColor(p.fontColor) ?? { r: 0, g: 0, b: 0, a: 1 };
+    const suggestion = await suggestStyleForColor(fc, "fontColorStyleName");
     if (suggestion) warnings.push(suggestion);
   }
 

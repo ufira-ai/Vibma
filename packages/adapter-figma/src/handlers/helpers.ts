@@ -79,6 +79,28 @@ export async function appendToParent(node: SceneNode, parentId?: string): Promis
 }
 
 /**
+ * Coerce a color value: hex string → {r,g,b,a} object (0-1).
+ * Passes through objects unchanged. Returns null if not a valid hex string.
+ */
+export function coerceColor(v: any): { r: number; g: number; b: number; a: number } | null {
+  if (typeof v === "object" && v !== null && "r" in v) {
+    return { r: v.r ?? 0, g: v.g ?? 0, b: v.b ?? 0, a: v.a ?? 1 };
+  }
+  if (typeof v !== "string") return null;
+  const m = v.match(/^#?([0-9a-f]{3,8})$/i);
+  if (!m) return null;
+  let h = m[1];
+  if (h.length === 3) h = h[0]+h[0]+h[1]+h[1]+h[2]+h[2];
+  if (h.length === 4) h = h[0]+h[0]+h[1]+h[1]+h[2]+h[2]+h[3]+h[3];
+  if (h.length !== 6 && h.length !== 8) return null;
+  const r = parseInt(h.slice(0, 2), 16) / 255;
+  const g = parseInt(h.slice(2, 4), 16) / 255;
+  const b = parseInt(h.slice(4, 6), 16) / 255;
+  const a = h.length === 8 ? parseInt(h.slice(6, 8), 16) / 255 : 1;
+  return { r, g, b, a };
+}
+
+/**
  * Build a solid paint from an RGBA color object (channels 0-1).
  */
 export function solidPaint(c: any) {

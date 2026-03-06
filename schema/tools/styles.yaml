@@ -90,8 +90,8 @@ methods:
           fontFamily: { type: string, required: true, description: Font family }
           fontStyle: { type: string, optional: true, description: "Font style (default: Regular)" }
           fontSize: { type: number, coerce: true, required: true, description: Font size }
-          lineHeight: { type: any, optional: true, description: "number (px) or {value, unit: PIXELS|PERCENT|AUTO}" }
-          letterSpacing: { type: any, optional: true, description: "number (px) or {value, unit: PIXELS|PERCENT}" }
+          lineHeight: { type: line_height, optional: true }
+          letterSpacing: { type: letter_spacing, optional: true }
           textCase: { type: enum, values: [ORIGINAL, UPPER, LOWER, TITLE, SMALL_CAPS, SMALL_CAPS_FORCED], optional: true }
           textDecoration: { type: enum, values: [NONE, UNDERLINE, STRIKETHROUGH], optional: true }
           paragraphIndent: { type: number, coerce: true, optional: true, description: "Paragraph indent (px)" }
@@ -139,6 +139,8 @@ methods:
             fontFamily: { type: string, optional: true }
             fontStyle: { type: string, optional: true }
             fontSize: { type: number, coerce: true, optional: true }
+            lineHeight: { type: line_height, optional: true }
+            letterSpacing: { type: letter_spacing, optional: true }
             textCase: { type: enum, values: [ORIGINAL, UPPER, LOWER, TITLE, SMALL_CAPS, SMALL_CAPS_FORCED], optional: true }
             textDecoration: { type: enum, values: [NONE, UNDERLINE, STRIKETHROUGH], optional: true }
             paragraphIndent: { type: number, coerce: true, optional: true, description: "Paragraph indent (px)" }
