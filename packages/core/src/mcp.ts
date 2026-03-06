@@ -211,7 +211,7 @@ function connectToFigma(port: number = activePort) {
       pendingRequests.delete(id);
     }
     if (rejected) {
-      logger.info("Not reconnecting — channel role was rejected. Call join_channel to retry.");
+      logger.info('Not reconnecting — channel role was rejected. Call connection(method: "create") to retry.');
     } else {
       logger.info("Attempting to reconnect in 2 seconds...");
       setTimeout(() => connectToFigma(port), 2000);
@@ -258,7 +258,7 @@ function sendCommandToFigma(
 
     const requiresChannel = command !== "join";
     if (requiresChannel && !currentChannel) {
-      reject(new Error("No channel joined. Call join_channel first with the channel name shown in the Figma plugin panel."));
+      reject(new Error('No channel joined. Call connection(method: "create") first with the channel name shown in the Figma plugin panel.'));
       return;
     }
 

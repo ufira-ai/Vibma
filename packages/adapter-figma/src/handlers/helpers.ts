@@ -57,7 +57,10 @@ export async function batchHandler<TItem, TResult>(
     }
   }
   const out: BatchResult<TResult> = { results };
-  if (warningSet.size > 0) out.warnings = [...warningSet];
+  if (warningSet.size > 0) {
+    out.warnings = [...warningSet];
+    out._action = "Fix these warnings before proceeding. Each warning describes the issue and the exact tool call to resolve it.";
+  }
   return out;
 }
 
@@ -169,7 +172,7 @@ export async function suggestStyleForColor(
       const vc = val as { r: number; g: number; b: number; a?: number };
       if (Math.abs(vc.r - cr) < eps && Math.abs(vc.g - cg) < eps &&
           Math.abs(vc.b - cb) < eps && Math.abs((vc.a ?? 1) - ca) < eps) {
-        return `Hardcoded color ${hex} matches variable '${v.name}' (${v.id}). Use set_variable_binding to bind to the design token.`;
+        return `Hardcoded color ${hex} matches variable '${v.name}' (${v.id}). Bind it via frames(method:"update", items:[{id, bindings:[{field:"fills/0/color", variableId:"${v.id}"}]}]).`;
       }
     }
   }

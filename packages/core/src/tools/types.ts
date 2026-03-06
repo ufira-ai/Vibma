@@ -40,6 +40,8 @@ export interface ToolDef {
 export interface BatchResult<T = unknown> {
   results: Array<T | "ok" | { error: string }>;
   warnings?: string[];
+  /** Instruction for the model when warnings are present */
+  _action?: string;
   /** Set when some items were deferred (e.g. font loading cap exceeded) */
   deferred?: string;
 }

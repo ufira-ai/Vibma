@@ -4,8 +4,12 @@ description: "CRUD for variable collections and mode management."
 description_zh: "管理变量集合和模式。"
 
 notes: |
-  // Modes: each collection has 1+ modes (e.g. Light, Dark). Default mode always exists.
-  // Variables within a collection have values per mode.
+  // Variable collections group related design tokens (variables) and define their modes.
+  // Modes represent different contexts (e.g. Light/Dark theme, Desktop/Mobile breakpoint). Each collection has 1+ modes.
+  // Workflow: create collection → add_mode for extra modes → create variables in the collection.
+  // Deleting a collection cascades — all variables inside it are also deleted.
+  // The default mode always exists and cannot be removed. Use add_mode/remove_mode for additional modes.
+  // Collection IDs look like "VariableCollectionId:0:1". Mode IDs look like "0:0" or "1:0".
   interface Collection { id: string; name: string; modes: {modeId: string, name: string}[]; defaultModeId: string; variableIds: string[] }
 
 methods:

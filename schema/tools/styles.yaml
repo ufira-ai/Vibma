@@ -4,6 +4,11 @@ description: "CRUD for local paint, text, effect, and grid styles."
 description_zh: "管理本地颜色、文字、效果和网格样式。"
 
 notes: |
+  // Styles are named, reusable design properties that can be applied to nodes. Four types:
+  //   paint: a named color (applied to fills/strokes), text: typography settings, effect: shadows/blurs, grid: layout grids.
+  // Style names are case-sensitive for creation but case-insensitive for lookup in update (by ID or name).
+  // leadingTrim: "CAP_HEIGHT" trims line-height to cap height (tighter text boxes), "NONE" is default.
+  // fontStyle: font variant name like "Bold", "Italic", "Bold Italic". Use fonts.list to find available styles.
   interface PaintStyleItem { name: string; color: Color; description?: string }
   interface TextStyleItem {
     name: string; fontFamily: string; fontStyle?: string; fontSize: number;
@@ -27,8 +32,6 @@ notes: |
     effects?: Effect[];               // effect styles
     layoutGrids?: LayoutGrid[];       // grid styles
   }
-  // Effect: {type: "DROP_SHADOW"|"INNER_SHADOW"|"LAYER_BLUR"|"BACKGROUND_BLUR", radius, color?, offset?: {x,y}, spread?}
-  // LayoutGrid: {pattern: "COLUMNS"|"ROWS"|"GRID", sectionSize: number, count: number, offset?: number, gutterSize?: number}
 
 methods:
   list:

@@ -18,6 +18,8 @@ import { mergeEndpoints } from "./merge";
 import { generateMcpDefs } from "./gen-mcp";
 import { generateResponseTypes } from "./gen-response-types";
 import { generateDescription } from "./gen-descriptions";
+import { generateDocs } from "./gen-docs";
+import { generatePromptsTs, generatePromptsDocs } from "./gen-prompts";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, "../..");
@@ -59,6 +61,18 @@ const responseCode = generateResponseTypes(resolved);
 const responsePath = join(outDir, "response-types.ts");
 writeFileSync(responsePath, responseCode);
 console.log(`Written: ${responsePath}`);
+
+// ─── Generate Docs ──────────────────────────────────────────────
+console.log("\nGenerating docs...");
+const docsRoot = join(ROOT, "docs");
+const { sidebarItems } = generateDocs(resolved, docsRoot);
+console.log(`  Sidebar: ${sidebarItems.map(s => s.label).join(", ")}`);
+
+// ─── Generate Prompts ───────────────────────────────────────────
+console.log("\nGenerating prompts...");
+const promptsOutDir = join(ROOT, "packages/core/src/tools");
+generatePromptsTs(promptsOutDir);
+generatePromptsDocs(docsRoot);
 
 // ─── Summary ────────────────────────────────────────────────────
 const totalMethods = resolved.reduce((sum, ep) => sum + ep.methods.length, 0);

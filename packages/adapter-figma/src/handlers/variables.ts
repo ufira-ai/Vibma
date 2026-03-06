@@ -84,8 +84,26 @@ async function removeModeSingle(p: any): Promise<Record<string, never>> {
 async function createVariableSingle(p: any) {
   const collection = await findCollectionById(p.collectionId);
   if (!collection) throw new Error(`Collection not found: ${p.collectionId}`);
-  const variable = figma.variables.createVariable(p.name, collection, p.resolvedType);
-  return { id: variable.id };
+  const created = figma.variables.createVariable(p.name, collection, p.resolvedType);
+  const id = created.id;
+  // Re-fetch to ensure Figma has committed the variable before mutating
+  const variable = await figma.variables.getVariableByIdAsync(id);
+  if (!variable) throw new Error(`Failed to re-fetch created variable: ${id}`);
+  if (p.description !== undefined) variable.description = p.description;
+  if (p.scopes !== undefined) variable.scopes = p.scopes;
+  // Set initial value — uses provided modeId or falls back to default mode
+  if (p.value !== undefined) {
+    const modeId = p.modeId ?? collection.defaultModeId;
+    let value = p.value;
+    if (typeof value === "object" && value !== null && value.type === "VARIABLE_ALIAS" && value.id) {
+      value = await figma.variables.createVariableAliasByIdAsync(value.id);
+    } else {
+      const asColor = coerceColor(value);
+      if (asColor) value = asColor;
+    }
+    variable.setValueForMode(modeId, value);
+  }
+  return { id };
 }
 
 async function getVariableFigma(params: any) {

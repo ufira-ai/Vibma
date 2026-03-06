@@ -4,6 +4,12 @@ description: "Create and manage reusable components and variant sets."
 description_zh: "创建和管理可复用组件和变体集。"
 
 notes: |
+  // Components are reusable design elements. Instances (copies) stay linked to their component and inherit changes.
+  // A component set (variant set) groups related components as variants (e.g. Button/Primary, Button/Secondary).
+  // Property types: BOOLEAN (toggle visibility), TEXT (editable text), INSTANCE_SWAP (swap child instance), VARIANT (variant picker).
+  // exposeText: when creating from_node, text children become editable TEXT properties on the component.
+  // Property keys include a unique suffix like "Label#1:0" — use components.get to find exact keys.
+  // Workflow: create component → add properties via update → create instances via instances.create.
   interface ComponentItem {
     name: string; x?: number; y?: number; width?: number; height?: number; parentId?: string;
     fillColor?: Color; fillStyleName?: string; fillVariableId?: string;

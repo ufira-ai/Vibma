@@ -165,7 +165,7 @@ async function fromNodeSingle(p: any) {
   if (node.type === "DOCUMENT" || node.type === "PAGE") throw new Error(`Cannot convert ${node.type} to a component.`);
   if (node.type === "COMPONENT") throw new Error(`Node "${node.name}" is already a COMPONENT.`);
   if (node.type === "COMPONENT_SET") throw new Error(`Node "${node.name}" is already a COMPONENT_SET. Use components(method: "get") to inspect it.`);
-  if (node.type === "INSTANCE") throw new Error(`Node "${node.name}" is an INSTANCE. Detach it first with patch_nodes, or use the source component directly.`);
+  if (node.type === "INSTANCE") throw new Error(`Node "${node.name}" is an INSTANCE. Detach it first with instances(method:"detach"), or use the source component directly.`);
   const comp = figma.createComponentFromNode(node as SceneNode);
 
   const hints: string[] = [];

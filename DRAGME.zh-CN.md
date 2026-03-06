@@ -111,8 +111,8 @@ Vibma 通过访问层级控制可用工具。通过传入标志设置层级：
 
 1. 在 Figma 插件中，将频道名设置为 `vibma`（或任意你喜欢的名称）
 2. 点击 **Connect**
-3. 在 AI 工具中调用 `join_channel`，使用相同的频道名（默认为 `vibma`）
-4. 调用 `ping` ——你应该会收到包含文档名称的 `pong` 响应
+3. 在 AI 工具中调用 `connection(method: "create")`，使用相同的频道名（默认为 `vibma`）
+4. 调用 `connection(method: "get")` ——你应该会收到包含文档名称的 `pong` 响应
 
 ### 频道规则
 
@@ -136,7 +136,7 @@ curl http://localhost:3055/channels
 }
 ```
 
-如果使用 Claude Code，MCP 工具 `channel_info` 可以返回相同的数据，无需离开 AI 工具。
+如果使用 Claude Code，`connection(method: "list")` 可以返回相同的数据，无需离开 AI 工具。
 
 ## 故障排除
 
@@ -186,10 +186,10 @@ If all four ports (3055–3058) are occupied, tell the user they need to free on
 
 After the user opens the Figma plugin, it should automatically show **Connected** on the default port (3055). If a non-default port was used, the user will need to select the correct port in the plugin UI and click Connect.
 
-1. Call `join_channel` (defaults to channel `vibma` — use a different name only if the user specifies one).
-2. Call `ping`. Expected response: `{ status: "pong", documentName: "...", currentPage: "...", timestamp: ... }`
+1. Call `connection(method: "create")` (defaults to channel `vibma` — use a different name only if the user specifies one).
+2. Call `connection(method: "get")`. Expected response: `{ status: "pong", documentName: "...", currentPage: "...", timestamp: ... }`
 
-If `ping` returns a `pong` with a document name, the full chain is verified. Proceed with design tasks.
+If `connection(method: "get")` returns a `pong` with a document name, the full chain is verified. Proceed with design tasks.
 
 ### Troubleshooting connection issues
 
@@ -199,23 +199,23 @@ If the plugin shows **Disconnected** on port 3055, try the following before aski
 2. Restart the relay: `npm run socket`
 3. Ask the user to close and reopen the Figma plugin.
 
-If `join_channel` fails with a `ROLE_OCCUPIED` error, another MCP server is already connected to that channel. Use `channel_info` (or `curl http://localhost:3055/channels`) to inspect who's connected. The user needs to disconnect the other MCP client or use a different channel name.
+If `connection(method: "create")` fails with a `ROLE_OCCUPIED` error, another MCP server is already connected to that channel. Use `connection(method: "list")` (or `curl http://localhost:3055/channels`) to inspect who's connected. The user needs to disconnect the other MCP client or use a different channel name.
 
 If the issue persists after these steps, direct the user to the [Vibma Discord](https://discord.gg/4XTedZdwV6) for help.
 
-If any tool times out after a successful `join_channel`, the Figma plugin is not connected to the relay. The timeout error will include the port and channel the MCP server is using. Ask the user to check the Figma plugin window and confirm:
+If any tool times out after a successful `connection(method: "create")`, the Figma plugin is not connected to the relay. The timeout error will include the port and channel the MCP server is using. Ask the user to check the Figma plugin window and confirm:
 - The **port** matches what MCP is using
 - The **channel name** matches what MCP joined
 - The plugin status shows **Connected**
 
 ### Version mismatch
 
-If `join_channel` returns a version mismatch warning, the Figma plugin and MCP server are running different versions. Offer to help the user update:
+If `connection(method: "create")` returns a version mismatch warning, the Figma plugin and MCP server are running different versions. Offer to help the user update:
 
 1. Pull the latest changes: `git pull origin main`
 2. Rebuild: `npm install && npm run build`
 3. Restart the relay: kill the old process (`lsof -ti:3055 | xargs kill`), then `npm run socket`
 4. Ask the user to close and reopen the Figma plugin (it auto-reloads from `plugin/`)
-5. Reconnect: `join_channel` → `ping`
+5. Reconnect: `connection(method: "create")` → `connection(method: "get")`
 
 All three components (plugin, relay, MCP server) are built from the same source and should always be on the same version.

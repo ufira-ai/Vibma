@@ -4,10 +4,15 @@ description: "CRUD for design variables (COLOR, FLOAT, STRING, BOOLEAN)."
 description_zh: "管理设计变量（颜色、数值、字符串、布尔）。"
 
 notes: |
-  interface Variable { id: string; name: string; resolvedType: "COLOR"|"FLOAT"|"STRING"|"BOOLEAN"; variableCollectionId: string; valuesByMode: Record<string, any> }
-  // update: {id, name?, description?, scopes?, modeId?, value?}
-  // value: number, boolean, Color ({r,g,b,a?} or hex), or alias {type:"VARIABLE_ALIAS", id:"VariableID:..."}
-  // Use variable_collections to manage modes. Bind to nodes via frames/text update PatchItem.bindings.
+  // Variables are design tokens — reusable values (colors, numbers, strings, booleans) that can be bound to node properties.
+  // Workflow: create a variable_collection first → then create variables inside it → bind to nodes via frames/text update PatchItem.bindings.
+  // Each variable has values per mode (e.g. Light/Dark). Use modeId when setting values for a specific mode.
+  // valuesByMode keys are mode IDs (from the collection), values match the variable's resolvedType.
+  // Aliases: a variable can reference another variable via {type: "VARIABLE_ALIAS", id: "VariableID:..."}.
+  // scopes: restrict where variables appear in the UI. Values: "ALL_SCOPES", "TEXT_CONTENT", "WIDTH_HEIGHT", "GAP",
+  //   "CORNER_RADIUS", "ALL_FILLS", "FRAME_FILL", "SHAPE_FILL", "TEXT_FILL", "STROKE_COLOR", "STROKE_FLOAT",
+  //   "EFFECT_FLOAT", "EFFECT_COLOR", "OPACITY", "FONT_FAMILY", "FONT_STYLE", "FONT_WEIGHT", "FONT_SIZE", "LINE_HEIGHT", "LETTER_SPACING", "PARAGRAPH_SPACING", "PARAGRAPH_INDENT"
+  interface Variable { id: string; name: string; resolvedType: "COLOR"|"FLOAT"|"STRING"|"BOOLEAN"; variableCollectionId: string; valuesByMode: Record<string, number | boolean | string | Color | {type: "VARIABLE_ALIAS", id: string}> }
 
 methods:
   list:
@@ -66,13 +71,17 @@ methods:
         type: array
         coerce: json
         required: true
-        description: "Array of {collectionId, name, resolvedType}"
+        description: "Array of {collectionId, name, resolvedType, value?, modeId?, description?, scopes?}"
         items:
           type: object
           properties:
             collectionId: { type: string, required: true, description: "Variable collection ID" }
             name: { type: string, required: true, description: "Variable name" }
             resolvedType: { type: enum, values: [COLOR, FLOAT, STRING, BOOLEAN], required: true, description: "Variable type" }
+            value: { type: variable_value, optional: true, description: "Initial value (uses default mode unless modeId specified)" }
+            modeId: { type: string, optional: true, description: "Mode ID for initial value (default: collection's default mode)" }
+            description: { type: string, optional: true, description: "Variable description" }
+            scopes: { type: "string[]", coerce: json, optional: true, description: 'UI scopes e.g. ["ALL_SCOPES"]' }
     response:
       type: batch
       item: { id: { type: string } }

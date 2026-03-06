@@ -375,7 +375,7 @@ export const toolResponseSchemas: Record<string, SchemaEntry> = {
   join_channel: {
     type: "string",
     description: "Confirmation message with channel and port",
-    example: 'Joined channel "vibma" on port 3055. Call `ping` now to verify the Figma plugin is connected.',
+    example: 'Joined channel "vibma" on port 3055. Call connection(method: "get") to verify the Figma plugin is connected.',
   },
   channel_info: {
     type: "object",
@@ -710,7 +710,7 @@ export const toolResponseSchemas: Record<string, SchemaEntry> = {
       warning: { ...stringProp, description: "Present when results truncated" },
     },
     required: ["nodeId", "nodeName", "categories"],
-    example: { nodeId: "1:2", nodeName: "Card", categories: [{ rule: "hardcoded-color", count: 2, fix: "Use set_fill_color with styleName or set_variable_binding.", nodes: [{ id: "1:5", name: "Background", hex: "#3b82f6", property: "fill", matchType: "style", matchName: "Primary/Blue" }] }] },
+    example: { nodeId: "1:2", nodeName: "Card", categories: [{ rule: "hardcoded-color", count: 2, fix: "Check each node's matchName for a suggested style or variable. Apply via frames(method:\"update\", items:[{id, fill:{styleName:\"...\"}}]).", nodes: [{ id: "1:5", name: "Background", hex: "#3b82f6", property: "fill", matchType: "style", matchName: "Primary/Blue" }] }] },
   },
   lint_fix_autolayout: batchSchema({
     layoutMode: { type: "string", enum: ["VERTICAL", "HORIZONTAL"] },

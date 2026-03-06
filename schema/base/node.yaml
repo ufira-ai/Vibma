@@ -4,9 +4,14 @@
 base: node
 
 notes: |
+  // These methods are inherited by frames, text, components, and instances — any node in the Figma scene graph.
   // depth: omit → id+name stubs | 0 → props + child stubs | N → recurse N | -1 → full tree
-  // fields: whitelist e.g. ["fills","opacity"] — id, name, type always included
-  // Color: hex "#FF0000" or {r: 0-1, g: 0-1, b: 0-1, a?: 0-1}
+  // fields: whitelist e.g. ["fills","opacity"] — id, name, type always included. Pass ["*"] for all.
+  // visible: false hides the node. Omitted from response when true (the default).
+  // constraints: position behavior in non-auto-layout parents. Ignored inside auto-layout frames.
+  // bindings: bind design variables to node properties. field uses slash path e.g. "fills/0/color", "opacity", "width".
+  // explicitMode: pin a specific variable mode on this node (overrides inherited mode from parent).
+  // properties: escape hatch — set any Figma node property directly. Use only when no dedicated field exists.
   interface Node {
     id: string; name: string; type: string;
     visible?: boolean;       // omitted when true
@@ -94,16 +99,26 @@ methods:
       limit:
         $ref: limit
     response:
-      type: paginated
-      item:
-        type: object
-        properties:
-          id: { type: string, required: true }
-          name: { type: string, required: true }
-          type: { type: string, required: true }
-          parentId: { type: string, required: true }
-          parentName: { type: string }
-          bounds: { type: object, properties: { x: { type: number }, y: { type: number }, width: { type: number }, height: { type: number } } }
+      type: object
+      description: Paginated node search results (uses `results` not `items`)
+      properties:
+        totalCount: { type: number, required: true, description: Total matching nodes }
+        returned: { type: number, required: true, description: Nodes in this page }
+        offset: { type: number }
+        limit: { type: number }
+        results:
+          type: array
+          description: Matching node stubs
+          items:
+            type: object
+            properties:
+              id: { type: string, required: true }
+              name: { type: string, required: true }
+              type: { type: string, required: true }
+              parentId: { type: string, required: true }
+              parentName: { type: string }
+              bounds: { type: object, properties: { x: { type: number }, y: { type: number }, width: { type: number }, height: { type: number } } }
+      required: [totalCount, results]
 
   update:
     # command auto-derived as {endpoint}.update

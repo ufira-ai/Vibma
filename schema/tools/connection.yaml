@@ -3,6 +3,13 @@ domain: connection
 description: "Manage the Figma plugin connection."
 description_zh: "管理 Figma 插件连接。"
 
+notes: |
+  // Connection manages the WebSocket link between the MCP server and the Figma plugin.
+  // Channels are named rooms — both the MCP server and Figma plugin must join the same channel to communicate.
+  // Workflow: connection(method:"create") to join a channel → connection(method:"get") to verify Figma plugin is connected.
+  // If get times out (5s), the Figma plugin is not running or not on the same channel.
+  // list shows all active channels and their connected clients. delete factory-resets a channel.
+
 methods:
   create:
     command: join_channel
@@ -17,7 +24,7 @@ methods:
     response:
       type: string
       description: Confirmation message with channel and port
-      example: 'Joined channel "vibma" on port 3055. Call `ping` now to verify the Figma plugin is connected.'
+      example: 'Joined channel "vibma" on port 3055. Call connection(method: "get") to verify the Figma plugin is connected.'
 
   get:
     command: ping

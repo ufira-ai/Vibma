@@ -4,6 +4,14 @@ description: "Create and manage component instances."
 description_zh: "创建和管理组件实例。"
 
 notes: |
+  // Instances are linked copies of components. Changes to the component propagate to all instances.
+  // Overrides: instance-level changes (text, fills, visibility) that differ from the component. Shown in overrides array.
+  // variantProperties: when creating from a component set, pick which variant e.g. {"Style":"Secondary","Size":"Large"}.
+  // Property keys include a unique suffix like "Label#1:0" — use instances.get or components.get to find exact keys.
+  // swap: change which component an instance points to while preserving compatible overrides.
+  // detach: permanently converts an instance to a regular frame, breaking the component link.
+  // reset_overrides: reverts all instance overrides to match the main component.
+  // Workflow: components.list → instances.create with componentId → instances.update to set properties.
   interface InstanceCreateItem {
     componentId: string;                     // component or component set ID
     variantProperties?: Record<string, string>; // pick variant e.g. {"Style":"Secondary","Size":"Large"}
@@ -13,7 +21,6 @@ notes: |
     id: string;                              // instance node ID
     properties: Record<string, string | boolean>; // key→value e.g. {"Label#1:0":"Click Me"}
   }
-  // swap: override-preserving component swap. detach: convert to frame. reset_overrides: revert all overrides.
 
 methods:
   get:

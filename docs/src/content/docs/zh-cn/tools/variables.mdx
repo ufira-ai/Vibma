@@ -1,30 +1,83 @@
 ---
 title: "Variables"
-description: "用于创建和管理设计变量和模式的工具"
+description: "管理设计变量（颜色、数值、字符串、布尔）。"
 ---
 
-import ToolReference from "../../../../components/ToolReference.astro";
+import ParameterTable from "../../../../components/ParameterTable.astro";
 
-用于创建和管理设计变量和模式的工具
+管理设计变量（颜色、数值、字符串、布尔）。
 
-此分类共 5 个工具。
+<details>
+<summary>Type reference</summary>
 
-### variable_collections
+```ts
+// Variables are design tokens — reusable values (colors, numbers, strings, booleans) that can be bound to node properties.
+// Workflow: create a variable_collection first → then create variables inside it → bind to nodes via frames/text update PatchItem.bindings.
+// Each variable has values per mode (e.g. Light/Dark). Use modeId when setting values for a specific mode.
+// valuesByMode keys are mode IDs (from the collection), values match the variable's resolvedType.
+// Aliases: a variable can reference another variable via {type: "VARIABLE_ALIAS", id: "VariableID:..."}.
+// scopes: restrict where variables appear in the UI. Values: "ALL_SCOPES", "TEXT_CONTENT", "WIDTH_HEIGHT", "GAP",
+//   "CORNER_RADIUS", "ALL_FILLS", "FRAME_FILL", "SHAPE_FILL", "TEXT_FILL", "STROKE_COLOR", "STROKE_FLOAT",
+//   "EFFECT_FLOAT", "EFFECT_COLOR", "OPACITY", "FONT_FAMILY", "FONT_STYLE", "FONT_WEIGHT", "FONT_SIZE", "LINE_HEIGHT", "LETTER_SPACING", "PARAGRAPH_SPACING", "PARAGRAPH_INDENT"
+interface Variable { id: string; name: string; resolvedType: "COLOR"|"FLOAT"|"STRING"|"BOOLEAN"; variableCollectionId: string; valuesByMode: Record<string, number | boolean | string | Color | {type: "VARIABLE_ALIAS", id: string}> }
+```
 
-<ToolReference name="variable_collections" description={"CRUD endpoint for variable collections + mode management.\n  create       → {items: [{name}]}                          → {results: [{id, modes, defaultModeId}]}\n  get          → {id, fields?}                              → collection object\n  list         → {fields?, offset?, limit?}                 → paginated stubs\n  delete       → {id} or {items: [{id}]}                    → 'ok' or {results: ['ok', ...]}\n  add_mode     → {items: [{collectionId, name}]}            → {results: [{modeId, modes}]}\n  rename_mode  → {items: [{collectionId, modeId, name}]}    → {results: [{modes}]}\n  remove_mode  → {items: [{collectionId, modeId}]}          → {results: [{modes}]}"} schema={{"type":"object","properties":{"method":{"type":"string","enum":["create","get","list","delete","add_mode","rename_mode","remove_mode"]},"id":{"description":"Resource ID (get, delete)","type":"string"},"fields":{"description":"Property whitelist (get/list). Identity fields (id, name, type) always included. Omit for stubs on list, full detail on get. Pass [\"*\"] for all fields.","type":"array","items":{"type":"string"}},"offset":{"description":"Skip N items for pagination (default 0)","type":"number"},"limit":{"description":"Max items per page (default 100)","type":"number"},"items":{"description":"create: [{name}]. delete (batch): [{id}]. add_mode: [{collectionId, name}]. rename_mode: [{collectionId, modeId, name}]. remove_mode: [{collectionId, modeId}].","type":"array","items":{}}},"required":["method"]}} tier="read" endpoint responseSchema={{"type":"object","description":"Response varies by method. create → {results: [{id, modes, defaultModeId}]}. get → collection object (field-filterable). list → paginated stubs. delete → 'ok' or {results: ['ok', ...]}. add_mode → {results: [{modeId, modes}]}. rename_mode/remove_mode → {results: [{modes}]}."}} responseExample={{"totalCount":2,"returned":2,"offset":0,"limit":100,"items":[{"id":"VariableCollectionId:1:0","name":"Colors"},{"id":"VariableCollectionId:2:0","name":"Spacing"}]}} />
+</details>
 
-### variables
+5 methods available.
 
-<ToolReference name="variables" description={"CRUD endpoint for design variables.\n  create  → {items: [{collectionId, name, resolvedType}]}   → {results: [{id}]}\n  get     → {id, fields?}                                   → variable object (full detail)\n  list    → {type?, collectionId?, fields?, offset?, limit?} → paginated stubs (fields for detail)\n  update  → {items: [{id, modeId, value}]}                  → {results: ['ok', ...]}"} schema={{"type":"object","properties":{"method":{"type":"string","enum":["create","get","list","update"]},"id":{"description":"Resource ID (get, delete)","type":"string"},"fields":{"description":"Property whitelist (get/list). Identity fields (id, name, type) always included. Omit for stubs on list, full detail on get. Pass [\"*\"] for all fields.","type":"array","items":{"type":"string"}},"offset":{"description":"Skip N items for pagination (default 0)","type":"number"},"limit":{"description":"Max items per page (default 100)","type":"number"},"items":{"description":"create: [{collectionId, name, resolvedType}]. update: [{id, modeId, value}].","type":"array","items":{}},"type":{"description":"Filter list by variable type.","type":"string","enum":["COLOR","FLOAT","STRING","BOOLEAN"]},"collectionId":{"description":"Filter list by collection ID.","type":"string"}},"required":["method"]}} tier="read" endpoint responseSchema={{"type":"object","description":"Response varies by method. create → {results: [{id}]}. get → variable object (full detail, field-filterable). list → paginated stubs (use fields for detail). update → {results: ['ok', ...]}."}} responseExample={{"totalCount":3,"returned":3,"offset":0,"limit":100,"items":[{"id":"VariableID:1:6","name":"primary","resolvedType":"COLOR","variableCollectionId":"VariableCollectionId:1:0"},{"id":"VariableID:1:7","name":"secondary","resolvedType":"COLOR","variableCollectionId":"VariableCollectionId:1:0"},{"id":"VariableID:2:1","name":"sm","resolvedType":"FLOAT","variableCollectionId":"VariableCollectionId:2:0"}]}} />
+## list
 
-### set_variable_binding
+List variables with optional filters
 
-<ToolReference name="set_variable_binding" description={"Bind variables to node properties. Common fields: 'fills/0/color', 'strokes/0/color', 'opacity', 'topLeftRadius', 'itemSpacing'. Batch: pass multiple items."} schema={{"type":"object","properties":{"items":{"description":"Array of {nodeId, field, variableId}","type":"array","items":{"type":"object","properties":{"nodeId":{"type":"string","description":"Node ID"},"field":{"type":"string","description":"Property field (e.g., 'opacity', 'fills/0/color')"},"variableId":{"type":"string","description":"Variable ID (use full ID from create_variable response, e.g. VariableID:1:6)"}},"required":["nodeId","field","variableId"]}}},"required":["items"]}} tier="edit" responseSchema={{"type":"object","properties":{"results":{"type":"array","description":"Per-item results.","items":{"oneOf":[{"type":"string","const":"ok"},{"title":"error","type":"object","properties":{"error":{"type":"string","description":"Error message for this item"}},"required":["error"]}]}},"warnings":{"type":"array","description":"Deduplicated warnings hoisted from individual results","items":{"type":"string"}}},"required":["results"]}} responseExample={{"results":["ok"]}} />
+<ParameterTable schema={{"type":"object","properties":{"type":{"description":"Filter by variable type","type":"string","enum":["COLOR","FLOAT","STRING","BOOLEAN"]},"collectionId":{"description":"Filter by collection ID","type":"string"},"fields":{"description":"Property whitelist. Identity fields (id, name, type) always included. Omit for stubs on list, full on get. Pass [\"*\"] for all.","type":"array","items":{"type":"string"}},"offset":{"description":"Skip N items for pagination (default 0) (default: 0)","type":"number"},"limit":{"description":"Max items per page (default 100) (default: 100)","type":"number"}}}} />
 
-### set_explicit_variable_mode
+**Response**
 
-<ToolReference name="set_explicit_variable_mode" description={"Pin a variable collection mode on a frame (e.g. show Dark mode). Batch: pass multiple items."} schema={{"type":"object","properties":{"items":{"description":"Array of {nodeId, collectionId, modeId}","type":"array","items":{"type":"object","properties":{"nodeId":{"type":"string","description":"Node ID"},"collectionId":{"type":"string","description":"Variable collection ID"},"modeId":{"type":"string","description":"Mode ID to pin (e.g. Dark mode)"}},"required":["nodeId","collectionId","modeId"]}}},"required":["items"]}} tier="edit" responseSchema={{"type":"object","properties":{"results":{"type":"array","description":"Per-item results.","items":{"oneOf":[{"type":"string","const":"ok"},{"title":"error","type":"object","properties":{"error":{"type":"string","description":"Error message for this item"}},"required":["error"]}]}},"warnings":{"type":"array","description":"Deduplicated warnings hoisted from individual results","items":{"type":"string"}}},"required":["results"]}} responseExample={{"results":["ok"]}} />
+<ParameterTable schema={{"type":"object","properties":{"totalCount":{"type":"number","description":"Total matching items"},"returned":{"type":"number","description":"Items in this page"},"offset":{"type":"number"},"limit":{"type":"number"},"items":{"type":"array","items":{"type":"object","properties":{"id":{"type":"string"},"name":{"type":"string"},"resolvedType":{"type":"string"},"variableCollectionId":{"type":"string"}}}}},"required":["totalCount","items"]}} fieldLabel="Field" hideRequired />
 
-### get_node_variables
+## get
 
-<ToolReference name="get_node_variables" description={"Get variable bindings on a node. Returns which variables are bound to fills, strokes, opacity, corner radius, etc."} schema={{"type":"object","properties":{"nodeId":{"type":"string","description":"Node ID"}},"required":["nodeId"]}} tier="read" responseSchema={{"type":"object","properties":{"nodeId":{"type":"string"},"boundVariables":{"type":"object","description":"Field → variable binding(s)"},"explicitVariableModes":{"type":"object","description":"Collection ID → pinned mode ID"}},"required":["nodeId"]}} responseExample={{"nodeId":"1:2","boundVariables":{"fills":[{"variableId":"VariableID:1:6"}]},"explicitVariableModes":{"VariableCollectionId:1:0":"1:1"}}} />
+Get variable detail
+
+<ParameterTable schema={{"type":"object","properties":{"id":{"description":"Variable ID (e.g. VariableID:1:6)","type":"string"},"fields":{"description":"Property whitelist. Identity fields (id, name, type) always included. Omit for stubs on list, full on get. Pass [\"*\"] for all.","type":"array","items":{"type":"string"}}},"required":["id"]}} />
+
+**Response**
+
+<ParameterTable schema={{"type":"object","properties":{"id":{"type":"string"},"name":{"type":"string"},"resolvedType":{"type":"string"},"variableCollectionId":{"type":"string"},"valuesByMode":{"type":"object"}}}} fieldLabel="Field" hideRequired />
+
+## create
+
+**create**
+
+Create variables
+
+<ParameterTable schema={{"type":"object","properties":{"items":{"description":"Array of {collectionId, name, resolvedType, value?, modeId?, description?, scopes?}","type":"array","items":{"type":"object","properties":{"collectionId":{"description":"Variable collection ID","type":"string"},"name":{"description":"Variable name","type":"string"},"resolvedType":{"description":"Variable type","type":"string","enum":["COLOR","FLOAT","STRING","BOOLEAN"]},"value":{"description":"Initial value (uses default mode unless modeId specified)","type":"any"},"modeId":{"description":"Mode ID for initial value (default: collection's default mode)","type":"string"},"description":{"description":"Variable description","type":"string"},"scopes":{"description":"UI scopes e.g. [\"ALL_SCOPES\"]","type":"array","items":{"type":"string"}}},"required":["collectionId","name","resolvedType"]}}},"required":["items"]}} />
+
+**Response**
+
+<ParameterTable schema={{"type":"object","properties":{"results":{"type":"array","description":"One entry per input item","items":{"type":"object","properties":{"id":{"type":"string"}}}}}}} fieldLabel="Field" hideRequired />
+
+## update
+
+**edit**
+
+Update variable metadata and/or set values per mode
+
+<ParameterTable schema={{"type":"object","properties":{"items":{"description":"Array of {id, name?, description?, scopes?, modeId?, value?}","type":"array","items":{"type":"object","properties":{"id":{"description":"Variable ID","type":"string"},"name":{"description":"Rename the variable","type":"string"},"description":{"description":"Set description","type":"string"},"scopes":{"description":"UI scopes e.g. [\"ALL_SCOPES\"] or [\"WIDTH_HEIGHT\",\"CORNER_RADIUS\"]","type":"array","items":{"type":"string"}},"modeId":{"description":"Mode ID (required when setting value)","type":"string"},"value":{"type":"any","description":"number | boolean | Color | {type:VARIABLE_ALIAS, id}"}},"required":["id"]}}},"required":["items"]}} />
+
+**Response**
+
+<ParameterTable schema={{"type":"object","properties":{"results":{"type":"array","description":"Array of \"ok\" or {error} per item","items":{"type":"any"}}}}} fieldLabel="Field" hideRequired />
+
+## delete
+
+**edit**
+
+Delete variables
+
+<ParameterTable schema={{"type":"object","properties":{"id":{"description":"Single variable ID","type":"string"},"items":{"description":"Batch: [{id}, ...]","type":"array","items":{"type":"object","properties":{"id":{"type":"string"}},"required":["id"]}}}}} />
+
+**Response**
+
+<ParameterTable schema={{"type":"object","properties":{"results":{"type":"array","description":"Array of \"ok\" per item","items":{"type":"string"}}}}} fieldLabel="Field" hideRequired />

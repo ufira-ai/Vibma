@@ -3,6 +3,12 @@ domain: node-inspection
 description: "Read and set the current Figma selection."
 description_zh: "读取和设置当前 Figma 选区。"
 
+notes: |
+  // Selection is the set of nodes currently highlighted in the Figma canvas.
+  // get returns the current selection. Without depth, returns stubs ({id, name, type}). With depth=0, returns full properties.
+  // _truncated: true when the response was cut short due to node budget limits. Use depth=0 or specific fields to reduce payload.
+  // update sets the selection AND scrolls the viewport to show the selected nodes.
+
 methods:
   get:
     tier: read

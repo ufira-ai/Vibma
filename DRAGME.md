@@ -117,8 +117,8 @@ If using a non-default port, add `--port=`:
 
 1. In the Figma plugin, set the channel name to `vibma` (or any name you like)
 2. Click **Connect**
-3. In your AI tool, call `join_channel` with the same channel name (defaults to `vibma`)
-4. Call `ping` — you should get back `pong` with your document name
+3. In your AI tool, call `connection(method: "create")` with the same channel name (defaults to `vibma`)
+4. Call `connection(method: "get")` — you should get back `pong` with your document name
 
 ### Channel rules
 
@@ -142,7 +142,7 @@ Returns:
 }
 ```
 
-If using Claude Code, the `channel_info` MCP tool returns the same data without leaving your AI tool.
+If using Claude Code, `connection(method: "list")` returns the same data without leaving your AI tool.
 
 ## Troubleshooting
 
@@ -192,10 +192,10 @@ If all four ports (3055–3058) are occupied, tell the user they need to free on
 
 After the user opens the Figma plugin, it should automatically show **Connected** on the default port (3055). If a non-default port was used, the user will need to select the correct port in the plugin UI and click Connect.
 
-1. Call `join_channel` (defaults to channel `vibma` — use a different name only if the user specifies one).
-2. Call `ping`. Expected response: `{ status: "pong", documentName: "...", currentPage: "...", timestamp: ... }`
+1. Call `connection(method: "create")` (defaults to channel `vibma` — use a different name only if the user specifies one).
+2. Call `connection(method: "get")`. Expected response: `{ status: "pong", documentName: "...", currentPage: "...", timestamp: ... }`
 
-If `ping` returns a `pong` with a document name, the full chain is verified. Proceed with design tasks.
+If `connection(method: "get")` returns a `pong` with a document name, the full chain is verified. Proceed with design tasks.
 
 ### Troubleshooting connection issues
 
@@ -205,23 +205,23 @@ If the plugin shows **Disconnected** on port 3055, try the following before aski
 2. Restart the relay: `npm run socket`
 3. Ask the user to close and reopen the Figma plugin.
 
-If `join_channel` fails with a `ROLE_OCCUPIED` error, another MCP server is already connected to that channel. Use `channel_info` (or `curl http://127.0.0.1:3055/channels`) to inspect who's connected. The user needs to disconnect the other MCP client or use a different channel name.
+If `connection(method: "create")` fails with a `ROLE_OCCUPIED` error, another MCP server is already connected to that channel. Use `connection(method: "list")` (or `curl http://127.0.0.1:3055/channels`) to inspect who's connected. The user needs to disconnect the other MCP client or use a different channel name.
 
 If the issue persists after these steps, direct the user to the [Vibma Discord](https://discord.gg/4XTedZdwV6) for help.
 
-If any tool times out after a successful `join_channel`, the Figma plugin is not connected to the relay. The timeout error will include the port and channel the MCP server is using. Ask the user to check the Figma plugin window and confirm:
+If any tool times out after a successful `connection(method: "create")`, the Figma plugin is not connected to the relay. The timeout error will include the port and channel the MCP server is using. Ask the user to check the Figma plugin window and confirm:
 - The **port** matches what MCP is using
 - The **channel name** matches what MCP joined
 - The plugin status shows **Connected**
 
 ### Version mismatch
 
-If `join_channel` returns a version mismatch warning, the Figma plugin and MCP server are running different versions. Offer to help the user update:
+If `connection(method: "create")` returns a version mismatch warning, the Figma plugin and MCP server are running different versions. Offer to help the user update:
 
 1. Pull the latest changes: `git pull origin main`
 2. Rebuild: `npm install && npm run build`
 3. Restart the relay: kill the old process (`lsof -ti:3055 | xargs kill`), then `npm run socket`
 4. Ask the user to close and reopen the Figma plugin (it auto-reloads from `plugin/`)
-5. Reconnect: `join_channel` → `ping`
+5. Reconnect: `connection(method: "create")` → `connection(method: "get")`
 
 All three components (plugin, relay, MCP server) are built from the same source and should always be on the same version.

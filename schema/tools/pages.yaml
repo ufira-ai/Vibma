@@ -3,6 +3,12 @@ domain: document
 description: "Navigate and manage Figma pages."
 description_zh: "导航和管理 Figma 页面。"
 
+notes: |
+  // Pages are the top-level containers in a Figma document. Each page has its own canvas.
+  // The "current page" is where all node operations happen. Use pages.set to switch pages before working with nodes.
+  // Page IDs look like "0:1", "1:1", etc. The first page is always "0:1".
+  // get returns the current page with its top-level children as stubs. list returns all pages in the document.
+
 methods:
   get:
     tier: read
@@ -57,8 +63,10 @@ methods:
         optional: true
         description: "Page name (default: 'New Page')"
     response:
-      type: batch
-      item: { id: { type: string } }
+      type: object
+      properties:
+        id: { type: string, required: true, description: New page ID }
+      required: [id]
 
   update:
     tier: edit

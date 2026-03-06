@@ -27,17 +27,23 @@ function paramToTs(param: RawParam): string {
         return `${propsToObj(param.items.properties)}[]`;
       if ("type" in param.items) {
         const t = param.items.type;
-        return `${t === "string" ? "string" : t === "number" ? "number" : "any"}[]`;
+        return `${t === "string" ? "string" : t === "number" ? "number" : "unknown"}[]`;
       }
     }
-    return "any[]";
+    return "unknown[]";
   }
+
+  if (type === "color") return "Color";
+  if (type === "variable_value") return 'number | boolean | string | Color | {type: "VARIABLE_ALIAS", id: string}';
+  if (type === "line_height") return 'number | {value: number, unit: "PIXELS" | "PERCENT" | "AUTO"}';
+  if (type === "letter_spacing") return 'number | {value: number, unit: "PIXELS" | "PERCENT"}';
+  if (type === "string_or_boolean") return "string | boolean";
 
   if (type === "object") {
     if (param.properties) return propsToObj(param.properties);
-    return "Record<string, any>";
+    return "Record<string, unknown>";
   }
-  return "any";
+  return "unknown";
 }
 
 function propsToObj(properties: Record<string, RawParam>): string {
@@ -102,7 +108,7 @@ function dslResponse(response: RawResponse): string {
     }
     return `{ ${parts.join(", ")} }`;
   }
-  return "any";
+  return "unknown";
 }
 
 /** Generate compact method line */
@@ -143,6 +149,36 @@ function generateInterface(name: string, params: Record<string, RawParam>): stri
   return `  interface ${name} {\n${lines.join("\n")}\n  }`;
 }
 
+// ─── Shared type definitions ──────────────────────────────────────
+
+const SHARED_TYPES: Record<string, string> = {
+  Color: 'Color: hex "#FF0000" or {r: 0-1, g: 0-1, b: 0-1, a?: 0-1}',
+  Effect: 'Effect: {type: "DROP_SHADOW"|"INNER_SHADOW"|"LAYER_BLUR"|"BACKGROUND_BLUR", radius: number, color?: {r,g,b,a} (0-1), offset?: {x, y}, spread?: number, visible?: boolean}',
+  Paint: 'Paint: {type: "SOLID", color: Color, opacity?: number}',
+  LayoutGrid: 'LayoutGrid: {pattern: "COLUMNS"|"ROWS"|"GRID", alignment: "MIN"|"MAX"|"CENTER"|"STRETCH", sectionSize: number, count?: number, offset?: number, gutterSize?: number}',
+  NodeStub: 'NodeStub: {id: string, name: string, type: string}',
+};
+
+/** Scan text for shared type references and append definitions */
+function appendSharedTypes(text: string): string {
+  const needed: string[] = [];
+  for (const [typeName, definition] of Object.entries(SHARED_TYPES)) {
+    // Match type name as a word boundary (not inside a longer word)
+    const re = new RegExp(`\\b${typeName}\\b`);
+    if (re.test(text)) {
+      needed.push(definition);
+    }
+  }
+  if (needed.length === 0) return text;
+
+  // Ensure Color is appended if Effect references it
+  if (needed.some(d => d.startsWith("Effect:")) && !needed.some(d => d.startsWith("Color:"))) {
+    needed.unshift(SHARED_TYPES.Color);
+  }
+
+  return text + "\n// Shared types:\n// " + needed.join("\n// ");
+}
+
 // ─── Main ─────────────────────────────────────────────────────────
 
 export function generateDescription(endpoint: ResolvedEndpoint): string {
@@ -172,5 +208,6 @@ export function generateDescription(endpoint: ResolvedEndpoint): string {
     sections.push(endpoint.notes.trim());
   }
 
-  return sections.join("\n");
+  // 4. Auto-append shared type definitions referenced in the description
+  return appendSharedTypes(sections.join("\n"));
 }

@@ -5,7 +5,7 @@ export const generatedResponseSchemas: Record<string, Record<string, unknown>> =
   "components": {
   },
   "connection": {
-    "create": {"example":"Joined channel \"vibma\" on port 3055. Call `ping` now to verify the Figma plugin is connected."},
+    "create": {"example":"Joined channel \"vibma\" on port 3055. Call connection(method: \"get\") to verify the Figma plugin is connected."},
     "get": {"example":{"status":"pong","documentName":"Design System","currentPage":"Components","timestamp":1709337600}},
     "delete": {"example":"Channel vibma reset"},
   },

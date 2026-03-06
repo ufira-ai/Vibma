@@ -31,7 +31,7 @@ function paramToZod(name: string, param: RawParam, indent = 2): string {
     const inner = "z.array(z.string())";
     zod = param.coerce === "json" ? `flexJson(${inner})` : inner;
   } else if (type === "array") {
-    const inner = "z.array(z.any())";
+    const inner = "z.array(z.record(z.string(), z.unknown()))";
     zod = param.coerce === "json" ? `flexJson(${inner})` : inner;
   } else if (type === "color") {
     zod = "S.colorRgba";
@@ -53,13 +53,13 @@ function paramToZod(name: string, param: RawParam, indent = 2): string {
       }
       zod = `z.object({\n${props.join("\n")}\n${pad}})`;
     } else {
-      zod = "z.record(z.any())";
+      zod = "z.record(z.string(), z.unknown())";
     }
   } else if (type === "enum") {
     const vals = (param.values ?? []).map(v => `"${v}"`).join(", ");
     zod = `z.enum([${vals}])`;
   } else {
-    zod = "z.any()";
+    zod = "z.unknown()";
   }
 
   if (param.optional || (!param.required && param.required !== undefined)) {
@@ -219,7 +219,10 @@ function generateValidate(endpoint: ResolvedEndpoint): string | null {
         `      if (m === ${JSON.stringify(method.name)}) {\n` +
         `        const schemas: Record<string, z.ZodTypeAny> = {\n${schemaLines.join("\n")}\n        };\n` +
         `        const s = params.${method.discriminant} && schemas[params.${method.discriminant}];\n` +
-        `        if (s) params.items = z.array(s).parse(params.items);\n` +
+        `        if (s) {\n` +
+        `          try { params.items = z.array(s).parse(params.items); }\n` +
+        `          catch (e) { if (e instanceof z.ZodError) { throw new Error(e.issues.map(i => { const path = i.path.join("."); const shape = s instanceof z.ZodObject ? (s as any).shape : null; const desc = shape?.[i.path[1]]?.description; return path + ": " + i.message + (desc ? " (expected: " + desc + ")" : ""); }).join("; ")); } throw e; }\n` +
+        `        }\n` +
         `      }`
       );
     } else {
@@ -229,7 +232,9 @@ function generateValidate(endpoint: ResolvedEndpoint): string | null {
         const zodObj = generateItemZodObject(items.items.properties, 8);
         itemBranches.push(
           `      if (m === ${JSON.stringify(method.name)}) {\n` +
-          `        params.items = z.array(${zodObj}).parse(params.items);\n` +
+          `        const itemSchema = ${zodObj};\n` +
+          `        try { params.items = z.array(itemSchema).parse(params.items); }\n` +
+          `        catch (e) { if (e instanceof z.ZodError) { throw new Error(e.issues.map(i => { const path = i.path.join("."); const shape = itemSchema instanceof z.ZodObject ? (itemSchema as any).shape : null; const desc = shape?.[i.path[1]]?.description; return path + ": " + i.message + (desc ? " (expected: " + desc + ")" : ""); }).join("; ")); } throw e; }\n` +
           `      }`
         );
       }

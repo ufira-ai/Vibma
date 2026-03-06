@@ -1,0 +1,31 @@
+---
+title: "Fonts"
+description: "搜索 Figma 中可用的字体。"
+---
+
+import ParameterTable from "../../../../components/ParameterTable.astro";
+
+搜索 Figma 中可用的字体。
+
+<details>
+<summary>Type reference</summary>
+
+```ts
+// Returns font families and their available styles (e.g. "Regular", "Bold", "Italic") installed in the Figma environment.
+// Use before text.create or styles.create to verify a fontFamily + fontStyle combination is available.
+// query filters by family name substring (case-insensitive), e.g. query:"inter" matches "Inter", "Inter Tight".
+```
+
+</details>
+
+1 method available.
+
+## list
+
+List available font families, optionally filtered by name
+
+<ParameterTable schema={{"type":"object","properties":{"query":{"description":"Filter by family name (case-insensitive substring)","type":"string"}}}} />
+
+**Response**
+
+<ParameterTable schema={{"type":"object","properties":{"count":{"description":"Number of matching families","type":"number"},"fonts":{"type":"array","items":{"type":"object","properties":{"family":{"type":"string"},"styles":{"type":"array","items":{"type":"string"}}},"required":["family"]}}},"required":["count"]}} fieldLabel="Field" hideRequired />

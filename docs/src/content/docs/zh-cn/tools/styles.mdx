@@ -1,14 +1,129 @@
 ---
 title: "Styles"
-description: "用于创建和管理绘图、文本和效果样式的工具"
+description: "管理本地颜色、文字、效果和网格样式。"
 ---
 
-import ToolReference from "../../../../components/ToolReference.astro";
+import ParameterTable from "../../../../components/ParameterTable.astro";
 
-用于创建和管理绘图、文本和效果样式的工具
+管理本地颜色、文字、效果和网格样式。
 
-此分类共 1 个工具。
+<details>
+<summary>Type reference</summary>
 
-### styles
+```ts
+// Styles are named, reusable design properties that can be applied to nodes. Four types:
+//   paint: a named color (applied to fills/strokes), text: typography settings, effect: shadows/blurs, grid: layout grids.
+// Style names are case-sensitive for creation but case-insensitive for lookup in update (by ID or name).
+// leadingTrim: "CAP_HEIGHT" trims line-height to cap height (tighter text boxes), "NONE" is default.
+// fontStyle: font variant name like "Bold", "Italic", "Bold Italic". Use fonts.list to find available styles.
+interface PaintStyleItem { name: string; color: Color; description?: string }
+interface TextStyleItem {
+  name: string; fontFamily: string; fontStyle?: string; fontSize: number;
+  lineHeight?: number | {value: number, unit: "PIXELS"|"PERCENT"|"AUTO"};
+  letterSpacing?: number | {value: number, unit: "PIXELS"|"PERCENT"};
+  textCase?: "ORIGINAL"|"UPPER"|"LOWER"|"TITLE"|"SMALL_CAPS"|"SMALL_CAPS_FORCED";
+  textDecoration?: "NONE"|"UNDERLINE"|"STRIKETHROUGH";
+  paragraphIndent?: number; paragraphSpacing?: number;
+  leadingTrim?: "CAP_HEIGHT"|"NONE"; description?: string;
+}
+interface EffectStyleItem { name: string; effects: Effect[]; description?: string }
+interface GridStyleItem { name: string; layoutGrids: LayoutGrid[]; description?: string }
+interface PatchStyleItem {
+  id: string; name?: string; description?: string;
+  color?: Color;                    // paint styles
+  fontFamily?: string; fontStyle?: string; fontSize?: number;
+  lineHeight?: number | {value, unit}; letterSpacing?: number | {value, unit};
+  textCase?: string; textDecoration?: string;
+  paragraphIndent?: number; paragraphSpacing?: number;
+  leadingTrim?: "CAP_HEIGHT"|"NONE";   // text styles
+  effects?: Effect[];               // effect styles
+  layoutGrids?: LayoutGrid[];       // grid styles
+}
+```
 
-<ToolReference name="styles" description={"CRUD endpoint for local styles (paint, text, effect).\n  list   → {type?, fields?, offset?, limit?} → {totalCount, items: [{id, name, type, ...}]}\n  get    → {id, fields?} → style object (full detail; fields to filter)\n  create → {type, items: [...]} → {results: [{id}, ...]}\n  update → {type?, items: [{id, ...}]} → {results: ['ok'|{warning}, ...]}\n  delete → {id} or {items: [{id}, ...]} → 'ok' or {results: ['ok', ...]}"} schema={{"type":"object","properties":{"method":{"type":"string","enum":["create","get","list","update","delete"]},"id":{"description":"Resource ID (get, delete)","type":"string"},"fields":{"description":"Property whitelist (get/list). Identity fields (id, name, type) always included. Omit for stubs on list, full detail on get. Pass [\"*\"] for all fields.","type":"array","items":{"type":"string"}},"offset":{"description":"Skip N items for pagination (default 0)","type":"number"},"limit":{"description":"Max items per page (default 100)","type":"number"},"type":{"description":"Style type. Required for create. Filters list by type. Optional for update (strict per-type validation; omit to auto-detect).","type":"string","enum":["paint","text","effect"]},"items":{"description":"Create: [{name, color}] (paint), [{name, fontFamily, fontSize, ...}] (text), [{name, effects}] (effect). Update: [{id, ...fields}]. Delete (batch): [{id}, ...].","type":"array","items":{}},"depth":{"description":"Response detail: omit for id+name only. 0=properties + child stubs. N=recurse N levels. -1=unlimited.","type":"number"}},"required":["method"]}} tier="read" endpoint responseSchema={{"type":"object","description":"Response varies by method. list → paginated {totalCount, items: [...]} (stubs by default, use fields for detail). get → style object (full detail, field-filterable). create → {results: [{id}]}. update → {results: ['ok'|{warning}]}. delete → 'ok' (single) or {results: ['ok', ...]} (batch)."}} responseExample={{"totalCount":3,"returned":3,"offset":0,"limit":100,"items":[{"id":"S:abc123,","name":"Primary/Blue","type":"PAINT"},{"id":"S:def456,","name":"Heading/H1","type":"TEXT"},{"id":"S:ghi789,","name":"Shadow/Large","type":"EFFECT"}]}} />
+</details>
+
+5 methods available.
+
+## list
+
+List local styles with optional type filter
+
+<ParameterTable schema={{"type":"object","properties":{"type":{"description":"Filter by style type","type":"string","enum":["paint","text","effect","grid"]},"fields":{"description":"Property whitelist. Identity fields (id, name, type) always included. Omit for stubs on list, full on get. Pass [\"*\"] for all.","type":"array","items":{"type":"string"}},"offset":{"description":"Skip N items for pagination (default 0) (default: 0)","type":"number"},"limit":{"description":"Max items per page (default 100) (default: 100)","type":"number"}}}} />
+
+**Response**
+
+<ParameterTable schema={{"type":"object","properties":{"totalCount":{"type":"number","description":"Total matching items"},"returned":{"type":"number","description":"Items in this page"},"offset":{"type":"number"},"limit":{"type":"number"},"items":{"type":"array","items":{"type":"object","properties":{"id":{"type":"string"},"name":{"type":"string"},"type":{"type":"string"}}}}},"required":["totalCount","items"]}} fieldLabel="Field" hideRequired />
+
+## get
+
+Get full style detail by ID
+
+<ParameterTable schema={{"type":"object","properties":{"id":{"description":"Style ID","type":"string"},"fields":{"description":"Property whitelist. Identity fields (id, name, type) always included. Omit for stubs on list, full on get. Pass [\"*\"] for all.","type":"array","items":{"type":"string"}}},"required":["id"]}} />
+
+**Response**
+
+<ParameterTable schema={{"type":"object","properties":{"id":{"type":"string"},"name":{"type":"string"},"type":{"type":"string"}}}} fieldLabel="Field" hideRequired />
+
+## create
+
+**create**
+
+Create local styles
+
+No parameters.
+
+
+Discriminated by `type`. Available types:
+
+#### paint
+
+Paint/color style
+
+<ParameterTable schema={{"type":"object","properties":{"name":{"description":"Style name","type":"string"},"color":{"description":"Color value","type":"string"},"description":{"description":"Style description","type":"string"}},"required":["name","color"]}} />
+
+#### text
+
+Text style
+
+<ParameterTable schema={{"type":"object","properties":{"name":{"description":"Style name","type":"string"},"fontFamily":{"description":"Font family","type":"string"},"fontStyle":{"description":"Font style (default: Regular)","type":"string"},"fontSize":{"description":"Font size","type":"number"},"lineHeight":{"type":"any","description":"number | {value, unit: \"PIXELS\"|\"PERCENT\"|\"AUTO\"}"},"letterSpacing":{"type":"any","description":"number | {value, unit: \"PIXELS\"|\"PERCENT\"}"},"textCase":{"type":"string","enum":["ORIGINAL","UPPER","LOWER","TITLE","SMALL_CAPS","SMALL_CAPS_FORCED"]},"textDecoration":{"type":"string","enum":["NONE","UNDERLINE","STRIKETHROUGH"]},"paragraphIndent":{"description":"Paragraph indent (px)","type":"number"},"paragraphSpacing":{"description":"Paragraph spacing (px)","type":"number"},"leadingTrim":{"description":"Leading trim mode","type":"string","enum":["CAP_HEIGHT","NONE"]},"description":{"description":"Style description","type":"string"}},"required":["name","fontFamily","fontSize"]}} />
+
+#### effect
+
+Effect style
+
+<ParameterTable schema={{"type":"object","properties":{"name":{"description":"Style name","type":"string"},"effects":{"description":"Array of Effect objects","type":"array"},"description":{"description":"Style description","type":"string"}},"required":["name","effects"]}} />
+
+#### grid
+
+Grid/layout grid style
+
+<ParameterTable schema={{"type":"object","properties":{"name":{"description":"Style name","type":"string"},"layoutGrids":{"description":"Array of LayoutGrid objects","type":"array"},"description":{"description":"Style description","type":"string"}},"required":["name","layoutGrids"]}} />
+
+**Response**
+
+<ParameterTable schema={{"type":"object","properties":{"results":{"type":"array","description":"One entry per input item","items":{"type":"object","properties":{"id":{"type":"string"}}}}}}} fieldLabel="Field" hideRequired />
+
+## update
+
+**edit**
+
+Update styles by ID or name
+
+<ParameterTable schema={{"type":"object","properties":{"type":{"description":"Style type hint for strict validation (optional, auto-detected)","type":"string","enum":["paint","text","effect","grid"]},"items":{"description":"Array of {id, ...fields} to update","type":"array","items":{"type":"object","properties":{"id":{"description":"Style ID or name (case-insensitive match)","type":"string"},"name":{"description":"Rename the style","type":"string"},"description":{"description":"Style description","type":"string"},"color":{"description":"New color (paint styles)","type":"string"},"fontFamily":{"type":"string"},"fontStyle":{"type":"string"},"fontSize":{"type":"number"},"lineHeight":{"type":"any","description":"number | {value, unit: \"PIXELS\"|\"PERCENT\"|\"AUTO\"}"},"letterSpacing":{"type":"any","description":"number | {value, unit: \"PIXELS\"|\"PERCENT\"}"},"textCase":{"type":"string","enum":["ORIGINAL","UPPER","LOWER","TITLE","SMALL_CAPS","SMALL_CAPS_FORCED"]},"textDecoration":{"type":"string","enum":["NONE","UNDERLINE","STRIKETHROUGH"]},"paragraphIndent":{"description":"Paragraph indent (px)","type":"number"},"paragraphSpacing":{"description":"Paragraph spacing (px)","type":"number"},"leadingTrim":{"type":"string","enum":["CAP_HEIGHT","NONE"]},"effects":{"description":"Array of Effect objects","type":"array"},"layoutGrids":{"description":"Array of LayoutGrid objects (grid styles)","type":"array"}},"required":["id"]}},"depth":{"description":"Response detail: omit for id+name only. 0=properties + child stubs. N=recurse N levels. -1=unlimited.","type":"number"}},"required":["items"]}} />
+
+**Response**
+
+<ParameterTable schema={{"type":"object","properties":{"results":{"type":"array","description":"Array of \"ok\" or {error} per item","items":{"type":"any"}}}}} fieldLabel="Field" hideRequired />
+
+## delete
+
+**edit**
+
+Delete styles
+
+<ParameterTable schema={{"type":"object","properties":{"id":{"description":"Single style ID","type":"string"},"items":{"description":"Batch: [{id}, ...]","type":"array","items":{"type":"object","properties":{"id":{"type":"string"}},"required":["id"]}}}}} />
+
+**Response**
+
+<ParameterTable schema={{"type":"object","properties":{"results":{"type":"array","description":"Array of \"ok\" per item","items":{"type":"string"}}}}} fieldLabel="Field" hideRequired />

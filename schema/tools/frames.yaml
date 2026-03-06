@@ -4,6 +4,15 @@ domain: creation
 description: "Create and manage frames, auto-layout containers, and sections."
 description_zh: "创建和管理框架、自动布局容器和分区。"
 
+notes: |
+  // Frames are the primary container in Figma — they hold children and can have auto-layout, fills, strokes, and effects.
+  // Sizing: FIXED = explicit width/height, HUG = shrink to fit children, FILL = expand to fill parent auto-layout.
+  //   HUG and FILL only work inside an auto-layout parent. Use FIXED for top-level frames.
+  // clipsContent: true (default) clips children to the frame bounds. Set false for overflow-visible.
+  // Sections are top-level organizers (like artboards) — they cannot be nested inside frames.
+  // SVG create: pass raw SVG markup string (e.g. "<svg>...</svg>") — Figma converts it to vector nodes.
+  // Inherits get, list, update, delete, clone, reparent from node base methods.
+
 methods:
   create:
     tier: create

@@ -1,3 +1,4 @@
+import { ZodError } from "zod";
 import type { McpServer, SendCommandFn, Capabilities, ToolDef } from "./types";
 import { mcpJson, mcpError } from "./types";
 
@@ -46,6 +47,13 @@ export function registerTools(
         const format = (tool.methodFormatters?.[params.method]) ?? defaultFormat;
         return format(result);
       } catch (e) {
+        if (e instanceof ZodError) {
+          const hints = e.issues.map(i => {
+            const path = i.path.join(".");
+            return `[${path}] ${i.message}`;
+          });
+          return mcpError(`${tool.name} validation error`, hints.join("; "));
+        }
         return mcpError(`${tool.name} error`, e);
       }
     });
