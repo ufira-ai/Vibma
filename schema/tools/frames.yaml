@@ -1,0 +1,239 @@
+endpoint: frames
+extends: node
+domain: creation
+description: "Create and manage frames, auto-layout containers, and sections."
+description_zh: "创建和管理框架、自动布局容器和分区。"
+
+notes: |
+  // Frames are the primary container in Figma — they hold children and can have auto-layout, fills, strokes, and effects.
+  // Sizing: FIXED = explicit width/height, HUG = shrink to fit children, FILL = expand to fill parent auto-layout.
+  //   HUG and FILL only work inside an auto-layout parent. Use FIXED for top-level frames.
+  //   minWidth/maxWidth/minHeight/maxHeight: responsive constraints for auto-layout children.
+  // clipsContent: true (default) clips children to the frame bounds. Set false for overflow-visible.
+  // Sections are top-level organizers (like artboards) — they cannot be nested inside frames.
+  // Shape primitives: rectangle, ellipse, line — for decorative/visual elements (not containers).
+  // group: wraps existing nodes into a Group. boolean_operation: UNION/SUBTRACT/INTERSECT/EXCLUDE combines shapes.
+  // SVG create: pass raw SVG markup string (e.g. "<svg>...</svg>") — Figma converts it to vector nodes.
+  // Colors: fillVariableName/strokeVariableName bind by name (e.g. "bg/primary") — preferred over raw IDs.
+  //   fillColor auto-binds: if a matching color variable or paint style exists, it is bound automatically.
+  // Inherits get, list, update, delete, clone, reparent from node base methods.
+
+methods:
+  create:
+    tier: create
+    description: Create frame-like containers
+    discriminant: type
+    types:
+      frame:
+        description: Static frame with fixed dimensions
+        params:
+          name: { type: string, optional: true, description: Frame name }
+          parentId: { $ref: parentId }
+          x: { $ref: xPos }
+          y: { $ref: yPos }
+          width: { type: number, coerce: true, optional: true, description: "Width in px (default: 100)" }
+          height: { type: number, coerce: true, optional: true, description: "Height in px (default: 100)" }
+          fillColor: { $ref: color, optional: true, description: "Background fill color (auto-binds to matching variable/style)" }
+          fillStyleName: { type: string, optional: true, description: Paint style name for fill }
+          fillVariableName: { type: string, optional: true, description: "Color variable by name e.g. 'bg/primary'" }
+          strokeColor: { $ref: color, optional: true, description: "Stroke color (auto-binds to matching variable/style)" }
+          strokeStyleName: { type: string, optional: true, description: Paint style name for stroke }
+          strokeVariableName: { type: string, optional: true, description: "Color variable by name e.g. 'border/default'" }
+          strokeWeight: { type: number, coerce: true, optional: true }
+          strokeTopWeight: { type: number, coerce: true, optional: true, description: "Top stroke weight (per-side)" }
+          strokeBottomWeight: { type: number, coerce: true, optional: true, description: "Bottom stroke weight (per-side)" }
+          strokeLeftWeight: { type: number, coerce: true, optional: true, description: "Left stroke weight (per-side)" }
+          strokeRightWeight: { type: number, coerce: true, optional: true, description: "Right stroke weight (per-side)" }
+          cornerRadius: { type: number, coerce: true, optional: true }
+          opacity: { type: number, coerce: true, optional: true }
+          clipsContent: { type: boolean, coerce: true, optional: true }
+          layoutMode:
+            type: enum
+            values: [NONE, HORIZONTAL, VERTICAL]
+            optional: true
+            description: "Layout direction (default: NONE)"
+          layoutSizingHorizontal:
+            type: enum
+            values: [FIXED, HUG, FILL]
+            optional: true
+            description: "Horizontal sizing in parent auto-layout"
+          layoutSizingVertical:
+            type: enum
+            values: [FIXED, HUG, FILL]
+            optional: true
+            description: "Vertical sizing in parent auto-layout"
+          minWidth: { type: number, coerce: true, optional: true, description: "Min width for responsive auto-layout" }
+          maxWidth: { type: number, coerce: true, optional: true, description: "Max width for responsive auto-layout" }
+          minHeight: { type: number, coerce: true, optional: true, description: "Min height for responsive auto-layout" }
+          maxHeight: { type: number, coerce: true, optional: true, description: "Max height for responsive auto-layout" }
+      auto_layout:
+        description: Auto-layout frame that arranges children automatically
+        params:
+          name: { type: string, optional: true }
+          parentId: { $ref: parentId }
+          x: { $ref: xPos }
+          y: { $ref: yPos }
+          layoutMode:
+            type: enum
+            values: [HORIZONTAL, VERTICAL]
+            required: true
+            description: Primary axis direction
+          itemSpacing: { type: number, coerce: true, optional: true, description: "Gap between children (px)" }
+          paddingTop: { type: number, coerce: true, optional: true }
+          paddingBottom: { type: number, coerce: true, optional: true }
+          paddingLeft: { type: number, coerce: true, optional: true }
+          paddingRight: { type: number, coerce: true, optional: true }
+          padding: { type: number, coerce: true, optional: true, description: "Shorthand: sets all 4 paddings" }
+          primaryAxisAlignItems:
+            type: enum
+            values: [MIN, CENTER, MAX, SPACE_BETWEEN]
+            optional: true
+            description: "Alignment on primary axis"
+          counterAxisAlignItems:
+            type: enum
+            values: [MIN, CENTER, MAX, BASELINE]
+            optional: true
+            description: "Alignment on counter axis"
+          layoutSizingHorizontal:
+            type: enum
+            values: [FIXED, HUG, FILL]
+            optional: true
+          layoutSizingVertical:
+            type: enum
+            values: [FIXED, HUG, FILL]
+            optional: true
+          layoutWrap:
+            type: enum
+            values: [NO_WRAP, WRAP]
+            optional: true
+          counterAxisSpacing: { type: number, coerce: true, optional: true, description: "Gap between wrapped rows (requires layoutWrap: WRAP)" }
+          width: { type: number, coerce: true, optional: true }
+          height: { type: number, coerce: true, optional: true }
+          minWidth: { type: number, coerce: true, optional: true, description: "Min width for responsive auto-layout" }
+          maxWidth: { type: number, coerce: true, optional: true, description: "Max width for responsive auto-layout" }
+          minHeight: { type: number, coerce: true, optional: true, description: "Min height for responsive auto-layout" }
+          maxHeight: { type: number, coerce: true, optional: true, description: "Max height for responsive auto-layout" }
+          fillColor: { $ref: color, optional: true, description: "Background fill color (auto-binds to matching variable/style)" }
+          fillStyleName: { type: string, optional: true, description: Paint style name for fill }
+          fillVariableName: { type: string, optional: true, description: "Color variable by name e.g. 'bg/primary'" }
+          cornerRadius: { type: number, coerce: true, optional: true }
+          clipsContent: { type: boolean, coerce: true, optional: true }
+      section:
+        description: Figma section (top-level organizer)
+        params:
+          name: { type: string, required: true, description: Section name }
+          parentId: { $ref: parentId }
+          x: { $ref: xPos }
+          y: { $ref: yPos }
+          width: { type: number, coerce: true, optional: true, description: "Width (default: 500)" }
+          height: { type: number, coerce: true, optional: true, description: "Height (default: 500)" }
+          fillColor: { $ref: color, optional: true, description: "Background fill color (auto-binds to matching variable/style)" }
+          fillStyleName: { type: string, optional: true, description: Paint style name for fill }
+          fillVariableName: { type: string, optional: true, description: "Color variable by name e.g. 'bg/primary'" }
+      rectangle:
+        description: Rectangle shape node
+        params:
+          name: { type: string, optional: true, description: "Layer name (default: 'Rectangle')" }
+          parentId: { $ref: parentId }
+          x: { $ref: xPos }
+          y: { $ref: yPos }
+          width: { type: number, coerce: true, optional: true, description: "Width in px (default: 100)" }
+          height: { type: number, coerce: true, optional: true, description: "Height in px (default: 100)" }
+          fillColor: { $ref: color, optional: true, description: "Fill color (auto-binds to matching variable/style)" }
+          fillStyleName: { type: string, optional: true, description: Paint style name for fill }
+          fillVariableName: { type: string, optional: true, description: "Color variable by name e.g. 'bg/primary'" }
+          strokeColor: { $ref: color, optional: true, description: "Stroke color (auto-binds to matching variable/style)" }
+          strokeVariableName: { type: string, optional: true, description: "Color variable by name for stroke" }
+          strokeWeight: { type: number, coerce: true, optional: true }
+          cornerRadius: { type: number, coerce: true, optional: true }
+          opacity: { type: number, coerce: true, optional: true }
+      ellipse:
+        description: Ellipse/circle shape node
+        params:
+          name: { type: string, optional: true, description: "Layer name (default: 'Ellipse')" }
+          parentId: { $ref: parentId }
+          x: { $ref: xPos }
+          y: { $ref: yPos }
+          width: { type: number, coerce: true, optional: true, description: "Width in px (default: 100)" }
+          height: { type: number, coerce: true, optional: true, description: "Height in px (default: 100, same as width for circle)" }
+          fillColor: { $ref: color, optional: true, description: "Fill color (auto-binds to matching variable/style)" }
+          fillStyleName: { type: string, optional: true, description: Paint style name for fill }
+          fillVariableName: { type: string, optional: true, description: "Color variable by name e.g. 'bg/primary'" }
+          strokeColor: { $ref: color, optional: true, description: "Stroke color (auto-binds to matching variable/style)" }
+          strokeVariableName: { type: string, optional: true, description: "Color variable by name for stroke" }
+          strokeWeight: { type: number, coerce: true, optional: true }
+          opacity: { type: number, coerce: true, optional: true }
+      line:
+        description: Line shape node
+        params:
+          name: { type: string, optional: true, description: "Layer name (default: 'Line')" }
+          parentId: { $ref: parentId }
+          x: { $ref: xPos }
+          y: { $ref: yPos }
+          length: { type: number, coerce: true, optional: true, description: "Line length in px (default: 100)" }
+          rotation: { type: number, coerce: true, optional: true, description: "Rotation in degrees (default: 0 = horizontal)" }
+          strokeColor: { $ref: color, optional: true, description: "Line color (default: black, auto-binds to matching variable/style)" }
+          strokeVariableName: { type: string, optional: true, description: "Color variable by name for stroke" }
+          strokeWeight: { type: number, coerce: true, optional: true, description: "Line thickness (default: 1)" }
+          opacity: { type: number, coerce: true, optional: true }
+      group:
+        description: Group existing nodes together
+        params:
+          nodeIds:
+            type: string[]
+            required: true
+            description: "Node IDs to group (min 1)"
+          name: { type: string, optional: true, description: "Group name" }
+          parentId: { $ref: parentId }
+      boolean_operation:
+        description: Combine shapes with boolean operations (union, subtract, intersect, exclude)
+        params:
+          operation:
+            type: enum
+            values: [UNION, SUBTRACT, INTERSECT, EXCLUDE]
+            required: true
+            description: "Boolean operation type"
+          nodeIds:
+            type: string[]
+            required: true
+            description: "Node IDs to combine (min 2, first node is the base for SUBTRACT)"
+          name: { type: string, optional: true, description: "Result node name" }
+          parentId: { $ref: parentId }
+      svg:
+        description: Create node from SVG markup
+        params:
+          svg: { type: string, required: true, description: SVG markup string }
+          name: { type: string, optional: true, description: "Layer name (default: 'SVG')" }
+          parentId: { $ref: parentId }
+          x: { $ref: xPos }
+          y: { $ref: yPos }
+          fillStyleName: { type: string, optional: true, description: "Paint style to apply to vector fills" }
+          fillVariableName: { type: string, optional: true, description: "Color variable by name for vector fills" }
+    response:
+      type: batch
+      item: { id: { type: string } }
+
+  export:
+    tier: read
+    description: "Export a node as PNG, JPG, SVG, SVG_STRING, or PDF"
+    params:
+      nodeId:
+        type: string
+        required: true
+        description: Node ID to export
+      format:
+        type: enum
+        values: [PNG, JPG, SVG, SVG_STRING, PDF]
+        optional: true
+        description: "Export format (default: PNG). SVG_STRING returns raw SVG text."
+      scale:
+        type: number
+        coerce: true
+        optional: true
+        description: "Export scale (default: 1, only for PNG/JPG)"
+    response:
+      type: object
+      description: Binary image data returned as MCP image content (SVG_STRING returns text)
+      properties:
+        imageData: { type: string }
+        mimeType: { type: string }

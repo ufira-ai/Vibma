@@ -1,28 +1,15 @@
-import { batchHandler, appendToParent, solidPaint, styleNotFoundHint, suggestStyleForColor, findVariableById } from "./helpers";
+import { batchHandler, appendToParent, applyFillWithAutoBind, applyStrokeWithAutoBind } from "./helpers";
 import { looksInteractive } from "@ufira/vibma/utils/wcag";
-
-// ─── Figma Handlers ──────────────────────────────────────────────
-
-async function resolvePaintStyle(name: string): Promise<{ id: string | null, available: string[] }> {
-  const styles = await figma.getLocalPaintStylesAsync();
-  const available = styles.map(s => s.name);
-  const exact = styles.find(s => s.name === name);
-  if (exact) return { id: exact.id, available };
-  const fuzzy = styles.find(s => s.name.toLowerCase().includes(name.toLowerCase()));
-  return { id: fuzzy?.id ?? null, available };
-}
 
 async function createSingleFrame(p: any) {
   const {
     x = 0, y = 0, width = 100, height = 100, name = "Frame", parentId,
-    fillColor, strokeColor, strokeWeight, cornerRadius,
+    cornerRadius,
     layoutMode = "NONE", layoutWrap = "NO_WRAP",
     paddingTop = 0, paddingRight = 0, paddingBottom = 0, paddingLeft = 0,
     primaryAxisAlignItems = "MIN", counterAxisAlignItems = "MIN",
     layoutSizingHorizontal = "FIXED", layoutSizingVertical = "FIXED",
     itemSpacing = 0,
-    fillStyleName, strokeStyleName,
-    fillVariableId, strokeVariableId,
   } = p;
 
   const frame = figma.createFrame();
@@ -48,63 +35,40 @@ async function createSingleFrame(p: any) {
     frame.layoutSizingHorizontal = deferH ? "FIXED" : layoutSizingHorizontal;
     frame.layoutSizingVertical = deferV ? "FIXED" : layoutSizingVertical;
     frame.itemSpacing = itemSpacing;
+    if (p.counterAxisSpacing !== undefined && layoutWrap === "WRAP") {
+      (frame as any).counterAxisSpacing = p.counterAxisSpacing;
+    }
   }
 
-  // Fill: variableId > styleName > direct color
+  // Fill & stroke: shared helpers handle variableName > variableId > styleName > color (with auto-bind)
   const hints: string[] = [];
-  let fillTokenized = false;
-  if (fillVariableId) {
-    const v = await findVariableById(fillVariableId);
-    if (v) {
-      frame.fills = [solidPaint(fillColor || { r: 0, g: 0, b: 0 })];
-      const bound = figma.variables.setBoundVariableForPaint(frame.fills[0] as SolidPaint, "color", v);
-      frame.fills = [bound];
-      fillTokenized = true;
-    } else {
-      hints.push(`fillVariableId '${fillVariableId}' not found.`);
-    }
-  } else if (fillStyleName) {
-    const { id: sid, available } = await resolvePaintStyle(fillStyleName);
-    if (sid) {
-      try { await (frame as any).setFillStyleIdAsync(sid); fillTokenized = true; }
-      catch (e: any) { hints.push(`fillStyleName '${fillStyleName}' matched but failed to apply: ${e.message}`); }
-    } else hints.push(styleNotFoundHint("fillStyleName", fillStyleName, available));
-  } else if (fillColor) {
-    frame.fills = [solidPaint(fillColor)];
-    const suggestion = await suggestStyleForColor(fillColor, "fillStyleName");
-    if (suggestion) hints.push(suggestion);
-  }
+  await applyFillWithAutoBind(frame, p, hints);
+  await applyStrokeWithAutoBind(frame, p, hints);
 
-  // Stroke: variableId > styleName > direct color
-  let strokeTokenized = false;
-  if (strokeVariableId) {
-    const v = await findVariableById(strokeVariableId);
-    if (v) {
-      frame.strokes = [solidPaint(strokeColor || { r: 0, g: 0, b: 0 })];
-      const bound = figma.variables.setBoundVariableForPaint(frame.strokes[0] as SolidPaint, "color", v);
-      frame.strokes = [bound];
-      strokeTokenized = true;
-    } else {
-      hints.push(`strokeVariableId '${strokeVariableId}' not found.`);
-    }
-  } else if (strokeStyleName) {
-    const { id: sid, available } = await resolvePaintStyle(strokeStyleName);
-    if (sid) {
-      try { await (frame as any).setStrokeStyleIdAsync(sid); strokeTokenized = true; }
-      catch (e: any) { hints.push(`strokeStyleName '${strokeStyleName}' matched but failed to apply: ${e.message}`); }
-    } else hints.push(styleNotFoundHint("strokeStyleName", strokeStyleName, available));
-  } else if (strokeColor) {
-    frame.strokes = [solidPaint(strokeColor)];
-    const suggestion = await suggestStyleForColor(strokeColor, "strokeStyleName");
-    if (suggestion) hints.push(suggestion);
-  }
-  if (strokeWeight !== undefined) frame.strokeWeight = strokeWeight;
+  // Min/max dimensions (responsive auto-layout constraints)
+  if (p.minWidth !== undefined) (frame as any).minWidth = p.minWidth;
+  if (p.maxWidth !== undefined) (frame as any).maxWidth = p.maxWidth;
+  if (p.minHeight !== undefined) (frame as any).minHeight = p.minHeight;
+  if (p.maxHeight !== undefined) (frame as any).maxHeight = p.maxHeight;
 
   // Append to parent or page (with deferred FILL sizing)
   const parent = await appendToParent(frame, parentId);
+  const parentIsAL = parent && "layoutMode" in parent && (parent as any).layoutMode !== "NONE";
   if (parent) {
-    if (deferH) { try { frame.layoutSizingHorizontal = "FILL"; } catch {} }
-    if (deferV) { try { frame.layoutSizingVertical = "FILL"; } catch {} }
+    if (deferH) {
+      if (parentIsAL) { frame.layoutSizingHorizontal = "FILL"; }
+      else { hints.push("layoutSizingHorizontal 'FILL' ignored — parent is not an auto-layout frame. Add layoutMode to parent first."); }
+    }
+    if (deferV) {
+      if (parentIsAL) { frame.layoutSizingVertical = "FILL"; }
+      else { hints.push("layoutSizingVertical 'FILL' ignored — parent is not an auto-layout frame. Add layoutMode to parent first."); }
+    }
+    // Warn if child defaults to FIXED inside an auto-layout parent
+    if (!deferH && !deferV && parentIsAL) {
+      if (layoutSizingHorizontal === "FIXED" && layoutSizingVertical === "FIXED" && layoutMode === "NONE") {
+        hints.push("Child has FIXED sizing inside auto-layout parent. Consider layoutSizingHorizontal/Vertical: 'FILL' or 'HUG' for responsive layout.");
+      }
+    }
   }
 
   // WCAG 2.5.8: target size recommendation for interactive elements
@@ -118,8 +82,26 @@ async function createSingleFrame(p: any) {
 }
 
 async function createSingleAutoLayout(p: any) {
-  if (!p.nodeIds?.length) throw new Error("Missing nodeIds");
+  // Expand padding shorthand
+  if (p.padding !== undefined) {
+    p.paddingTop ??= p.padding;
+    p.paddingRight ??= p.padding;
+    p.paddingBottom ??= p.padding;
+    p.paddingLeft ??= p.padding;
+  }
 
+  // If no nodeIds, create a fresh auto-layout frame (matching YAML schema)
+  if (!p.nodeIds?.length) {
+    return createSingleFrame({
+      ...p,
+      name: p.name || "Auto Layout",
+      layoutMode: p.layoutMode || "VERTICAL",
+      layoutSizingHorizontal: p.layoutSizingHorizontal || "HUG",
+      layoutSizingVertical: p.layoutSizingVertical || "HUG",
+    });
+  }
+
+  // Wrap existing nodes into an auto-layout frame
   const nodes: SceneNode[] = [];
   for (const id of p.nodeIds) {
     const node = await figma.getNodeByIdAsync(id);

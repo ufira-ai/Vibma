@@ -1,4 +1,4 @@
-import { batchHandler, findVariableById } from "./helpers";
+import { batchHandler, coerceColor, findVariableById, findVariableByName } from "./helpers";
 import { createDispatcher, paginate, pickFields } from "@ufira/vibma/endpoint";
 
 // ─── Figma Handlers ──────────────────────────────────────────────
@@ -12,16 +12,39 @@ async function findCollectionById(id: string): Promise<any> {
   return all.find(c => c.id === id) || null;
 }
 
-// -- Serializers --
-
-function serializeCollection(c: any): Record<string, any> {
-  return { id: c.id, name: c.name, modes: c.modes, defaultModeId: c.defaultModeId, variableIds: c.variableIds };
+/** Resolve a variable collection by name. */
+async function findCollectionByName(name: string): Promise<any> {
+  const all = await figma.variables.getLocalVariableCollectionsAsync();
+  return all.find(c => c.name === name) ||
+         all.find(c => c.name.toLowerCase() === name.toLowerCase()) || null;
 }
 
-function serializeVariable(v: any): Record<string, any> {
+/** Get collection name by ID (cached per call via inline lookup). */
+async function getCollectionName(collectionId: string): Promise<string> {
+  const c = await findCollectionById(collectionId);
+  return c?.name ?? collectionId;
+}
+
+/** Resolve variable IDs to names. */
+async function resolveVariableNames(ids: string[]): Promise<string[]> {
+  const names: string[] = [];
+  for (const id of ids) {
+    const v = await findVariableById(id);
+    names.push(v?.name ?? id);
+  }
+  return names;
+}
+
+// -- Serializers --
+
+async function serializeCollection(c: any): Promise<Record<string, any>> {
+  return { id: c.id, name: c.name, modes: c.modes, defaultModeId: c.defaultModeId, variableNames: await resolveVariableNames(c.variableIds) };
+}
+
+async function serializeVariable(v: any): Promise<Record<string, any>> {
   return {
-    id: v.id, name: v.name, resolvedType: v.resolvedType,
-    variableCollectionId: v.variableCollectionId,
+    name: v.name, resolvedType: v.resolvedType,
+    collectionName: await getCollectionName(v.variableCollectionId),
     valuesByMode: v.valuesByMode, description: v.description, scopes: v.scopes,
   };
 }
@@ -36,18 +59,18 @@ async function createCollectionSingle(p: any) {
 async function getCollectionFigma(params: any) {
   const c = await findCollectionById(params.id);
   if (!c) throw new Error(`Collection not found: ${params.id}`);
-  return serializeCollection(c);
+  return await serializeCollection(c);
 }
 
 async function listCollectionsFigma(params: any) {
   const collections = await figma.variables.getLocalVariableCollectionsAsync();
   const paged = paginate(collections, params.offset, params.limit);
   const fields = params.fields;
-  const items = paged.items.map((c: any) => {
-    const full = serializeCollection(c);
-    if (!fields?.length) return pickFields(full, []); // stubs: id, name
-    return pickFields(full, fields);
-  });
+  const items: any[] = [];
+  for (const c of paged.items) {
+    const full = await serializeCollection(c);
+    items.push(!fields?.length ? pickFields(full, []) : pickFields(full, fields));
+  }
   return { ...paged, items };
 }
 
@@ -82,15 +105,38 @@ async function removeModeSingle(p: any): Promise<Record<string, never>> {
 // -- variables handlers --
 
 async function createVariableSingle(p: any) {
-  const collection = await findCollectionById(p.collectionId);
-  if (!collection) throw new Error(`Collection not found: ${p.collectionId}`);
-  const variable = figma.variables.createVariable(p.name, collection, p.resolvedType);
-  return { id: variable.id };
+  const collection = await findCollectionByName(p.collectionName);
+  if (!collection) throw new Error(`Collection not found: ${p.collectionName}`);
+  const created = figma.variables.createVariable(p.name, collection, p.resolvedType);
+  const id = created.id;
+  // Re-fetch to ensure Figma has committed the variable before mutating
+  const variable = await figma.variables.getVariableByIdAsync(id);
+  if (!variable) throw new Error(`Failed to re-fetch created variable: ${p.name}`);
+  if (p.description !== undefined) variable.description = p.description;
+  if (p.scopes !== undefined) variable.scopes = p.scopes;
+  // Set initial value — uses provided modeId or falls back to default mode
+  if (p.value !== undefined) {
+    const modeId = p.modeId ?? collection.defaultModeId;
+    let value = p.value;
+    if (typeof value === "object" && value !== null && value.type === "VARIABLE_ALIAS") {
+      // Resolve alias by name or id
+      const aliasVar = value.name
+        ? await findVariableByName(value.name)
+        : value.id ? await findVariableById(value.id) : null;
+      if (!aliasVar) throw new Error(`Alias variable not found: ${value.name || value.id}`);
+      value = await figma.variables.createVariableAliasByIdAsync(aliasVar.id);
+    } else {
+      const asColor = coerceColor(value);
+      if (asColor) value = asColor;
+    }
+    variable.setValueForMode(modeId, value);
+  }
+  return {};
 }
 
 async function getVariableFigma(params: any) {
-  const v = await findVariableById(params.id);
-  if (!v) throw new Error(`Variable not found: ${params.id}`);
+  const v = await findVariableByName(params.name, params.collectionName);
+  if (!v) throw new Error(`Variable not found: ${params.name}`);
   return serializeVariable(v);
 }
 
@@ -98,25 +144,58 @@ async function listVariablesFigma(params: any) {
   let variables = params?.type
     ? await figma.variables.getLocalVariablesAsync(params.type)
     : await figma.variables.getLocalVariablesAsync();
-  if (params?.collectionId) variables = variables.filter((v: any) => v.variableCollectionId === params.collectionId);
+  if (params?.collectionName) {
+    const col = await findCollectionByName(params.collectionName);
+    if (col) variables = variables.filter((v: any) => v.variableCollectionId === col.id);
+    else variables = [];
+  }
   const paged = paginate(variables, params.offset, params.limit);
   const fields = params.fields;
-  const items = paged.items.map((v: any) => {
-    const full = serializeVariable(v);
-    if (!fields?.length) return pickFields(full, []); // stubs: id, name, resolvedType, variableCollectionId (identity)
-    return pickFields(full, fields);
-  });
+  const items: any[] = [];
+  for (const v of paged.items) {
+    const full = await serializeVariable(v);
+    items.push(!fields?.length ? pickFields(full, []) : pickFields(full, fields));
+  }
   return { ...paged, items };
 }
 
 async function updateVariableSingle(p: any) {
-  const variable = await findVariableById(p.id);
-  if (!variable) throw new Error(`Variable not found: ${p.id}`);
-  let value = p.value;
-  if (typeof value === "object" && value !== null && "r" in value) {
-    value = { r: value.r, g: value.g, b: value.b, a: value.a ?? 1 };
+  const variable = await findVariableByName(p.name, p.collectionName);
+  if (!variable) throw new Error(`Variable not found: ${p.name}`);
+  // Metadata updates
+  if (p.rename !== undefined) variable.name = p.rename;
+  if (p.description !== undefined) variable.description = p.description;
+  if (p.scopes !== undefined) variable.scopes = p.scopes;
+  // Value update (requires modeId)
+  if (p.modeId !== undefined && p.value !== undefined) {
+    let value = p.value;
+    // Alias: {type: "VARIABLE_ALIAS", name: "other/var"} — resolve by name
+    if (typeof value === "object" && value !== null && value.type === "VARIABLE_ALIAS") {
+      const aliasVar = value.name
+        ? await findVariableByName(value.name)
+        : value.id ? await findVariableById(value.id) : null;
+      if (!aliasVar) throw new Error(`Alias variable not found: ${value.name || value.id}`);
+      value = await figma.variables.createVariableAliasByIdAsync(aliasVar.id);
+    } else {
+      const asColor = coerceColor(value);
+      if (asColor) value = asColor;
+    }
+    variable.setValueForMode(p.modeId, value);
   }
-  variable.setValueForMode(p.modeId, value);
+  return {};
+}
+
+async function deleteVariableSingle(p: any) {
+  const variable = await findVariableByName(p.name, p.collectionName);
+  if (!variable) throw new Error(`Variable not found: ${p.name}`);
+  variable.remove();
+  return {};
+}
+
+async function renameCollectionSingle(p: any) {
+  const c = await findCollectionById(p.id);
+  if (!c) throw new Error(`Collection not found: ${p.id}`);
+  if (p.name !== undefined) c.name = p.name;
   return {};
 }
 
@@ -125,8 +204,10 @@ async function updateVariableSingle(p: any) {
 async function setBindingSingle(p: any) {
   const node = await figma.getNodeByIdAsync(p.nodeId);
   if (!node) throw new Error(`Node not found: ${p.nodeId}`);
-  const variable = await findVariableById(p.variableId);
-  if (!variable) throw new Error(`Variable not found: ${p.variableId}`);
+  const variable = p.variableName
+    ? await findVariableByName(p.variableName)
+    : await findVariableById(p.variableId);
+  if (!variable) throw new Error(`Variable not found: ${p.variableName || p.variableId}`);
 
   const paintMatch = p.field.match(/^(fills|strokes)\/(\d+)\/color$/);
   if (paintMatch) {
@@ -134,7 +215,10 @@ async function setBindingSingle(p: any) {
     const index = parseInt(paintMatch[2], 10);
     if (!(prop in node)) throw new Error(`Node does not have ${prop}`);
     const paints = (node as any)[prop].slice();
-    if (index >= paints.length) throw new Error(`${prop} index ${index} out of range`);
+    // Auto-create default solid paints if index doesn't exist yet
+    while (index >= paints.length) {
+      paints.push({ type: "SOLID", color: { r: 0, g: 0, b: 0 }, opacity: 1 });
+    }
     const newPaint = figma.variables.setBoundVariableForPaint(paints[index], "color", variable);
     paints[index] = newPaint;
     (node as any)[prop] = paints;
@@ -170,9 +254,19 @@ async function getNodeVariablesFigma(params: any) {
       const bindings: Record<string, any> = {};
       for (const [key, val] of Object.entries(bv)) {
         if (Array.isArray(val)) {
-          bindings[key] = val.map((v: any) => v?.id ? { variableId: v.id, field: v.field } : v);
+          const resolved = [];
+          for (const v of val) {
+            if (v?.id) {
+              const variable = await findVariableById(v.id);
+              resolved.push({ variableName: variable?.name ?? v.id, field: v.field });
+            } else {
+              resolved.push(v);
+            }
+          }
+          bindings[key] = resolved;
         } else if (val && typeof val === "object" && (val as any).id) {
-          bindings[key] = { variableId: (val as any).id, field: (val as any).field };
+          const variable = await findVariableById((val as any).id);
+          bindings[key] = { variableName: variable?.name ?? (val as any).id, field: (val as any).field };
         }
       }
       result.boundVariables = bindings;
@@ -191,6 +285,7 @@ export const figmaHandlers: Record<string, (params: any) => Promise<any>> = {
     create: (p) => batchHandler(p, createCollectionSingle),
     get: getCollectionFigma,
     list: listCollectionsFigma,
+    update: (p) => batchHandler(p, renameCollectionSingle),
     delete: (p) => batchHandler(p, deleteCollectionSingle),
     add_mode: (p) => batchHandler(p, addModeSingle),
     rename_mode: (p) => batchHandler(p, renameModeSingle),
@@ -201,6 +296,7 @@ export const figmaHandlers: Record<string, (params: any) => Promise<any>> = {
     get: getVariableFigma,
     list: listVariablesFigma,
     update: (p) => batchHandler(p, updateVariableSingle),
+    delete: (p) => batchHandler(p, deleteVariableSingle),
   }),
   set_variable_binding: (p) => batchHandler(p, setBindingSingle),
   set_explicit_variable_mode: (p) => batchHandler(p, setExplicitModeSingle),

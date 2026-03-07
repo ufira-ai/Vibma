@@ -1,36 +1,5 @@
-import { batchHandler, appendToParent, solidPaint, styleNotFoundHint, suggestStyleForColor, findVariableById } from "./helpers";
+import { batchHandler, appendToParent, applyFillWithAutoBind, applyStrokeWithAutoBind } from "./helpers";
 import { createDispatcher, paginate, pickFields } from "@ufira/vibma/endpoint";
-
-// ─── Figma Handlers ──────────────────────────────────────────────
-
-// -- Shared helpers --
-
-async function resolvePaintStyle(name: string): Promise<{ id: string | null, available: string[] }> {
-  const styles = await figma.getLocalPaintStylesAsync();
-  const available = styles.map(s => s.name);
-  const exact = styles.find(s => s.name === name);
-  if (exact) return { id: exact.id, available };
-  const fuzzy = styles.find(s => s.name.toLowerCase().includes(name.toLowerCase()));
-  return { id: fuzzy?.id ?? null, available };
-}
-
-async function bindFillVariable(node: any, variableId: string, fallbackColor?: any) {
-  const v = await findVariableById(variableId);
-  if (!v) return false;
-  node.fills = [solidPaint(fallbackColor || { r: 0, g: 0, b: 0 })];
-  const bound = figma.variables.setBoundVariableForPaint(node.fills[0], "color", v);
-  node.fills = [bound];
-  return true;
-}
-
-async function bindStrokeVariable(node: any, variableId: string, fallbackColor?: any) {
-  const v = await findVariableById(variableId);
-  if (!v) return false;
-  node.strokes = [solidPaint(fallbackColor || { r: 0, g: 0, b: 0 })];
-  const bound = figma.variables.setBoundVariableForPaint(node.strokes[0], "color", v);
-  node.strokes = [bound];
-  return true;
-}
 
 function findTextNodes(node: BaseNode): TextNode[] {
   if (node.type === "TEXT") return [node as TextNode];
@@ -75,9 +44,7 @@ async function createComponentSingle(p: any) {
   if (!p.name) throw new Error("Missing name");
   const {
     x = 0, y = 0, width = 100, height = 100, name, parentId,
-    fillColor, fillStyleName, fillVariableId,
-    strokeColor, strokeStyleName, strokeVariableId,
-    strokeWeight, cornerRadius,
+    cornerRadius,
     layoutMode = "NONE", layoutWrap = "NO_WRAP",
     paddingTop = 0, paddingRight = 0, paddingBottom = 0, paddingLeft = 0,
     primaryAxisAlignItems = "MIN", counterAxisAlignItems = "MIN",
@@ -107,42 +74,21 @@ async function createComponentSingle(p: any) {
   }
 
   const hints: string[] = [];
-  if (fillVariableId) {
-    const ok = await bindFillVariable(comp, fillVariableId, fillColor);
-    if (!ok) hints.push(`fillVariableId '${fillVariableId}' not found.`);
-  } else if (fillStyleName) {
-    const { id: sid, available } = await resolvePaintStyle(fillStyleName);
-    if (sid) {
-      try { await (comp as any).setFillStyleIdAsync(sid); }
-      catch (e: any) { hints.push(`fillStyleName '${fillStyleName}' matched but failed to apply: ${e.message}`); }
-    } else hints.push(styleNotFoundHint("fillStyleName", fillStyleName, available));
-  } else if (fillColor) {
-    comp.fills = [solidPaint(fillColor)];
-    const suggestion = await suggestStyleForColor(fillColor, "fillStyleName");
-    if (suggestion) hints.push(suggestion);
-  }
-
-  if (strokeVariableId) {
-    const ok = await bindStrokeVariable(comp, strokeVariableId, strokeColor);
-    if (!ok) hints.push(`strokeVariableId '${strokeVariableId}' not found.`);
-  } else if (strokeStyleName) {
-    const { id: sid, available } = await resolvePaintStyle(strokeStyleName);
-    if (sid) {
-      try { await (comp as any).setStrokeStyleIdAsync(sid); }
-      catch (e: any) { hints.push(`strokeStyleName '${strokeStyleName}' matched but failed to apply: ${e.message}`); }
-    } else hints.push(styleNotFoundHint("strokeStyleName", strokeStyleName, available));
-  } else if (strokeColor) {
-    comp.strokes = [solidPaint(strokeColor)];
-    const suggestion = await suggestStyleForColor(strokeColor, "strokeStyleName");
-    if (suggestion) hints.push(suggestion);
-  }
-  if (strokeWeight !== undefined) comp.strokeWeight = strokeWeight;
+  await applyFillWithAutoBind(comp, p, hints);
+  await applyStrokeWithAutoBind(comp, p, hints);
   if (cornerRadius !== undefined) comp.cornerRadius = cornerRadius;
 
   const parent = await appendToParent(comp, parentId);
+  const parentIsAL = parent && "layoutMode" in parent && (parent as any).layoutMode !== "NONE";
   if (parent) {
-    if (deferH) { try { comp.layoutSizingHorizontal = "FILL"; } catch {} }
-    if (deferV) { try { comp.layoutSizingVertical = "FILL"; } catch {} }
+    if (deferH) {
+      if (parentIsAL) { comp.layoutSizingHorizontal = "FILL"; }
+      else { hints.push("layoutSizingHorizontal 'FILL' ignored — parent is not an auto-layout frame."); }
+    }
+    if (deferV) {
+      if (parentIsAL) { comp.layoutSizingVertical = "FILL"; }
+      else { hints.push("layoutSizingVertical 'FILL' ignored — parent is not an auto-layout frame."); }
+    }
   }
 
   warnUnboundText(comp, hints);
@@ -158,7 +104,7 @@ async function fromNodeSingle(p: any) {
   if (node.type === "DOCUMENT" || node.type === "PAGE") throw new Error(`Cannot convert ${node.type} to a component.`);
   if (node.type === "COMPONENT") throw new Error(`Node "${node.name}" is already a COMPONENT.`);
   if (node.type === "COMPONENT_SET") throw new Error(`Node "${node.name}" is already a COMPONENT_SET. Use components(method: "get") to inspect it.`);
-  if (node.type === "INSTANCE") throw new Error(`Node "${node.name}" is an INSTANCE. Detach it first with patch_nodes, or use the source component directly.`);
+  if (node.type === "INSTANCE") throw new Error(`Node "${node.name}" is an INSTANCE. Detach it first with instances(method:"detach"), or use the source component directly.`);
   const comp = figma.createComponentFromNode(node as SceneNode);
 
   const hints: string[] = [];
@@ -251,17 +197,36 @@ async function listComponentsFigma(params: any) {
   return { ...paged, items };
 }
 
-async function addComponentPropertySingle(p: any) {
+async function updateComponentPropertySingle(p: any) {
   const node = await figma.getNodeByIdAsync(p.id);
   if (!node) throw new Error(`Node not found: ${p.id}`);
   if (node.type !== "COMPONENT" && node.type !== "COMPONENT_SET") throw new Error(`Node ${p.id} is a ${node.type}, not a COMPONENT or COMPONENT_SET.`);
-  (node as any).addComponentProperty(p.propertyName, p.type, p.defaultValue);
-  const defs = (node as any).componentPropertyDefinitions;
+  const comp = node as any;
+
+  // Delete property
+  if (p.action === "delete") {
+    comp.deleteComponentProperty(p.propertyName);
+    return {};
+  }
+
+  // Edit existing property
+  if (p.action === "edit") {
+    const edit: any = {};
+    if (p.name !== undefined) edit.name = p.name;
+    if (p.defaultValue !== undefined) edit.defaultValue = p.defaultValue;
+    if (p.preferredValues !== undefined) edit.preferredValues = p.preferredValues;
+    const newKey = comp.editComponentProperty(p.propertyName, edit);
+    return { propertyKey: newKey };
+  }
+
+  // Default: add property (backward compat)
+  const options = p.preferredValues ? { preferredValues: p.preferredValues } : undefined;
+  comp.addComponentProperty(p.propertyName, p.type, p.defaultValue, options);
+  const defs = comp.componentPropertyDefinitions;
   const key = Object.keys(defs).find(k => k === p.propertyName || k.startsWith(p.propertyName + "#"));
   if (key && p.type === "TEXT") {
-    // Auto-bind: find matching text nodes and set componentPropertyReferences
     const roots = node.type === "COMPONENT_SET"
-      ? (node as any).children.filter((c: any) => c.type === "COMPONENT")
+      ? comp.children.filter((c: any) => c.type === "COMPONENT")
       : [node];
     for (const root of roots) {
       const textNode = findTextNodes(root).find(
@@ -329,6 +294,7 @@ async function instanceGetFigma(params: any) {
   const main = await inst.getMainComponentAsync();
   return {
     mainComponentId: main?.id,
+    componentProperties: inst.componentProperties,
     overrides: overrides.map((o: any) => ({ id: o.id, fields: o.overriddenFields })),
   };
 }
@@ -341,6 +307,34 @@ async function instanceUpdateSingle(p: any) {
   return {};
 }
 
+async function instanceSwapSingle(p: any) {
+  const node = await figma.getNodeByIdAsync(p.id);
+  if (!node) throw new Error(`Node not found: ${p.id}`);
+  if (node.type !== "INSTANCE") throw new Error(`Node ${p.id} is ${node.type}, not an INSTANCE`);
+  let comp: any = await figma.getNodeByIdAsync(p.componentId);
+  if (!comp) throw new Error(`Component not found: ${p.componentId}`);
+  if (comp.type === "COMPONENT_SET") comp = comp.defaultVariant || comp.children?.[0];
+  if (comp.type !== "COMPONENT") throw new Error(`Node ${p.componentId} is ${comp.type}, not a COMPONENT`);
+  (node as InstanceNode).swapComponent(comp as ComponentNode);
+  return {};
+}
+
+async function instanceDetachSingle(p: any) {
+  const node = await figma.getNodeByIdAsync(p.id);
+  if (!node) throw new Error(`Node not found: ${p.id}`);
+  if (node.type !== "INSTANCE") throw new Error(`Node ${p.id} is ${node.type}, not an INSTANCE`);
+  const frame = (node as InstanceNode).detachInstance();
+  return { id: frame.id };
+}
+
+async function instanceResetOverridesSingle(p: any) {
+  const node = await figma.getNodeByIdAsync(p.id);
+  if (!node) throw new Error(`Node not found: ${p.id}`);
+  if (node.type !== "INSTANCE") throw new Error(`Node ${p.id} is ${node.type}, not an INSTANCE`);
+  (node as any).removeOverrides();
+  return {};
+}
+
 // ─── Handler Exports ─────────────────────────────────────────────
 
 export const figmaHandlers: Record<string, (params: any) => Promise<any>> = {
@@ -348,11 +342,14 @@ export const figmaHandlers: Record<string, (params: any) => Promise<any>> = {
     create: createComponentDispatch,
     get: getComponentFigma,
     list: listComponentsFigma,
-    update: (p) => batchHandler(p, addComponentPropertySingle),
+    update: (p) => batchHandler(p, updateComponentPropertySingle),
   }),
   instances: createDispatcher({
     create: (p) => batchHandler(p, instanceCreateSingle),
     get: instanceGetFigma,
     update: (p) => batchHandler(p, instanceUpdateSingle),
+    swap: (p) => batchHandler(p, instanceSwapSingle),
+    detach: (p) => batchHandler(p, instanceDetachSingle),
+    reset_overrides: (p) => batchHandler(p, instanceResetOverridesSingle),
   }),
 };

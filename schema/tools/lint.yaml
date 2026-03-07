@@ -1,0 +1,93 @@
+endpoint: lint
+domain: quality
+description: "Run design quality and accessibility checks."
+description_zh: "运行设计质量和无障碍检查。"
+
+notes: |
+  // Lint runs automated design quality and accessibility checks on a node tree.
+  // Rules:
+  //   "all" (default) — run every rule. "wcag" — all accessibility rules only.
+  //   Design rules:
+  //     "no-autolayout" — frames with manually positioned children (should use auto-layout)
+  //     "shape-instead-of-frame" — shapes used as containers (should be frames)
+  //     "hardcoded-color" — colors not using styles or variables (should use design tokens)
+  //     "no-text-style" — text without a text style applied
+  //     "fixed-in-autolayout" — FIXED-size children in auto-layout parents (should be HUG or FILL)
+  //     "default-name" — nodes with default names like "Frame 1" (should be renamed)
+  //     "empty-container" — empty frames/groups (likely leftover, should be deleted)
+  //     "stale-text-name" — text node name doesn't match its content
+  //     "no-text-property" — component text not exposed as editable property
+  //   Accessibility (WCAG) rules:
+  //     "wcag-contrast" — text contrast ratio below 4.5:1 (WCAG AA)
+  //     "wcag-contrast-enhanced" — text contrast ratio below 7:1 (WCAG AAA)
+  //     "wcag-non-text-contrast" — non-text element contrast below 3:1
+  //     "wcag-target-size" — interactive targets smaller than 24x24px (WCAG 2.5.8)
+  //     "wcag-text-size" — text below 12px
+  //     "wcag-line-height" — line height below 1.5x font size
+  // maxDepth limits how deep the tree traversal goes (default: 10). maxFindings caps total findings (default: 50).
+  // fix: auto-converts frames to auto-layout. Use after lint.check identifies "no-autolayout" issues.
+  interface LintResult {
+    nodeId: string; nodeName: string;
+    categories: { rule: string; count: number; fix: string; nodes: { id: string; name: string; detail?: string }[] }[];
+    warning?: string;
+  }
+
+methods:
+  check:
+    tier: read
+    description: Run design linter on a node tree
+    params:
+      nodeId:
+        type: string
+        optional: true
+        description: "Node ID to lint (default: current selection or page)"
+      rules:
+        type: string[]
+        coerce: json
+        optional: true
+        description: 'Rules to run. Default: ["all"]. Use ["wcag"] for accessibility only.'
+      maxDepth:
+        type: number
+        coerce: true
+        optional: true
+        description: "Max tree depth (default: 10)"
+      maxFindings:
+        type: number
+        coerce: true
+        optional: true
+        description: "Max findings (default: 50)"
+    response:
+      type: object
+      properties:
+        nodeId: { type: string, required: true }
+        nodeName: { type: string, required: true }
+        categories: { type: array, tsType: "LintResult['categories']" }
+        warning: { type: string }
+      required: [nodeId, nodeName, categories]
+
+  fix:
+    tier: edit
+    description: Auto-fix frames to auto-layout
+    params:
+      items:
+        type: array
+        coerce: json
+        required: true
+        description: "Array of {nodeId, layoutMode?, itemSpacing?}"
+        items:
+          type: object
+          properties:
+            nodeId: { type: string, required: true, description: Frame node ID }
+            layoutMode:
+              type: enum
+              values: [VERTICAL, HORIZONTAL]
+              optional: true
+              description: "Direction (default: auto-detected)"
+            itemSpacing:
+              type: number
+              coerce: true
+              optional: true
+              description: "Spacing between children"
+      depth: { $ref: depth }
+    response:
+      type: batch_mixed

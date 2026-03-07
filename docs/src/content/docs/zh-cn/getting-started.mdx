@@ -4,7 +4,7 @@ description: 设置 Vibma 并将 AI 代理连接到 Figma
 slug: zh-cn
 ---
 
-{/* Auto-generated from CARRYME.zh-CN.md by extract-tools.ts — do not edit manually */}
+{/* Auto-generated from CARRYME.zh-CN.md by schema compiler — do not edit manually */}
 
 > **无需克隆，无需构建。** 从 npm 安装 tunnel 和 MCP server，从 GitHub 获取插件，即可连接。
 >
@@ -104,8 +104,8 @@ Vibma 通过访问层级控制可用工具。通过传入标志设置层级：
 
 1. 在 Figma 插件中，将频道名设置为 `vibma`（或任意你喜欢的名称）
 2. 点击 **Connect**
-3. 在 AI 工具中调用 `join_channel`，使用相同的频道名（默认为 `vibma`）
-4. 调用 `ping` ——你应该会收到包含文档名称的 `pong` 响应
+3. 在 AI 工具中调用 `connection(method: "create")`，使用相同的频道名（默认为 `vibma`）
+4. 调用 `connection(method: "get")` ——你应该会收到包含文档名称的 `pong` 响应
 
 ## 更新
 

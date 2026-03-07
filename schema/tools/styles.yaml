@@ -1,0 +1,176 @@
+endpoint: styles
+domain: design-system
+description: "CRUD for local paint, text, effect, and grid styles."
+description_zh: "管理本地颜色、文字、效果和网格样式。"
+
+notes: |
+  // Styles are named, reusable design properties that can be applied to nodes. Four types:
+  //   paint: a named color (applied to fills/strokes), text: typography settings, effect: shadows/blurs, grid: layout grids.
+  // Style names are case-sensitive for creation but case-insensitive for lookup in update (by ID or name).
+  // leadingTrim: "CAP_HEIGHT" trims line-height to cap height (tighter text boxes), "NONE" is default.
+  // fontStyle: font variant name like "Bold", "Italic", "Bold Italic". Use fonts.list to find available styles.
+  interface PaintStyleItem { name: string; color: Color; description?: string }
+  interface TextStyleItem {
+    name: string; fontFamily: string; fontStyle?: string; fontSize: number;
+    lineHeight?: number | {value: number, unit: "PIXELS"|"PERCENT"|"AUTO"};
+    letterSpacing?: number | {value: number, unit: "PIXELS"|"PERCENT"};
+    textCase?: "ORIGINAL"|"UPPER"|"LOWER"|"TITLE"|"SMALL_CAPS"|"SMALL_CAPS_FORCED";
+    textDecoration?: "NONE"|"UNDERLINE"|"STRIKETHROUGH";
+    paragraphIndent?: number; paragraphSpacing?: number;
+    leadingTrim?: "CAP_HEIGHT"|"NONE"; description?: string;
+  }
+  interface EffectStyleItem { name: string; effects: Effect[]; description?: string }
+  interface GridStyleItem { name: string; layoutGrids: LayoutGrid[]; description?: string }
+  interface PatchStyleItem {
+    id: string; name?: string; description?: string;
+    color?: Color;                    // paint styles
+    fontFamily?: string; fontStyle?: string; fontSize?: number;
+    lineHeight?: number | {value, unit}; letterSpacing?: number | {value, unit};
+    textCase?: string; textDecoration?: string;
+    paragraphIndent?: number; paragraphSpacing?: number;
+    leadingTrim?: "CAP_HEIGHT"|"NONE";   // text styles
+    effects?: Effect[];               // effect styles
+    layoutGrids?: LayoutGrid[];       // grid styles
+  }
+
+methods:
+  list:
+    tier: read
+    description: List local styles with optional type filter
+    params:
+      type:
+        type: enum
+        values: [paint, text, effect, grid]
+        optional: true
+        description: "Filter by style type"
+      fields:
+        $ref: fields
+      offset:
+        $ref: offset
+      limit:
+        $ref: limit
+    response:
+      type: paginated
+      item:
+        type: object
+        properties:
+          id: { type: string, required: true }
+          name: { type: string, required: true }
+          type: { type: string, required: true }
+
+  get:
+    tier: read
+    description: Get full style detail by ID
+    params:
+      id:
+        type: string
+        required: true
+        description: "Style ID"
+      fields:
+        $ref: fields
+    response:
+      type: object
+      properties:
+        id: { type: string }
+        name: { type: string }
+        type: { type: string }
+
+  create:
+    tier: create
+    description: Create local styles
+    discriminant: type
+    types:
+      paint:
+        description: Paint/color style
+        params:
+          name: { type: string, required: true, description: Style name }
+          color: { $ref: color, required: true, description: Color value }
+          description: { type: string, optional: true, description: "Style description" }
+      text:
+        description: Text style
+        params:
+          name: { type: string, required: true, description: Style name }
+          fontFamily: { type: string, required: true, description: Font family }
+          fontStyle: { type: string, optional: true, description: "Font style (default: Regular)" }
+          fontSize: { type: number, coerce: true, required: true, description: Font size }
+          lineHeight: { type: line_height, optional: true }
+          letterSpacing: { type: letter_spacing, optional: true }
+          textCase: { type: enum, values: [ORIGINAL, UPPER, LOWER, TITLE, SMALL_CAPS, SMALL_CAPS_FORCED], optional: true }
+          textDecoration: { type: enum, values: [NONE, UNDERLINE, STRIKETHROUGH], optional: true }
+          paragraphIndent: { type: number, coerce: true, optional: true, description: "Paragraph indent (px)" }
+          paragraphSpacing: { type: number, coerce: true, optional: true, description: "Paragraph spacing (px)" }
+          leadingTrim: { type: enum, values: [CAP_HEIGHT, NONE], optional: true, description: "Leading trim mode" }
+          description: { type: string, optional: true, description: "Style description" }
+      effect:
+        description: Effect style
+        params:
+          name: { type: string, required: true, description: Style name }
+          effects: { type: array, coerce: json, required: true, description: "Array of Effect objects" }
+          description: { type: string, optional: true, description: "Style description" }
+      grid:
+        description: Grid/layout grid style
+        params:
+          name: { type: string, required: true, description: Style name }
+          layoutGrids: { type: array, coerce: json, required: true, description: "Array of LayoutGrid objects" }
+          description: { type: string, optional: true, description: "Style description" }
+    response:
+      type: batch
+      item: { id: { type: string } }
+
+  update:
+    tier: edit
+    description: Update styles by ID or name
+    params:
+      type:
+        type: enum
+        values: [paint, text, effect, grid]
+        optional: true
+        description: "Style type hint for strict validation (optional, auto-detected)"
+      items:
+        type: array
+        coerce: json
+        required: true
+        tsType: "PatchStyleItem[]"
+        description: "Array of {id, ...fields} to update"
+        items:
+          type: object
+          properties:
+            id: { type: string, required: true, description: "Style ID or name (case-insensitive match)" }
+            name: { type: string, optional: true, description: Rename the style }
+            description: { type: string, optional: true, description: "Style description" }
+            color: { $ref: color, optional: true, description: "New color (paint styles)" }
+            fontFamily: { type: string, optional: true }
+            fontStyle: { type: string, optional: true }
+            fontSize: { type: number, coerce: true, optional: true }
+            lineHeight: { type: line_height, optional: true }
+            letterSpacing: { type: letter_spacing, optional: true }
+            textCase: { type: enum, values: [ORIGINAL, UPPER, LOWER, TITLE, SMALL_CAPS, SMALL_CAPS_FORCED], optional: true }
+            textDecoration: { type: enum, values: [NONE, UNDERLINE, STRIKETHROUGH], optional: true }
+            paragraphIndent: { type: number, coerce: true, optional: true, description: "Paragraph indent (px)" }
+            paragraphSpacing: { type: number, coerce: true, optional: true, description: "Paragraph spacing (px)" }
+            leadingTrim: { type: enum, values: [CAP_HEIGHT, NONE], optional: true }
+            effects: { type: array, coerce: json, optional: true, description: "Array of Effect objects" }
+            layoutGrids: { type: array, coerce: json, optional: true, description: "Array of LayoutGrid objects (grid styles)" }
+      depth: { $ref: depth }
+    response:
+      type: batch_mixed
+
+  delete:
+    tier: edit
+    description: Delete styles
+    params:
+      id:
+        type: string
+        optional: true
+        description: Single style ID
+      items:
+        type: array
+        coerce: json
+        optional: true
+        description: "Batch: [{id}, ...]"
+        items:
+          type: object
+          properties:
+            id: { type: string, required: true }
+    response:
+      type: batch_ok

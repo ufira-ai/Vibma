@@ -1,26 +1,97 @@
 ---
 title: "Connection"
-description: "用于建立和管理 Figma 连接的工具"
+description: "管理 Figma 插件连接。"
 ---
 
-import ToolReference from "../../../../components/ToolReference.astro";
+import ParameterTable from "../../../../components/ParameterTable.astro";
 
-用于建立和管理 Figma 连接的工具
+管理 Figma 插件连接。
 
-此分类共 4 个工具。
+<details>
+<summary>Type reference</summary>
 
-### join_channel
+```ts
+// Connection manages the WebSocket link between the MCP server and the Figma plugin.
+// Channels are named rooms — both the MCP server and Figma plugin must join the same channel to communicate.
+// Workflow: connection(method:"create") to join a channel → connection(method:"get") to verify Figma plugin is connected.
+// If get times out (5s), the Figma plugin is not running or not on the same channel.
+// list shows all active channels and their connected clients. delete factory-resets a channel.
+```
 
-<ToolReference name="join_channel" description={"REQUIRED FIRST STEP: Join a channel before using any other tool. The channel name is shown in the Figma plugin UI (defaults to 'vibma' if not customised). After joining, call `ping` to verify the Figma plugin is connected."} schema={{"type":"object","properties":{"channel":{"type":"string","description":"The channel name displayed in the Figma plugin panel. Defaults to 'vibma' if omitted.","default":"vibma"}}}} tier="read" responseSchema={{"type":"string","description":"Confirmation message with channel and port"}} responseExample={"Joined channel \"vibma\" on port 3055. Call `ping` now to verify the Figma plugin is connected."} />
+</details>
 
-### channel_info
+4 methods available.
 
-<ToolReference name="channel_info" description={"Debug: inspect which clients (MCP, plugin) are connected to each relay channel. Useful for diagnosing connection issues. Does not require an active channel."} schema={{"type":"object","properties":{}}} tier="read" responseSchema={{"type":"object","description":"Map of channel names to their connected clients","additionalProperties":{"type":"object","properties":{"mcp":{"type":"object","properties":{"connected":{"type":"boolean"},"version":{"type":"string","description":"MCP server version"},"name":{"type":"string","description":"Client name"},"joinedAt":{"type":"string","description":"ISO 8601 timestamp"}}},"plugin":{"type":"object","properties":{"connected":{"type":"boolean"},"version":{"type":"string","description":"Plugin version"},"name":{"type":"string","description":"Client name"},"joinedAt":{"type":"string","description":"ISO 8601 timestamp"}}}}}}} responseExample={{"vibma":{"mcp":{"connected":true,"version":"0.2.2","name":"vibma","joinedAt":"2026-03-02T19:43:37.863Z"},"plugin":{"connected":true,"version":"0.2.2","name":null,"joinedAt":"2026-03-02T19:42:18.294Z"}}}} />
+## create
 
-### reset_tunnel
+Join a relay channel (required first step before any other tool)
 
-<ToolReference name="reset_tunnel" description={"DESTRUCTIVE: Factory-reset a channel on the relay, disconnecting ALL occupants. Only use when the channel is stuck or occupied by another MCP."} schema={{"type":"object","properties":{"channel":{"type":"string","description":"Channel to reset. Defaults to 'vibma'.","default":"vibma"}}}} tier="edit" responseSchema={{"type":"string","description":"Confirmation of tunnel reset"}} responseExample={"Channel vibma reset"} />
+<ParameterTable schema={{"type":"object","properties":{"channel":{"description":"The channel name displayed in the Figma plugin panel. Defaults to 'vibma' if omitted. (default: \"vibma\")","type":"string"}}}} />
 
-### ping
+**Response**
 
-<ToolReference name="ping" description={"Verify end-to-end connection to Figma. Call this right after join_channel. Returns { status: 'pong', documentName, currentPage } if the full chain (MCP → relay → plugin → Figma) is working. If this times out, the Figma plugin is not connected — ask the user to check the plugin window for the correct port and channel name."} schema={{}} tier="read" responseSchema={{"type":"object","properties":{"status":{"type":"string","const":"pong"},"documentName":{"type":"string","description":"Active Figma document name"},"currentPage":{"type":"string","description":"Current page name"},"timestamp":{"type":"number","description":"Unix timestamp"}},"required":["status","documentName","currentPage","timestamp"]}} responseExample={{"status":"pong","documentName":"Design System","currentPage":"Components","timestamp":1709337600}} />
+Confirmation message with channel and port
+
+<ParameterTable schema={{"type":"object","properties":{"result":{"type":"string","description":"Confirmation message with channel and port"}}}} fieldLabel="Field" hideRequired />
+
+<details>
+<summary>Example response</summary>
+
+```json
+"Joined channel \"vibma\" on port 3055. Call connection(method: \"get\") to verify the Figma plugin is connected."
+```
+
+</details>
+
+## get
+
+Verify end-to-end connection to Figma
+
+No parameters.
+
+**Response**
+
+<ParameterTable schema={{"type":"object","properties":{"status":{"const":"pong"},"documentName":{"description":"Active Figma document name","type":"string"},"currentPage":{"description":"Current page name","type":"string"},"timestamp":{"description":"Unix timestamp","type":"number"}}}} fieldLabel="Field" hideRequired />
+
+<details>
+<summary>Example response</summary>
+
+```json
+{
+  "status": "pong",
+  "documentName": "Design System",
+  "currentPage": "Components",
+  "timestamp": 1709337600
+}
+```
+
+</details>
+
+## list
+
+Inspect which clients (MCP, plugin) are connected to each channel
+
+No parameters.
+
+## delete
+
+**edit**
+
+Factory-reset a channel, disconnecting ALL clients
+
+<ParameterTable schema={{"type":"object","properties":{"channel":{"description":"Channel to reset. Defaults to 'vibma'. (default: \"vibma\")","type":"string"}}}} />
+
+**Response**
+
+Confirmation of tunnel reset
+
+<ParameterTable schema={{"type":"object","properties":{"result":{"type":"string","description":"Confirmation of tunnel reset"}}}} fieldLabel="Field" hideRequired />
+
+<details>
+<summary>Example response</summary>
+
+```json
+"Channel vibma reset"
+```
+
+</details>

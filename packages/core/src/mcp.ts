@@ -211,7 +211,7 @@ function connectToFigma(port: number = activePort) {
       pendingRequests.delete(id);
     }
     if (rejected) {
-      logger.info("Not reconnecting — channel role was rejected. Call join_channel to retry.");
+      logger.info('Not reconnecting — channel role was rejected. Call connection(method: "create") to retry.');
     } else {
       logger.info("Attempting to reconnect in 2 seconds...");
       setTimeout(() => connectToFigma(port), 2000);
@@ -258,7 +258,7 @@ function sendCommandToFigma(
 
     const requiresChannel = command !== "join";
     if (requiresChannel && !currentChannel) {
-      reject(new Error("No channel joined. Call join_channel first with the channel name shown in the Figma plugin panel."));
+      reject(new Error('No channel joined. Call connection(method: "create") first with the channel name shown in the Figma plugin panel.'));
       return;
     }
 
@@ -305,118 +305,70 @@ const server = new McpServer({
   version: "1.0.0",
 });
 
-// Register the join_channel tool directly (it uses local state)
-server.registerTool(
-  "join_channel",
-  {
-    description: "REQUIRED FIRST STEP: Join a channel before using any other tool. The channel name is shown in the Figma plugin UI (defaults to 'vibma' if not customised). After joining, call `ping` to verify the Figma plugin is connected. All subsequent commands are sent through this channel.",
-    inputSchema: { channel: z.string().describe("The channel name displayed in the Figma plugin panel. Defaults to 'vibma' if omitted.").default("vibma") },
-  },
-  async ({ channel }: any) => {
-    try {
-      await joinChannel(channel);
-      // Brief wait for VERSION_MISMATCH system message from relay
-      await new Promise((r) => setTimeout(r, 200));
-      let msg = `Joined channel "${channel}" on port ${activePort}. Call \`ping\` now to verify the Figma plugin is connected.`;
-      if (versionWarning) msg += `\n\n⚠️ ${versionWarning}\nSee "Version mismatch" in CARRYME.md or DRAGME.md for update steps.`;
-      return {
-        content: [{ type: "text", text: msg }],
-      };
-    } catch (error) {
-      return {
-        content: [{
-          type: "text",
-          text: `Error joining channel: ${error instanceof Error ? error.message : String(error)}. MCP is using port ${activePort} — confirm the relay is running on the same port.`,
-        }],
-      };
-    }
-  }
-);
+// ─── Connection endpoint (inline methods + Figma ping) ──────────
 
-// Debug tool: inspect relay channel occupancy
-server.registerTool(
-  "channel_info",
-  {
-    description: "Debug: inspect which clients (MCP, plugin) are connected to each relay channel. Useful for diagnosing connection issues. Does not require an active channel.",
-  },
-  async () => {
-    try {
-      const url = serverUrl === "localhost"
-        ? `http://localhost:${activePort}/channels`
-        : `https://${serverUrl}/channels`;
-      const response = await fetch(url);
-      if (!response.ok) {
-        return { content: [{ type: "text", text: `Relay returned ${response.status}: ${await response.text()}` }] };
-      }
-      const data = await response.json();
-      return { content: [{ type: "text", text: JSON.stringify(data, null, 2) }] };
-    } catch (error) {
-      return {
-        content: [{
-          type: "text",
-          text: `Could not reach relay at port ${activePort}: ${error instanceof Error ? error.message : String(error)}`,
-        }],
-      };
-    }
-  }
-);
+import { tools as generatedTools } from "./tools/generated/defs";
+const connectionDef = generatedTools.find(t => t.name === "connection")!;
+const connectionSchema = typeof connectionDef.schema === "function" ? connectionDef.schema(caps) : connectionDef.schema;
 
-// Factory-reset the tunnel — clears channel on relay via HTTP, then reconnects
 server.registerTool(
-  "reset_tunnel",
-  {
-    description: "DESTRUCTIVE: Factory-reset a channel on the relay via HTTP, disconnecting ALL occupants (MCP + Figma plugin). Only use this when the channel is stuck or occupied by another MCP — do NOT use it just to reconnect yourself (use `join_channel` instead). After reset, ask the user to reopen the Vibma plugin in Figma, then call `join_channel` and `ping`.",
-    inputSchema: {
-      channel: z.string().describe("Channel to reset. Defaults to 'vibma'.").default("vibma"),
-    },
-  },
-  async ({ channel }: { channel: string }) => {
-    const targetChannel = channel || currentChannel || "vibma";
+  "connection",
+  { description: connectionDef.description, inputSchema: connectionSchema },
+  async (params: any) => {
+    const method = params.method;
     try {
-      // Factory reset the channel via HTTP — works regardless of socket state
-      const url = serverUrl === "localhost"
-        ? `http://localhost:${activePort}/channels/${encodeURIComponent(targetChannel)}`
-        : `https://${serverUrl}/channels/${encodeURIComponent(targetChannel)}`;
-      const res = await fetch(url, { method: "DELETE" });
-      const body = await res.json() as { ok: boolean; message: string };
-
-      // Reject all pending requests
-      for (const [reqId, request] of pendingRequests.entries()) {
-        clearTimeout(request.timeout);
-        request.reject(new Error("Tunnel reset by user"));
-        pendingRequests.delete(reqId);
+      if (method === "create") {
+        const channel = params.channel || "vibma";
+        await joinChannel(channel);
+        await new Promise((r) => setTimeout(r, 200));
+        let msg = `Joined channel "${channel}" on port ${activePort}. Call connection(method: "get") to verify the Figma plugin is connected.`;
+        if (versionWarning) msg += `\n\n⚠️ ${versionWarning}\nSee "Version mismatch" in CARRYME.md or DRAGME.md for update steps.`;
+        return { content: [{ type: "text", text: msg }] };
       }
 
-      // Close the local WebSocket
-      if (ws) {
-        const old = ws;
-        ws = null;
-        old.removeAllListeners();
-        old.close(1000, "Tunnel reset");
+      if (method === "list") {
+        const url = serverUrl === "localhost"
+          ? `http://localhost:${activePort}/channels`
+          : `https://${serverUrl}/channels`;
+        const response = await fetch(url);
+        if (!response.ok) return { content: [{ type: "text", text: `Relay returned ${response.status}: ${await response.text()}` }] };
+        const data = await response.json();
+        return { content: [{ type: "text", text: JSON.stringify(data, null, 2) }] };
       }
-      currentChannel = null;
-      rejected = false;
 
-      // Reconnect to relay
-      connectToFigma();
-      await new Promise((resolve) => setTimeout(resolve, 1000));
-      const connected = ws && ws.readyState === WebSocket.OPEN;
+      if (method === "delete") {
+        const targetChannel = params.channel || currentChannel || "vibma";
+        const url = serverUrl === "localhost"
+          ? `http://localhost:${activePort}/channels/${encodeURIComponent(targetChannel)}`
+          : `https://${serverUrl}/channels/${encodeURIComponent(targetChannel)}`;
+        const res = await fetch(url, { method: "DELETE" });
+        const body = await res.json() as { ok: boolean; message: string };
+        for (const [reqId, request] of pendingRequests.entries()) {
+          clearTimeout(request.timeout);
+          request.reject(new Error("Tunnel reset by user"));
+          pendingRequests.delete(reqId);
+        }
+        if (ws) { const old = ws; ws = null; old.removeAllListeners(); old.close(1000, "Tunnel reset"); }
+        currentChannel = null;
+        rejected = false;
+        connectToFigma();
+        await new Promise((resolve) => setTimeout(resolve, 1000));
+        const connected = ws && ws.readyState === WebSocket.OPEN;
+        return {
+          content: [{
+            type: "text",
+            text: connected
+              ? `Tunnel reset: ${body.message}. Reconnected on port ${activePort}.\n\nIMPORTANT: The Figma plugin was also disconnected. Ask the user to reopen the Vibma plugin, then call connection(method: "create") followed by connection(method: "get").`
+              : `Tunnel reset: ${body.message}. Reconnection in progress.\n\nIMPORTANT: The Figma plugin was also disconnected. Ask the user to reopen the Vibma plugin, then call connection(method: "create") to retry.`,
+          }],
+        };
+      }
 
-      return {
-        content: [{
-          type: "text",
-          text: connected
-            ? `Tunnel reset: ${body.message}. Reconnected on port ${activePort}.\n\nIMPORTANT: The Figma plugin was also disconnected. Ask the user to reopen the Vibma plugin in Figma (or click "Reset tunnel" in the plugin panel). Then call \`join_channel\` followed by \`ping\`.`
-            : `Tunnel reset: ${body.message}. Reconnection in progress.\n\nIMPORTANT: The Figma plugin was also disconnected. Ask the user to reopen the Vibma plugin in Figma (or click "Reset tunnel" in the plugin panel). Then call \`join_channel\` to retry.`,
-        }],
-      };
+      // method === "get" — send ping to Figma
+      const result = await sendCommandToFigma("connection.get", params, 5000);
+      return { content: [{ type: "text", text: JSON.stringify(result) }] };
     } catch (error) {
-      return {
-        content: [{
-          type: "text",
-          text: `Error resetting tunnel: ${error instanceof Error ? error.message : String(error)}`,
-        }],
-      };
+      return { content: [{ type: "text", text: `connection.${method} error: ${error instanceof Error ? error.message : String(error)}` }] };
     }
   }
 );

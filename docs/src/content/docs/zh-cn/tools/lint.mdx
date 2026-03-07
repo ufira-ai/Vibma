@@ -1,0 +1,67 @@
+---
+title: "Lint"
+description: "运行设计质量和无障碍检查。"
+---
+
+import ParameterTable from "../../../../components/ParameterTable.astro";
+
+运行设计质量和无障碍检查。
+
+<details>
+<summary>Type reference</summary>
+
+```ts
+// Lint runs automated design quality and accessibility checks on a node tree.
+// Rules:
+//   "all" (default) — run every rule. "wcag" — all accessibility rules only.
+//   Design rules:
+//     "no-autolayout" — frames with manually positioned children (should use auto-layout)
+//     "shape-instead-of-frame" — shapes used as containers (should be frames)
+//     "hardcoded-color" — colors not using styles or variables (should use design tokens)
+//     "no-text-style" — text without a text style applied
+//     "fixed-in-autolayout" — FIXED-size children in auto-layout parents (should be HUG or FILL)
+//     "default-name" — nodes with default names like "Frame 1" (should be renamed)
+//     "empty-container" — empty frames/groups (likely leftover, should be deleted)
+//     "stale-text-name" — text node name doesn't match its content
+//     "no-text-property" — component text not exposed as editable property
+//   Accessibility (WCAG) rules:
+//     "wcag-contrast" — text contrast ratio below 4.5:1 (WCAG AA)
+//     "wcag-contrast-enhanced" — text contrast ratio below 7:1 (WCAG AAA)
+//     "wcag-non-text-contrast" — non-text element contrast below 3:1
+//     "wcag-target-size" — interactive targets smaller than 24x24px (WCAG 2.5.8)
+//     "wcag-text-size" — text below 12px
+//     "wcag-line-height" — line height below 1.5x font size
+// maxDepth limits how deep the tree traversal goes (default: 10). maxFindings caps total findings (default: 50).
+// fix: auto-converts frames to auto-layout. Use after lint.check identifies "no-autolayout" issues.
+interface LintResult {
+  nodeId: string; nodeName: string;
+  categories: { rule: string; count: number; fix: string; nodes: { id: string; name: string; detail?: string }[] }[];
+  warning?: string;
+}
+```
+
+</details>
+
+2 methods available.
+
+## check
+
+Run design linter on a node tree
+
+<ParameterTable schema={{"type":"object","properties":{"nodeId":{"description":"Node ID to lint (default: current selection or page)","type":"string"},"rules":{"description":"Rules to run. Default: [\"all\"]. Use [\"wcag\"] for accessibility only.","type":"array","items":{"type":"string"}},"maxDepth":{"description":"Max tree depth (default: 10)","type":"number"},"maxFindings":{"description":"Max findings (default: 50)","type":"number"}}}} />
+
+**Response**
+
+<ParameterTable schema={{"type":"object","properties":{"nodeId":{"type":"string"},"nodeName":{"type":"string"},"categories":{"type":"array"},"warning":{"type":"string"}},"required":["nodeId","nodeName"]}} fieldLabel="Field" hideRequired />
+
+## fix
+
+**edit**
+
+Auto-fix frames to auto-layout
+
+<ParameterTable schema={{"type":"object","properties":{"items":{"description":"Array of {nodeId, layoutMode?, itemSpacing?}","type":"array","items":{"type":"object","properties":{"nodeId":{"description":"Frame node ID","type":"string"},"layoutMode":{"description":"Direction (default: auto-detected)","type":"string","enum":["VERTICAL","HORIZONTAL"]},"itemSpacing":{"description":"Spacing between children","type":"number"}},"required":["nodeId"]}},"depth":{"description":"Response detail: omit for id+name only. 0=properties + child stubs. N=recurse N levels. -1=unlimited.","type":"number"}},"required":["items"]}} />
+
+**Response**
+
+<ParameterTable schema={{"type":"object","properties":{"results":{"type":"array","description":"Array of \"ok\" or {error} per item","items":{"type":"any"}}}}} fieldLabel="Field" hideRequired />

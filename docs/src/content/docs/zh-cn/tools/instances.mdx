@@ -1,0 +1,105 @@
+---
+title: "Instances"
+description: "创建和管理组件实例。"
+---
+
+import ParameterTable from "../../../../components/ParameterTable.astro";
+
+创建和管理组件实例。
+
+<details>
+<summary>Type reference</summary>
+
+```ts
+// Instances are linked copies of components. Changes to the component propagate to all instances.
+// Overrides: instance-level changes (text, fills, visibility) that differ from the component. Shown in overrides array.
+// variantProperties: when creating from a component set, pick which variant e.g. {"Style":"Secondary","Size":"Large"}.
+// Property keys include a unique suffix like "Label#1:0" — use instances.get or components.get to find exact keys.
+// swap: change which component an instance points to while preserving compatible overrides.
+// detach: permanently converts an instance to a regular frame, breaking the component link.
+// reset_overrides: reverts all instance overrides to match the main component.
+// Workflow: components.list → instances.create with componentId → instances.update to set properties.
+interface InstanceCreateItem {
+  componentId: string;                     // component or component set ID
+  variantProperties?: Record<string, string>; // pick variant e.g. {"Style":"Secondary","Size":"Large"}
+  x?: number; y?: number; parentId?: string;
+}
+interface InstanceUpdateItem {
+  id: string;                              // instance node ID
+  properties: Record<string, string | boolean>; // key→value e.g. {"Label#1:0":"Click Me"}
+}
+```
+
+</details>
+
+6 methods available.
+
+## get
+
+Get instance properties, overrides, and main component
+
+<ParameterTable schema={{"type":"object","properties":{"id":{"description":"Instance node ID","type":"string"},"fields":{"description":"Property whitelist. Identity fields (id, name, type) always included. Omit for stubs on list, full on get. Pass [\"*\"] for all.","type":"array","items":{"type":"string"}}},"required":["id"]}} />
+
+**Response**
+
+<ParameterTable schema={{"type":"object","properties":{"mainComponentId":{"type":"string"},"componentProperties":{"type":"object"},"overrides":{"type":"array"}}}} fieldLabel="Field" hideRequired />
+
+## create
+
+**create**
+
+Create component instances
+
+<ParameterTable schema={{"type":"object","properties":{"items":{"description":"Array of {componentId, variantProperties?, x?, y?, parentId?}","type":"array","items":{"type":"object","properties":{"componentId":{"description":"Component or component set ID","type":"string"},"variantProperties":{"description":"Pick variant e.g. {\"Style\":\"Secondary\"}","type":"object"},"x":{"type":"number"},"y":{"type":"number"},"parentId":{"description":"Parent node ID. Omit to place on current page.","type":"string"}},"required":["componentId"]}},"depth":{"description":"Response detail: omit for id+name only. 0=properties + child stubs. N=recurse N levels. -1=unlimited.","type":"number"}},"required":["items"]}} />
+
+**Response**
+
+<ParameterTable schema={{"type":"object","properties":{"results":{"type":"array","description":"One entry per input item","items":{"type":"object","properties":{"id":{"type":"string"}}}}}}} fieldLabel="Field" hideRequired />
+
+## update
+
+**edit**
+
+Set instance properties
+
+<ParameterTable schema={{"type":"object","properties":{"items":{"description":"Array of {id, properties: {\"Label#1:0\":\"text\"}}","type":"array","items":{"type":"object","properties":{"id":{"description":"Instance node ID","type":"string"},"properties":{"description":"Property key→value map","type":"object"}},"required":["id","properties"]}}},"required":["items"]}} />
+
+**Response**
+
+<ParameterTable schema={{"type":"object","properties":{"results":{"type":"array","description":"Array of \"ok\" or {error} per item","items":{"type":"any"}}}}} fieldLabel="Field" hideRequired />
+
+## swap
+
+**edit**
+
+Swap instance component (preserves overrides)
+
+<ParameterTable schema={{"type":"object","properties":{"items":{"description":"Array of {id, componentId}","type":"array","items":{"type":"object","properties":{"id":{"description":"Instance node ID","type":"string"},"componentId":{"description":"New component or component set ID","type":"string"}},"required":["id","componentId"]}}},"required":["items"]}} />
+
+**Response**
+
+<ParameterTable schema={{"type":"object","properties":{"results":{"type":"array","description":"Array of \"ok\" or {error} per item","items":{"type":"any"}}}}} fieldLabel="Field" hideRequired />
+
+## detach
+
+**edit**
+
+Detach instances from their component (converts to frame)
+
+<ParameterTable schema={{"type":"object","properties":{"items":{"description":"Array of {id}","type":"array","items":{"type":"object","properties":{"id":{"description":"Instance node ID","type":"string"}},"required":["id"]}}},"required":["items"]}} />
+
+**Response**
+
+<ParameterTable schema={{"type":"object","properties":{"results":{"type":"array","description":"One entry per input item","items":{"type":"object","properties":{"id":{"type":"string"}}}}}}} fieldLabel="Field" hideRequired />
+
+## reset_overrides
+
+**edit**
+
+Reset all overrides on instances to match their main component
+
+<ParameterTable schema={{"type":"object","properties":{"items":{"description":"Array of {id}","type":"array","items":{"type":"object","properties":{"id":{"description":"Instance node ID","type":"string"}},"required":["id"]}}},"required":["items"]}} />
+
+**Response**
+
+<ParameterTable schema={{"type":"object","properties":{"results":{"type":"array","description":"Array of \"ok\" or {error} per item","items":{"type":"any"}}}}} fieldLabel="Field" hideRequired />

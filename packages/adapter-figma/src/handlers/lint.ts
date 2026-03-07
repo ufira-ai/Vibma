@@ -113,22 +113,22 @@ async function lintNodeHandler(params: any) {
 
 /** Per-rule fix instructions -- natural language, actionable, referencing MCP tools */
 const FIX_INSTRUCTIONS: Record<string, string> = {
-  "no-autolayout": "Use lint_fix_autolayout or update_frame with layoutMode to add auto-layout to these frames.",
-  "shape-instead-of-frame": "Delete the shape, create_frame with the same position/size/fill, then insert_child to re-parent overlapping siblings into the new frame.",
-  "hardcoded-color": "Check each node's 'matchName' for a suggested style or variable. For fills: use set_fill_color with styleName, or set_variable_binding with field 'fills/0/color'. For strokes: use set_stroke_color with styleName, or set_variable_binding with field 'strokes/0/color'.",
-  "no-text-style": "Use patch_nodes with text.textStyleName to apply a text style, or set_variable_binding to bind text properties to variables.",
-  "fixed-in-autolayout": "Use update_frame with layoutSizingHorizontal/layoutSizingVertical to set FILL or HUG instead of FIXED sizing.",
-  "default-name": "Use set_node_properties to give descriptive names.",
-  "empty-container": "These frames or components have auto-layout but no children. Delete them or add content.",
-  "stale-text-name": "These text nodes have layer names that don't match their content. Use set_node_properties to rename, or leave if intentional.",
-  "no-text-property": "Use components(method: \"update\") to create a TEXT property on the component set, then set_node_properties with componentPropertyReferences: {characters: \"PropertyKey#id\"} to bind.",
+  "no-autolayout": 'Use lint(method:"fix", items:[{nodeId}]) to auto-convert, or frames(method:"update", items:[{id, layout:{layoutMode:"VERTICAL"}}]).',
+  "shape-instead-of-frame": 'Delete the shape with frames(method:"delete"), then frames(method:"create", type:"frame") with same position/size/fill, then frames(method:"reparent") to move overlapping siblings into the new frame.',
+  "hardcoded-color": 'Check each node\'s matchName/matchId for a suggested style or variable. If a match exists: frames(method:"update", items:[{id, fill:{styleName:"..."}}]) or bind a variable via items:[{id, fill:{variableName:"..."}}] or bindings:[{field:"fills/0/color", variableName:"..."}]. If no match: create a style with styles(method:"create", type:"paint") or a variable with variables(method:"create") first, then apply it.',
+  "no-text-style": 'Apply a text style: frames(method:"update", items:[{id, text:{textStyleName:"..."}}]). If no text styles exist, create one with styles(method:"create", type:"text") first.',
+  "fixed-in-autolayout": 'Use frames(method:"update", items:[{id, layout:{layoutSizingHorizontal:"FILL"}}]) or "HUG" instead of FIXED. FILL stretches to fill the parent, HUG shrinks to fit content.',
+  "default-name": 'Use frames(method:"update", items:[{id, properties:{name:"descriptive name"}}]) to rename.',
+  "empty-container": 'These frames have no children — likely leftover. Delete with frames(method:"delete", items:[{id}]) or add content.',
+  "stale-text-name": 'These text node names don\'t match their content. Use frames(method:"update", items:[{id, properties:{name:"..."}}]) to sync, or leave if the name is intentional.',
+  "no-text-property": 'Use components(method:"update", items:[{id, propertyName:"TextLabel", action:"add", type:"TEXT", defaultValue:"..."}]) to expose the text as an editable property on the component.',
   // -- WCAG fix instructions --
-  "wcag-contrast": "Adjust fill or background to meet AA (4.5:1, 3:1 large text).",
-  "wcag-contrast-enhanced": "Adjust to meet AAA (7:1, 4.5:1 large text).",
-  "wcag-non-text-contrast": "Need 3:1 against parent background. Adjust via set_fill_color.",
-  "wcag-target-size": "Resize to 24x24px min via resize_node or add padding.",
-  "wcag-text-size": "Increase to 12px min via set_text_properties.",
-  "wcag-line-height": "Increase line height to 1.5x font size.",
+  "wcag-contrast": 'Adjust text color or background to meet AA contrast (4.5:1 normal text, 3:1 large text). Use frames(method:"update") with fill or text.fontColor to change colors.',
+  "wcag-contrast-enhanced": 'Adjust to meet AAA contrast (7:1 normal text, 4.5:1 large text). Use frames(method:"update") with fill or text.fontColor.',
+  "wcag-non-text-contrast": 'Need 3:1 contrast against parent background. Use frames(method:"update", items:[{id, fill:{color:"#..."}}]) to adjust.',
+  "wcag-target-size": 'Resize to at least 24x24px: frames(method:"update", items:[{id, width:24, height:24}]) or add padding via layout.',
+  "wcag-text-size": 'Increase to 12px minimum: frames(method:"update", items:[{id, text:{fontSize:12}}]).',
+  "wcag-line-height": 'Increase line height to at least 1.5x font size: frames(method:"update", items:[{id, text:{lineHeight:{value:150, unit:"PERCENT"}}}]).',
 };
 
 interface ColorEntry { name: string; id: string; r: number; g: number; b: number; a: number }

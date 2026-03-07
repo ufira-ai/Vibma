@@ -1,0 +1,76 @@
+---
+title: "Pages"
+description: "导航和管理 Figma 页面。"
+---
+
+import ParameterTable from "../../../../components/ParameterTable.astro";
+
+导航和管理 Figma 页面。
+
+<details>
+<summary>Type reference</summary>
+
+```ts
+// Pages are the top-level containers in a Figma document. Each page has its own canvas.
+// The "current page" is where all node operations happen. Use pages.set to switch pages before working with nodes.
+// Page IDs look like "0:1", "1:1", etc. The first page is always "0:1".
+// get returns the current page with its top-level children as stubs. list returns all pages in the document.
+```
+
+</details>
+
+5 methods available.
+
+## get
+
+Get current page with top-level children
+
+No parameters.
+
+**Response**
+
+<ParameterTable schema={{"type":"object","properties":{"id":{"type":"string"},"name":{"type":"string"},"backgroundColor":{"description":"Canvas background hex color (e.g. \"#F5F5F5\")","type":"string"},"children":{"type":"array"}},"required":["id","name"]}} fieldLabel="Field" hideRequired />
+
+## list
+
+Get document name and list all pages
+
+No parameters.
+
+**Response**
+
+<ParameterTable schema={{"type":"object","properties":{"name":{"description":"Document name","type":"string"},"currentPageId":{"type":"string"},"pages":{"type":"array","items":{"type":"object","properties":{"id":{"type":"string"},"name":{"type":"string"}},"required":["id","name"]}}},"required":["name","currentPageId"]}} fieldLabel="Field" hideRequired />
+
+## set
+
+Switch to a page by ID or name
+
+<ParameterTable schema={{"type":"object","properties":{"pageId":{"description":"Page ID","type":"string"},"pageName":{"description":"Page name (case-insensitive, substring match)","type":"string"}}}} />
+
+**Response**
+
+<ParameterTable schema={{"type":"object","properties":{"id":{"type":"string"},"name":{"type":"string"}},"required":["id","name"]}} fieldLabel="Field" hideRequired />
+
+## create
+
+**create**
+
+Create a new page
+
+<ParameterTable schema={{"type":"object","properties":{"name":{"description":"Page name (default: 'New Page')","type":"string"}}}} />
+
+**Response**
+
+<ParameterTable schema={{"type":"object","properties":{"id":{"description":"New page ID","type":"string"}},"required":["id"]}} fieldLabel="Field" hideRequired />
+
+## update
+
+**edit**
+
+Rename a page
+
+<ParameterTable schema={{"type":"object","properties":{"newName":{"description":"New page name","type":"string"},"pageId":{"description":"Page ID (default: current page)","type":"string"}},"required":["newName"]}} />
+
+**Response**
+
+<ParameterTable schema={{"type":"object","properties":{"result":{"type":"string","description":"String result"}}}} fieldLabel="Field" hideRequired />

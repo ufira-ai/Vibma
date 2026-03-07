@@ -1,4 +1,4 @@
-import { batchHandler } from "./helpers";
+import { batchHandler, findVariableById, findVariableByName } from "./helpers";
 import { setFillSingle, setStrokeSingle, setCornerSingle, setOpacitySingle } from "./fill-stroke";
 import { setEffectsSingle, setConstraintsSingle, setExportSettingsSingle, setNodePropertiesSingle } from "./effects";
 import { moveSingle, resizeSingle } from "./modify-node";
@@ -8,8 +8,22 @@ import type { TextPropsContext } from "./text";
 
 // ─── Figma Handlers ──────────────────────────────────────────────
 
+const SIMPLE_PROPS = ["name", "visible", "locked", "rotation", "blendMode", "layoutPositioning",
+  "minWidth", "maxWidth", "minHeight", "maxHeight"] as const;
+
 async function patchSingleNode(item: any, textCtx: TextPropsContext | null): Promise<any> {
   const result: any = {};
+
+  // 0. Simple scalar properties
+  const simpleUpdates = SIMPLE_PROPS.filter(k => item[k] !== undefined);
+  if (simpleUpdates.length > 0) {
+    const node = await figma.getNodeByIdAsync(item.nodeId);
+    if (!node) throw new Error(`Node not found: ${item.nodeId}`);
+    for (const key of simpleUpdates) {
+      if (key in node) (node as any)[key] = item[key];
+      else result.warning = appendWarning(result.warning, `Property '${key}' not supported on ${node.type}`);
+    }
+  }
 
   // 1. Geometry: move
   if (item.x !== undefined || item.y !== undefined) {
@@ -38,6 +52,12 @@ async function patchSingleNode(item: any, textCtx: TextPropsContext | null): Pro
       color: item.stroke.color,
       strokeWeight: item.stroke.weight,
       styleName: item.stroke.styleName,
+      variableName: item.stroke.variableName,
+      variableId: item.stroke.variableId,
+      strokeTopWeight: item.stroke.strokeTopWeight,
+      strokeBottomWeight: item.stroke.strokeBottomWeight,
+      strokeLeftWeight: item.stroke.strokeLeftWeight,
+      strokeRightWeight: item.stroke.strokeRightWeight,
     });
     if (r.matchedStyle) result.matchedStrokeStyle = r.matchedStyle;
     if (r.warning) result.warning = appendWarning(result.warning, r.warning);
@@ -85,7 +105,50 @@ async function patchSingleNode(item: any, textCtx: TextPropsContext | null): Pro
     if (r.warning) result.warning = appendWarning(result.warning, r.warning);
   }
 
-  // 12. Properties escape hatch (last)
+  // 12. Variable bindings
+  if (item.bindings) {
+    const node = await figma.getNodeByIdAsync(item.nodeId);
+    if (!node) throw new Error(`Node not found: ${item.nodeId}`);
+    for (const b of item.bindings) {
+      const variable = b.variableName
+        ? await findVariableByName(b.variableName)
+        : await findVariableById(b.variableId);
+      if (!variable) { result.warning = appendWarning(result.warning, `Variable not found: ${b.variableName || b.variableId}`); continue; }
+      const paintMatch = b.field.match(/^(fills|strokes)\/(\d+)\/color$/);
+      if (paintMatch) {
+        const prop = paintMatch[1];
+        const index = parseInt(paintMatch[2], 10);
+        if (!(prop in node)) throw new Error(`Node does not have ${prop}`);
+        const paints = (node as any)[prop].slice();
+        // Auto-create default solid paints if index doesn't exist yet
+        while (index >= paints.length) {
+          paints.push({ type: "SOLID", color: { r: 0, g: 0, b: 0 }, opacity: 1 });
+        }
+        paints[index] = figma.variables.setBoundVariableForPaint(paints[index], "color", variable);
+        (node as any)[prop] = paints;
+      } else if ("setBoundVariable" in node) {
+        (node as any).setBoundVariable(b.field, variable);
+      } else {
+        result.warning = appendWarning(result.warning, `Node does not support variable binding for field: ${b.field}`);
+      }
+    }
+  }
+
+  // 13. Explicit variable mode
+  if (item.explicitMode) {
+    const node = await figma.getNodeByIdAsync(item.nodeId);
+    if (!node) throw new Error(`Node not found: ${item.nodeId}`);
+    if (!("setExplicitVariableModeForCollection" in node)) {
+      result.warning = appendWarning(result.warning, `Node ${item.nodeId} does not support explicit variable modes.`);
+    } else {
+      const allCollections = await figma.variables.getLocalVariableCollectionsAsync();
+      const collection = allCollections.find((c: any) => c.id === item.explicitMode.collectionId);
+      if (!collection) throw new Error(`Collection not found: ${item.explicitMode.collectionId}`);
+      (node as any).setExplicitVariableModeForCollection(collection, item.explicitMode.modeId);
+    }
+  }
+
+  // 14. Properties escape hatch (last)
   if (item.properties) {
     await setNodePropertiesSingle({ nodeId: item.nodeId, properties: item.properties });
   }

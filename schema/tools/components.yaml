@@ -1,0 +1,146 @@
+endpoint: components
+domain: design-system
+description: "Create and manage reusable components and variant sets."
+description_zh: "创建和管理可复用组件和变体集。"
+
+notes: |
+  // Components are reusable design elements. Instances (copies) stay linked to their component and inherit changes.
+  // A component set (variant set) groups related components as variants (e.g. Button/Primary, Button/Secondary).
+  // Property types: BOOLEAN (toggle visibility), TEXT (editable text), INSTANCE_SWAP (swap child instance), VARIANT (variant picker).
+  // exposeText: when creating from_node, text children become editable TEXT properties on the component.
+  // Property keys include a unique suffix like "Label#1:0" — use components.get to find exact keys.
+  // Workflow: create component → add properties via update → create instances via instances.create.
+  interface ComponentItem {
+    name: string; x?: number; y?: number; width?: number; height?: number; parentId?: string;
+    fillColor?: Color; fillStyleName?: string; fillVariableName?: string;
+    strokeColor?: Color; strokeStyleName?: string; strokeVariableName?: string;
+    strokeWeight?: number; cornerRadius?: number;
+    layoutMode?: "NONE"|"HORIZONTAL"|"VERTICAL"; layoutWrap?: "NO_WRAP"|"WRAP";
+    paddingTop?: number; paddingRight?: number; paddingBottom?: number; paddingLeft?: number;
+    primaryAxisAlignItems?: "MIN"|"MAX"|"CENTER"|"SPACE_BETWEEN";
+    counterAxisAlignItems?: "MIN"|"MAX"|"CENTER"|"BASELINE";
+    layoutSizingHorizontal?: "FIXED"|"HUG"|"FILL"; layoutSizingVertical?: "FIXED"|"HUG"|"FILL";
+    itemSpacing?: number;
+  }
+  interface FromNodeItem { nodeId: string; exposeText?: boolean } // default exposeText: true — auto-expose text as editable properties
+  interface VariantSetItem { componentIds: string[]; name?: string } // min 2 components
+  interface UpdatePropertyItem { id: string; propertyName: string; action?: "add"|"edit"|"delete"; type?: "BOOLEAN"|"TEXT"|"INSTANCE_SWAP"|"VARIANT"; defaultValue?: string | boolean; name?: string; preferredValues?: {type: "COMPONENT"|"COMPONENT_SET", key: string}[] }
+  // action: "add" (default) adds property, "edit" renames/changes default, "delete" removes property
+
+methods:
+  list:
+    tier: read
+    description: List components and component sets
+    params:
+      name:
+        type: string
+        optional: true
+        description: "Filter by name (case-insensitive substring)"
+      setsOnly:
+        type: boolean
+        coerce: true
+        optional: true
+        description: "If true, return only COMPONENT_SET nodes"
+      fields:
+        $ref: fields
+      offset:
+        $ref: offset
+      limit:
+        $ref: limit
+    response:
+      type: paginated
+      item:
+        type: object
+        properties:
+          id: { type: string, required: true }
+          name: { type: string, required: true }
+          type: { type: string, required: true }
+
+  get:
+    tier: read
+    description: Get component or component set detail
+    params:
+      id:
+        type: string
+        required: true
+        description: "Component or component set ID"
+      fields:
+        $ref: fields
+    response:
+      type: object
+      properties:
+        id: { type: string }
+        name: { type: string }
+        type: { type: string }
+        propertyDefinitions: { type: object }
+
+  create:
+    tier: create
+    description: Create components
+    discriminant: type
+    types:
+      component:
+        description: Create component from scratch with layout/style params
+        params:
+          name: { type: string, required: true, description: Component name }
+          parentId: { $ref: parentId }
+          x: { $ref: xPos }
+          y: { $ref: yPos }
+          width: { type: number, coerce: true, optional: true, description: "Width (default: 100)" }
+          height: { type: number, coerce: true, optional: true, description: "Height (default: 100)" }
+          fillColor: { $ref: color, optional: true, description: "Fill color (auto-binds to matching variable/style)" }
+          fillStyleName: { type: string, optional: true, description: "Paint style name for fill" }
+          fillVariableName: { type: string, optional: true, description: "Color variable by name e.g. 'bg/primary'" }
+          strokeColor: { $ref: color, optional: true, description: "Stroke color (auto-binds to matching variable/style)" }
+          strokeStyleName: { type: string, optional: true, description: "Paint style name for stroke" }
+          strokeVariableName: { type: string, optional: true, description: "Color variable by name for stroke" }
+          strokeWeight: { type: number, coerce: true, optional: true, description: "Stroke weight (default: 1)" }
+          cornerRadius: { type: number, coerce: true, optional: true }
+          layoutMode: { type: enum, values: [NONE, HORIZONTAL, VERTICAL], optional: true, description: "Layout direction (default: NONE)" }
+          layoutWrap: { type: enum, values: [NO_WRAP, WRAP], optional: true }
+          paddingTop: { type: number, coerce: true, optional: true }
+          paddingRight: { type: number, coerce: true, optional: true }
+          paddingBottom: { type: number, coerce: true, optional: true }
+          paddingLeft: { type: number, coerce: true, optional: true }
+          primaryAxisAlignItems: { type: enum, values: [MIN, MAX, CENTER, SPACE_BETWEEN], optional: true }
+          counterAxisAlignItems: { type: enum, values: [MIN, MAX, CENTER, BASELINE], optional: true }
+          layoutSizingHorizontal: { type: enum, values: [FIXED, HUG, FILL], optional: true }
+          layoutSizingVertical: { type: enum, values: [FIXED, HUG, FILL], optional: true }
+          itemSpacing: { type: number, coerce: true, optional: true, description: "Spacing between children (default: 0)" }
+      from_node:
+        description: "Convert existing nodes to components. Text children auto-exposed as editable properties (exposeText: true)."
+        params:
+          nodeId: { type: string, required: true, description: Node ID to convert }
+          exposeText: { type: boolean, coerce: true, optional: true, description: "Auto-expose text as editable properties (default: true)" }
+      variant_set:
+        description: Combine components into a variant set
+        params:
+          componentIds: { type: "string[]", coerce: json, required: true, description: "Component IDs to combine (min 2)" }
+          name: { type: string, optional: true, description: "Name for the variant set" }
+    response:
+      type: batch
+      item: { id: { type: string } }
+
+  update:
+    tier: edit
+    description: "Add, edit, or delete component properties"
+    params:
+      items:
+        type: array
+        coerce: json
+        required: true
+        tsType: "UpdatePropertyItem[]"
+        description: 'Array of {id, propertyName, action?, type?, defaultValue?, name?, preferredValues?}'
+        items:
+          type: object
+          properties:
+            id: { type: string, required: true, description: "Component or component set ID" }
+            propertyName: { type: string, required: true, description: "Property name (include #suffix for edit/delete)" }
+            action: { type: enum, values: [add, edit, delete], optional: true, description: 'Action: "add" (default), "edit", or "delete"' }
+            type: { type: enum, values: [BOOLEAN, TEXT, INSTANCE_SWAP, VARIANT], optional: true, description: "Property type (required for add)" }
+            defaultValue: { type: string_or_boolean, optional: true, description: "Default value (required for add)" }
+            name: { type: string, optional: true, description: "New name (for edit action)" }
+            preferredValues: { type: array, coerce: json, optional: true, description: "Preferred values for INSTANCE_SWAP" }
+      depth: { $ref: depth }
+    response:
+      type: batch_mixed

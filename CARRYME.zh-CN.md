@@ -100,8 +100,8 @@ Vibma 通过访问层级控制可用工具。通过传入标志设置层级：
 
 1. 在 Figma 插件中，将频道名设置为 `vibma`（或任意你喜欢的名称）
 2. 点击 **Connect**
-3. 在 AI 工具中调用 `join_channel`，使用相同的频道名（默认为 `vibma`）
-4. 调用 `ping` ——你应该会收到包含文档名称的 `pong` 响应
+3. 在 AI 工具中调用 `connection(method: "create")`，使用相同的频道名（默认为 `vibma`）
+4. 调用 `connection(method: "get")` ——你应该会收到包含文档名称的 `pong` 响应
 
 ## 更新
 
@@ -180,10 +180,10 @@ If all four ports (3055–3058) are occupied, tell the user they need to free on
 
 After the user opens the Figma plugin, it should automatically show **Connected** on the default port (3055). If a non-default port was used, the user will need to select the correct port in the plugin UI and click Connect.
 
-1. Call `join_channel` (defaults to channel `vibma` — use a different name only if the user specifies one).
-2. Call `ping`. Expected response: `{ status: "pong", documentName: "...", currentPage: "...", timestamp: ... }`
+1. Call `connection(method: "create")` (defaults to channel `vibma` — use a different name only if the user specifies one).
+2. Call `connection(method: "get")`. Expected response: `{ status: "pong", documentName: "...", currentPage: "...", timestamp: ... }`
 
-If `ping` returns a `pong` with a document name, the full chain is verified. Proceed with design tasks.
+If `connection(method: "get")` returns a `pong` with a document name, the full chain is verified. Proceed with design tasks.
 
 ### Troubleshooting connection issues
 
@@ -195,14 +195,14 @@ If the plugin shows **Disconnected** on port 3055, try the following before aski
 
 If the issue persists after these steps, direct the user to the [Vibma Discord](https://discord.gg/4XTedZdwV6) for help.
 
-If any tool times out after a successful `join_channel`, the Figma plugin is not connected to the tunnel. The timeout error will include the port and channel the MCP server is using. Ask the user to check the Figma plugin window and confirm:
+If any tool times out after a successful `connection(method: "create")`, the Figma plugin is not connected to the tunnel. The timeout error will include the port and channel the MCP server is using. Ask the user to check the Figma plugin window and confirm:
 - The **port** matches what MCP is using
 - The **channel name** matches what MCP joined
 - The plugin status shows **Connected**
 
 ### Version mismatch
 
-If `join_channel` returns a version mismatch warning, the Figma plugin and MCP server are running different versions. Offer to help the user update:
+If `connection(method: "create")` returns a version mismatch warning, the Figma plugin and MCP server are running different versions. Offer to help the user update:
 
 - **MCP server**: Update the MCP config args to use `@latest` (e.g. `"args": ["-y", "@ufira/vibma@latest"]`), or clear the npx cache with `npx clear-npx-cache` then re-run.
 - **Figma plugin**: Download the latest `vibma-plugin.zip` from [GitHub Releases](https://github.com/ufira-ai/vibma/releases), unzip, and re-import the `manifest.json` in Figma.
@@ -211,7 +211,7 @@ The tunnel relay rarely needs updating — it is a simple message router and sta
 
 ### Missing create or edit tools
 
-If the user asks you to create or modify something in Figma but you cannot find the relevant tools (e.g. `create_frame`, `create_text`, `patch_nodes`, `delete_node`, `set_text_content`), it means the MCP server was started without the correct access tier flag.
+If the user asks you to create or modify something in Figma but you cannot find the relevant create/edit methods (e.g. `frames(method: "create")`, `text(method: "create")`, `frames(method: "update")`, `frames(method: "delete")`), it means the MCP server was started without the correct access tier flag.
 
 Vibma uses `--create` and `--edit` flags in the MCP args to control which tools are available:
 

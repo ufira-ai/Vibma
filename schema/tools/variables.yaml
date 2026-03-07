@@ -1,0 +1,136 @@
+endpoint: variables
+domain: design-system
+description: "CRUD for design variables (COLOR, FLOAT, STRING, BOOLEAN)."
+description_zh: "管理设计变量（颜色、数值、字符串、布尔）。"
+
+notes: |
+  // Variables are design tokens — reusable values (colors, numbers, strings, booleans) that can be bound to node properties.
+  // Variables are identified by name (unique within a collection). No IDs needed — use name to get/update/delete.
+  // Workflow: create a variable_collection first → then create variables inside it → bind to nodes via frames/text update PatchItem.bindings.
+  // Each variable has values per mode (e.g. Light/Dark). Use modeId when setting values for a specific mode.
+  // valuesByMode keys are mode IDs (from the collection), values match the variable's resolvedType.
+  // Aliases: a variable can reference another variable by name via {type: "VARIABLE_ALIAS", name: "other/variable"}.
+  // scopes: restrict where variables appear in the UI. Values: "ALL_SCOPES", "TEXT_CONTENT", "WIDTH_HEIGHT", "GAP",
+  //   "CORNER_RADIUS", "ALL_FILLS", "FRAME_FILL", "SHAPE_FILL", "TEXT_FILL", "STROKE_COLOR", "STROKE_FLOAT",
+  //   "EFFECT_FLOAT", "EFFECT_COLOR", "OPACITY", "FONT_FAMILY", "FONT_STYLE", "FONT_WEIGHT", "FONT_SIZE", "LINE_HEIGHT", "LETTER_SPACING", "PARAGRAPH_SPACING", "PARAGRAPH_INDENT"
+  interface Variable { name: string; resolvedType: "COLOR"|"FLOAT"|"STRING"|"BOOLEAN"; collectionName: string; valuesByMode: Record<string, number | boolean | string | Color | {type: "VARIABLE_ALIAS", name: string}> }
+
+methods:
+  list:
+    tier: read
+    description: List variables with optional filters
+    params:
+      type:
+        type: enum
+        values: [COLOR, FLOAT, STRING, BOOLEAN]
+        optional: true
+        description: "Filter by variable type"
+      collectionName:
+        type: string
+        optional: true
+        description: "Filter by collection name"
+      fields:
+        $ref: fields
+      offset:
+        $ref: offset
+      limit:
+        $ref: limit
+    response:
+      type: paginated
+      item:
+        type: object
+        properties:
+          name: { type: string, required: true }
+          resolvedType: { type: string, required: true }
+          collectionName: { type: string, required: true }
+
+  get:
+    tier: read
+    description: Get variable detail by name
+    params:
+      name:
+        type: string
+        required: true
+        description: "Variable name (unique within collection)"
+      collectionName:
+        type: string
+        optional: true
+        description: "Collection name (required if same variable name exists in multiple collections)"
+      fields:
+        $ref: fields
+    response:
+      type: object
+      properties:
+        name: { type: string }
+        resolvedType: { type: string }
+        collectionName: { type: string }
+        valuesByMode: { type: object }
+
+  create:
+    tier: create
+    description: Create variables
+    params:
+      items:
+        type: array
+        coerce: json
+        required: true
+        description: "Array of {collectionName, name, resolvedType, value?, modeId?, description?, scopes?}"
+        items:
+          type: object
+          properties:
+            collectionName: { type: string, required: true, description: "Variable collection name" }
+            name: { type: string, required: true, description: "Variable name" }
+            resolvedType: { type: enum, values: [COLOR, FLOAT, STRING, BOOLEAN], required: true, description: "Variable type" }
+            value: { type: variable_value, optional: true, description: "Initial value (uses default mode unless modeId specified)" }
+            modeId: { type: string, optional: true, description: "Mode ID for initial value (default: collection's default mode)" }
+            description: { type: string, optional: true, description: "Variable description" }
+            scopes: { type: "string[]", coerce: json, optional: true, description: 'UI scopes e.g. ["ALL_SCOPES"]' }
+    response:
+      type: batch_ok
+
+  update:
+    tier: edit
+    description: "Update variable metadata and/or set values per mode"
+    params:
+      items:
+        type: array
+        coerce: json
+        required: true
+        description: "Array of {name, collectionName?, rename?, description?, scopes?, modeId?, value?}"
+        items:
+          type: object
+          properties:
+            name: { type: string, required: true, description: "Variable name" }
+            collectionName: { type: string, optional: true, description: "Collection name (required if same variable name exists in multiple collections)" }
+            rename: { type: string, optional: true, description: "Rename the variable" }
+            description: { type: string, optional: true, description: "Set description" }
+            scopes: { type: "string[]", coerce: json, optional: true, description: 'UI scopes e.g. ["ALL_SCOPES"] or ["WIDTH_HEIGHT","CORNER_RADIUS"]' }
+            modeId: { type: string, optional: true, description: "Mode ID (required when setting value)" }
+            value: { type: variable_value, optional: true }
+    response:
+      type: batch_mixed
+
+  delete:
+    tier: edit
+    description: Delete variables
+    params:
+      name:
+        type: string
+        optional: true
+        description: Variable name
+      collectionName:
+        type: string
+        optional: true
+        description: "Collection name (required if same variable name exists in multiple collections)"
+      items:
+        type: array
+        coerce: json
+        optional: true
+        description: "Batch: [{name, collectionName?}, ...]"
+        items:
+          type: object
+          properties:
+            name: { type: string, required: true }
+            collectionName: { type: string, optional: true, description: "Collection name for disambiguation" }
+    response:
+      type: batch_ok

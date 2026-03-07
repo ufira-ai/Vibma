@@ -159,13 +159,51 @@ export async function serializeNode(
     }
   }
 
-  // ── Opacity / visibility ──────────────────────────────────────
+  // ── Opacity / visibility / locked ────────────────────────────
   if ("opacity" in node) {
     const op = (node as any).opacity;
     if (op !== undefined && op !== 1) out.opacity = op;
   }
   if ("visible" in node) {
     out.visible = (node as any).visible;
+  }
+  if ("locked" in node && (node as any).locked) {
+    out.locked = true;
+  }
+
+  // ── Rotation ───────────────────────────────────────────────────
+  if ("rotation" in node) {
+    const rot = (node as any).rotation;
+    if (rot !== undefined && rot !== 0) out.rotation = rot;
+  }
+
+  // ── Blend mode ─────────────────────────────────────────────────
+  if ("blendMode" in node) {
+    const bm = (node as any).blendMode;
+    if (bm && bm !== "PASS_THROUGH") out.blendMode = bm;
+  }
+
+  // ── Layout positioning ─────────────────────────────────────────
+  if ("layoutPositioning" in node) {
+    const lp = (node as any).layoutPositioning;
+    if (lp === "ABSOLUTE") out.layoutPositioning = lp;
+  }
+
+  // ── Layout sizing ──────────────────────────────────────────────
+  if ("layoutSizingHorizontal" in node) {
+    out.layoutSizingHorizontal = (node as any).layoutSizingHorizontal;
+  }
+  if ("layoutSizingVertical" in node) {
+    out.layoutSizingVertical = (node as any).layoutSizingVertical;
+  }
+
+  // ── Min/max dimensions ─────────────────────────────────────────
+  if ("minWidth" in node) {
+    const n = node as any;
+    if (n.minWidth != null && n.minWidth > 0) out.minWidth = n.minWidth;
+    if (n.maxWidth != null && n.maxWidth < Infinity) out.maxWidth = n.maxWidth;
+    if (n.minHeight != null && n.minHeight > 0) out.minHeight = n.minHeight;
+    if (n.maxHeight != null && n.maxHeight < Infinity) out.maxHeight = n.maxHeight;
   }
 
   // ── Constraints ───────────────────────────────────────────────

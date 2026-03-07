@@ -116,10 +116,19 @@ async function exportNodeAsImage(params: any) {
   if (!node) throw new Error(`Node not found: ${nodeId}`);
   if (!("exportAsync" in node)) throw new Error(`Node does not support export: ${nodeId}`);
 
-  const bytes = await (node as any).exportAsync({
-    format,
-    constraint: { type: "SCALE", value: scale },
-  });
+  // SVG_STRING returns string directly (not bytes)
+  if (format === "SVG_STRING") {
+    const svg: string = await (node as any).exportAsync({ format: "SVG_STRING" });
+    return { mimeType: "image/svg+xml", imageData: svg, isString: true };
+  }
+
+  // SVG and PDF don't support constraint
+  const settings: any = { format };
+  if (format === "PNG" || format === "JPG") {
+    settings.constraint = { type: "SCALE", value: scale };
+  }
+
+  const bytes = await (node as any).exportAsync(settings);
 
   const mimeMap: Record<string, string> = {
     PNG: "image/png", JPG: "image/jpeg", SVG: "image/svg+xml", PDF: "application/pdf",
