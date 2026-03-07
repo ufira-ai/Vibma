@@ -1,36 +1,5 @@
-import { batchHandler, appendToParent, solidPaint, styleNotFoundHint, suggestStyleForColor, findVariableById } from "./helpers";
+import { batchHandler, appendToParent, applyFillWithAutoBind, applyStrokeWithAutoBind } from "./helpers";
 import { createDispatcher, paginate, pickFields } from "@ufira/vibma/endpoint";
-
-// ─── Figma Handlers ──────────────────────────────────────────────
-
-// -- Shared helpers --
-
-async function resolvePaintStyle(name: string): Promise<{ id: string | null, available: string[] }> {
-  const styles = await figma.getLocalPaintStylesAsync();
-  const available = styles.map(s => s.name);
-  const exact = styles.find(s => s.name === name);
-  if (exact) return { id: exact.id, available };
-  const fuzzy = styles.find(s => s.name.toLowerCase().includes(name.toLowerCase()));
-  return { id: fuzzy?.id ?? null, available };
-}
-
-async function bindFillVariable(node: any, variableId: string, fallbackColor?: any) {
-  const v = await findVariableById(variableId);
-  if (!v) return false;
-  node.fills = [solidPaint(fallbackColor || { r: 0, g: 0, b: 0 })];
-  const bound = figma.variables.setBoundVariableForPaint(node.fills[0], "color", v);
-  node.fills = [bound];
-  return true;
-}
-
-async function bindStrokeVariable(node: any, variableId: string, fallbackColor?: any) {
-  const v = await findVariableById(variableId);
-  if (!v) return false;
-  node.strokes = [solidPaint(fallbackColor || { r: 0, g: 0, b: 0 })];
-  const bound = figma.variables.setBoundVariableForPaint(node.strokes[0], "color", v);
-  node.strokes = [bound];
-  return true;
-}
 
 function findTextNodes(node: BaseNode): TextNode[] {
   if (node.type === "TEXT") return [node as TextNode];
@@ -75,9 +44,7 @@ async function createComponentSingle(p: any) {
   if (!p.name) throw new Error("Missing name");
   const {
     x = 0, y = 0, width = 100, height = 100, name, parentId,
-    fillColor, fillStyleName, fillVariableId,
-    strokeColor, strokeStyleName, strokeVariableId,
-    strokeWeight, cornerRadius,
+    cornerRadius,
     layoutMode = "NONE", layoutWrap = "NO_WRAP",
     paddingTop = 0, paddingRight = 0, paddingBottom = 0, paddingLeft = 0,
     primaryAxisAlignItems = "MIN", counterAxisAlignItems = "MIN",
@@ -107,36 +74,8 @@ async function createComponentSingle(p: any) {
   }
 
   const hints: string[] = [];
-  if (fillVariableId) {
-    const ok = await bindFillVariable(comp, fillVariableId, fillColor);
-    if (!ok) hints.push(`fillVariableId '${fillVariableId}' not found.`);
-  } else if (fillStyleName) {
-    const { id: sid, available } = await resolvePaintStyle(fillStyleName);
-    if (sid) {
-      try { await (comp as any).setFillStyleIdAsync(sid); }
-      catch (e: any) { hints.push(`fillStyleName '${fillStyleName}' matched but failed to apply: ${e.message}`); }
-    } else hints.push(styleNotFoundHint("fillStyleName", fillStyleName, available));
-  } else if (fillColor) {
-    comp.fills = [solidPaint(fillColor)];
-    const suggestion = await suggestStyleForColor(fillColor, "fillStyleName");
-    if (suggestion) hints.push(suggestion);
-  }
-
-  if (strokeVariableId) {
-    const ok = await bindStrokeVariable(comp, strokeVariableId, strokeColor);
-    if (!ok) hints.push(`strokeVariableId '${strokeVariableId}' not found.`);
-  } else if (strokeStyleName) {
-    const { id: sid, available } = await resolvePaintStyle(strokeStyleName);
-    if (sid) {
-      try { await (comp as any).setStrokeStyleIdAsync(sid); }
-      catch (e: any) { hints.push(`strokeStyleName '${strokeStyleName}' matched but failed to apply: ${e.message}`); }
-    } else hints.push(styleNotFoundHint("strokeStyleName", strokeStyleName, available));
-  } else if (strokeColor) {
-    comp.strokes = [solidPaint(strokeColor)];
-    const suggestion = await suggestStyleForColor(strokeColor, "strokeStyleName");
-    if (suggestion) hints.push(suggestion);
-  }
-  if (strokeWeight !== undefined) comp.strokeWeight = strokeWeight;
+  await applyFillWithAutoBind(comp, p, hints);
+  await applyStrokeWithAutoBind(comp, p, hints);
   if (cornerRadius !== undefined) comp.cornerRadius = cornerRadius;
 
   const parent = await appendToParent(comp, parentId);

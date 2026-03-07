@@ -168,8 +168,14 @@ export async function setTextPropertiesSingle(p: any, ctx: TextPropsContext) {
   }
   if (p.fontColor) {
     const fc = coerceColor(p.fontColor) ?? { r: 0, g: 0, b: 0, a: 1 };
-    const suggestion = await suggestStyleForColor(fc, "fontColorStyleName");
-    if (suggestion) warnings.push(suggestion);
+    const match = await suggestStyleForColor(fc, "fontColorStyleName");
+    if (match.variable) {
+      const bound = figma.variables.setBoundVariableForPaint(node.fills[0] as SolidPaint, "color", match.variable);
+      node.fills = [bound];
+    } else if (match.paintStyleId) {
+      try { await (node as any).setFillStyleIdAsync(match.paintStyleId); } catch {}
+    }
+    warnings.push(match.hint);
   }
 
   const result: any = {};

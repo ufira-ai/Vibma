@@ -1,15 +1,6 @@
-import { batchHandler, appendToParent, solidPaint, styleNotFoundHint, suggestStyleForColor, findVariableById } from "./helpers";
+import { batchHandler, appendToParent, solidPaint, applyFillWithAutoBind, applyStrokeWithAutoBind, findVariableById, findColorVariableByName } from "./helpers";
 
 // ─── Figma Handlers ──────────────────────────────────────────────
-
-async function resolvePaintStyle(name: string): Promise<{ id: string | null, available: string[] }> {
-  const styles = await figma.getLocalPaintStylesAsync();
-  const available = styles.map(s => s.name);
-  const exact = styles.find(s => s.name === name);
-  if (exact) return { id: exact.id, available };
-  const fuzzy = styles.find(s => s.name.toLowerCase().includes(name.toLowerCase()));
-  return { id: fuzzy?.id ?? null, available };
-}
 
 async function createSingleSection(p: any) {
   const section = figma.createSection();
@@ -20,26 +11,7 @@ async function createSingleSection(p: any) {
   section.fills = [];
 
   const hints: string[] = [];
-  if (p.fillVariableId) {
-    const v = await findVariableById(p.fillVariableId);
-    if (v) {
-      section.fills = [solidPaint(p.fillColor || { r: 0, g: 0, b: 0 })];
-      const bound = figma.variables.setBoundVariableForPaint(section.fills[0] as SolidPaint, "color", v);
-      section.fills = [bound];
-    } else {
-      hints.push(`fillVariableId '${p.fillVariableId}' not found.`);
-    }
-  } else if (p.fillStyleName) {
-    const { id: sid, available } = await resolvePaintStyle(p.fillStyleName);
-    if (sid) {
-      try { await (section as any).setFillStyleIdAsync(sid); }
-      catch (e: any) { hints.push(`fillStyleName '${p.fillStyleName}' matched but failed to apply: ${e.message}`); }
-    } else hints.push(styleNotFoundHint("fillStyleName", p.fillStyleName, available));
-  } else if (p.fillColor) {
-    section.fills = [solidPaint(p.fillColor)];
-    const suggestion = await suggestStyleForColor(p.fillColor, "fillStyleName");
-    if (suggestion) hints.push(suggestion);
-  }
+  await applyFillWithAutoBind(section, p, hints);
 
   await appendToParent(section, p.parentId);
   const result: any = { id: section.id };
@@ -55,7 +27,7 @@ async function createSingleSvg(p: any) {
   await appendToParent(node, p.parentId);
 
   // Bind fill style/variable to all vector children
-  if (p.fillStyleName || p.fillVariableId) {
+  if (p.fillStyleName || p.fillVariableId || p.fillVariableName) {
     const vectors: SceneNode[] = [];
     const collect = (n: SceneNode) => {
       if (n.type === "VECTOR" || n.type === "BOOLEAN_OPERATION" || n.type === "STAR" || n.type === "LINE" || n.type === "ELLIPSE" || n.type === "POLYGON") vectors.push(n);
@@ -63,56 +35,35 @@ async function createSingleSvg(p: any) {
     };
     collect(node);
 
+    // Resolve variable: by ID > by name
+    let variable: any = null;
     if (p.fillVariableId) {
-      const v = await findVariableById(p.fillVariableId);
-      if (v) {
-        for (const vec of vectors) {
-          if ("fills" in vec && (vec as any).fills.length > 0) {
-            const paints = (vec as any).fills.slice();
-            paints[0] = figma.variables.setBoundVariableForPaint(paints[0], "color", v);
-            (vec as any).fills = paints;
-          }
+      variable = await findVariableById(p.fillVariableId);
+    } else if (p.fillVariableName) {
+      variable = await findColorVariableByName(p.fillVariableName);
+    }
+
+    if (variable) {
+      for (const vec of vectors) {
+        if ("fills" in vec && (vec as any).fills.length > 0) {
+          const paints = (vec as any).fills.slice();
+          paints[0] = figma.variables.setBoundVariableForPaint(paints[0], "color", variable);
+          (vec as any).fills = paints;
         }
       }
     } else if (p.fillStyleName) {
-      const { id: sid } = await resolvePaintStyle(p.fillStyleName);
-      if (sid) {
+      const styles = await figma.getLocalPaintStylesAsync();
+      const exact = styles.find(s => s.name === p.fillStyleName);
+      const match = exact || styles.find(s => s.name.toLowerCase().includes(p.fillStyleName.toLowerCase()));
+      if (match) {
         for (const vec of vectors) {
-          try { await (vec as any).setFillStyleIdAsync(sid); } catch {}
+          try { await (vec as any).setFillStyleIdAsync(match.id); } catch {}
         }
       }
     }
   }
 
   return { id: node.id };
-}
-
-// ─── Shape helpers ──────────────────────────────────────────────
-
-async function applyShapeFill(node: any, p: any, hints: string[]) {
-  if (p.fillVariableId) {
-    const v = await findVariableById(p.fillVariableId);
-    if (v) {
-      node.fills = [solidPaint(p.fillColor || { r: 0, g: 0, b: 0 })];
-      const bound = figma.variables.setBoundVariableForPaint(node.fills[0], "color", v);
-      node.fills = [bound];
-    } else hints.push(`fillVariableId '${p.fillVariableId}' not found.`);
-  } else if (p.fillStyleName) {
-    const { id: sid, available } = await resolvePaintStyle(p.fillStyleName);
-    if (sid) {
-      try { await node.setFillStyleIdAsync(sid); }
-      catch (e: any) { hints.push(`fillStyleName '${p.fillStyleName}' failed: ${e.message}`); }
-    } else hints.push(styleNotFoundHint("fillStyleName", p.fillStyleName, available));
-  } else if (p.fillColor) {
-    node.fills = [solidPaint(p.fillColor)];
-    const suggestion = await suggestStyleForColor(p.fillColor, "fillStyleName");
-    if (suggestion) hints.push(suggestion);
-  }
-}
-
-async function applyShapeStroke(node: any, p: any) {
-  if (p.strokeColor) node.strokes = [solidPaint(p.strokeColor)];
-  if (p.strokeWeight !== undefined) node.strokeWeight = p.strokeWeight;
 }
 
 // ─── Rectangle ──────────────────────────────────────────────────
@@ -127,8 +78,8 @@ async function createSingleRectangle(p: any) {
   if (p.opacity !== undefined) rect.opacity = p.opacity;
 
   const hints: string[] = [];
-  await applyShapeFill(rect, p, hints);
-  await applyShapeStroke(rect, p);
+  await applyFillWithAutoBind(rect, p, hints);
+  await applyStrokeWithAutoBind(rect, p, hints);
   await appendToParent(rect, p.parentId);
 
   const result: any = { id: rect.id };
@@ -147,8 +98,8 @@ async function createSingleEllipse(p: any) {
   if (p.opacity !== undefined) ellipse.opacity = p.opacity;
 
   const hints: string[] = [];
-  await applyShapeFill(ellipse, p, hints);
-  await applyShapeStroke(ellipse, p);
+  await applyFillWithAutoBind(ellipse, p, hints);
+  await applyStrokeWithAutoBind(ellipse, p, hints);
   await appendToParent(ellipse, p.parentId);
 
   const result: any = { id: ellipse.id };
@@ -167,12 +118,19 @@ async function createSingleLine(p: any) {
   if (p.rotation !== undefined) line.rotation = p.rotation;
   if (p.opacity !== undefined) line.opacity = p.opacity;
 
-  // Lines use strokes not fills
-  line.strokes = [solidPaint(p.strokeColor || { r: 0, g: 0, b: 0 })];
+  // Lines use strokes not fills — default to black if no stroke specified
+  const hints: string[] = [];
+  if (!p.strokeColor && !p.strokeVariableId && !p.strokeVariableName && !p.strokeStyleName) {
+    line.strokes = [solidPaint({ r: 0, g: 0, b: 0 })];
+  } else {
+    await applyStrokeWithAutoBind(line, p, hints);
+  }
   if (p.strokeWeight !== undefined) line.strokeWeight = p.strokeWeight;
 
   await appendToParent(line, p.parentId);
-  return { id: line.id };
+  const result: any = { id: line.id };
+  if (hints.length > 0) result.warning = hints.join(" ");
+  return result;
 }
 
 // ─── Group ──────────────────────────────────────────────────────
