@@ -12,14 +12,15 @@ import ParameterTable from "../../../../components/ParameterTable.astro";
 
 ```ts
 // Variables are design tokens — reusable values (colors, numbers, strings, booleans) that can be bound to node properties.
+// Variables are identified by name (unique within a collection). No IDs needed — use name to get/update/delete.
 // Workflow: create a variable_collection first → then create variables inside it → bind to nodes via frames/text update PatchItem.bindings.
 // Each variable has values per mode (e.g. Light/Dark). Use modeId when setting values for a specific mode.
 // valuesByMode keys are mode IDs (from the collection), values match the variable's resolvedType.
-// Aliases: a variable can reference another variable via {type: "VARIABLE_ALIAS", id: "VariableID:..."}.
+// Aliases: a variable can reference another variable by name via {type: "VARIABLE_ALIAS", name: "other/variable"}.
 // scopes: restrict where variables appear in the UI. Values: "ALL_SCOPES", "TEXT_CONTENT", "WIDTH_HEIGHT", "GAP",
 //   "CORNER_RADIUS", "ALL_FILLS", "FRAME_FILL", "SHAPE_FILL", "TEXT_FILL", "STROKE_COLOR", "STROKE_FLOAT",
 //   "EFFECT_FLOAT", "EFFECT_COLOR", "OPACITY", "FONT_FAMILY", "FONT_STYLE", "FONT_WEIGHT", "FONT_SIZE", "LINE_HEIGHT", "LETTER_SPACING", "PARAGRAPH_SPACING", "PARAGRAPH_INDENT"
-interface Variable { id: string; name: string; resolvedType: "COLOR"|"FLOAT"|"STRING"|"BOOLEAN"; variableCollectionId: string; valuesByMode: Record<string, number | boolean | string | Color | {type: "VARIABLE_ALIAS", id: string}> }
+interface Variable { name: string; resolvedType: "COLOR"|"FLOAT"|"STRING"|"BOOLEAN"; collectionName: string; valuesByMode: Record<string, number | boolean | string | Color | {type: "VARIABLE_ALIAS", name: string}> }
 ```
 
 </details>
@@ -30,21 +31,21 @@ interface Variable { id: string; name: string; resolvedType: "COLOR"|"FLOAT"|"ST
 
 List variables with optional filters
 
-<ParameterTable schema={{"type":"object","properties":{"type":{"description":"Filter by variable type","type":"string","enum":["COLOR","FLOAT","STRING","BOOLEAN"]},"collectionId":{"description":"Filter by collection ID","type":"string"},"fields":{"description":"Property whitelist. Identity fields (id, name, type) always included. Omit for stubs on list, full on get. Pass [\"*\"] for all.","type":"array","items":{"type":"string"}},"offset":{"description":"Skip N items for pagination (default 0) (default: 0)","type":"number"},"limit":{"description":"Max items per page (default 100) (default: 100)","type":"number"}}}} />
+<ParameterTable schema={{"type":"object","properties":{"type":{"description":"Filter by variable type","type":"string","enum":["COLOR","FLOAT","STRING","BOOLEAN"]},"collectionName":{"description":"Filter by collection name","type":"string"},"fields":{"description":"Property whitelist. Identity fields (id, name, type) always included. Omit for stubs on list, full on get. Pass [\"*\"] for all.","type":"array","items":{"type":"string"}},"offset":{"description":"Skip N items for pagination (default 0) (default: 0)","type":"number"},"limit":{"description":"Max items per page (default 100) (default: 100)","type":"number"}}}} />
 
 **Response**
 
-<ParameterTable schema={{"type":"object","properties":{"totalCount":{"type":"number","description":"Total matching items"},"returned":{"type":"number","description":"Items in this page"},"offset":{"type":"number"},"limit":{"type":"number"},"items":{"type":"array","items":{"type":"object","properties":{"id":{"type":"string"},"name":{"type":"string"},"resolvedType":{"type":"string"},"variableCollectionId":{"type":"string"}}}}},"required":["totalCount","items"]}} fieldLabel="Field" hideRequired />
+<ParameterTable schema={{"type":"object","properties":{"totalCount":{"type":"number","description":"Total matching items"},"returned":{"type":"number","description":"Items in this page"},"offset":{"type":"number"},"limit":{"type":"number"},"items":{"type":"array","items":{"type":"object","properties":{"name":{"type":"string"},"resolvedType":{"type":"string"},"collectionName":{"type":"string"}}}}},"required":["totalCount","items"]}} fieldLabel="Field" hideRequired />
 
 ## get
 
-Get variable detail
+Get variable detail by name
 
-<ParameterTable schema={{"type":"object","properties":{"id":{"description":"Variable ID (e.g. VariableID:1:6)","type":"string"},"fields":{"description":"Property whitelist. Identity fields (id, name, type) always included. Omit for stubs on list, full on get. Pass [\"*\"] for all.","type":"array","items":{"type":"string"}}},"required":["id"]}} />
+<ParameterTable schema={{"type":"object","properties":{"name":{"description":"Variable name (unique within collection)","type":"string"},"collectionName":{"description":"Collection name (required if same variable name exists in multiple collections)","type":"string"},"fields":{"description":"Property whitelist. Identity fields (id, name, type) always included. Omit for stubs on list, full on get. Pass [\"*\"] for all.","type":"array","items":{"type":"string"}}},"required":["name"]}} />
 
 **Response**
 
-<ParameterTable schema={{"type":"object","properties":{"id":{"type":"string"},"name":{"type":"string"},"resolvedType":{"type":"string"},"variableCollectionId":{"type":"string"},"valuesByMode":{"type":"object"}}}} fieldLabel="Field" hideRequired />
+<ParameterTable schema={{"type":"object","properties":{"name":{"type":"string"},"resolvedType":{"type":"string"},"collectionName":{"type":"string"},"valuesByMode":{"type":"object"}}}} fieldLabel="Field" hideRequired />
 
 ## create
 
@@ -52,11 +53,11 @@ Get variable detail
 
 Create variables
 
-<ParameterTable schema={{"type":"object","properties":{"items":{"description":"Array of {collectionId, name, resolvedType, value?, modeId?, description?, scopes?}","type":"array","items":{"type":"object","properties":{"collectionId":{"description":"Variable collection ID","type":"string"},"name":{"description":"Variable name","type":"string"},"resolvedType":{"description":"Variable type","type":"string","enum":["COLOR","FLOAT","STRING","BOOLEAN"]},"value":{"description":"Initial value (uses default mode unless modeId specified)","type":"any"},"modeId":{"description":"Mode ID for initial value (default: collection's default mode)","type":"string"},"description":{"description":"Variable description","type":"string"},"scopes":{"description":"UI scopes e.g. [\"ALL_SCOPES\"]","type":"array","items":{"type":"string"}}},"required":["collectionId","name","resolvedType"]}}},"required":["items"]}} />
+<ParameterTable schema={{"type":"object","properties":{"items":{"description":"Array of {collectionName, name, resolvedType, value?, modeId?, description?, scopes?}","type":"array","items":{"type":"object","properties":{"collectionName":{"description":"Variable collection name","type":"string"},"name":{"description":"Variable name","type":"string"},"resolvedType":{"description":"Variable type","type":"string","enum":["COLOR","FLOAT","STRING","BOOLEAN"]},"value":{"description":"Initial value (uses default mode unless modeId specified)","type":"any"},"modeId":{"description":"Mode ID for initial value (default: collection's default mode)","type":"string"},"description":{"description":"Variable description","type":"string"},"scopes":{"description":"UI scopes e.g. [\"ALL_SCOPES\"]","type":"array","items":{"type":"string"}}},"required":["collectionName","name","resolvedType"]}}},"required":["items"]}} />
 
 **Response**
 
-<ParameterTable schema={{"type":"object","properties":{"results":{"type":"array","description":"One entry per input item","items":{"type":"object","properties":{"id":{"type":"string"}}}}}}} fieldLabel="Field" hideRequired />
+<ParameterTable schema={{"type":"object","properties":{"results":{"type":"array","description":"Array of \"ok\" per item","items":{"type":"string"}}}}} fieldLabel="Field" hideRequired />
 
 ## update
 
@@ -64,7 +65,7 @@ Create variables
 
 Update variable metadata and/or set values per mode
 
-<ParameterTable schema={{"type":"object","properties":{"items":{"description":"Array of {id, name?, description?, scopes?, modeId?, value?}","type":"array","items":{"type":"object","properties":{"id":{"description":"Variable ID","type":"string"},"name":{"description":"Rename the variable","type":"string"},"description":{"description":"Set description","type":"string"},"scopes":{"description":"UI scopes e.g. [\"ALL_SCOPES\"] or [\"WIDTH_HEIGHT\",\"CORNER_RADIUS\"]","type":"array","items":{"type":"string"}},"modeId":{"description":"Mode ID (required when setting value)","type":"string"},"value":{"type":"any","description":"number | boolean | Color | {type:VARIABLE_ALIAS, id}"}},"required":["id"]}}},"required":["items"]}} />
+<ParameterTable schema={{"type":"object","properties":{"items":{"description":"Array of {name, collectionName?, rename?, description?, scopes?, modeId?, value?}","type":"array","items":{"type":"object","properties":{"name":{"description":"Variable name","type":"string"},"collectionName":{"description":"Collection name (required if same variable name exists in multiple collections)","type":"string"},"rename":{"description":"Rename the variable","type":"string"},"description":{"description":"Set description","type":"string"},"scopes":{"description":"UI scopes e.g. [\"ALL_SCOPES\"] or [\"WIDTH_HEIGHT\",\"CORNER_RADIUS\"]","type":"array","items":{"type":"string"}},"modeId":{"description":"Mode ID (required when setting value)","type":"string"},"value":{"type":"any","description":"number | boolean | Color | {type:VARIABLE_ALIAS, id}"}},"required":["name"]}}},"required":["items"]}} />
 
 **Response**
 
@@ -76,7 +77,7 @@ Update variable metadata and/or set values per mode
 
 Delete variables
 
-<ParameterTable schema={{"type":"object","properties":{"id":{"description":"Single variable ID","type":"string"},"items":{"description":"Batch: [{id}, ...]","type":"array","items":{"type":"object","properties":{"id":{"type":"string"}},"required":["id"]}}}}} />
+<ParameterTable schema={{"type":"object","properties":{"name":{"description":"Variable name","type":"string"},"collectionName":{"description":"Collection name (required if same variable name exists in multiple collections)","type":"string"},"items":{"description":"Batch: [{name, collectionName?}, ...]","type":"array","items":{"type":"object","properties":{"name":{"type":"string"},"collectionName":{"description":"Collection name for disambiguation","type":"string"}},"required":["name"]}}}}} />
 
 **Response**
 

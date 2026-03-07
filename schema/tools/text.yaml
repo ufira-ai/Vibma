@@ -11,7 +11,7 @@ notes: |
   // fontStyle vs fontWeight: fontStyle is a named variant like "Bold", "Italic", "SemiBold". When set, fontWeight is ignored.
   //   Use fonts.list to find available fontFamily + fontStyle combinations.
   // scan: finds all text nodes in a subtree. path (when includePath:true) shows the layer hierarchy e.g. "Frame > Card > Label".
-  // Prefer textStyleName for typography, fontColorStyleName/fontColorVariableId for color.
+  // Prefer textStyleName for typography, fontColorVariableName/fontColorStyleName for color.
   interface TextItem {
     text: string; name?: string;
     x?: number; y?: number; parentId?: string;
@@ -19,9 +19,9 @@ notes: |
     fontStyle?: string;  // e.g. "Bold", "Italic" — overrides fontWeight
     fontSize?: number;   // default: 14
     fontWeight?: number; // 100-900, default: 400. Ignored when fontStyle is set.
-    fontColor?: Color;
-    fontColorVariableId?: string; // bind color variable — overrides fontColor
-    fontColorStyleName?: string;  // apply paint style — overrides fontColor
+    fontColor?: Color;              // auto-binds to matching variable/style
+    fontColorVariableName?: string; // bind color variable by name e.g. 'text/primary'
+    fontColorStyleName?: string;   // apply paint style — overrides fontColor
     textStyleId?: string;    // apply text style — overrides fontSize/fontWeight
     textStyleName?: string;  // text style by name (case-insensitive)
     textAlignHorizontal?: "LEFT" | "CENTER" | "RIGHT" | "JUSTIFIED";

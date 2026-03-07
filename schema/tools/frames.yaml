@@ -14,6 +14,8 @@ notes: |
   // Shape primitives: rectangle, ellipse, line — for decorative/visual elements (not containers).
   // group: wraps existing nodes into a Group. boolean_operation: UNION/SUBTRACT/INTERSECT/EXCLUDE combines shapes.
   // SVG create: pass raw SVG markup string (e.g. "<svg>...</svg>") — Figma converts it to vector nodes.
+  // Colors: fillVariableName/strokeVariableName bind by name (e.g. "bg/primary") — preferred over raw IDs.
+  //   fillColor auto-binds: if a matching color variable or paint style exists, it is bound automatically.
   // Inherits get, list, update, delete, clone, reparent from node base methods.
 
 methods:
@@ -31,10 +33,12 @@ methods:
           y: { $ref: yPos }
           width: { type: number, coerce: true, optional: true, description: "Width in px (default: 100)" }
           height: { type: number, coerce: true, optional: true, description: "Height in px (default: 100)" }
-          fillColor: { $ref: color, optional: true, description: Background fill color }
+          fillColor: { $ref: color, optional: true, description: "Background fill color (auto-binds to matching variable/style)" }
           fillStyleName: { type: string, optional: true, description: Paint style name for fill }
-          fillVariableId: { type: string, optional: true, description: Variable ID for fill }
-          strokeColor: { $ref: color, optional: true }
+          fillVariableName: { type: string, optional: true, description: "Color variable by name e.g. 'bg/primary'" }
+          strokeColor: { $ref: color, optional: true, description: "Stroke color (auto-binds to matching variable/style)" }
+          strokeStyleName: { type: string, optional: true, description: Paint style name for stroke }
+          strokeVariableName: { type: string, optional: true, description: "Color variable by name e.g. 'border/default'" }
           strokeWeight: { type: number, coerce: true, optional: true }
           strokeTopWeight: { type: number, coerce: true, optional: true, description: "Top stroke weight (per-side)" }
           strokeBottomWeight: { type: number, coerce: true, optional: true, description: "Bottom stroke weight (per-side)" }
@@ -109,8 +113,9 @@ methods:
           maxWidth: { type: number, coerce: true, optional: true, description: "Max width for responsive auto-layout" }
           minHeight: { type: number, coerce: true, optional: true, description: "Min height for responsive auto-layout" }
           maxHeight: { type: number, coerce: true, optional: true, description: "Max height for responsive auto-layout" }
-          fillColor: { $ref: color, optional: true }
-          fillStyleName: { type: string, optional: true }
+          fillColor: { $ref: color, optional: true, description: "Background fill color (auto-binds to matching variable/style)" }
+          fillStyleName: { type: string, optional: true, description: Paint style name for fill }
+          fillVariableName: { type: string, optional: true, description: "Color variable by name e.g. 'bg/primary'" }
           cornerRadius: { type: number, coerce: true, optional: true }
           clipsContent: { type: boolean, coerce: true, optional: true }
       section:
@@ -122,9 +127,9 @@ methods:
           y: { $ref: yPos }
           width: { type: number, coerce: true, optional: true, description: "Width (default: 500)" }
           height: { type: number, coerce: true, optional: true, description: "Height (default: 500)" }
-          fillColor: { $ref: color, optional: true, description: Background fill color }
+          fillColor: { $ref: color, optional: true, description: "Background fill color (auto-binds to matching variable/style)" }
           fillStyleName: { type: string, optional: true, description: Paint style name for fill }
-          fillVariableId: { type: string, optional: true, description: Variable ID for fill }
+          fillVariableName: { type: string, optional: true, description: "Color variable by name e.g. 'bg/primary'" }
       rectangle:
         description: Rectangle shape node
         params:
@@ -134,10 +139,11 @@ methods:
           y: { $ref: yPos }
           width: { type: number, coerce: true, optional: true, description: "Width in px (default: 100)" }
           height: { type: number, coerce: true, optional: true, description: "Height in px (default: 100)" }
-          fillColor: { $ref: color, optional: true, description: Fill color }
+          fillColor: { $ref: color, optional: true, description: "Fill color (auto-binds to matching variable/style)" }
           fillStyleName: { type: string, optional: true, description: Paint style name for fill }
-          fillVariableId: { type: string, optional: true, description: Variable ID for fill }
-          strokeColor: { $ref: color, optional: true }
+          fillVariableName: { type: string, optional: true, description: "Color variable by name e.g. 'bg/primary'" }
+          strokeColor: { $ref: color, optional: true, description: "Stroke color (auto-binds to matching variable/style)" }
+          strokeVariableName: { type: string, optional: true, description: "Color variable by name for stroke" }
           strokeWeight: { type: number, coerce: true, optional: true }
           cornerRadius: { type: number, coerce: true, optional: true }
           opacity: { type: number, coerce: true, optional: true }
@@ -150,10 +156,11 @@ methods:
           y: { $ref: yPos }
           width: { type: number, coerce: true, optional: true, description: "Width in px (default: 100)" }
           height: { type: number, coerce: true, optional: true, description: "Height in px (default: 100, same as width for circle)" }
-          fillColor: { $ref: color, optional: true, description: Fill color }
+          fillColor: { $ref: color, optional: true, description: "Fill color (auto-binds to matching variable/style)" }
           fillStyleName: { type: string, optional: true, description: Paint style name for fill }
-          fillVariableId: { type: string, optional: true, description: Variable ID for fill }
-          strokeColor: { $ref: color, optional: true }
+          fillVariableName: { type: string, optional: true, description: "Color variable by name e.g. 'bg/primary'" }
+          strokeColor: { $ref: color, optional: true, description: "Stroke color (auto-binds to matching variable/style)" }
+          strokeVariableName: { type: string, optional: true, description: "Color variable by name for stroke" }
           strokeWeight: { type: number, coerce: true, optional: true }
           opacity: { type: number, coerce: true, optional: true }
       line:
@@ -165,7 +172,8 @@ methods:
           y: { $ref: yPos }
           length: { type: number, coerce: true, optional: true, description: "Line length in px (default: 100)" }
           rotation: { type: number, coerce: true, optional: true, description: "Rotation in degrees (default: 0 = horizontal)" }
-          strokeColor: { $ref: color, optional: true, description: "Line color (default: black)" }
+          strokeColor: { $ref: color, optional: true, description: "Line color (default: black, auto-binds to matching variable/style)" }
+          strokeVariableName: { type: string, optional: true, description: "Color variable by name for stroke" }
           strokeWeight: { type: number, coerce: true, optional: true, description: "Line thickness (default: 1)" }
           opacity: { type: number, coerce: true, optional: true }
       group:
@@ -200,7 +208,7 @@ methods:
           x: { $ref: xPos }
           y: { $ref: yPos }
           fillStyleName: { type: string, optional: true, description: "Paint style to apply to vector fills" }
-          fillVariableId: { type: string, optional: true, description: "Variable ID to bind to vector fills" }
+          fillVariableName: { type: string, optional: true, description: "Color variable by name for vector fills" }
     response:
       type: batch
       item: { id: { type: string } }

@@ -1,28 +1,15 @@
-import { batchHandler, appendToParent, solidPaint, styleNotFoundHint, suggestStyleForColor, findVariableById } from "./helpers";
+import { batchHandler, appendToParent, applyFillWithAutoBind, applyStrokeWithAutoBind } from "./helpers";
 import { looksInteractive } from "@ufira/vibma/utils/wcag";
-
-// ─── Figma Handlers ──────────────────────────────────────────────
-
-async function resolvePaintStyle(name: string): Promise<{ id: string | null, available: string[] }> {
-  const styles = await figma.getLocalPaintStylesAsync();
-  const available = styles.map(s => s.name);
-  const exact = styles.find(s => s.name === name);
-  if (exact) return { id: exact.id, available };
-  const fuzzy = styles.find(s => s.name.toLowerCase().includes(name.toLowerCase()));
-  return { id: fuzzy?.id ?? null, available };
-}
 
 async function createSingleFrame(p: any) {
   const {
     x = 0, y = 0, width = 100, height = 100, name = "Frame", parentId,
-    fillColor, strokeColor, strokeWeight, cornerRadius,
+    cornerRadius,
     layoutMode = "NONE", layoutWrap = "NO_WRAP",
     paddingTop = 0, paddingRight = 0, paddingBottom = 0, paddingLeft = 0,
     primaryAxisAlignItems = "MIN", counterAxisAlignItems = "MIN",
     layoutSizingHorizontal = "FIXED", layoutSizingVertical = "FIXED",
     itemSpacing = 0,
-    fillStyleName, strokeStyleName,
-    fillVariableId, strokeVariableId,
   } = p;
 
   const frame = figma.createFrame();
@@ -53,60 +40,10 @@ async function createSingleFrame(p: any) {
     }
   }
 
-  // Fill: variableId > styleName > direct color
+  // Fill & stroke: shared helpers handle variableName > variableId > styleName > color (with auto-bind)
   const hints: string[] = [];
-  let fillTokenized = false;
-  if (fillVariableId) {
-    const v = await findVariableById(fillVariableId);
-    if (v) {
-      frame.fills = [solidPaint(fillColor || { r: 0, g: 0, b: 0 })];
-      const bound = figma.variables.setBoundVariableForPaint(frame.fills[0] as SolidPaint, "color", v);
-      frame.fills = [bound];
-      fillTokenized = true;
-    } else {
-      hints.push(`fillVariableId '${fillVariableId}' not found.`);
-    }
-  } else if (fillStyleName) {
-    const { id: sid, available } = await resolvePaintStyle(fillStyleName);
-    if (sid) {
-      try { await (frame as any).setFillStyleIdAsync(sid); fillTokenized = true; }
-      catch (e: any) { hints.push(`fillStyleName '${fillStyleName}' matched but failed to apply: ${e.message}`); }
-    } else hints.push(styleNotFoundHint("fillStyleName", fillStyleName, available));
-  } else if (fillColor) {
-    frame.fills = [solidPaint(fillColor)];
-    const suggestion = await suggestStyleForColor(fillColor, "fillStyleName");
-    if (suggestion) hints.push(suggestion);
-  }
-
-  // Stroke: variableId > styleName > direct color
-  let strokeTokenized = false;
-  if (strokeVariableId) {
-    const v = await findVariableById(strokeVariableId);
-    if (v) {
-      frame.strokes = [solidPaint(strokeColor || { r: 0, g: 0, b: 0 })];
-      const bound = figma.variables.setBoundVariableForPaint(frame.strokes[0] as SolidPaint, "color", v);
-      frame.strokes = [bound];
-      strokeTokenized = true;
-    } else {
-      hints.push(`strokeVariableId '${strokeVariableId}' not found.`);
-    }
-  } else if (strokeStyleName) {
-    const { id: sid, available } = await resolvePaintStyle(strokeStyleName);
-    if (sid) {
-      try { await (frame as any).setStrokeStyleIdAsync(sid); strokeTokenized = true; }
-      catch (e: any) { hints.push(`strokeStyleName '${strokeStyleName}' matched but failed to apply: ${e.message}`); }
-    } else hints.push(styleNotFoundHint("strokeStyleName", strokeStyleName, available));
-  } else if (strokeColor) {
-    frame.strokes = [solidPaint(strokeColor)];
-    const suggestion = await suggestStyleForColor(strokeColor, "strokeStyleName");
-    if (suggestion) hints.push(suggestion);
-  }
-  if (strokeWeight !== undefined) frame.strokeWeight = strokeWeight;
-  // Per-side stroke weights
-  if (p.strokeTopWeight !== undefined) (frame as any).strokeTopWeight = p.strokeTopWeight;
-  if (p.strokeBottomWeight !== undefined) (frame as any).strokeBottomWeight = p.strokeBottomWeight;
-  if (p.strokeLeftWeight !== undefined) (frame as any).strokeLeftWeight = p.strokeLeftWeight;
-  if (p.strokeRightWeight !== undefined) (frame as any).strokeRightWeight = p.strokeRightWeight;
+  await applyFillWithAutoBind(frame, p, hints);
+  await applyStrokeWithAutoBind(frame, p, hints);
 
   // Min/max dimensions (responsive auto-layout constraints)
   if (p.minWidth !== undefined) (frame as any).minWidth = p.minWidth;

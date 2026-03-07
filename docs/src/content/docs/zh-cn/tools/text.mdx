@@ -54,8 +54,8 @@ interface PatchItem {
   minWidth?: number; maxWidth?: number; // responsive auto-layout constraints
   minHeight?: number; maxHeight?: number;
   opacity?: number; // 0-1
-  fill?: { color?: Color; styleName?: string; variableId?: string; clear?: boolean };
-  stroke?: { color?: Color; weight?: number; styleName?: string; variableId?: string; strokeTopWeight?: number; strokeBottomWeight?: number; strokeLeftWeight?: number; strokeRightWeight?: number };
+  fill?: { color?: Color; styleName?: string; variableName?: string; clear?: boolean };
+  stroke?: { color?: Color; weight?: number; styleName?: string; variableName?: string; strokeTopWeight?: number; strokeBottomWeight?: number; strokeLeftWeight?: number; strokeRightWeight?: number };
   cornerRadius?: { radius: number; corners?: [boolean, boolean, boolean, boolean] }; // [TL, TR, BR, BL]
   effects?: { effects?: Effect[]; styleName?: string };
   layout?: {
@@ -76,7 +76,7 @@ interface PatchItem {
     textAutoResize?: "NONE" | "WIDTH_AND_HEIGHT" | "HEIGHT" | "TRUNCATE";
   };
   constraints?: { horizontal: "MIN" | "CENTER" | "MAX" | "STRETCH" | "SCALE"; vertical: "MIN" | "CENTER" | "MAX" | "STRETCH" | "SCALE" };
-  bindings?: { field: string; variableId: string }[]; // bind variables: field e.g. "fills/0/color", "opacity"
+  bindings?: { field: string; variableName: string }[]; // bind variables by name. field e.g. "fills/0/color", "opacity"
   explicitMode?: { collectionId: string; modeId: string }; // pin variable mode on this node
   properties?: Record<string, unknown>; // direct Figma API props (escape hatch)
 }
@@ -86,7 +86,7 @@ interface PatchItem {
 // fontStyle vs fontWeight: fontStyle is a named variant like "Bold", "Italic", "SemiBold". When set, fontWeight is ignored.
 //   Use fonts.list to find available fontFamily + fontStyle combinations.
 // scan: finds all text nodes in a subtree. path (when includePath:true) shows the layer hierarchy e.g. "Frame > Card > Label".
-// Prefer textStyleName for typography, fontColorStyleName/fontColorVariableId for color.
+// Prefer textStyleName for typography, fontColorVariableName/fontColorStyleName for color.
 interface TextItem {
   text: string; name?: string;
   x?: number; y?: number; parentId?: string;
@@ -94,9 +94,9 @@ interface TextItem {
   fontStyle?: string;  // e.g. "Bold", "Italic" — overrides fontWeight
   fontSize?: number;   // default: 14
   fontWeight?: number; // 100-900, default: 400. Ignored when fontStyle is set.
-  fontColor?: Color;
-  fontColorVariableId?: string; // bind color variable — overrides fontColor
-  fontColorStyleName?: string;  // apply paint style — overrides fontColor
+  fontColor?: Color;              // auto-binds to matching variable/style
+  fontColorVariableName?: string; // bind color variable by name e.g. 'text/primary'
+  fontColorStyleName?: string;   // apply paint style — overrides fontColor
   textStyleId?: string;    // apply text style — overrides fontSize/fontWeight
   textStyleName?: string;  // text style by name (case-insensitive)
   textAlignHorizontal?: "LEFT" | "CENTER" | "RIGHT" | "JUSTIFIED";

@@ -12,8 +12,8 @@ notes: |
   // Workflow: create component → add properties via update → create instances via instances.create.
   interface ComponentItem {
     name: string; x?: number; y?: number; width?: number; height?: number; parentId?: string;
-    fillColor?: Color; fillStyleName?: string; fillVariableId?: string;
-    strokeColor?: Color; strokeStyleName?: string; strokeVariableId?: string;
+    fillColor?: Color; fillStyleName?: string; fillVariableName?: string;
+    strokeColor?: Color; strokeStyleName?: string; strokeVariableName?: string;
     strokeWeight?: number; cornerRadius?: number;
     layoutMode?: "NONE"|"HORIZONTAL"|"VERTICAL"; layoutWrap?: "NO_WRAP"|"WRAP";
     paddingTop?: number; paddingRight?: number; paddingBottom?: number; paddingLeft?: number;
@@ -88,12 +88,12 @@ methods:
           y: { $ref: yPos }
           width: { type: number, coerce: true, optional: true, description: "Width (default: 100)" }
           height: { type: number, coerce: true, optional: true, description: "Height (default: 100)" }
-          fillColor: { $ref: color, optional: true, description: Fill color }
+          fillColor: { $ref: color, optional: true, description: "Fill color (auto-binds to matching variable/style)" }
           fillStyleName: { type: string, optional: true, description: "Paint style name for fill" }
-          fillVariableId: { type: string, optional: true, description: "Variable ID for fill" }
-          strokeColor: { $ref: color, optional: true, description: Stroke color }
+          fillVariableName: { type: string, optional: true, description: "Color variable by name e.g. 'bg/primary'" }
+          strokeColor: { $ref: color, optional: true, description: "Stroke color (auto-binds to matching variable/style)" }
           strokeStyleName: { type: string, optional: true, description: "Paint style name for stroke" }
-          strokeVariableId: { type: string, optional: true, description: "Variable ID for stroke" }
+          strokeVariableName: { type: string, optional: true, description: "Color variable by name for stroke" }
           strokeWeight: { type: number, coerce: true, optional: true, description: "Stroke weight (default: 1)" }
           cornerRadius: { type: number, coerce: true, optional: true }
           layoutMode: { type: enum, values: [NONE, HORIZONTAL, VERTICAL], optional: true, description: "Layout direction (default: NONE)" }

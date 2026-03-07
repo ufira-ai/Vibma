@@ -17,7 +17,7 @@ import ParameterTable from "../../../../components/ParameterTable.astro";
 // Deleting a collection cascades — all variables inside it are also deleted.
 // The default mode always exists and cannot be removed. Use add_mode/remove_mode for additional modes.
 // Collection IDs look like "VariableCollectionId:0:1". Mode IDs look like "0:0" or "1:0".
-interface Collection { id: string; name: string; modes: {modeId: string, name: string}[]; defaultModeId: string; variableIds: string[] }
+interface Collection { id: string; name: string; modes: {modeId: string, name: string}[]; defaultModeId: string; variableNames: string[] }
 ```
 
 </details>
@@ -42,7 +42,7 @@ Get collection detail
 
 **Response**
 
-<ParameterTable schema={{"type":"object","properties":{"id":{"type":"string"},"name":{"type":"string"},"modes":{"type":"array"},"defaultModeId":{"type":"string"},"variableIds":{"type":"array"}}}} fieldLabel="Field" hideRequired />
+<ParameterTable schema={{"type":"object","properties":{"id":{"type":"string"},"name":{"type":"string"},"modes":{"type":"array"},"defaultModeId":{"type":"string"},"variableNames":{"type":"array"}}}} fieldLabel="Field" hideRequired />
 
 ## create
 

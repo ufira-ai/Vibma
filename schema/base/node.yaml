@@ -47,8 +47,8 @@ notes: |
     minWidth?: number; maxWidth?: number; // responsive auto-layout constraints
     minHeight?: number; maxHeight?: number;
     opacity?: number; // 0-1
-    fill?: { color?: Color; styleName?: string; variableId?: string; clear?: boolean };
-    stroke?: { color?: Color; weight?: number; styleName?: string; variableId?: string; strokeTopWeight?: number; strokeBottomWeight?: number; strokeLeftWeight?: number; strokeRightWeight?: number };
+    fill?: { color?: Color; styleName?: string; variableName?: string; clear?: boolean };
+    stroke?: { color?: Color; weight?: number; styleName?: string; variableName?: string; strokeTopWeight?: number; strokeBottomWeight?: number; strokeLeftWeight?: number; strokeRightWeight?: number };
     cornerRadius?: { radius: number; corners?: [boolean, boolean, boolean, boolean] }; // [TL, TR, BR, BL]
     effects?: { effects?: Effect[]; styleName?: string };
     layout?: {
@@ -69,7 +69,7 @@ notes: |
       textAutoResize?: "NONE" | "WIDTH_AND_HEIGHT" | "HEIGHT" | "TRUNCATE";
     };
     constraints?: { horizontal: "MIN" | "CENTER" | "MAX" | "STRETCH" | "SCALE"; vertical: "MIN" | "CENTER" | "MAX" | "STRETCH" | "SCALE" };
-    bindings?: { field: string; variableId: string }[]; // bind variables: field e.g. "fills/0/color", "opacity"
+    bindings?: { field: string; variableName: string }[]; // bind variables by name. field e.g. "fills/0/color", "opacity"
     explicitMode?: { collectionId: string; modeId: string }; // pin variable mode on this node
     properties?: Record<string, unknown>; // direct Figma API props (escape hatch)
   }

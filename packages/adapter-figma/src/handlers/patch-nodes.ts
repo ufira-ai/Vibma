@@ -1,4 +1,4 @@
-import { batchHandler, findVariableById } from "./helpers";
+import { batchHandler, findVariableById, findVariableByName } from "./helpers";
 import { setFillSingle, setStrokeSingle, setCornerSingle, setOpacitySingle } from "./fill-stroke";
 import { setEffectsSingle, setConstraintsSingle, setExportSettingsSingle, setNodePropertiesSingle } from "./effects";
 import { moveSingle, resizeSingle } from "./modify-node";
@@ -52,6 +52,7 @@ async function patchSingleNode(item: any, textCtx: TextPropsContext | null): Pro
       color: item.stroke.color,
       strokeWeight: item.stroke.weight,
       styleName: item.stroke.styleName,
+      variableName: item.stroke.variableName,
       variableId: item.stroke.variableId,
       strokeTopWeight: item.stroke.strokeTopWeight,
       strokeBottomWeight: item.stroke.strokeBottomWeight,
@@ -109,8 +110,10 @@ async function patchSingleNode(item: any, textCtx: TextPropsContext | null): Pro
     const node = await figma.getNodeByIdAsync(item.nodeId);
     if (!node) throw new Error(`Node not found: ${item.nodeId}`);
     for (const b of item.bindings) {
-      const variable = await findVariableById(b.variableId);
-      if (!variable) { result.warning = appendWarning(result.warning, `Variable not found: ${b.variableId}`); continue; }
+      const variable = b.variableName
+        ? await findVariableByName(b.variableName)
+        : await findVariableById(b.variableId);
+      if (!variable) { result.warning = appendWarning(result.warning, `Variable not found: ${b.variableName || b.variableId}`); continue; }
       const paintMatch = b.field.match(/^(fills|strokes)\/(\d+)\/color$/);
       if (paintMatch) {
         const prop = paintMatch[1];
