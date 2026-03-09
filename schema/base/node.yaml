@@ -47,19 +47,19 @@ notes: |
     x?: number; y?: number; width?: number; height?: number;
     minWidth?: number; maxWidth?: number; // responsive auto-layout constraints
     minHeight?: number; maxHeight?: number;
-    opacity?: number; // 0-1
+    opacity?: number | string; // number (0-1) or variable name
     fill?: { color?: Color; styleName?: string; variableName?: string; clear?: boolean };
-    stroke?: { color?: Color; weight?: number; styleName?: string; variableName?: string; strokeTopWeight?: number; strokeBottomWeight?: number; strokeLeftWeight?: number; strokeRightWeight?: number };
-    cornerRadius?: { radius: number; corners?: [boolean, boolean, boolean, boolean] }; // [TL, TR, BR, BL]
+    stroke?: { color?: Color; weight?: number | string; styleName?: string; variableName?: string; strokeTopWeight?: number | string; strokeBottomWeight?: number | string; strokeLeftWeight?: number | string; strokeRightWeight?: number | string };
+    cornerRadius?: { radius?: number | string; topLeft?: number | string; topRight?: number | string; bottomRight?: number | string; bottomLeft?: number | string };
     effects?: { effects?: Effect[]; styleName?: string };
     layout?: {
       layoutMode?: "NONE" | "HORIZONTAL" | "VERTICAL";
-      paddingTop?: number; paddingRight?: number; paddingBottom?: number; paddingLeft?: number;
+      paddingTop?: number | string; paddingRight?: number | string; paddingBottom?: number | string; paddingLeft?: number | string;
       primaryAxisAlignItems?: "MIN" | "MAX" | "CENTER" | "SPACE_BETWEEN";
       counterAxisAlignItems?: "MIN" | "MAX" | "CENTER" | "BASELINE";
       layoutSizingHorizontal?: "FIXED" | "HUG" | "FILL";
       layoutSizingVertical?: "FIXED" | "HUG" | "FILL";
-      itemSpacing?: number; counterAxisSpacing?: number;
+      itemSpacing?: number | string; counterAxisSpacing?: number | string;
       layoutWrap?: "NO_WRAP" | "WRAP";
     };
     text?: {

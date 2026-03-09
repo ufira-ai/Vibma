@@ -15,6 +15,7 @@ function paramLine(name: string, param: RawParam): string {
   let type = param.tsType ?? param.type ?? "string";
   if (param.values) type = param.values.join(" | ");
   if (param.coerce === "hex_or_rgba" || type === "color") type = "Color";
+  if (type === "token") type = "string";
   const req = param.required === true ? "required" : "optional";
   const desc = param.description ? ` — ${param.description}` : "";
   return `    ${name} (${type}, ${req})${desc}`;

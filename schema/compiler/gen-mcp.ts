@@ -43,6 +43,8 @@ function paramToZod(name: string, param: RawParam, indent = 2): string {
     zod = "S.letterSpacing";
   } else if (type === "string_or_boolean") {
     zod = "S.stringOrBoolean";
+  } else if (type === "token") {
+    zod = "S.token";
   } else if (type === "object") {
     if (param.coerce === "hex_or_rgba") {
       zod = "S.colorRgba";

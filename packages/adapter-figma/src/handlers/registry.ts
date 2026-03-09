@@ -85,12 +85,12 @@ export const allFigmaHandlers: Record<string, (params: any) => Promise<any>> = {
   }),
   "frames.export": nodeInfoHandlers.export_node_as_image,
 
-  // ─── pages endpoint ───
-  "pages.get": documentHandlers.get_current_page,
-  "pages.list": documentHandlers.get_document_info,
-  "pages.set": documentHandlers.set_current_page,
-  "pages.create": documentHandlers.create_page,
-  "pages.update": documentHandlers.rename_page,
+  // ─── document endpoint ───
+  "document.get": documentHandlers.get_current_page,
+  "document.list": documentHandlers.get_document_info,
+  "document.set": documentHandlers.set_current_page,
+  "document.create": documentHandlers.create_page,
+  "document.update": documentHandlers.rename_page,
 
   // ─── text endpoint — own methods ───
   "text.create": createTextHandlers.create_text,

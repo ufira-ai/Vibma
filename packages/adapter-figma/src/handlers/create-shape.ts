@@ -1,4 +1,4 @@
-import { batchHandler, appendToParent, solidPaint, applyFillWithAutoBind, applyStrokeWithAutoBind, bindNumericVariable, findVariableById, findColorVariableByName } from "./helpers";
+import { batchHandler, appendToParent, solidPaint, applyFillWithAutoBind, applyStrokeWithAutoBind, applyCornerRadius, applyTokens, findVariableById, findColorVariableByName } from "./helpers";
 
 /**
  * Apply auto-layout sizing to a shape node after appending to parent.
@@ -92,13 +92,10 @@ async function createSingleRectangle(p: any) {
   rect.y = p.y ?? 0;
   rect.resize(p.width ?? 100, p.height ?? 100);
   rect.name = p.name || "Rectangle";
-  if (p.cornerRadius !== undefined) rect.cornerRadius = p.cornerRadius;
-  if (p.opacity !== undefined) rect.opacity = p.opacity;
 
   const hints: string[] = [];
-  if (p.cornerRadiusVariableName) {
-    await bindNumericVariable(rect, ["topLeftRadius", "topRightRadius", "bottomRightRadius", "bottomLeftRadius"], p.cornerRadiusVariableName, hints);
-  }
+  await applyTokens(rect, { opacity: p.opacity }, hints);
+  await applyCornerRadius(rect, p, hints);
   await applyFillWithAutoBind(rect, p, hints);
   await applyStrokeWithAutoBind(rect, p, hints);
   const parent = await appendToParent(rect, p.parentId);
@@ -117,9 +114,9 @@ async function createSingleEllipse(p: any) {
   ellipse.y = p.y ?? 0;
   ellipse.resize(p.width ?? 100, p.height ?? p.width ?? 100);
   ellipse.name = p.name || "Ellipse";
-  if (p.opacity !== undefined) ellipse.opacity = p.opacity;
 
   const hints: string[] = [];
+  await applyTokens(ellipse, { opacity: p.opacity }, hints);
   await applyFillWithAutoBind(ellipse, p, hints);
   await applyStrokeWithAutoBind(ellipse, p, hints);
   const parent = await appendToParent(ellipse, p.parentId);
@@ -139,16 +136,15 @@ async function createSingleLine(p: any) {
   line.resize(p.length ?? 100, 0);
   line.name = p.name || "Line";
   if (p.rotation !== undefined) line.rotation = p.rotation;
-  if (p.opacity !== undefined) line.opacity = p.opacity;
 
   // Lines use strokes not fills — default to black if no stroke specified
   const hints: string[] = [];
+  await applyTokens(line, { opacity: p.opacity }, hints);
   if (!p.strokeColor && !p.strokeVariableId && !p.strokeVariableName && !p.strokeStyleName) {
     line.strokes = [solidPaint({ r: 0, g: 0, b: 0 })];
-  } else {
-    await applyStrokeWithAutoBind(line, p, hints);
   }
-  if (p.strokeWeight !== undefined) line.strokeWeight = p.strokeWeight;
+  // applyStrokeWithAutoBind handles both stroke color and strokeWeight tokens
+  await applyStrokeWithAutoBind(line, p, hints);
 
   const parent = await appendToParent(line, p.parentId);
   // Lines in vertical auto-layout default to FILL width (divider pattern)

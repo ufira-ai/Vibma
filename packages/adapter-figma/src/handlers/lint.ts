@@ -49,6 +49,11 @@ async function lintNodeHandler(params: any) {
   let localTextStyleIds = new Set<string>();
   let paintStyleEntries: ColorEntry[] = [];
   let colorVarEntries: ColorEntry[] = [];
+  let hasFloatVars = false;
+  if (runAll || ruleSet.has("hardcoded-token") || ruleSet.has("hardcoded-radius")) {
+    const floatVars = await figma.variables.getLocalVariablesAsync("FLOAT");
+    hasFloatVars = floatVars.length > 0;
+  }
   if (runAll || ruleSet.has("hardcoded-color")) {
     const paints = await figma.getLocalPaintStylesAsync();
     localPaintStyleIds = new Set(paints.map(s => s.id));
@@ -76,7 +81,7 @@ async function lintNodeHandler(params: any) {
   }
 
   const issues: Issue[] = [];
-  const ctx: LintCtx = { runAll, ruleSet, maxDepth, maxFindings, localPaintStyleIds, localTextStyleIds, hasPaintStyles: localPaintStyleIds.size > 0, hasTextStyles: localTextStyleIds.size > 0, hasColorVars: colorVarEntries.length > 0, paintStyleEntries, colorVarEntries, runWcag };
+  const ctx: LintCtx = { runAll, ruleSet, maxDepth, maxFindings, localPaintStyleIds, localTextStyleIds, hasPaintStyles: localPaintStyleIds.size > 0, hasTextStyles: localTextStyleIds.size > 0, hasColorVars: colorVarEntries.length > 0, paintStyleEntries, colorVarEntries, hasFloatVars, runWcag };
 
   await walkNode(root, 0, issues, ctx);
 
@@ -116,6 +121,7 @@ const FIX_INSTRUCTIONS: Record<string, string> = {
   "no-autolayout": 'Use lint(method:"fix", items:[{nodeId}]) to auto-convert, or frames(method:"update", items:[{id, layout:{layoutMode:"VERTICAL"}}]).',
   "shape-instead-of-frame": 'Delete the shape with frames(method:"delete"), then frames(method:"create", type:"frame") with same position/size/fill, then frames(method:"reparent") to move overlapping siblings into the new frame.',
   "hardcoded-color": 'Check each node\'s matchName/matchId for a suggested style or variable. If a match exists: frames(method:"update", items:[{id, fill:{styleName:"..."}}]) or bind a variable via items:[{id, fill:{variableName:"..."}}] or bindings:[{field:"fills/0/color", variableName:"..."}]. If no match: create a style with styles(method:"create", type:"paint") or a variable with variables(method:"create") first, then apply it.',
+  "hardcoded-token": 'Bind to a FLOAT variable instead of using hardcoded numbers. For cornerRadius: frames(method:"update", items:[{id, cornerRadius:{radius:"Radii/Medium"}}]). For padding/itemSpacing: items:[{id, layout:{paddingTop:"Spacing/Medium", itemSpacing:"Spacing/Small"}}]. For strokeWeight: items:[{id, stroke:{weight:"Border/Thick"}}]. For opacity: items:[{id, opacity:"Opacity/Subtle"}]. Pass a variable name string instead of a number. If no FLOAT variable exists, create one with variables(method:"create") first.',
   "no-text-style": 'Apply a text style: frames(method:"update", items:[{id, text:{textStyleName:"..."}}]). If no text styles exist, create one with styles(method:"create", type:"text") first.',
   "fixed-in-autolayout": 'Use frames(method:"update", items:[{id, layout:{layoutSizingHorizontal:"FILL"}}]) or "HUG" instead of FIXED. FILL stretches to fill the parent, HUG shrinks to fit content.',
   "default-name": 'Use frames(method:"update", items:[{id, properties:{name:"descriptive name"}}]) to rename.',
@@ -145,6 +151,7 @@ interface LintCtx {
   hasColorVars: boolean;
   paintStyleEntries: ColorEntry[];
   colorVarEntries: ColorEntry[];
+  hasFloatVars: boolean;
   runWcag: boolean;
 }
 
@@ -207,6 +214,67 @@ async function walkNode(node: BaseNode, depth: number, issues: Issue[], ctx: Lin
     if ("strokes" in node && "strokeStyleId" in node) {
       checkPaints((node as any).strokes, (node as any).strokeStyleId, (node as any).boundVariables?.strokes?.length > 0, "stroke");
       if (issues.length >= ctx.maxFindings) return;
+    }
+  }
+
+  // -- Rule: hardcoded-token — numeric properties that should be bound to FLOAT variables --
+  if ((ctx.runAll || ctx.ruleSet.has("hardcoded-token") || ctx.ruleSet.has("hardcoded-radius")) && ctx.hasFloatVars) {
+    const bv = (node as any).boundVariables || {};
+
+    // cornerRadius
+    if ("cornerRadius" in node) {
+      const hasBound = bv.topLeftRadius || bv.topRightRadius || bv.bottomLeftRadius || bv.bottomRightRadius;
+      if (!hasBound) {
+        const cr = (node as any).cornerRadius;
+        if (cr === figma.mixed) {
+          const tl = (node as any).topLeftRadius ?? 0;
+          const tr = (node as any).topRightRadius ?? 0;
+          const br = (node as any).bottomRightRadius ?? 0;
+          const bl = (node as any).bottomLeftRadius ?? 0;
+          if (tl > 0 || tr > 0 || br > 0 || bl > 0) {
+            issues.push({ rule: "hardcoded-token", nodeId: node.id, nodeName: node.name, extra: { property: "cornerRadius", topLeftRadius: tl, topRightRadius: tr, bottomRightRadius: br, bottomLeftRadius: bl } });
+            if (issues.length >= ctx.maxFindings) return;
+          }
+        } else if (typeof cr === "number" && cr > 0) {
+          issues.push({ rule: "hardcoded-token", nodeId: node.id, nodeName: node.name, extra: { property: "cornerRadius", value: cr } });
+          if (issues.length >= ctx.maxFindings) return;
+        }
+      }
+    }
+
+    // strokeWeight — only flag when node has visible strokes
+    if ("strokes" in node && "strokeWeight" in node) {
+      const strokes = (node as any).strokes;
+      const hasStrokes = Array.isArray(strokes) && strokes.length > 0;
+      if (hasStrokes) {
+        const sw = (node as any).strokeWeight;
+        if (typeof sw === "number" && sw > 0 && !bv.strokeTopWeight && !bv.strokeBottomWeight && !bv.strokeLeftWeight && !bv.strokeRightWeight) {
+          issues.push({ rule: "hardcoded-token", nodeId: node.id, nodeName: node.name, extra: { property: "strokeWeight", value: sw } });
+          if (issues.length >= ctx.maxFindings) return;
+        }
+      }
+    }
+
+    // opacity
+    if ("opacity" in node) {
+      const op = (node as any).opacity;
+      if (typeof op === "number" && op < 1 && !bv.opacity) {
+        issues.push({ rule: "hardcoded-token", nodeId: node.id, nodeName: node.name, extra: { property: "opacity", value: op } });
+        if (issues.length >= ctx.maxFindings) return;
+      }
+    }
+
+    // padding + itemSpacing (only on auto-layout frames)
+    if (isFrame(node) && node.layoutMode !== "NONE") {
+      for (const f of ["paddingTop", "paddingRight", "paddingBottom", "paddingLeft", "itemSpacing"] as const) {
+        if (f in node) {
+          const val = (node as any)[f];
+          if (typeof val === "number" && val > 0 && !bv[f]) {
+            issues.push({ rule: "hardcoded-token", nodeId: node.id, nodeName: node.name, extra: { property: f, value: val } });
+            if (issues.length >= ctx.maxFindings) return;
+          }
+        }
+      }
     }
   }
 

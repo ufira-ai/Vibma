@@ -1,15 +1,12 @@
-import { batchHandler, appendToParent, applyFillWithAutoBind, applyStrokeWithAutoBind, bindNumericVariable } from "./helpers";
+import { batchHandler, appendToParent, applyFillWithAutoBind, applyStrokeWithAutoBind, applyCornerRadius, applyTokens } from "./helpers";
 import { looksInteractive } from "@ufira/vibma/utils/wcag";
 
 async function createSingleFrame(p: any) {
   const {
     x = 0, y = 0, width = 100, height = 100, name = "Frame", parentId,
-    cornerRadius,
     layoutMode = "NONE", layoutWrap = "NO_WRAP",
-    paddingTop = 0, paddingRight = 0, paddingBottom = 0, paddingLeft = 0,
     primaryAxisAlignItems = "MIN", counterAxisAlignItems = "MIN",
     layoutSizingHorizontal = "FIXED", layoutSizingVertical = "FIXED",
-    itemSpacing = 0,
   } = p;
 
   const frame = figma.createFrame();
@@ -18,19 +15,11 @@ async function createSingleFrame(p: any) {
   frame.resize(width, height);
   frame.name = name;
   frame.fills = []; // no fill by default
-  if (cornerRadius !== undefined) frame.cornerRadius = cornerRadius;
-
-  // Bind numeric variables
   const hints: string[] = [];
-  if (p.cornerRadiusVariableName) {
-    await bindNumericVariable(frame, ["topLeftRadius", "topRightRadius", "bottomRightRadius", "bottomLeftRadius"], p.cornerRadiusVariableName, hints);
-  }
-  if (p.opacityVariableName) {
-    await bindNumericVariable(frame, "opacity", p.opacityVariableName, hints);
-  }
-  if (p.itemSpacingVariableName) {
-    await bindNumericVariable(frame, "itemSpacing", p.itemSpacingVariableName, hints);
-  }
+  // Corner radius: each field accepts number (value) or string (variable name)
+  await applyCornerRadius(frame, p, hints);
+  // Token fields: opacity, padding, itemSpacing — pass variable name to bind, number for hardcoded
+  await applyTokens(frame, { opacity: p.opacity }, hints);
 
   const deferH = parentId && layoutSizingHorizontal === "FILL";
   const deferV = parentId && layoutSizingVertical === "FILL";
@@ -38,15 +27,18 @@ async function createSingleFrame(p: any) {
   if (layoutMode !== "NONE") {
     frame.layoutMode = layoutMode;
     frame.layoutWrap = layoutWrap;
-    frame.paddingTop = paddingTop;
-    frame.paddingRight = paddingRight;
-    frame.paddingBottom = paddingBottom;
-    frame.paddingLeft = paddingLeft;
+    for (const f of ["paddingTop", "paddingRight", "paddingBottom", "paddingLeft", "itemSpacing"] as const) {
+      if (p[f] === undefined) (frame as any)[f] = 0;
+    }
+    await applyTokens(frame, {
+      paddingTop: p.paddingTop, paddingRight: p.paddingRight,
+      paddingBottom: p.paddingBottom, paddingLeft: p.paddingLeft,
+      itemSpacing: p.itemSpacing,
+    }, hints);
     frame.primaryAxisAlignItems = primaryAxisAlignItems;
     frame.counterAxisAlignItems = counterAxisAlignItems;
     frame.layoutSizingHorizontal = deferH ? "FIXED" : layoutSizingHorizontal;
     frame.layoutSizingVertical = deferV ? "FIXED" : layoutSizingVertical;
-    frame.itemSpacing = itemSpacing;
     if (p.counterAxisSpacing !== undefined && layoutWrap === "WRAP") {
       (frame as any).counterAxisSpacing = p.counterAxisSpacing;
     }
@@ -93,7 +85,7 @@ async function createSingleFrame(p: any) {
 }
 
 async function createSingleAutoLayout(p: any) {
-  // Expand padding shorthand
+  // Expand padding shorthand → per-edge (token values preserved)
   if (p.padding !== undefined) {
     p.paddingTop ??= p.padding;
     p.paddingRight ??= p.padding;

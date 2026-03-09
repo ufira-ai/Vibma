@@ -83,6 +83,14 @@ export const letterSpacing = z.union([
 /** String or boolean — for component property defaults */
 export const stringOrBoolean = z.union([z.string(), z.boolean()]);
 
+/** Design token — accepts a string that is either a numeric value ("8") or a variable name/ID ("Radii/Medium").
+ *  Numeric strings are parsed to numbers in the handler; non-numeric strings are variable references. */
+export const token = z.preprocess((v) => {
+  // Accept raw numbers from agents that pass them correctly
+  if (typeof v === "number") return String(v);
+  return v;
+}, z.string()).describe('number as string ("8") or variable name ("Radii/Medium")');
+
 /** Single effect entry — shared by set_effects and styles create */
 export const effectEntry = z.object({
   type: z.enum(["DROP_SHADOW", "INNER_SHADOW", "LAYER_BLUR", "BACKGROUND_BLUR"]),

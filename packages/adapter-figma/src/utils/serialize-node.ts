@@ -58,7 +58,14 @@ export async function serializeNode(
   // ── Corner radius ─────────────────────────────────────────────
   if ("cornerRadius" in node) {
     const cr = (node as any).cornerRadius;
-    if (cr !== undefined && cr !== figma.mixed) out.cornerRadius = cr;
+    if (cr !== undefined && cr !== figma.mixed) {
+      out.cornerRadius = cr;
+    } else if (cr === figma.mixed && "topLeftRadius" in node) {
+      out.topLeftRadius = (node as any).topLeftRadius;
+      out.topRightRadius = (node as any).topRightRadius;
+      out.bottomRightRadius = (node as any).bottomRightRadius;
+      out.bottomLeftRadius = (node as any).bottomLeftRadius;
+    }
   }
 
   // ── Bounding box ──────────────────────────────────────────────

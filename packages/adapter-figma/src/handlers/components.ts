@@ -1,4 +1,4 @@
-import { batchHandler, appendToParent, applyFillWithAutoBind, applyStrokeWithAutoBind, bindNumericVariable } from "./helpers";
+import { batchHandler, appendToParent, applyFillWithAutoBind, applyStrokeWithAutoBind, applyCornerRadius, applyTokens } from "./helpers";
 import { createDispatcher, paginate, pickFields } from "@ufira/vibma/endpoint";
 
 function findTextNodes(node: BaseNode): TextNode[] {
@@ -44,12 +44,9 @@ async function createComponentSingle(p: any) {
   if (!p.name) throw new Error("Missing name");
   const {
     x = 0, y = 0, width = 100, height = 100, name, parentId,
-    cornerRadius,
     layoutMode = "NONE", layoutWrap = "NO_WRAP",
-    paddingTop = 0, paddingRight = 0, paddingBottom = 0, paddingLeft = 0,
     primaryAxisAlignItems = "MIN", counterAxisAlignItems = "MIN",
     layoutSizingHorizontal = "FIXED", layoutSizingVertical = "FIXED",
-    itemSpacing = 0,
   } = p;
 
   const deferH = parentId && layoutSizingHorizontal === "FILL";
@@ -61,25 +58,28 @@ async function createComponentSingle(p: any) {
   comp.resize(width, height);
   comp.fills = [];
 
+  const hints: string[] = [];
+
   if (layoutMode !== "NONE") {
     comp.layoutMode = layoutMode;
     comp.layoutWrap = layoutWrap;
-    comp.paddingTop = paddingTop; comp.paddingRight = paddingRight;
-    comp.paddingBottom = paddingBottom; comp.paddingLeft = paddingLeft;
+    for (const f of ["paddingTop", "paddingRight", "paddingBottom", "paddingLeft", "itemSpacing"] as const) {
+      if (p[f] === undefined) (comp as any)[f] = 0;
+    }
+    await applyTokens(comp, {
+      paddingTop: p.paddingTop, paddingRight: p.paddingRight,
+      paddingBottom: p.paddingBottom, paddingLeft: p.paddingLeft,
+      itemSpacing: p.itemSpacing,
+    }, hints);
     comp.primaryAxisAlignItems = primaryAxisAlignItems;
     comp.counterAxisAlignItems = counterAxisAlignItems;
     comp.layoutSizingHorizontal = deferH ? "FIXED" : layoutSizingHorizontal;
     comp.layoutSizingVertical = deferV ? "FIXED" : layoutSizingVertical;
-    comp.itemSpacing = itemSpacing;
   }
 
-  const hints: string[] = [];
   await applyFillWithAutoBind(comp, p, hints);
   await applyStrokeWithAutoBind(comp, p, hints);
-  if (cornerRadius !== undefined) comp.cornerRadius = cornerRadius;
-  if (p.cornerRadiusVariableName) {
-    await bindNumericVariable(comp, ["topLeftRadius", "topRightRadius", "bottomRightRadius", "bottomLeftRadius"], p.cornerRadiusVariableName, hints);
-  }
+  await applyCornerRadius(comp, p, hints);
 
   const parent = await appendToParent(comp, parentId);
   const parentIsAL = parent && "layoutMode" in parent && (parent as any).layoutMode !== "NONE";

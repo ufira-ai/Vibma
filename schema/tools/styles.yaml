@@ -24,7 +24,7 @@ notes: |
   //   Grid: { pattern: "GRID", sectionSize: number, visible?: boolean, color?: Color }
   //   Example: { pattern: "COLUMNS", alignment: "STRETCH", gutterSize: 20, count: 12, offset: 40 }
   //
-  interface PaintStyleItem { name: string; color: Color; description?: string }
+  interface PaintStyleItem { name: string; color: Color; colorVariableName?: string; description?: string }
   interface TextStyleItem {
     name: string; fontFamily: string; fontStyle?: string; fontSize: number;
     lineHeight?: number | {value: number, unit: "PIXELS"|"PERCENT"|"AUTO"};
@@ -37,8 +37,9 @@ notes: |
   interface EffectStyleItem { name: string; effects: Effect[]; description?: string }
   interface GridStyleItem { name: string; layoutGrids: LayoutGrid[]; description?: string }
   interface PatchStyleItem {
-    id: string; name?: string; description?: string;
-    color?: Color;                    // paint styles
+    id?: string; styleName?: string; // identify by ID or name (case-insensitive)
+    name?: string; description?: string;
+    color?: Color; colorVariableName?: string;  // paint styles
     fontFamily?: string; fontStyle?: string; fontSize?: number;
     lineHeight?: number | {value, unit}; letterSpacing?: number | {value, unit};
     textCase?: string; textDecoration?: string;
@@ -101,6 +102,7 @@ methods:
         params:
           name: { type: string, required: true, description: Style name }
           color: { $ref: color, required: true, description: Color value }
+          colorVariableName: { type: string, optional: true, description: "Bind to a COLOR variable by name (style tracks the variable)" }
           description: { type: string, optional: true, description: "Style description" }
       text:
         description: Text style
@@ -151,10 +153,12 @@ methods:
         items:
           type: object
           properties:
-            id: { type: string, required: true, description: "Style ID or name (case-insensitive match)" }
+            id: { type: string, optional: true, description: "Style ID (or name for backward compat)" }
+            styleName: { type: string, optional: true, description: "Identify style by name (case-insensitive). Preferred over id for readability." }
             name: { type: string, optional: true, description: Rename the style }
             description: { type: string, optional: true, description: "Style description" }
             color: { $ref: color, optional: true, description: "New color (paint styles)" }
+            colorVariableName: { type: string, optional: true, description: "Bind to a COLOR variable by name (paint styles)" }
             fontFamily: { type: string, optional: true }
             fontStyle: { type: string, optional: true }
             fontSize: { type: number, coerce: true, optional: true }
@@ -178,15 +182,20 @@ methods:
       id:
         type: string
         optional: true
-        description: Single style ID
+        description: Style ID or name
+      styleName:
+        type: string
+        optional: true
+        description: Style name (alternative to id)
       items:
         type: array
         coerce: json
         optional: true
-        description: "Batch: [{id}, ...]"
+        description: "Batch: [{id} or {styleName}, ...]"
         items:
           type: object
           properties:
-            id: { type: string, required: true }
+            id: { type: string, optional: true }
+            styleName: { type: string, optional: true, description: "Style name (alternative to id)" }
     response:
       type: batch_ok

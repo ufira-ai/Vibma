@@ -377,8 +377,8 @@ export async function applyFillWithAutoBind(
  */
 export async function applyStrokeWithAutoBind(
   node: any,
-  p: { strokeVariableId?: string; strokeVariableName?: string; strokeStyleName?: string; strokeColor?: any; strokeWeight?: number;
-       strokeTopWeight?: number; strokeBottomWeight?: number; strokeLeftWeight?: number; strokeRightWeight?: number },
+  p: { strokeVariableId?: string; strokeVariableName?: string; strokeStyleName?: string; strokeColor?: any; strokeWeight?: number | string;
+       strokeTopWeight?: number | string; strokeBottomWeight?: number | string; strokeLeftWeight?: number | string; strokeRightWeight?: number | string },
   hints: string[],
 ): Promise<void> {
   if (p.strokeVariableId) {
@@ -425,11 +425,11 @@ export async function applyStrokeWithAutoBind(
       hints.push(match.hint);
     }
   }
-  if (p.strokeWeight !== undefined) node.strokeWeight = p.strokeWeight;
-  if (p.strokeTopWeight !== undefined) node.strokeTopWeight = p.strokeTopWeight;
-  if (p.strokeBottomWeight !== undefined) node.strokeBottomWeight = p.strokeBottomWeight;
-  if (p.strokeLeftWeight !== undefined) node.strokeLeftWeight = p.strokeLeftWeight;
-  if (p.strokeRightWeight !== undefined) node.strokeRightWeight = p.strokeRightWeight;
+  const swFields: Record<string, number | string | undefined> = {};
+  for (const f of ["strokeWeight", "strokeTopWeight", "strokeBottomWeight", "strokeLeftWeight", "strokeRightWeight"] as const) {
+    if ((p as any)[f] !== undefined && f in node) swFields[f] = (p as any)[f];
+  }
+  await applyTokens(node, swFields, hints);
 }
 
 /**
@@ -503,6 +503,106 @@ export async function applyFontColorWithAutoBind(
   }
 
   return false;
+}
+
+/**
+ * Parse a token value: numeric string → number, otherwise variable name.
+ * Returns { num } for hardcoded values, { varName } for variable references.
+ */
+function parseToken(value: string | number): { num: number } | { varName: string } {
+  if (typeof value === "number") return { num: value };
+  const n = Number(value);
+  if (!isNaN(n) && value.trim() !== "") return { num: n };
+  return { varName: value };
+}
+
+/**
+ * Apply a token field to a node property.
+ * Numeric string → set value (hardcoded). Non-numeric string → bind variable.
+ * Returns true if the value was a variable binding.
+ */
+async function applyTokenField(
+  node: any, field: string, value: number | string, hints: string[],
+): Promise<boolean> {
+  const parsed = parseToken(value);
+  if ("varName" in parsed) {
+    await bindNumericVariable(node, field, parsed.varName, hints);
+    return true;
+  }
+  node[field] = parsed.num;
+  return false;
+}
+
+/**
+ * Apply corner radius to a node, supporting both shorthand and per-corner values.
+ * Each field accepts number (hardcoded) or string (variable name/ID).
+ * Expands shorthand → per-corner (like padding).
+ */
+export async function applyCornerRadius(node: any, p: any, hints: string[]): Promise<void> {
+  // Expand shorthand → per-corner (individual values override shorthand)
+  if (p.cornerRadius !== undefined) {
+    p.topLeftRadius ??= p.cornerRadius;
+    p.topRightRadius ??= p.cornerRadius;
+    p.bottomRightRadius ??= p.cornerRadius;
+    p.bottomLeftRadius ??= p.cornerRadius;
+  }
+
+  const fields = ["topLeftRadius", "topRightRadius", "bottomRightRadius", "bottomLeftRadius"] as const;
+  const hasPer = fields.some(f => p[f] !== undefined);
+
+  if (hasPer && "topLeftRadius" in node) {
+    let anyHardcoded = false;
+    for (const f of fields) {
+      if (p[f] !== undefined) {
+        const bound = await applyTokenField(node, f, p[f], hints);
+        if (!bound) anyHardcoded = true;
+      }
+    }
+    if (anyHardcoded) {
+      hints.push(`Hardcoded cornerRadius. Pass a variable name string instead of a number to bind to a design token.`);
+    }
+  } else if (p.cornerRadius !== undefined && "cornerRadius" in node) {
+    const parsed = parseToken(p.cornerRadius);
+    if ("num" in parsed) {
+      node.cornerRadius = parsed.num;
+      hints.push(`Hardcoded cornerRadius. Pass a variable name string instead of a number to bind to a design token.`);
+    }
+  }
+}
+
+/**
+ * Apply a token value (number or variable name string) to a node property.
+ * Returns true if a variable was bound, false if hardcoded numeric.
+ */
+export async function applyToken(
+  node: any, field: string, value: number | string, hints: string[],
+): Promise<boolean> {
+  const parsed = parseToken(value);
+  if ("varName" in parsed) {
+    await bindNumericVariable(node, field, parsed.varName, hints);
+    return true;
+  }
+  node[field] = parsed.num;
+  return false;
+}
+
+/**
+ * Apply multiple token fields at once, emitting a single grouped warning
+ * for any hardcoded values. Skips undefined values.
+ */
+export async function applyTokens(
+  node: any, fields: Record<string, number | string | undefined>, hints: string[],
+): Promise<void> {
+  const hardcoded: string[] = [];
+  for (const [field, value] of Object.entries(fields)) {
+    if (value !== undefined) {
+      const bound = await applyToken(node, field, value, hints);
+      if (!bound) hardcoded.push(field);
+    }
+  }
+  if (hardcoded.length > 0) {
+    hints.push(`Hardcoded ${hardcoded.join(", ")}. Use an existing FLOAT variable or create one with variables(method:"create"), then pass the variable name string instead of a number.`);
+  }
 }
 
 /**

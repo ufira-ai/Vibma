@@ -30,7 +30,7 @@ export default defineConfig({
           translations: { "zh-CN": "参考" },
           items: [
             { label: "Connection", slug: "tools/connection", translations: { "zh-CN": "连接" } },
-            { label: "Pages", slug: "tools/pages", translations: { "zh-CN": "页面" } },
+            { label: "Document", slug: "tools/document", translations: { "zh-CN": "文档" } },
             { label: "Selection", slug: "tools/selection", translations: { "zh-CN": "选区" } },
             { label: "Frames", slug: "tools/frames", translations: { "zh-CN": "框架" } },
             { label: "Text", slug: "tools/text", translations: { "zh-CN": "文本" } },

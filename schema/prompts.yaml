@@ -5,7 +5,7 @@
   text: |
     Figma design best practices:
 
-    1. Discover First: pages(method:"list"), styles(method:"list"), variables(method:"list") — know what exists before creating.
+    1. Discover First: document(method:"list"), styles(method:"list"), variables(method:"list") — know what exists before creating.
 
     2. Design Tokens — Never Hardcode Colors:
        - Use fillStyleName/strokeStyleName (paint styles) or fillVariableName/strokeVariableName (variables)

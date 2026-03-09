@@ -1,18 +1,18 @@
 ---
-title: "Pages"
-description: "导航和管理 Figma 页面。"
+title: "Document"
+description: "导航和管理 Figma 文档中的页面（画布）。"
 ---
 
 import ParameterTable from "../../../../components/ParameterTable.astro";
 
-导航和管理 Figma 页面。
+导航和管理 Figma 文档中的页面（画布）。
 
 <details>
 <summary>Type reference</summary>
 
 ```ts
-// Pages are the top-level containers in a Figma document. Each page has its own canvas.
-// The "current page" is where all node operations happen. Use pages.set to switch pages before working with nodes.
+// A Figma document contains pages — each page is an independent canvas with its own node tree.
+// The "current page" is where all node operations happen. Use document.set to switch pages before working with nodes.
 // Page IDs look like "0:1", "1:1", etc. The first page is always "0:1".
 // get returns the current page with its top-level children as stubs. list returns all pages in the document.
 ```

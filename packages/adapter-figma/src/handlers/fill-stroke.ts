@@ -1,4 +1,4 @@
-import { batchHandler, coerceColor, findVariableById, findVariableByName, solidPaint, styleNotFoundHint, suggestStyleForColor } from "./helpers";
+import { applyTokens, batchHandler, bindNumericVariable, coerceColor, findVariableById, findVariableByName, solidPaint, styleNotFoundHint, suggestStyleForColor } from "./helpers";
 
 // ─── Figma Handlers ──────────────────────────────────────────────
 
@@ -79,7 +79,11 @@ export async function setStrokeSingle(p: any): Promise<any> {
       await (node as any).setStrokeStyleIdAsync(match.id);
       const result: any = { matchedStyle: match.name };
       if (p.color) result.warning = "Both styleName and color provided — used styleName, ignored color. Pass only one.";
-      if (p.strokeWeight !== undefined && "strokeWeight" in node) (node as any).strokeWeight = p.strokeWeight;
+      if (p.strokeWeight !== undefined && "strokeWeight" in node) {
+        const swHints: string[] = [];
+        await applyTokens(node, { strokeWeight: p.strokeWeight }, swHints);
+        if (swHints.length > 0) result.warning = (result.warning ? result.warning + " " : "") + swHints.join(" ");
+      }
       return result;
     }
     throw new Error(styleNotFoundHint("styleName", p.styleName, available));
@@ -88,18 +92,14 @@ export async function setStrokeSingle(p: any): Promise<any> {
     if (!c) throw new Error(`Invalid stroke color: ${JSON.stringify(p.color)}. Use hex "#FF0000" or {r, g, b, a?} with values 0-1.`);
     (node as any).strokes = [{ type: "SOLID", color: { r: c.r, g: c.g, b: c.b }, opacity: c.a }];
   }
-  if (p.strokeWeight !== undefined && "strokeWeight" in node) (node as any).strokeWeight = p.strokeWeight;
-  // Per-side stroke weights (requires individual stroke weights enabled)
-  if (p.strokeTopWeight !== undefined || p.strokeBottomWeight !== undefined ||
-      p.strokeLeftWeight !== undefined || p.strokeRightWeight !== undefined) {
-    if ("strokeTopWeight" in node) {
-      if (p.strokeTopWeight !== undefined) (node as any).strokeTopWeight = p.strokeTopWeight;
-      if (p.strokeBottomWeight !== undefined) (node as any).strokeBottomWeight = p.strokeBottomWeight;
-      if (p.strokeLeftWeight !== undefined) (node as any).strokeLeftWeight = p.strokeLeftWeight;
-      if (p.strokeRightWeight !== undefined) (node as any).strokeRightWeight = p.strokeRightWeight;
-    }
+  const hints: string[] = [];
+  const swFields: Record<string, any> = {};
+  for (const f of ["strokeWeight", "strokeTopWeight", "strokeBottomWeight", "strokeLeftWeight", "strokeRightWeight"]) {
+    if (p[f] !== undefined && f in node) swFields[f] = p[f];
   }
+  await applyTokens(node, swFields, hints);
   const result: any = {};
+  if (hints.length > 0) result.warning = hints.join(" ");
   if (p.color && !p.styleName && !p.variableId && !p.variableName) {
     const c = coerceColor(p.color);
     if (c) {
@@ -121,24 +121,58 @@ export async function setCornerSingle(p: any) {
   if (!node) throw new Error(`Node not found: ${p.nodeId}`);
   if (!("cornerRadius" in node)) throw new Error(`Node does not support corner radius: ${p.nodeId}`);
 
-  const corners = p.corners || [true, true, true, true];
-  if ("topLeftRadius" in node && Array.isArray(corners) && corners.length === 4) {
-    if (corners[0]) (node as any).topLeftRadius = p.radius;
-    if (corners[1]) (node as any).topRightRadius = p.radius;
-    if (corners[2]) (node as any).bottomRightRadius = p.radius;
-    if (corners[3]) (node as any).bottomLeftRadius = p.radius;
-  } else {
-    (node as any).cornerRadius = p.radius;
+  const hints: string[] = [];
+
+  // Per-corner values (topLeft, topRight, bottomRight, bottomLeft) — each is number | string (token)
+  const hasPer = p.topLeft !== undefined || p.topRight !== undefined ||
+                 p.bottomRight !== undefined || p.bottomLeft !== undefined;
+
+  const mapping = [
+    ["topLeft", "topLeftRadius"],
+    ["topRight", "topRightRadius"],
+    ["bottomRight", "bottomRightRadius"],
+    ["bottomLeft", "bottomLeftRadius"],
+  ] as const;
+
+  // Helper: parse token value — numeric string → number, otherwise variable name
+  const isVar = (v: any): boolean => typeof v === "string" && (isNaN(Number(v)) || v.trim() === "");
+
+  if (hasPer && "topLeftRadius" in node) {
+    for (const [key, field] of mapping) {
+      const val = p[key] ?? p.radius;
+      if (val !== undefined) {
+        if (isVar(val)) {
+          await bindNumericVariable(node, field, val, hints);
+        } else {
+          (node as any)[field] = Number(val);
+        }
+      }
+    }
+  } else if (p.radius !== undefined) {
+    if (isVar(p.radius)) {
+      await bindNumericVariable(node, ["topLeftRadius", "topRightRadius", "bottomRightRadius", "bottomLeftRadius"], p.radius, hints);
+    } else if ("topLeftRadius" in node) {
+      const rv = Number(p.radius);
+      for (const [, field] of mapping) (node as any)[field] = rv;
+    } else {
+      (node as any).cornerRadius = Number(p.radius);
+    }
   }
-  return {};
+
+  const result: any = {};
+  if (hints.length > 0) result.warning = hints.join(" ");
+  return result;
 }
 
 export async function setOpacitySingle(p: any) {
   const node = await figma.getNodeByIdAsync(p.nodeId);
   if (!node) throw new Error(`Node not found: ${p.nodeId}`);
   if (!("opacity" in node)) throw new Error(`Node does not support opacity`);
-  (node as any).opacity = p.opacity;
-  return {};
+  const hints: string[] = [];
+  await applyTokens(node, { opacity: p.opacity }, hints);
+  const result: any = {};
+  if (hints.length > 0) result.warning = hints.join(" ");
+  return result;
 }
 
 export const figmaHandlers: Record<string, (params: any) => Promise<any>> = {

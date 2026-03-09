@@ -31,7 +31,7 @@ import ParameterTable from "../../../../components/ParameterTable.astro";
 //   Grid: { pattern: "GRID", sectionSize: number, visible?: boolean, color?: Color }
 //   Example: { pattern: "COLUMNS", alignment: "STRETCH", gutterSize: 20, count: 12, offset: 40 }
 //
-interface PaintStyleItem { name: string; color: Color; description?: string }
+interface PaintStyleItem { name: string; color: Color; colorVariableName?: string; description?: string }
 interface TextStyleItem {
   name: string; fontFamily: string; fontStyle?: string; fontSize: number;
   lineHeight?: number | {value: number, unit: "PIXELS"|"PERCENT"|"AUTO"};
@@ -44,8 +44,9 @@ interface TextStyleItem {
 interface EffectStyleItem { name: string; effects: Effect[]; description?: string }
 interface GridStyleItem { name: string; layoutGrids: LayoutGrid[]; description?: string }
 interface PatchStyleItem {
-  id: string; name?: string; description?: string;
-  color?: Color;                    // paint styles
+  id?: string; styleName?: string; // identify by ID or name (case-insensitive)
+  name?: string; description?: string;
+  color?: Color; colorVariableName?: string;  // paint styles
   fontFamily?: string; fontStyle?: string; fontSize?: number;
   lineHeight?: number | {value, unit}; letterSpacing?: number | {value, unit};
   textCase?: string; textDecoration?: string;
@@ -95,7 +96,7 @@ Discriminated by `type`. Available types:
 
 Paint/color style
 
-<ParameterTable schema={{"type":"object","properties":{"name":{"description":"Style name","type":"string"},"color":{"description":"Color value","type":"string"},"description":{"description":"Style description","type":"string"}},"required":["name","color"]}} />
+<ParameterTable schema={{"type":"object","properties":{"name":{"description":"Style name","type":"string"},"color":{"description":"Color value","type":"string"},"colorVariableName":{"description":"Bind to a COLOR variable by name (style tracks the variable)","type":"string"},"description":{"description":"Style description","type":"string"}},"required":["name","color"]}} />
 
 #### text
 
@@ -125,7 +126,7 @@ Grid/layout grid style
 
 Update styles by ID or name
 
-<ParameterTable schema={{"type":"object","properties":{"type":{"description":"Style type hint for strict validation (optional, auto-detected)","type":"string","enum":["paint","text","effect","grid"]},"items":{"description":"Array of {id, ...fields} to update","type":"array","items":{"type":"object","properties":{"id":{"description":"Style ID or name (case-insensitive match)","type":"string"},"name":{"description":"Rename the style","type":"string"},"description":{"description":"Style description","type":"string"},"color":{"description":"New color (paint styles)","type":"string"},"fontFamily":{"type":"string"},"fontStyle":{"type":"string"},"fontSize":{"type":"number"},"lineHeight":{"type":"any","description":"number | {value, unit: \"PIXELS\"|\"PERCENT\"|\"AUTO\"}"},"letterSpacing":{"type":"any","description":"number | {value, unit: \"PIXELS\"|\"PERCENT\"}"},"textCase":{"type":"string","enum":["ORIGINAL","UPPER","LOWER","TITLE","SMALL_CAPS","SMALL_CAPS_FORCED"]},"textDecoration":{"type":"string","enum":["NONE","UNDERLINE","STRIKETHROUGH"]},"paragraphIndent":{"description":"Paragraph indent (px)","type":"number"},"paragraphSpacing":{"description":"Paragraph spacing (px)","type":"number"},"leadingTrim":{"type":"string","enum":["CAP_HEIGHT","NONE"]},"effects":{"description":"Array of Effect objects","type":"array"},"layoutGrids":{"description":"Array of LayoutGrid objects (grid styles)","type":"array"}},"required":["id"]}},"depth":{"description":"Response detail: omit for id+name only. 0=properties + child stubs. N=recurse N levels. -1=unlimited.","type":"number"}},"required":["items"]}} />
+<ParameterTable schema={{"type":"object","properties":{"type":{"description":"Style type hint for strict validation (optional, auto-detected)","type":"string","enum":["paint","text","effect","grid"]},"items":{"description":"Array of {id, ...fields} to update","type":"array","items":{"type":"object","properties":{"id":{"description":"Style ID (or name for backward compat)","type":"string"},"styleName":{"description":"Identify style by name (case-insensitive). Preferred over id for readability.","type":"string"},"name":{"description":"Rename the style","type":"string"},"description":{"description":"Style description","type":"string"},"color":{"description":"New color (paint styles)","type":"string"},"colorVariableName":{"description":"Bind to a COLOR variable by name (paint styles)","type":"string"},"fontFamily":{"type":"string"},"fontStyle":{"type":"string"},"fontSize":{"type":"number"},"lineHeight":{"type":"any","description":"number | {value, unit: \"PIXELS\"|\"PERCENT\"|\"AUTO\"}"},"letterSpacing":{"type":"any","description":"number | {value, unit: \"PIXELS\"|\"PERCENT\"}"},"textCase":{"type":"string","enum":["ORIGINAL","UPPER","LOWER","TITLE","SMALL_CAPS","SMALL_CAPS_FORCED"]},"textDecoration":{"type":"string","enum":["NONE","UNDERLINE","STRIKETHROUGH"]},"paragraphIndent":{"description":"Paragraph indent (px)","type":"number"},"paragraphSpacing":{"description":"Paragraph spacing (px)","type":"number"},"leadingTrim":{"type":"string","enum":["CAP_HEIGHT","NONE"]},"effects":{"description":"Array of Effect objects","type":"array"},"layoutGrids":{"description":"Array of LayoutGrid objects (grid styles)","type":"array"}}}},"depth":{"description":"Response detail: omit for id+name only. 0=properties + child stubs. N=recurse N levels. -1=unlimited.","type":"number"}},"required":["items"]}} />
 
 **Response**
 
@@ -137,7 +138,7 @@ Update styles by ID or name
 
 Delete styles
 
-<ParameterTable schema={{"type":"object","properties":{"id":{"description":"Single style ID","type":"string"},"items":{"description":"Batch: [{id}, ...]","type":"array","items":{"type":"object","properties":{"id":{"type":"string"}},"required":["id"]}}}}} />
+<ParameterTable schema={{"type":"object","properties":{"id":{"description":"Style ID or name","type":"string"},"styleName":{"description":"Style name (alternative to id)","type":"string"},"items":{"description":"Batch: [{id} or {styleName}, ...]","type":"array","items":{"type":"object","properties":{"id":{"type":"string"},"styleName":{"description":"Style name (alternative to id)","type":"string"}}}}}}} />
 
 **Response**
 

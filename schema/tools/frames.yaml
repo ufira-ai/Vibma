@@ -8,7 +8,7 @@ notes: |
   // Frames are the primary container in Figma. Use auto_layout for responsive containers.
   // Sizing: FIXED = explicit size, HUG = shrink to children, FILL = expand to fill parent.
   // fillColor auto-binds: if a matching color variable or paint style exists, it is bound automatically.
-  // Numeric tokens: cornerRadiusVariableName, opacityVariableName, itemSpacingVariableName bind FLOAT variables directly.
+  // Token fields (cornerRadius, opacity, itemSpacing, padding, strokeWeight): pass number for value, string for variable name/ID.
   // ---
   // HUG and FILL only work inside an auto-layout parent. Use FIXED for top-level frames.
   // minWidth/maxWidth/minHeight/maxHeight: responsive constraints for auto-layout children.
@@ -40,15 +40,9 @@ methods:
           strokeColor: { $ref: color, optional: true, description: "Stroke color (auto-binds to matching variable/style)" }
           strokeStyleName: { type: string, optional: true, description: Paint style name for stroke }
           strokeVariableName: { type: string, optional: true, description: "Color variable by name e.g. 'border/default'" }
-          strokeWeight: { type: number, coerce: true, optional: true }
-          strokeTopWeight: { type: number, coerce: true, optional: true, description: "Top stroke weight (per-side)" }
-          strokeBottomWeight: { type: number, coerce: true, optional: true, description: "Bottom stroke weight (per-side)" }
-          strokeLeftWeight: { type: number, coerce: true, optional: true, description: "Left stroke weight (per-side)" }
-          strokeRightWeight: { type: number, coerce: true, optional: true, description: "Right stroke weight (per-side)" }
-          cornerRadius: { type: number, coerce: true, optional: true }
-          cornerRadiusVariableName: { type: string, optional: true, description: "Bind FLOAT variable to corner radius by name" }
-          opacity: { type: number, coerce: true, optional: true }
-          opacityVariableName: { type: string, optional: true, description: "Bind FLOAT variable to opacity by name" }
+          strokeWeight: { $expand: stroke, type: token }
+          cornerRadius: { $expand: corners, type: token }
+          opacity: { type: token, optional: true, description: "Opacity 0-1 (number) or variable name (string)" }
           clipsContent: { type: boolean, coerce: true, optional: true }
           layoutMode:
             type: enum
@@ -81,12 +75,8 @@ methods:
             values: [HORIZONTAL, VERTICAL]
             required: true
             description: Primary axis direction
-          itemSpacing: { type: number, coerce: true, optional: true, description: "Gap between children (px)" }
-          paddingTop: { type: number, coerce: true, optional: true }
-          paddingBottom: { type: number, coerce: true, optional: true }
-          paddingLeft: { type: number, coerce: true, optional: true }
-          paddingRight: { type: number, coerce: true, optional: true }
-          padding: { type: number, coerce: true, optional: true, description: "Shorthand: sets all 4 paddings" }
+          itemSpacing: { type: token, optional: true, description: "Gap between children (number) or variable name (string)" }
+          padding: { $expand: padding, type: token }
           primaryAxisAlignItems:
             type: enum
             values: [MIN, CENTER, MAX, SPACE_BETWEEN]
@@ -110,7 +100,6 @@ methods:
             values: [NO_WRAP, WRAP]
             optional: true
           counterAxisSpacing: { type: number, coerce: true, optional: true, description: "Gap between wrapped rows (requires layoutWrap: WRAP)" }
-          itemSpacingVariableName: { type: string, optional: true, description: "Bind FLOAT variable to item spacing by name" }
           width: { type: number, coerce: true, optional: true }
           height: { type: number, coerce: true, optional: true }
           minWidth: { type: number, coerce: true, optional: true, description: "Min width for responsive auto-layout" }
@@ -120,8 +109,7 @@ methods:
           fillColor: { $ref: color, optional: true, description: "Background fill color (auto-binds to matching variable/style)" }
           fillStyleName: { type: string, optional: true, description: Paint style name for fill }
           fillVariableName: { type: string, optional: true, description: "Color variable by name e.g. 'bg/primary'" }
-          cornerRadius: { type: number, coerce: true, optional: true }
-          cornerRadiusVariableName: { type: string, optional: true, description: "Bind FLOAT variable to corner radius by name" }
+          cornerRadius: { $expand: corners, type: token }
           clipsContent: { type: boolean, coerce: true, optional: true }
       section:
         description: Figma section (top-level organizer)
@@ -149,10 +137,9 @@ methods:
           fillVariableName: { type: string, optional: true, description: "Color variable by name e.g. 'bg/primary'" }
           strokeColor: { $ref: color, optional: true, description: "Stroke color (auto-binds to matching variable/style)" }
           strokeVariableName: { type: string, optional: true, description: "Color variable by name for stroke" }
-          strokeWeight: { type: number, coerce: true, optional: true }
-          cornerRadius: { type: number, coerce: true, optional: true }
-          cornerRadiusVariableName: { type: string, optional: true, description: "Bind FLOAT variable to corner radius by name" }
-          opacity: { type: number, coerce: true, optional: true }
+          strokeWeight: { type: token, optional: true }
+          cornerRadius: { $expand: corners, type: token }
+          opacity: { type: token, optional: true }
           layoutSizingHorizontal: { type: string, enum: [FIXED, FILL], optional: true, description: "Horizontal sizing in auto-layout parent" }
           layoutSizingVertical: { type: string, enum: [FIXED, FILL], optional: true, description: "Vertical sizing in auto-layout parent" }
       ellipse:
@@ -169,8 +156,8 @@ methods:
           fillVariableName: { type: string, optional: true, description: "Color variable by name e.g. 'bg/primary'" }
           strokeColor: { $ref: color, optional: true, description: "Stroke color (auto-binds to matching variable/style)" }
           strokeVariableName: { type: string, optional: true, description: "Color variable by name for stroke" }
-          strokeWeight: { type: number, coerce: true, optional: true }
-          opacity: { type: number, coerce: true, optional: true }
+          strokeWeight: { type: token, optional: true }
+          opacity: { type: token, optional: true }
           layoutSizingHorizontal: { type: string, enum: [FIXED, FILL], optional: true, description: "Horizontal sizing in auto-layout parent" }
           layoutSizingVertical: { type: string, enum: [FIXED, FILL], optional: true, description: "Vertical sizing in auto-layout parent" }
       line:
@@ -184,8 +171,8 @@ methods:
           rotation: { type: number, coerce: true, optional: true, description: "Rotation in degrees (default: 0 = horizontal)" }
           strokeColor: { $ref: color, optional: true, description: "Line color (default: black, auto-binds to matching variable/style)" }
           strokeVariableName: { type: string, optional: true, description: "Color variable by name for stroke" }
-          strokeWeight: { type: number, coerce: true, optional: true, description: "Line thickness (default: 1)" }
-          opacity: { type: number, coerce: true, optional: true }
+          strokeWeight: { type: token, optional: true, description: "Line thickness (default: 1)" }
+          opacity: { type: token, optional: true }
           layoutSizingHorizontal: { type: string, enum: [FIXED, FILL], optional: true, description: "Horizontal sizing in auto-layout parent (defaults to FILL in vertical auto-layout)" }
       group:
         description: Group existing nodes together

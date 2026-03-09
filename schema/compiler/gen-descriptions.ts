@@ -38,6 +38,7 @@ function paramToTs(param: RawParam): string {
   if (type === "line_height") return 'number | {value: number, unit: "PIXELS" | "PERCENT" | "AUTO"}';
   if (type === "letter_spacing") return 'number | {value: number, unit: "PIXELS" | "PERCENT"}';
   if (type === "string_or_boolean") return "string | boolean";
+  if (type === "token") return "string";
 
   if (type === "object") {
     if (param.properties) return propsToObj(param.properties);

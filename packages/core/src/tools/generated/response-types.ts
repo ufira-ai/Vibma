@@ -9,6 +9,8 @@ export const generatedResponseSchemas: Record<string, Record<string, unknown>> =
     "get": {"example":{"status":"pong","documentName":"Design System","currentPage":"Components","timestamp":1709337600}},
     "delete": {"example":"Channel vibma reset"},
   },
+  "document": {
+  },
   "fonts": {
   },
   "frames": {
@@ -16,8 +18,6 @@ export const generatedResponseSchemas: Record<string, Record<string, unknown>> =
   "instances": {
   },
   "lint": {
-  },
-  "pages": {
   },
   "selection": {
     "get": {"example":{"selectionCount":1,"selection":[{"id":"1:2","name":"Button","type":"COMPONENT"}]}},

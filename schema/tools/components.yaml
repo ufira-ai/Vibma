@@ -15,13 +15,13 @@ notes: |
     name: string; x?: number; y?: number; width?: number; height?: number; parentId?: string;
     fillColor?: Color; fillStyleName?: string; fillVariableName?: string;
     strokeColor?: Color; strokeStyleName?: string; strokeVariableName?: string;
-    strokeWeight?: number; cornerRadius?: number;
+    strokeWeight?: string; cornerRadius?: string; // token: number or variable name
     layoutMode?: "NONE"|"HORIZONTAL"|"VERTICAL"; layoutWrap?: "NO_WRAP"|"WRAP";
-    paddingTop?: number; paddingRight?: number; paddingBottom?: number; paddingLeft?: number;
+    paddingTop?: string; paddingRight?: string; paddingBottom?: string; paddingLeft?: string; // token
     primaryAxisAlignItems?: "MIN"|"MAX"|"CENTER"|"SPACE_BETWEEN";
     counterAxisAlignItems?: "MIN"|"MAX"|"CENTER"|"BASELINE";
     layoutSizingHorizontal?: "FIXED"|"HUG"|"FILL"; layoutSizingVertical?: "FIXED"|"HUG"|"FILL";
-    itemSpacing?: number;
+    itemSpacing?: string; // token
   }
   interface FromNodeItem { nodeId: string; exposeText?: boolean } // default exposeText: true — auto-expose text as editable properties
   interface VariantSetItem { componentIds: string[]; name?: string; variantPropertyName?: string } // min 2 components
@@ -98,20 +98,19 @@ methods:
           strokeColor: { $ref: color, optional: true, description: "Stroke color (auto-binds to matching variable/style)" }
           strokeStyleName: { type: string, optional: true, description: "Paint style name for stroke" }
           strokeVariableName: { type: string, optional: true, description: "Color variable by name for stroke" }
-          strokeWeight: { type: number, coerce: true, optional: true, description: "Stroke weight (default: 1)" }
-          cornerRadius: { type: number, coerce: true, optional: true }
-          cornerRadiusVariableName: { type: string, optional: true, description: "Bind FLOAT variable to corner radius by name" }
+          strokeWeight: { type: token, optional: true, description: "Stroke weight (default: 1)" }
+          cornerRadius: { $expand: corners, type: token }
           layoutMode: { type: enum, values: [NONE, HORIZONTAL, VERTICAL], optional: true, description: "Layout direction (default: NONE)" }
           layoutWrap: { type: enum, values: [NO_WRAP, WRAP], optional: true }
-          paddingTop: { type: number, coerce: true, optional: true }
-          paddingRight: { type: number, coerce: true, optional: true }
-          paddingBottom: { type: number, coerce: true, optional: true }
-          paddingLeft: { type: number, coerce: true, optional: true }
+          paddingTop: { type: token, optional: true }
+          paddingRight: { type: token, optional: true }
+          paddingBottom: { type: token, optional: true }
+          paddingLeft: { type: token, optional: true }
           primaryAxisAlignItems: { type: enum, values: [MIN, MAX, CENTER, SPACE_BETWEEN], optional: true }
           counterAxisAlignItems: { type: enum, values: [MIN, MAX, CENTER, BASELINE], optional: true }
           layoutSizingHorizontal: { type: enum, values: [FIXED, HUG, FILL], optional: true }
           layoutSizingVertical: { type: enum, values: [FIXED, HUG, FILL], optional: true }
-          itemSpacing: { type: number, coerce: true, optional: true, description: "Spacing between children (default: 0)" }
+          itemSpacing: { type: token, optional: true, description: "Spacing between children (default: 0)" }
       from_node:
         description: "Convert existing nodes to components. Text children auto-exposed as editable properties (exposeText: true)."
         params:

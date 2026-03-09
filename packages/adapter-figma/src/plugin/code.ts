@@ -32,7 +32,7 @@ figma.clientStorage.getAsync("settings").then((saved: any) => {
 const SKIP_FOCUS = new Set([
   "join", "set_selection", "set_viewport", "zoom_into_view", "set_focus",
   "set_current_page", "create_page", "rename_page", "delete_node",
-  "get_document_info", "get_current_page", "get_pages", "get_selection",
+  "get_document_info", "get_current_page", "get_selection",
   "get_node_info", "get_available_fonts",
   "variable_collections", "variables",
   "search_nodes", "scan_text_nodes", "export_node_as_image",
@@ -109,10 +109,15 @@ figma.ui.onmessage = async (msg: any) => {
           }
         }
       } catch (error: any) {
+        const errorMsg = error instanceof Error
+          ? error.message
+          : typeof error === "string"
+            ? error
+            : JSON.stringify(error) || "Error executing command";
         figma.ui.postMessage({
           type: "command-error",
           id: msg.id,
-          error: error.message || "Error executing command",
+          error: errorMsg || `Unknown error (${typeof error})`,
         });
       }
       break;

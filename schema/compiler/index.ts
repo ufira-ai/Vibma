@@ -21,6 +21,7 @@ import { generateDescription } from "./gen-descriptions";
 import { generateDocs } from "./gen-docs";
 import { generatePromptsTs, generatePromptsDocs, loadPrompts } from "./gen-prompts";
 import { generateHelpTs } from "./gen-help";
+import { expandAll } from "./expand";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, "../..");
@@ -31,8 +32,12 @@ const { bases, endpoints: rawEndpoints } = parseAll();
 console.log(`  Bases: ${[...bases.keys()].join(", ")}`);
 console.log(`  Endpoints: ${rawEndpoints.map(e => e.endpoint).join(", ")}`);
 
+// ─── Expand ─────────────────────────────────────────────────────
+console.log("\nExpanding $expand directives...");
+expandAll([...bases.values(), ...rawEndpoints]);
+
 // ─── Merge ──────────────────────────────────────────────────────
-console.log("\nMerging base methods...");
+console.log("Merging base methods...");
 const resolved = mergeEndpoints(bases, rawEndpoints);
 
 for (const ep of resolved) {
