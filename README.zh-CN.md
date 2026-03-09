@@ -2,7 +2,9 @@
 
 <div align="center">
 
-# ✦ Vibma
+<img src="./logo.svg" alt="Vibma" width="120" />
+
+# Vibma
 
 **Vibe Design 遇上 Figma。**
 

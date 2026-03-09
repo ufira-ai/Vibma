@@ -13,7 +13,7 @@ const state = {
 
 // ─── UI Setup ────────────────────────────────────────────────────
 
-figma.showUI(__html__, { width: 350, height: 600 });
+figma.showUI(__html__, { width: 320, height: 480 });
 
 // Send saved settings to UI on startup
 figma.clientStorage.getAsync("settings").then((saved: any) => {
