@@ -1,4 +1,4 @@
-import { batchHandler, appendToParent } from "./helpers";
+import { batchHandler, appendToParent, applyTokens } from "./helpers";
 import { setupFrameNode } from "./create-frame";
 import { createDispatcher, paginate, pickFields } from "@ufira/vibma/endpoint";
 
@@ -161,7 +161,11 @@ async function combineSingle(p: any) {
   const set = figma.combineAsVariants(comps, parent as any);
   if (p.name) set.name = p.name;
 
-  const hints: string[] = [];
+  // Reset combineAsVariants' default layout so setupFrameNode applies cleanly
+  set.layoutMode = "NONE";
+  set.fills = [];
+
+  const { hints } = await setupFrameNode(set as any, p);
 
   // Rename auto-generated variant property if variantPropertyName is specified
   if (p.variantPropertyName) {
@@ -391,10 +395,42 @@ async function instanceCreateSingle(p: any) {
   }
   if (node.type !== "COMPONENT") throw new Error(`Not a component: ${node.type}`);
   const inst = node.createInstance();
+  if (p.name) inst.name = p.name;
   if (p.x !== undefined) inst.x = p.x;
   if (p.y !== undefined) inst.y = p.y;
-  await appendToParent(inst, p.parentId);
-  return { id: inst.id };
+  if (p.width !== undefined || p.height !== undefined) {
+    inst.resize(p.width ?? inst.width, p.height ?? inst.height);
+  }
+
+  const hints: string[] = [];
+  await applyTokens(inst, { opacity: p.opacity }, hints);
+
+  // Min/max constraints
+  if (p.minWidth !== undefined) (inst as any).minWidth = p.minWidth;
+  if (p.maxWidth !== undefined) (inst as any).maxWidth = p.maxWidth;
+  if (p.minHeight !== undefined) (inst as any).minHeight = p.minHeight;
+  if (p.maxHeight !== undefined) (inst as any).maxHeight = p.maxHeight;
+
+  // Defer FILL sizing until after parent append
+  const deferH = p.parentId && p.layoutSizingHorizontal === "FILL";
+  const deferV = p.parentId && p.layoutSizingVertical === "FILL";
+  if (p.layoutSizingHorizontal && !deferH) inst.layoutSizingHorizontal = p.layoutSizingHorizontal;
+  if (p.layoutSizingVertical && !deferV) inst.layoutSizingVertical = p.layoutSizingVertical;
+
+  const parent = await appendToParent(inst, p.parentId);
+  const parentIsAL = parent && "layoutMode" in parent && (parent as any).layoutMode !== "NONE";
+  if (deferH) {
+    if (parentIsAL) inst.layoutSizingHorizontal = "FILL";
+    else hints.push("layoutSizingHorizontal 'FILL' ignored — parent is not an auto-layout frame.");
+  }
+  if (deferV) {
+    if (parentIsAL) inst.layoutSizingVertical = "FILL";
+    else hints.push("layoutSizingVertical 'FILL' ignored — parent is not an auto-layout frame.");
+  }
+
+  const result: any = { id: inst.id };
+  if (hints.length > 0) result.warning = hints.join(" ");
+  return result;
 }
 
 async function instanceGetFigma(params: any) {

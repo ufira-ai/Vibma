@@ -92,39 +92,13 @@ methods:
       component:
         description: "Create component with full frame properties (layout, fill, stroke, sizing). A component IS a frame — build directly, no need to create a frame first."
         params:
+          $mixin: frame_params
           name: { type: string, required: true, description: Component name }
-          parentId: { $ref: parentId }
-          x: { $ref: xPos }
-          y: { $ref: yPos }
-          width: { type: number, coerce: true, optional: true, description: "Width (default: 100)" }
-          height: { type: number, coerce: true, optional: true, description: "Height (default: 100)" }
-          opacity: { type: token, optional: true, description: "Opacity (0-1) or variable name" }
-          fillColor: { $ref: color, optional: true, description: "Fill color (auto-binds to matching variable/style)" }
-          fillStyleName: { type: string, optional: true, description: "Paint style name for fill" }
-          fillVariableName: { type: string, optional: true, description: "Color variable by name e.g. 'bg/primary'" }
-          strokeColor: { $ref: color, optional: true, description: "Stroke color (auto-binds to matching variable/style)" }
-          strokeStyleName: { type: string, optional: true, description: "Paint style name for stroke" }
-          strokeVariableName: { type: string, optional: true, description: "Color variable by name for stroke" }
-          strokeWeight: { type: token, optional: true, description: "Stroke weight (default: 1)" }
-          cornerRadius: { $expand: corners, type: token }
-          layoutMode: { type: enum, values: [NONE, HORIZONTAL, VERTICAL], optional: true, description: "Layout direction (default: NONE)" }
-          layoutWrap: { type: enum, values: [NO_WRAP, WRAP], optional: true }
-          padding: { $expand: padding, type: token }
-          primaryAxisAlignItems: { type: enum, values: [MIN, MAX, CENTER, SPACE_BETWEEN], optional: true }
-          counterAxisAlignItems: { type: enum, values: [MIN, MAX, CENTER, BASELINE], optional: true }
-          layoutSizingHorizontal: { type: enum, values: [FIXED, HUG, FILL], optional: true }
-          layoutSizingVertical: { type: enum, values: [FIXED, HUG, FILL], optional: true }
-          itemSpacing: { type: token, optional: true, description: "Spacing between children (default: 0)" }
-          counterAxisSpacing: { type: token, optional: true, description: "Gap between wrapped rows (requires layoutWrap: WRAP)" }
-          minWidth: { type: number, coerce: true, optional: true, description: "Min width for responsive auto-layout" }
-          maxWidth: { type: number, coerce: true, optional: true, description: "Max width for responsive auto-layout" }
-          minHeight: { type: number, coerce: true, optional: true, description: "Min height for responsive auto-layout" }
-          maxHeight: { type: number, coerce: true, optional: true, description: "Max height for responsive auto-layout" }
           properties:
             type: array
             coerce: json
             optional: true
-            description: "Component properties to define at creation: [{name, type, defaultValue}]"
+            description: "Component properties to define at creation: [{propertyName, type, defaultValue}]"
             items:
               type: object
               properties:
@@ -138,10 +112,10 @@ methods:
           nodeId: { type: string, required: true, description: Node ID to convert }
           exposeText: { type: boolean, coerce: true, optional: true, description: "Auto-expose text as editable properties (default: true)" }
       variant_set:
-        description: Combine components into a variant set
+        description: Combine components into a variant set. The resulting set is a frame — accepts all frame properties for layout/styling.
         params:
+          $mixin: frame_params
           componentIds: { type: "string[]", coerce: json, required: true, description: "Component IDs to combine (min 2)" }
-          name: { type: string, optional: true, description: "Name for the variant set" }
           variantPropertyName: { type: string, optional: true, description: "Rename the auto-generated variant property (default: 'Property 1')" }
     response:
       type: batch

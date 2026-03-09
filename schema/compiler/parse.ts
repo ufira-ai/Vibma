@@ -24,6 +24,35 @@ function loadRefs(): Record<string, RawParam> {
   return refs;
 }
 
+/** Load param group mixins from mixins/ */
+function loadMixins(): Record<string, Record<string, RawParam>> {
+  const mixins: Record<string, Record<string, RawParam>> = {};
+  const mixinsDir = join(SCHEMA_DIR, "mixins");
+  try {
+    for (const file of readdirSync(mixinsDir).filter(f => f.endsWith(".yaml"))) {
+      const data = parseYaml(readFileSync(join(mixinsDir, file), "utf-8"));
+      for (const [key, value] of Object.entries(data)) {
+        mixins[key] = value as Record<string, RawParam>;
+      }
+    }
+  } catch { /* mixins dir may not exist */ }
+  return mixins;
+}
+
+/**
+ * Apply $mixin to a params block: merge mixin params, then overlay explicit params.
+ * Explicit params with the same name override mixin params.
+ */
+function applyMixins(params: Record<string, any>, mixins: Record<string, Record<string, RawParam>>): Record<string, RawParam> {
+  const mixinName = params.$mixin;
+  if (!mixinName) return params;
+  const mixin = mixins[mixinName];
+  if (!mixin) throw new Error(`Unknown $mixin: ${mixinName}`);
+  const { $mixin, ...explicit } = params;
+  // Mixin params first, explicit params override
+  return { ...structuredClone(mixin), ...explicit };
+}
+
 /** Recursively resolve $ref in a param tree */
 function resolveParam(param: RawParam, refs: Record<string, RawParam>): RawParam {
   if (param.$ref) {
@@ -49,8 +78,8 @@ function resolveParam(param: RawParam, refs: Record<string, RawParam>): RawParam
   return param;
 }
 
-/** Resolve all $ref in an endpoint's methods */
-function resolveEndpoint(def: RawEndpointDef, refs: Record<string, RawParam>): RawEndpointDef {
+/** Resolve all $ref and $mixin in an endpoint's methods */
+function resolveEndpoint(def: RawEndpointDef, refs: Record<string, RawParam>, mixins: Record<string, Record<string, RawParam>>): RawEndpointDef {
   const resolved = structuredClone(def);
   for (const method of Object.values(resolved.methods)) {
     if (method.params && typeof method.params === "object") {
@@ -60,9 +89,10 @@ function resolveEndpoint(def: RawEndpointDef, refs: Record<string, RawParam>): R
       }
       method.params = resolvedParams;
     }
-    // Resolve discriminated types params
+    // Resolve discriminated types params (apply $mixin first, then $ref)
     if (method.types) {
       for (const variant of Object.values(method.types)) {
+        variant.params = applyMixins(variant.params, mixins);
         const resolvedParams: Record<string, RawParam> = {};
         for (const [k, v] of Object.entries(variant.params)) {
           resolvedParams[k] = resolveParam(v as RawParam, refs);
@@ -97,6 +127,7 @@ export interface ParseResult {
 /** Load and parse all YAML schema files */
 export function parseAll(): ParseResult {
   const refs = loadRefs();
+  const mixins = loadMixins();
   const bases = new Map<string, RawBaseDef>();
   const endpoints: RawEndpointDef[] = [];
 
@@ -114,7 +145,7 @@ export function parseAll(): ParseResult {
   for (const file of readdirSync(toolsDir).filter(f => f.endsWith(".yaml"))) {
     const raw = parseYaml(readFileSync(join(toolsDir, file), "utf-8")) as RawDef;
     if (isEndpointDef(raw)) {
-      endpoints.push(resolveEndpoint(raw, refs));
+      endpoints.push(resolveEndpoint(raw, refs, mixins));
     }
   }
 

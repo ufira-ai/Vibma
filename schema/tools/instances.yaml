@@ -13,10 +13,15 @@ notes: |
   // detach: permanently converts an instance to a regular frame, breaking the component link.
   // reset_overrides: reverts all instance overrides to match the main component.
   // Workflow: components.list → instances.create with componentId → instances.update to set properties.
+  // Instances support frame-level overrides: layoutSizingHorizontal/Vertical (FIXED, FILL, HUG), opacity, width/height, min/max.
+  // Use layoutSizingHorizontal: "FILL" to make instances stretch in auto-layout parents.
   interface InstanceCreateItem {
     componentId: string;                     // component or component set ID
     variantProperties?: Record<string, string>; // pick variant e.g. {"Style":"Secondary","Size":"Large"}
-    x?: number; y?: number; parentId?: string;
+    x?: number; y?: number; width?: number; height?: number; parentId?: string;
+    name?: string; opacity?: Token;
+    layoutSizingHorizontal?: "FIXED"|"FILL"|"HUG"; layoutSizingVertical?: "FIXED"|"FILL"|"HUG";
+    minWidth?: number; maxWidth?: number; minHeight?: number; maxHeight?: number;
   }
   interface InstanceUpdateItem {
     id: string;                              // instance node ID
@@ -44,22 +49,32 @@ methods:
   create:
     tier: create
     description: Create component instances
-    example: 'instances(method:"create", items:[{componentId:"1:23", variantProperties:{"Size":"Large"}, parentId:"2:45"}])'
+    example: 'instances(method:"create", items:[{componentId:"1:23", variantProperties:{"Size":"Large"}, parentId:"2:45", layoutSizingHorizontal:"FILL"}])'
     params:
       items:
         type: array
         coerce: json
         required: true
         tsType: "InstanceCreateItem[]"
-        description: "Array of {componentId, variantProperties?, x?, y?, parentId?}"
+        description: "Array of {componentId, variantProperties?, x?, y?, parentId?, layoutSizingHorizontal?, ...}"
         items:
           type: object
           properties:
             componentId: { type: string, required: true, description: "Component or component set ID" }
             variantProperties: { type: object, coerce: json, optional: true, description: 'Pick variant e.g. {"Style":"Secondary"}' }
+            name: { type: string, optional: true, description: "Instance layer name" }
             x: { type: number, coerce: true, optional: true }
             y: { type: number, coerce: true, optional: true }
+            width: { type: number, coerce: true, optional: true, description: "Override width (resize)" }
+            height: { type: number, coerce: true, optional: true, description: "Override height (resize)" }
             parentId: { $ref: parentId }
+            opacity: { type: token, optional: true }
+            layoutSizingHorizontal: { type: enum, values: [FIXED, FILL, HUG], optional: true, description: "Horizontal sizing in auto-layout parent" }
+            layoutSizingVertical: { type: enum, values: [FIXED, FILL, HUG], optional: true, description: "Vertical sizing in auto-layout parent" }
+            minWidth: { type: number, coerce: true, optional: true, description: "Min width constraint" }
+            maxWidth: { type: number, coerce: true, optional: true, description: "Max width constraint" }
+            minHeight: { type: number, coerce: true, optional: true, description: "Min height constraint" }
+            maxHeight: { type: number, coerce: true, optional: true, description: "Max height constraint" }
       depth: { $ref: depth }
     response:
       type: batch

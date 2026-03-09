@@ -19,9 +19,9 @@ The relay runs on `localhost:3055` and bridges the MCP server to the Figma plugi
 - `plugin/code.js` — Figma plugin (IIFE bundle)
 - `plugin/ui.html` — copied from `src/figma-plugin/ui.html` via `tsup.config.ts` `onSuccess` hook
 
-**Figma watches `plugin/` for file changes.** When you run `npm run build`, Figma detects the updated `plugin/code.js` and/or `plugin/ui.html` and **automatically reloads the plugin, dropping the WebSocket connection**. The user must click **Connect** again in the Figma plugin UI after every build.
+**Figma watches `plugin/` for file changes.** When you run `npm run build`, Figma detects the updated `plugin/code.js` and/or `plugin/ui.html` and **automatically reloads the plugin and reconnects** to the relay — no manual action needed in Figma.
 
-This means: edit source → build → ask user to reconnect in Figma → `connection(method: "create")` + `connection(method: "get")` to verify.
+**The MCP server is a stdio process — it does NOT hot-reload.** After every build, the MCP server must be restarted (run `/mcp` in Claude Code). Then call `connection(method: "create")` + `connection(method: "get")` to verify.
 
 ## Running the Relay
 
@@ -40,9 +40,9 @@ If port 3055 is already in use (from a previous session):
 lsof -ti :3055 | xargs kill -9
 ```
 
-After restarting the relay, **both** the plugin and MCP must reconnect:
-1. User clicks **Connect** in the Figma plugin
-2. MCP calls `connection(method: "create")` → `connection(method: "get")`
+After restarting the relay, the plugin auto-reconnects. The MCP server must be restarted:
+1. Run `/mcp` in Claude Code to restart the MCP server
+2. Call `connection(method: "create")` → `connection(method: "get")` to verify
 
 ## MCP Auto-Connect
 
@@ -51,18 +51,15 @@ The plugin has a `clientStorage`-based setting persistence system:
 - On next plugin launch, saved settings are restored via `restore-settings`
 - `figma.on("run")` triggers `auto-connect`, which programmatically clicks the Connect button
 
-This means: once configured, the plugin auto-connects on launch. But after a relay restart or build-induced reload, the user needs to manually click Connect.
+This means: once configured, the plugin auto-connects on launch and after build-induced reloads. No manual action needed in Figma.
 
 ## Testing Changes End-to-End
 
 1. Make code changes
-2. `npm run build`
-3. Ask the user to **restart the MCP server** (the stdio process runs stale code until restarted)
-4. Ask the user to click **Connect** in the Figma plugin (the build just dropped the connection)
-5. Call `connection(method: "create")` (channel: `vibma`) then `connection(method: "get")` to verify the full chain works
-6. Test the specific tools you changed
-
-> **Important:** The MCP server is a stdio process — it does NOT hot-reload. After every `npm run build`, you must ask the user to restart it, otherwise the server continues running the old `dist/mcp.js`.
+2. `npm run build` (plugin auto-reloads and reconnects in Figma)
+3. Run `/mcp` to restart the MCP server (stdio process runs stale code until restarted)
+4. Call `connection(method: "create")` → `connection(method: "get")` to verify the full chain
+5. Test the specific tools you changed
 
 ## Key File Locations
 

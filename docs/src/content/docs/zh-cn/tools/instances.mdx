@@ -20,10 +20,15 @@ import ParameterTable from "../../../../components/ParameterTable.astro";
 // detach: permanently converts an instance to a regular frame, breaking the component link.
 // reset_overrides: reverts all instance overrides to match the main component.
 // Workflow: components.list → instances.create with componentId → instances.update to set properties.
+// Instances support frame-level overrides: layoutSizingHorizontal/Vertical (FIXED, FILL, HUG), opacity, width/height, min/max.
+// Use layoutSizingHorizontal: "FILL" to make instances stretch in auto-layout parents.
 interface InstanceCreateItem {
   componentId: string;                     // component or component set ID
   variantProperties?: Record<string, string>; // pick variant e.g. {"Style":"Secondary","Size":"Large"}
-  x?: number; y?: number; parentId?: string;
+  x?: number; y?: number; width?: number; height?: number; parentId?: string;
+  name?: string; opacity?: Token;
+  layoutSizingHorizontal?: "FIXED"|"FILL"|"HUG"; layoutSizingVertical?: "FIXED"|"FILL"|"HUG";
+  minWidth?: number; maxWidth?: number; minHeight?: number; maxHeight?: number;
 }
 interface InstanceUpdateItem {
   id: string;                              // instance node ID
@@ -51,7 +56,7 @@ Get instance properties, overrides, and main component
 
 Create component instances
 
-<ParameterTable schema={{"type":"object","properties":{"items":{"description":"Array of {componentId, variantProperties?, x?, y?, parentId?}","type":"array","items":{"type":"object","properties":{"componentId":{"description":"Component or component set ID","type":"string"},"variantProperties":{"description":"Pick variant e.g. {\"Style\":\"Secondary\"}","type":"object"},"x":{"type":"number"},"y":{"type":"number"},"parentId":{"description":"Parent node ID. Omit to place on current page.","type":"string"}},"required":["componentId"]}},"depth":{"description":"Response detail: omit for id+name only. 0=properties + child stubs. N=recurse N levels. -1=unlimited.","type":"number"}},"required":["items"]}} />
+<ParameterTable schema={{"type":"object","properties":{"items":{"description":"Array of {componentId, variantProperties?, x?, y?, parentId?, layoutSizingHorizontal?, ...}","type":"array","items":{"type":"object","properties":{"componentId":{"description":"Component or component set ID","type":"string"},"variantProperties":{"description":"Pick variant e.g. {\"Style\":\"Secondary\"}","type":"object"},"name":{"description":"Instance layer name","type":"string"},"x":{"type":"number"},"y":{"type":"number"},"width":{"description":"Override width (resize)","type":"number"},"height":{"description":"Override height (resize)","type":"number"},"parentId":{"description":"Parent node ID. Omit to place on current page.","type":"string"},"opacity":{"type":"token"},"layoutSizingHorizontal":{"description":"Horizontal sizing in auto-layout parent","type":"string","enum":["FIXED","FILL","HUG"]},"layoutSizingVertical":{"description":"Vertical sizing in auto-layout parent","type":"string","enum":["FIXED","FILL","HUG"]},"minWidth":{"description":"Min width constraint","type":"number"},"maxWidth":{"description":"Max width constraint","type":"number"},"minHeight":{"description":"Min height constraint","type":"number"},"maxHeight":{"description":"Max height constraint","type":"number"}},"required":["componentId"]}},"depth":{"description":"Response detail: omit for id+name only. 0=properties + child stubs. N=recurse N levels. -1=unlimited.","type":"number"}},"required":["items"]}} />
 
 **Response**
 

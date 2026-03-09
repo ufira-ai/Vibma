@@ -28,89 +28,16 @@ methods:
       frame:
         description: Static frame with fixed dimensions
         params:
-          name: { type: string, optional: true, description: Frame name }
-          parentId: { $ref: parentId }
-          x: { $ref: xPos }
-          y: { $ref: yPos }
-          width: { type: number, coerce: true, optional: true, description: "Width in px (default: 100)" }
-          height: { type: number, coerce: true, optional: true, description: "Height in px (default: 100)" }
-          fillColor: { $ref: color, optional: true, description: "Background fill color (auto-binds to matching variable/style)" }
-          fillStyleName: { type: string, optional: true, description: Paint style name for fill }
-          fillVariableName: { type: string, optional: true, description: "Color variable by name e.g. 'bg/primary'" }
-          strokeColor: { $ref: color, optional: true, description: "Stroke color (auto-binds to matching variable/style)" }
-          strokeStyleName: { type: string, optional: true, description: Paint style name for stroke }
-          strokeVariableName: { type: string, optional: true, description: "Color variable by name e.g. 'border/default'" }
+          $mixin: frame_params
           strokeWeight: { $expand: stroke, type: token }
-          cornerRadius: { $expand: corners, type: token }
-          opacity: { type: token, optional: true, description: "Opacity 0-1 (number) or variable name (string)" }
           clipsContent: { type: boolean, coerce: true, optional: true }
-          layoutMode:
-            type: enum
-            values: [NONE, HORIZONTAL, VERTICAL]
-            optional: true
-            description: "Layout direction (default: NONE)"
-          layoutSizingHorizontal:
-            type: enum
-            values: [FIXED, HUG, FILL]
-            optional: true
-            description: "Horizontal sizing in parent auto-layout"
-          layoutSizingVertical:
-            type: enum
-            values: [FIXED, HUG, FILL]
-            optional: true
-            description: "Vertical sizing in parent auto-layout"
-          minWidth: { type: number, coerce: true, optional: true, description: "Min width for responsive auto-layout" }
-          maxWidth: { type: number, coerce: true, optional: true, description: "Max width for responsive auto-layout" }
-          minHeight: { type: number, coerce: true, optional: true, description: "Min height for responsive auto-layout" }
-          maxHeight: { type: number, coerce: true, optional: true, description: "Max height for responsive auto-layout" }
       auto_layout:
         description: Auto-layout frame that arranges children automatically
         params:
-          name: { type: string, optional: true }
-          parentId: { $ref: parentId }
-          x: { $ref: xPos }
-          y: { $ref: yPos }
-          layoutMode:
-            type: enum
-            values: [HORIZONTAL, VERTICAL]
-            required: true
-            description: Primary axis direction
-          itemSpacing: { type: token, optional: true, description: "Gap between children (number) or variable name (string)" }
-          padding: { $expand: padding, type: token }
-          primaryAxisAlignItems:
-            type: enum
-            values: [MIN, CENTER, MAX, SPACE_BETWEEN]
-            optional: true
-            description: "Alignment on primary axis"
-          counterAxisAlignItems:
-            type: enum
-            values: [MIN, CENTER, MAX, BASELINE]
-            optional: true
-            description: "Alignment on counter axis"
-          layoutSizingHorizontal:
-            type: enum
-            values: [FIXED, HUG, FILL]
-            optional: true
-          layoutSizingVertical:
-            type: enum
-            values: [FIXED, HUG, FILL]
-            optional: true
-          layoutWrap:
-            type: enum
-            values: [NO_WRAP, WRAP]
-            optional: true
-          counterAxisSpacing: { type: token, optional: true, description: "Gap between wrapped rows (requires layoutWrap: WRAP)" }
-          width: { type: number, coerce: true, optional: true }
-          height: { type: number, coerce: true, optional: true }
-          minWidth: { type: number, coerce: true, optional: true, description: "Min width for responsive auto-layout" }
-          maxWidth: { type: number, coerce: true, optional: true, description: "Max width for responsive auto-layout" }
-          minHeight: { type: number, coerce: true, optional: true, description: "Min height for responsive auto-layout" }
-          maxHeight: { type: number, coerce: true, optional: true, description: "Max height for responsive auto-layout" }
-          fillColor: { $ref: color, optional: true, description: "Background fill color (auto-binds to matching variable/style)" }
-          fillStyleName: { type: string, optional: true, description: Paint style name for fill }
-          fillVariableName: { type: string, optional: true, description: "Color variable by name e.g. 'bg/primary'" }
-          cornerRadius: { $expand: corners, type: token }
+          $mixin: frame_params
+          layoutMode: { type: enum, values: [HORIZONTAL, VERTICAL], required: true, description: Primary axis direction }
           clipsContent: { type: boolean, coerce: true, optional: true }
+          nodeIds: { type: "string[]", coerce: json, optional: true, description: "Existing node IDs to wrap into auto-layout" }
       section:
         description: Figma section (top-level organizer)
         params:
