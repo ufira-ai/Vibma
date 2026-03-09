@@ -9,13 +9,14 @@ import { parse as parseYaml } from "yaml";
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const SCHEMA_DIR = join(__dirname, "..");
 
-interface RawPrompt {
+export interface RawPrompt {
   name: string;
   description: string;
   text: string;
+  help?: boolean;
 }
 
-function loadPrompts(): RawPrompt[] {
+export function loadPrompts(): RawPrompt[] {
   const raw = readFileSync(join(SCHEMA_DIR, "prompts.yaml"), "utf-8");
   return parseYaml(raw) as RawPrompt[];
 }

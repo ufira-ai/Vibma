@@ -26,9 +26,6 @@ export async function nodeSnapshot(id: string, depth: number): Promise<any> {
  * Reads `items` (array) and `depth` (number|undefined) from params.
  * If depth is defined and a result has an `id`, merges node snapshot into the result.
  */
-/** Max items per batch call. Prevents plugin timeouts on large operations. */
-const MAX_BATCH_SIZE = 20;
-
 /**
  * Send a progress update through the Figma plugin → UI → relay → MCP pipeline.
  * This extends the MCP-side timeout (30s → 60s) so long batches don't time out.
@@ -55,12 +52,6 @@ export async function batchHandler<TItem, TResult>(
   const items = (params.items || [params]) as TItem[];
   const depth = params.depth;
   const commandId = (params as any).commandId;
-
-  if (items.length > MAX_BATCH_SIZE) {
-    return {
-      results: [{ error: `Batch too large: ${items.length} items (max ${MAX_BATCH_SIZE}). Split into smaller batches.` } as any],
-    };
-  }
 
   const useProgress = items.length > 3 && commandId;
   if (useProgress) sendBatchProgress(commandId, 0, items.length, "started");

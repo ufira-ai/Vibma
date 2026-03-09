@@ -24,7 +24,7 @@ import ParameterTable from "../../../../components/ParameterTable.astro";
 // minWidth/maxWidth/minHeight/maxHeight: responsive constraints for auto-layout children.
 // constraints: position behavior in non-auto-layout parents. Ignored inside auto-layout frames.
 // bindings: bind design variables to node properties. field uses slash path e.g. "fills/0/color", "opacity", "width".
-// explicitMode: pin a specific variable mode on this node (overrides inherited mode from parent).
+// explicitMode: pin a variable mode on this node. Use { collectionName, modeName } (preferred) or { collectionId, modeId }.
 // properties: escape hatch — set any Figma node property directly. Use only when no dedicated field exists.
 interface Node {
   id: string; name: string; type: string;
@@ -78,7 +78,7 @@ interface PatchItem {
   };
   constraints?: { horizontal: "MIN" | "CENTER" | "MAX" | "STRETCH" | "SCALE"; vertical: "MIN" | "CENTER" | "MAX" | "STRETCH" | "SCALE" };
   bindings?: { field: string; variableName: string }[]; // bind variables by name. field e.g. "fills/0/color", "opacity"
-  explicitMode?: { collectionId: string; modeId: string }; // pin variable mode on this node
+  explicitMode?: { collectionName: string; modeName: string } | { collectionId: string; modeId: string }; // pin variable mode — prefer names
   properties?: Record<string, unknown>; // direct Figma API props (escape hatch)
 }
 // Frames are the primary container in Figma. Use auto_layout for responsive containers.

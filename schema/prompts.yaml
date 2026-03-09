@@ -176,6 +176,7 @@
     - `frames(method: "export", nodeId: "target-id")` for visual verification
 
 - name: missing_tools
+  help: true
   description: Why create or edit tools are missing and how to fix it
   text: |
     # Missing Create / Edit Tools

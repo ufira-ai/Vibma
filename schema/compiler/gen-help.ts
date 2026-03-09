@@ -7,6 +7,7 @@
  * - resolveHelp(): runtime lookup function
  */
 import type { ResolvedEndpoint, ResolvedMethod, RawParam } from "./types";
+import type { RawPrompt } from "./gen-prompts";
 
 // ─── Formatters ──────────────────────────────────────────────────
 
@@ -23,7 +24,6 @@ function methodDetail(ep: ResolvedEndpoint, method: ResolvedMethod): string {
   const lines: string[] = [];
   lines.push(`# ${ep.name}.${method.name}`);
   lines.push(method.description);
-  lines.push(`Tier: ${method.tier}`);
   lines.push("");
 
   if (method.example) {
@@ -72,7 +72,7 @@ function endpointSummary(ep: ResolvedEndpoint): string {
 
 // ─── Code generation ─────────────────────────────────────────────
 
-export function generateHelpTs(endpoints: ResolvedEndpoint[]): string {
+export function generateHelpTs(endpoints: ResolvedEndpoint[], helpTopics: RawPrompt[] = []): string {
   const helpMap: Record<string, { summary: string; methods: Record<string, string> }> = {};
 
   for (const ep of endpoints) {
@@ -84,6 +84,12 @@ export function generateHelpTs(endpoints: ResolvedEndpoint[]): string {
       summary: endpointSummary(ep),
       methods,
     };
+  }
+
+  // Build topics map from prompts marked help: true
+  const topicsMap: Record<string, string> = {};
+  for (const t of helpTopics) {
+    topicsMap[t.name] = t.text.trim();
   }
 
   // Top-level directory
@@ -104,6 +110,13 @@ export function generateHelpTs(endpoints: ResolvedEndpoint[]): string {
     }
     dirLines.push("");
   }
+  if (helpTopics.length > 0) {
+    dirLines.push("Topics:");
+    for (const t of helpTopics) {
+      dirLines.push(`  ${t.name.padEnd(24)} ${t.description}`);
+    }
+    dirLines.push("");
+  }
   dirLines.push('Use help(topic: "<endpoint>") for endpoint details.');
   dirLines.push('Use help(topic: "<endpoint>.<method>") for method details.');
 
@@ -114,7 +127,10 @@ export function generateHelpTs(endpoints: ResolvedEndpoint[]): string {
   lines.push(``);
   lines.push(`export const helpEndpoints: Record<string, { summary: string; methods: Record<string, string> }> = ${JSON.stringify(helpMap, null, 2)};`);
   lines.push(``);
+  lines.push(`export const helpTopics: Record<string, string> = ${JSON.stringify(topicsMap, null, 2)};`);
+  lines.push(``);
   lines.push(`const allEndpointNames = Object.keys(helpEndpoints);`);
+  lines.push(`const allTopicNames = Object.keys(helpTopics);`);
   lines.push(``);
   lines.push(`/** Resolve a help query. Returns help text. Always includes available options on error. */`);
   lines.push(`export function resolveHelp(topic?: string): string {`);
@@ -123,12 +139,18 @@ export function generateHelpTs(endpoints: ResolvedEndpoint[]): string {
   lines.push(`  if (dot === -1) {`);
   lines.push(`    const ep = helpEndpoints[topic];`);
   lines.push(`    if (ep) return ep.summary;`);
-  lines.push(`    return "Unknown endpoint: " + topic + ". Available endpoints: " + allEndpointNames.join(", ");`);
+  lines.push(`    const t = helpTopics[topic];`);
+  lines.push(`    if (t) return t;`);
+  lines.push(`    const all = [...allEndpointNames, ...allTopicNames];`);
+  lines.push(`    return "Unknown topic: " + topic + ". Available: " + all.join(", ");`);
   lines.push(`  }`);
   lines.push(`  const epName = topic.slice(0, dot);`);
   lines.push(`  const methodName = topic.slice(dot + 1);`);
   lines.push(`  const ep = helpEndpoints[epName];`);
-  lines.push(`  if (!ep) return "Unknown endpoint: " + epName + ". Available endpoints: " + allEndpointNames.join(", ");`);
+  lines.push(`  if (!ep) {`);
+  lines.push(`    const all = [...allEndpointNames, ...allTopicNames];`);
+  lines.push(`    return "Unknown topic: " + epName + ". Available: " + all.join(", ");`);
+  lines.push(`  }`);
   lines.push(`  const method = ep.methods[methodName];`);
   lines.push(`  if (method) return method;`);
   lines.push(`  return "Unknown method: " + methodName + " on " + epName + ". Available methods: " + Object.keys(ep.methods).join(", ");`);

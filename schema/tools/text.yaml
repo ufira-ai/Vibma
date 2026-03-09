@@ -8,6 +8,7 @@ notes: |
   // Text nodes display text content with typography styling. They inherit node methods (get, list, update, delete, clone, reparent).
   // textAutoResize: NONE (fixed box), WIDTH_AND_HEIGHT (grow both), HEIGHT (fixed width, auto height), TRUNCATE (fixed + ellipsis).
   // Prefer textStyleName for typography, fontColorVariableName/fontColorStyleName for color.
+  // Aliases: fillColor → fontColor, fillVariableName → fontColorVariableName, fillStyleName → fontColorStyleName (consistent with frames API).
   // ---
   // fontStyle vs fontWeight: fontStyle is a named variant like "Bold", "Italic", "SemiBold". When set, fontWeight is ignored.
   //   Use fonts.list to find available fontFamily + fontStyle combinations.

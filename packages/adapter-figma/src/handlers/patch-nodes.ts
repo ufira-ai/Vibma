@@ -143,7 +143,7 @@ async function patchSingleNode(item: any, textCtx: TextPropsContext | null): Pro
     }
   }
 
-  // 13. Explicit variable mode
+  // 13. Explicit variable mode — accepts name-based ({ collectionName, modeName }) or ID-based ({ collectionId, modeId })
   if (item.explicitMode) {
     const node = await figma.getNodeByIdAsync(item.nodeId);
     if (!node) throw new Error(`Node not found: ${item.nodeId}`);
@@ -151,9 +151,30 @@ async function patchSingleNode(item: any, textCtx: TextPropsContext | null): Pro
       result.warning = appendWarning(result.warning, `Node ${item.nodeId} does not support explicit variable modes.`);
     } else {
       const allCollections = await figma.variables.getLocalVariableCollectionsAsync();
-      const collection = allCollections.find((c: any) => c.id === item.explicitMode.collectionId);
-      if (!collection) throw new Error(`Collection not found: ${item.explicitMode.collectionId}`);
-      (node as any).setExplicitVariableModeForCollection(collection, item.explicitMode.modeId);
+      const em = item.explicitMode;
+      let collection: any;
+      let modeId: string;
+
+      if (em.collectionName) {
+        const cName = em.collectionName.toLowerCase();
+        collection = allCollections.find((c: any) => c.name.toLowerCase() === cName);
+        if (!collection) throw new Error(`Collection not found: "${em.collectionName}". Available: ${allCollections.map((c: any) => c.name).join(", ")}`);
+      } else {
+        collection = allCollections.find((c: any) => c.id === em.collectionId);
+        if (!collection) throw new Error(`Collection not found: ${em.collectionId}. Available: ${allCollections.map((c: any) => `${c.name} (${c.id})`).join(", ")}`);
+      }
+
+      if (em.modeName) {
+        const mName = em.modeName.toLowerCase();
+        const mode = collection.modes.find((m: any) => m.name.toLowerCase() === mName);
+        if (!mode) throw new Error(`Mode not found: "${em.modeName}" in collection "${collection.name}". Available: ${collection.modes.map((m: any) => m.name).join(", ")}`);
+        modeId = mode.modeId;
+      } else {
+        modeId = em.modeId;
+        if (!modeId) throw new Error(`explicitMode requires either modeName or modeId`);
+      }
+
+      (node as any).setExplicitVariableModeForCollection(collection, modeId);
     }
   }
 

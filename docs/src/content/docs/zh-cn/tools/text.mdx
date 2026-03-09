@@ -24,7 +24,7 @@ import ParameterTable from "../../../../components/ParameterTable.astro";
 // minWidth/maxWidth/minHeight/maxHeight: responsive constraints for auto-layout children.
 // constraints: position behavior in non-auto-layout parents. Ignored inside auto-layout frames.
 // bindings: bind design variables to node properties. field uses slash path e.g. "fills/0/color", "opacity", "width".
-// explicitMode: pin a specific variable mode on this node (overrides inherited mode from parent).
+// explicitMode: pin a variable mode on this node. Use { collectionName, modeName } (preferred) or { collectionId, modeId }.
 // properties: escape hatch — set any Figma node property directly. Use only when no dedicated field exists.
 interface Node {
   id: string; name: string; type: string;
@@ -78,12 +78,13 @@ interface PatchItem {
   };
   constraints?: { horizontal: "MIN" | "CENTER" | "MAX" | "STRETCH" | "SCALE"; vertical: "MIN" | "CENTER" | "MAX" | "STRETCH" | "SCALE" };
   bindings?: { field: string; variableName: string }[]; // bind variables by name. field e.g. "fills/0/color", "opacity"
-  explicitMode?: { collectionId: string; modeId: string }; // pin variable mode on this node
+  explicitMode?: { collectionName: string; modeName: string } | { collectionId: string; modeId: string }; // pin variable mode — prefer names
   properties?: Record<string, unknown>; // direct Figma API props (escape hatch)
 }
 // Text nodes display text content with typography styling. They inherit node methods (get, list, update, delete, clone, reparent).
 // textAutoResize: NONE (fixed box), WIDTH_AND_HEIGHT (grow both), HEIGHT (fixed width, auto height), TRUNCATE (fixed + ellipsis).
 // Prefer textStyleName for typography, fontColorVariableName/fontColorStyleName for color.
+// Aliases: fillColor → fontColor, fillVariableName → fontColorVariableName, fillStyleName → fontColorStyleName (consistent with frames API).
 // ---
 // fontStyle vs fontWeight: fontStyle is a named variant like "Bold", "Italic", "SemiBold". When set, fontWeight is ignored.
 //   Use fonts.list to find available fontFamily + fontStyle combinations.

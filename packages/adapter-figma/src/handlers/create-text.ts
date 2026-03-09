@@ -79,6 +79,13 @@ async function prepCreateText(params: any): Promise<CreateTextContext> {
 
   clearFontCache();
 
+  // Normalize fill* → fontColor* aliases early so preload checks see them
+  for (const p of items) {
+    if (p.fillColor && !p.fontColor) p.fontColor = p.fillColor;
+    if (p.fillVariableName && !p.fontColorVariableName) p.fontColorVariableName = p.fillVariableName;
+    if (p.fillStyleName && !p.fontColorStyleName) p.fontColorStyleName = p.fillStyleName;
+  }
+
   // Resolve text styles by name once (not per-item)
   const styleNames = new Set<string>();
   for (const p of items) {

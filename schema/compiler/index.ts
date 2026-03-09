@@ -19,7 +19,7 @@ import { generateMcpDefs } from "./gen-mcp";
 import { generateResponseTypes } from "./gen-response-types";
 import { generateDescription } from "./gen-descriptions";
 import { generateDocs } from "./gen-docs";
-import { generatePromptsTs, generatePromptsDocs } from "./gen-prompts";
+import { generatePromptsTs, generatePromptsDocs, loadPrompts } from "./gen-prompts";
 import { generateHelpTs } from "./gen-help";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -58,7 +58,9 @@ writeFileSync(mcpPath, mcpCode);
 console.log(`Written: ${mcpPath}`);
 
 // ─── Generate Help Data ─────────────────────────────────────────
-const helpCode = generateHelpTs(resolved);
+const prompts = loadPrompts();
+const helpTopics = prompts.filter(p => p.help);
+const helpCode = generateHelpTs(resolved, helpTopics);
 const helpPath = join(outDir, "help.ts");
 writeFileSync(helpPath, helpCode);
 console.log(`Written: ${helpPath}`);
