@@ -20,8 +20,11 @@
  * Penpot: "row" | "column" (no layout when "NONE")
  */
 export function mapLayoutMode(vibmaMode: string): "row" | "column" | null {
-  // TODO: implement
-  return null;
+  switch (vibmaMode) {
+    case "HORIZONTAL": return "row";
+    case "VERTICAL":   return "column";
+    default:           return null; // "NONE" → no flex layout
+  }
 }
 
 // ─── Primary axis alignment (justify-content) ────────────────────
@@ -32,8 +35,14 @@ export function mapLayoutMode(vibmaMode: string): "row" | "column" | null {
  * Penpot: "start" | "center" | "end" | "space-between" | "space-around" | "space-evenly"
  */
 export function mapPrimaryAlign(vibmaAlign: string): string {
-  // TODO: implement
-  return "start";
+  // Maps Vibma primaryAxisAlignItems → Penpot FlexLayout.justifyContent
+  switch (vibmaAlign) {
+    case "MIN":           return "start";
+    case "CENTER":        return "center";
+    case "MAX":           return "end";
+    case "SPACE_BETWEEN": return "space-between";
+    default:              return "start";
+  }
 }
 
 // ─── Counter axis alignment (align-items) ────────────────────────
@@ -44,8 +53,15 @@ export function mapPrimaryAlign(vibmaAlign: string): string {
  * Penpot: "start" | "center" | "end" | "stretch"
  */
 export function mapCounterAlign(vibmaAlign: string): string {
-  // TODO: implement
-  return "start";
+  // Maps Vibma counterAxisAlignItems → Penpot FlexLayout.alignItems
+  // BASELINE is not supported in Penpot FlexLayout; falls back to "start".
+  switch (vibmaAlign) {
+    case "MIN":      return "start";
+    case "CENTER":   return "center";
+    case "MAX":      return "end";
+    case "BASELINE": return "start"; // Penpot gap: no baseline align in flex layout
+    default:         return "start";
+  }
 }
 
 // ─── Sizing mode ─────────────────────────────────────────────────
@@ -55,9 +71,15 @@ export function mapCounterAlign(vibmaAlign: string): string {
  * Vibma: "FIXED" | "HUG" | "FILL"
  * Penpot: "fixed" | "fill" | "auto" (hug → "auto" in Penpot terms)
  */
-export function mapSizing(vibmaSizing: string): string {
-  // TODO: implement
-  return "fixed";
+export function mapSizing(vibmaSizing: string): 'fit-content' | 'fill' | 'auto' {
+  // Maps Vibma sizing mode → Penpot CommonLayout sizing
+  // Penpot: "fit-content" (hug), "fill", "auto" (fixed in older docs)
+  switch (vibmaSizing) {
+    case "HUG":   return "fit-content";
+    case "FILL":  return "fill";
+    case "FIXED": return "auto";
+    default:      return "auto";
+  }
 }
 
 // ─── Color / fill conversion ──────────────────────────────────────

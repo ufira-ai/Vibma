@@ -19,6 +19,8 @@
  * 4. No `__html__` template literal — the UI is served by the dev server at `host`.
  */
 
+import { allPenpotHandlers } from "../handlers/registry";
+
 // Keep in sync with package.json version
 const VIBMA_VERSION = "0.1.0";
 
@@ -63,9 +65,11 @@ penpot.ui.onMessage<any>((msg) => {
 });
 
 // ─── Command router ──────────────────────────────────────────────
-// Scaffold: no handlers wired yet. All commands return a not-implemented error
-// until individual handler files are added to handlers/registry.ts.
 
 async function handleCommand(command: string, params: any): Promise<any> {
-  throw new Error(`Command not implemented in adapter-penpot scaffold: ${command}`);
+  const handler = allPenpotHandlers[command];
+  if (!handler) {
+    throw new Error(`Unknown command: ${command}`);
+  }
+  return handler(params);
 }
