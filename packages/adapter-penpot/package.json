@@ -1,0 +1,36 @@
+{
+  "name": "@ufira/vibma-adapter-penpot",
+  "description": "Penpot adapter for Vibma — plugin + handler implementations.",
+  "version": "0.1.0",
+  "license": "MIT",
+  "author": "ufira <https://github.com/ufira-ai>",
+  "homepage": "https://github.com/ufira-ai/vibma",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ufira-ai/vibma.git",
+    "directory": "packages/adapter-penpot"
+  },
+  "keywords": [
+    "penpot",
+    "mcp",
+    "vibma",
+    "adapter"
+  ],
+  "type": "module",
+  "files": [
+    "dist",
+    "plugin"
+  ],
+  "scripts": {
+    "build": "tsup",
+    "build:watch": "tsup --watch"
+  },
+  "dependencies": {
+    "@ufira/vibma": "*"
+  },
+  "devDependencies": {
+    "@penpot/plugin-types": "^1.4.2",
+    "tsup": "^8.5.1",
+    "typescript": "^5.9.3"
+  }
+}
