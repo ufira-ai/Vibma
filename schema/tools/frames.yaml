@@ -99,7 +99,7 @@ methods:
             type: enum
             values: [NO_WRAP, WRAP]
             optional: true
-          counterAxisSpacing: { type: number, coerce: true, optional: true, description: "Gap between wrapped rows (requires layoutWrap: WRAP)" }
+          counterAxisSpacing: { type: token, optional: true, description: "Gap between wrapped rows (requires layoutWrap: WRAP)" }
           width: { type: number, coerce: true, optional: true }
           height: { type: number, coerce: true, optional: true }
           minWidth: { type: number, coerce: true, optional: true, description: "Min width for responsive auto-layout" }

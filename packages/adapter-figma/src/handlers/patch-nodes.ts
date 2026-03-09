@@ -11,6 +11,22 @@ import type { TextPropsContext } from "./text";
 const SIMPLE_PROPS = ["name", "visible", "locked", "rotation", "blendMode", "layoutPositioning",
   "minWidth", "maxWidth", "minHeight", "maxHeight"] as const;
 
+async function doResize(item: any): Promise<void> {
+  let w = item.width;
+  let h = item.height;
+  if (w === undefined || h === undefined) {
+    const node = await figma.getNodeByIdAsync(item.nodeId);
+    if (!node) throw new Error(`Node not found: ${item.nodeId}`);
+    if ("width" in node && "height" in node) {
+      w = w ?? (node as any).width;
+      h = h ?? (node as any).height;
+    } else {
+      throw new Error(`Node does not support resize: ${item.nodeId}`);
+    }
+  }
+  await resizeSingle({ nodeId: item.nodeId, width: w, height: h });
+}
+
 async function patchSingleNode(item: any, textCtx: TextPropsContext | null): Promise<any> {
   const result: any = {};
 
@@ -30,21 +46,11 @@ async function patchSingleNode(item: any, textCtx: TextPropsContext | null): Pro
     await moveSingle({ nodeId: item.nodeId, x: item.x, y: item.y });
   }
 
-  // 2. Geometry: resize (allow width-only or height-only by reading current bounds)
-  if (item.width !== undefined || item.height !== undefined) {
-    let w = item.width;
-    let h = item.height;
-    if (w === undefined || h === undefined) {
-      const node = await figma.getNodeByIdAsync(item.nodeId);
-      if (!node) throw new Error(`Node not found: ${item.nodeId}`);
-      if ("width" in node && "height" in node) {
-        w = w ?? (node as any).width;
-        h = h ?? (node as any).height;
-      } else {
-        throw new Error(`Node does not support resize: ${item.nodeId}`);
-      }
-    }
-    await resizeSingle({ nodeId: item.nodeId, width: w, height: h });
+  // 2. Geometry: resize — deferred to after layout (step 10b) when layout is also being patched,
+  //    because auto-layout sizing mode must be set before width/height will stick.
+  const needsResize = item.width !== undefined || item.height !== undefined;
+  if (needsResize && !item.layout) {
+    await doResize(item);
   }
 
   // 3. Fill
@@ -105,7 +111,13 @@ async function patchSingleNode(item: any, textCtx: TextPropsContext | null): Pro
 
   // 10. Layout
   if (item.layout) {
-    await updateFrameSingle({ nodeId: item.nodeId, ...item.layout });
+    const r = await updateFrameSingle({ nodeId: item.nodeId, ...item.layout });
+    if (r.warning) result.warning = appendWarning(result.warning, r.warning);
+  }
+
+  // 10b. Deferred resize — after layout so sizing mode (FIXED/HUG/FILL) is set first
+  if (needsResize && item.layout) {
+    await doResize(item);
   }
 
   // 11. Text

@@ -68,6 +68,12 @@ export async function serializeNode(
     }
   }
 
+  // ── Stroke weight ────────────────────────────────────────────
+  if ("strokeWeight" in node) {
+    const sw = (node as any).strokeWeight;
+    if (sw !== undefined && sw !== figma.mixed && sw > 0) out.strokeWeight = sw;
+  }
+
   // ── Bounding box ──────────────────────────────────────────────
   if ("absoluteBoundingBox" in node && (node as any).absoluteBoundingBox) {
     out.absoluteBoundingBox = (node as any).absoluteBoundingBox;
@@ -150,7 +156,15 @@ export async function serializeNode(
   // ── Layout ────────────────────────────────────────────────────
   if ("layoutMode" in node) {
     const lm = (node as any).layoutMode;
-    if (lm && lm !== "NONE") out.layoutMode = lm;
+    if (lm && lm !== "NONE") {
+      out.layoutMode = lm;
+      // These only matter when auto-layout is active
+      const n = node as any;
+      if (n.layoutWrap && n.layoutWrap !== "NO_WRAP") out.layoutWrap = n.layoutWrap;
+      if (n.primaryAxisAlignItems && n.primaryAxisAlignItems !== "MIN") out.primaryAxisAlignItems = n.primaryAxisAlignItems;
+      if (n.counterAxisAlignItems && n.counterAxisAlignItems !== "MIN") out.counterAxisAlignItems = n.counterAxisAlignItems;
+      if (n.counterAxisSpacing !== undefined && n.counterAxisSpacing > 0) out.counterAxisSpacing = n.counterAxisSpacing;
+    }
   }
   if ("itemSpacing" in node) {
     const is = (node as any).itemSpacing;

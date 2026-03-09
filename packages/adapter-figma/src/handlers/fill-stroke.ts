@@ -1,4 +1,4 @@
-import { applyTokens, batchHandler, bindNumericVariable, coerceColor, findVariableById, findVariableByName, solidPaint, styleNotFoundHint, suggestStyleForColor } from "./helpers";
+import { applyToken, applyTokens, batchHandler, coerceColor, findVariableById, findVariableByName, solidPaint, styleNotFoundHint, suggestStyleForColor } from "./helpers";
 
 // ─── Figma Handlers ──────────────────────────────────────────────
 
@@ -123,10 +123,7 @@ export async function setCornerSingle(p: any) {
 
   const hints: string[] = [];
 
-  // Per-corner values (topLeft, topRight, bottomRight, bottomLeft) — each is number | string (token)
-  const hasPer = p.topLeft !== undefined || p.topRight !== undefined ||
-                 p.bottomRight !== undefined || p.bottomLeft !== undefined;
-
+  // Map input params (topLeft, topRight, etc.) to Figma fields (topLeftRadius, etc.)
   const mapping = [
     ["topLeft", "topLeftRadius"],
     ["topRight", "topRightRadius"],
@@ -134,28 +131,26 @@ export async function setCornerSingle(p: any) {
     ["bottomLeft", "bottomLeftRadius"],
   ] as const;
 
-  // Helper: parse token value — numeric string → number, otherwise variable name
-  const isVar = (v: any): boolean => typeof v === "string" && (isNaN(Number(v)) || v.trim() === "");
+  const hasPer = mapping.some(([key]) => p[key] !== undefined);
 
   if (hasPer && "topLeftRadius" in node) {
+    const cornerFields: Record<string, number | string | undefined> = {};
     for (const [key, field] of mapping) {
-      const val = p[key] ?? p.radius;
-      if (val !== undefined) {
-        if (isVar(val)) {
-          await bindNumericVariable(node, field, val, hints);
-        } else {
-          (node as any)[field] = Number(val);
-        }
-      }
+      cornerFields[field] = p[key] ?? p.radius;
     }
+    await applyTokens(node, cornerFields, hints);
   } else if (p.radius !== undefined) {
-    if (isVar(p.radius)) {
-      await bindNumericVariable(node, ["topLeftRadius", "topRightRadius", "bottomRightRadius", "bottomLeftRadius"], p.radius, hints);
-    } else if ("topLeftRadius" in node) {
-      const rv = Number(p.radius);
-      for (const [, field] of mapping) (node as any)[field] = rv;
+    if ("topLeftRadius" in node) {
+      // Expand shorthand to all four corners
+      const cornerFields: Record<string, number | string> = {};
+      for (const [, field] of mapping) cornerFields[field] = p.radius;
+      await applyTokens(node, cornerFields, hints);
     } else {
-      (node as any).cornerRadius = Number(p.radius);
+      // Node only supports single cornerRadius (e.g. non-rectangle)
+      const bound = await applyToken(node, "cornerRadius", p.radius, hints);
+      if (!bound) {
+        hints.push(`Hardcoded cornerRadius. Use an existing FLOAT variable or create one with variables(method:"create"), then pass the variable name string instead of a number.`);
+      }
     }
   }
 

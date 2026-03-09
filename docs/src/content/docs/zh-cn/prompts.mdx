@@ -21,7 +21,8 @@ Figma design best practices:
    - Use textStyleName for typography. Only use raw fillColor/fontColor for one-off values.
 
 3. Auto-Layout First:
-   - frames(method:"create", type:"auto_layout") for every container. Avoid absolute positioning.
+   - frames(method:"create", type:"auto_layout") for containers, components(method:"create", type:"component") for reusable elements.
+   - A component IS a frame — create it directly with layout/fill/stroke params, then add children. No need to create a frame first and convert.
    - layoutSizingHorizontal/Vertical: "FILL" for responsive children, "HUG" to shrink-wrap.
 
 4. Naming: descriptive names for all elements. Property=Value pattern (e.g. "Size=Small") for variant components.

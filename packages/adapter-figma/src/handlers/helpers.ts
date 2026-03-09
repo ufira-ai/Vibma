@@ -160,41 +160,50 @@ export async function findVariableById(id: string): Promise<any> {
  * Resolve any variable by name, optionally scoped to a collection name.
  * Throws if the name matches multiple variables across collections and no collectionName is given.
  */
-export async function findVariableByName(name: string, collectionName?: string): Promise<any> {
-  const all = await figma.variables.getLocalVariablesAsync();
+/**
+ * Shared variable lookup logic. Searches by exact name, case-insensitive fallback,
+ * then "CollectionName/VarName" slash-path fallback. Returns null if not found.
+ */
+async function resolveVariable(
+  name: string,
+  typeFilter?: VariableResolvedDataType,
+  collectionName?: string,
+): Promise<Variable | null> {
+  const all = typeFilter
+    ? await figma.variables.getLocalVariablesAsync(typeFilter)
+    : await figma.variables.getLocalVariablesAsync();
   let matches = all.filter(v => v.name === name);
   if (matches.length === 0) {
     const lower = name.toLowerCase();
     matches = all.filter(v => v.name.toLowerCase() === lower);
+  }
+  // Fallback: try parsing "CollectionName/VarName" when no exact match
+  if (matches.length === 0 && !collectionName && name.includes("/")) {
+    const slashIdx = name.indexOf("/");
+    return resolveVariable(name.substring(slashIdx + 1), typeFilter, name.substring(0, slashIdx));
   }
   if (matches.length === 0) return null;
   if (collectionName) {
     const collections = await figma.variables.getLocalVariableCollectionsAsync();
     const col = collections.find(c => c.name === collectionName) ||
                 collections.find(c => c.name.toLowerCase() === collectionName.toLowerCase());
-    if (!col) throw new Error(`Collection '${collectionName}' not found`);
-    const match = matches.find(v => v.variableCollectionId === col.id);
-    if (!match) throw new Error(`Variable '${name}' not found in collection '${collectionName}'`);
-    return match;
+    if (!col) return null;
+    return matches.find(v => v.variableCollectionId === col.id) || null;
   }
   if (matches.length > 1) {
     const collections = await figma.variables.getLocalVariableCollectionsAsync();
     const colNames = matches.map(v => collections.find(c => c.id === v.variableCollectionId)?.name || "?");
-    throw new Error(`Variable '${name}' exists in multiple collections: [${colNames.join(", ")}]. Specify collectionName to disambiguate.`);
+    throw new Error(`Variable '${name}' exists in multiple collections: [${colNames.join(", ")}]. Use "CollectionName/${name}" to disambiguate.`);
   }
   return matches[0];
 }
 
-/**
- * Resolve a color variable by name (case-insensitive, supports slash paths like "bg/primary").
- * Returns the Variable object or null.
- */
-export async function findColorVariableByName(name: string): Promise<any> {
-  const colorVars = await figma.variables.getLocalVariablesAsync("COLOR");
-  const exact = colorVars.find(v => v.name === name);
-  if (exact) return exact;
-  const lower = name.toLowerCase();
-  return colorVars.find(v => v.name.toLowerCase() === lower) || null;
+export async function findVariableByName(name: string, collectionName?: string): Promise<Variable | null> {
+  return resolveVariable(name, undefined, collectionName);
+}
+
+export async function findColorVariableByName(name: string, collectionName?: string): Promise<Variable | null> {
+  return resolveVariable(name, "COLOR", collectionName);
 }
 
 /**
@@ -521,17 +530,6 @@ function parseToken(value: string | number): { num: number } | { varName: string
  * Numeric string → set value (hardcoded). Non-numeric string → bind variable.
  * Returns true if the value was a variable binding.
  */
-async function applyTokenField(
-  node: any, field: string, value: number | string, hints: string[],
-): Promise<boolean> {
-  const parsed = parseToken(value);
-  if ("varName" in parsed) {
-    await bindNumericVariable(node, field, parsed.varName, hints);
-    return true;
-  }
-  node[field] = parsed.num;
-  return false;
-}
 
 /**
  * Apply corner radius to a node, supporting both shorthand and per-corner values.
@@ -551,21 +549,16 @@ export async function applyCornerRadius(node: any, p: any, hints: string[]): Pro
   const hasPer = fields.some(f => p[f] !== undefined);
 
   if (hasPer && "topLeftRadius" in node) {
-    let anyHardcoded = false;
+    const cornerFields: Record<string, number | string | undefined> = {};
     for (const f of fields) {
-      if (p[f] !== undefined) {
-        const bound = await applyTokenField(node, f, p[f], hints);
-        if (!bound) anyHardcoded = true;
-      }
+      if (p[f] !== undefined) cornerFields[f] = p[f];
     }
-    if (anyHardcoded) {
-      hints.push(`Hardcoded cornerRadius. Pass a variable name string instead of a number to bind to a design token.`);
-    }
+    await applyTokens(node, cornerFields, hints);
   } else if (p.cornerRadius !== undefined && "cornerRadius" in node) {
-    const parsed = parseToken(p.cornerRadius);
-    if ("num" in parsed) {
-      node.cornerRadius = parsed.num;
-      hints.push(`Hardcoded cornerRadius. Pass a variable name string instead of a number to bind to a design token.`);
+    // Node supports cornerRadius but not per-corner — apply as single field
+    const bound = await applyToken(node, "cornerRadius", p.cornerRadius, hints);
+    if (!bound) {
+      hints.push(`Hardcoded cornerRadius. Use an existing FLOAT variable or create one with variables(method:"create"), then pass the variable name string instead of a number.`);
     }
   }
 }

@@ -1,72 +1,83 @@
 import { batchHandler, appendToParent, applyFillWithAutoBind, applyStrokeWithAutoBind, applyCornerRadius, applyTokens } from "./helpers";
 import { looksInteractive } from "@ufira/vibma/utils/wcag";
 
-async function createSingleFrame(p: any) {
+/**
+ * Shared setup for frame-like nodes (Frame, Component).
+ * Applies layout, fill, stroke, corner radius, opacity, min/max, WCAG checks.
+ * Returns { parent, hints } so the caller can add type-specific logic.
+ */
+export async function setupFrameNode(
+  node: FrameNode | ComponentNode,
+  p: any,
+): Promise<{ parent: BaseNode | null; hints: string[] }> {
+  // Expand padding shorthand → per-edge (token values preserved)
+  if (p.padding !== undefined) {
+    p.paddingTop ??= p.padding;
+    p.paddingRight ??= p.padding;
+    p.paddingBottom ??= p.padding;
+    p.paddingLeft ??= p.padding;
+  }
+
   const {
-    x = 0, y = 0, width = 100, height = 100, name = "Frame", parentId,
     layoutMode = "NONE", layoutWrap = "NO_WRAP",
     primaryAxisAlignItems = "MIN", counterAxisAlignItems = "MIN",
     layoutSizingHorizontal = "FIXED", layoutSizingVertical = "FIXED",
+    parentId,
   } = p;
 
-  const frame = figma.createFrame();
-  frame.x = x;
-  frame.y = y;
-  frame.resize(width, height);
-  frame.name = name;
-  frame.fills = []; // no fill by default
   const hints: string[] = [];
-  // Corner radius: each field accepts number (value) or string (variable name)
-  await applyCornerRadius(frame, p, hints);
-  // Token fields: opacity, padding, itemSpacing — pass variable name to bind, number for hardcoded
-  await applyTokens(frame, { opacity: p.opacity }, hints);
+
+  // Corner radius
+  await applyCornerRadius(node, p, hints);
+  // Opacity
+  await applyTokens(node, { opacity: p.opacity }, hints);
 
   const deferH = parentId && layoutSizingHorizontal === "FILL";
   const deferV = parentId && layoutSizingVertical === "FILL";
 
+  // Auto-layout
   if (layoutMode !== "NONE") {
-    frame.layoutMode = layoutMode;
-    frame.layoutWrap = layoutWrap;
+    node.layoutMode = layoutMode;
+    node.layoutWrap = layoutWrap;
     for (const f of ["paddingTop", "paddingRight", "paddingBottom", "paddingLeft", "itemSpacing"] as const) {
-      if (p[f] === undefined) (frame as any)[f] = 0;
+      if (p[f] === undefined) (node as any)[f] = 0;
     }
-    await applyTokens(frame, {
+    await applyTokens(node, {
       paddingTop: p.paddingTop, paddingRight: p.paddingRight,
       paddingBottom: p.paddingBottom, paddingLeft: p.paddingLeft,
       itemSpacing: p.itemSpacing,
     }, hints);
-    frame.primaryAxisAlignItems = primaryAxisAlignItems;
-    frame.counterAxisAlignItems = counterAxisAlignItems;
-    frame.layoutSizingHorizontal = deferH ? "FIXED" : layoutSizingHorizontal;
-    frame.layoutSizingVertical = deferV ? "FIXED" : layoutSizingVertical;
+    node.primaryAxisAlignItems = primaryAxisAlignItems;
+    node.counterAxisAlignItems = counterAxisAlignItems;
+    node.layoutSizingHorizontal = deferH ? "FIXED" : layoutSizingHorizontal;
+    node.layoutSizingVertical = deferV ? "FIXED" : layoutSizingVertical;
     if (p.counterAxisSpacing !== undefined && layoutWrap === "WRAP") {
-      (frame as any).counterAxisSpacing = p.counterAxisSpacing;
+      await applyTokens(node, { counterAxisSpacing: p.counterAxisSpacing }, hints);
     }
   }
 
-  // Fill & stroke: shared helpers handle variableName > variableId > styleName > color (with auto-bind)
-  await applyFillWithAutoBind(frame, p, hints);
-  await applyStrokeWithAutoBind(frame, p, hints);
+  // Fill & stroke
+  await applyFillWithAutoBind(node, p, hints);
+  await applyStrokeWithAutoBind(node, p, hints);
 
-  // Min/max dimensions (responsive auto-layout constraints)
-  if (p.minWidth !== undefined) (frame as any).minWidth = p.minWidth;
-  if (p.maxWidth !== undefined) (frame as any).maxWidth = p.maxWidth;
-  if (p.minHeight !== undefined) (frame as any).minHeight = p.minHeight;
-  if (p.maxHeight !== undefined) (frame as any).maxHeight = p.maxHeight;
+  // Min/max dimensions
+  if (p.minWidth !== undefined) (node as any).minWidth = p.minWidth;
+  if (p.maxWidth !== undefined) (node as any).maxWidth = p.maxWidth;
+  if (p.minHeight !== undefined) (node as any).minHeight = p.minHeight;
+  if (p.maxHeight !== undefined) (node as any).maxHeight = p.maxHeight;
 
-  // Append to parent or page (with deferred FILL sizing)
-  const parent = await appendToParent(frame, parentId);
+  // Append to parent (with deferred FILL sizing)
+  const parent = await appendToParent(node, parentId);
   const parentIsAL = parent && "layoutMode" in parent && (parent as any).layoutMode !== "NONE";
   if (parent) {
     if (deferH) {
-      if (parentIsAL) { frame.layoutSizingHorizontal = "FILL"; }
+      if (parentIsAL) { node.layoutSizingHorizontal = "FILL"; }
       else { hints.push("layoutSizingHorizontal 'FILL' ignored — parent is not an auto-layout frame. Add layoutMode to parent first."); }
     }
     if (deferV) {
-      if (parentIsAL) { frame.layoutSizingVertical = "FILL"; }
+      if (parentIsAL) { node.layoutSizingVertical = "FILL"; }
       else { hints.push("layoutSizingVertical 'FILL' ignored — parent is not an auto-layout frame. Add layoutMode to parent first."); }
     }
-    // Warn if child defaults to FIXED inside an auto-layout parent
     if (!deferH && !deferV && parentIsAL) {
       if (layoutSizingHorizontal === "FIXED" && layoutSizingVertical === "FIXED" && layoutMode === "NONE") {
         hints.push("Child has FIXED sizing inside auto-layout parent. Consider layoutSizingHorizontal/Vertical: 'FILL' or 'HUG' for responsive layout.");
@@ -75,9 +86,24 @@ async function createSingleFrame(p: any) {
   }
 
   // WCAG 2.5.8: target size recommendation for interactive elements
-  if (looksInteractive(frame) && (frame.width < 24 || frame.height < 24)) {
+  if (looksInteractive(node) && (node.width < 24 || node.height < 24)) {
     hints.push("WCAG: Min 24x24px for touch targets.");
   }
+
+  return { parent, hints };
+}
+
+// ─── Figma Handlers ──────────────────────────────────────────────
+
+async function createSingleFrame(p: any) {
+  const frame = figma.createFrame();
+  frame.x = p.x ?? 0;
+  frame.y = p.y ?? 0;
+  frame.resize(p.width ?? 100, p.height ?? 100);
+  frame.name = p.name || "Frame";
+  frame.fills = [];
+
+  const { hints } = await setupFrameNode(frame, p);
 
   const result: any = { id: frame.id };
   if (hints.length > 0) result.warning = hints.join(" ");
@@ -138,19 +164,34 @@ async function createSingleAutoLayout(p: any) {
   if ("appendChild" in originalParent) (originalParent as any).appendChild(frame);
   for (const node of nodes) frame.appendChild(node);
 
+  // Apply all frame properties (layout, fill, stroke, etc.)
+  const hints: string[] = [];
+  await applyTokens(frame, { opacity: p.opacity }, hints);
+
   frame.layoutMode = p.layoutMode || "VERTICAL";
-  frame.itemSpacing = p.itemSpacing ?? 0;
-  frame.paddingTop = p.paddingTop ?? 0;
-  frame.paddingRight = p.paddingRight ?? 0;
-  frame.paddingBottom = p.paddingBottom ?? 0;
-  frame.paddingLeft = p.paddingLeft ?? 0;
+  for (const f of ["paddingTop", "paddingRight", "paddingBottom", "paddingLeft", "itemSpacing"] as const) {
+    if (p[f] === undefined) (frame as any)[f] = 0;
+  }
+  await applyTokens(frame, {
+    paddingTop: p.paddingTop, paddingRight: p.paddingRight,
+    paddingBottom: p.paddingBottom, paddingLeft: p.paddingLeft,
+    itemSpacing: p.itemSpacing,
+  }, hints);
   if (p.primaryAxisAlignItems) frame.primaryAxisAlignItems = p.primaryAxisAlignItems;
   if (p.counterAxisAlignItems) frame.counterAxisAlignItems = p.counterAxisAlignItems;
   frame.layoutSizingHorizontal = p.layoutSizingHorizontal || "HUG";
   frame.layoutSizingVertical = p.layoutSizingVertical || "HUG";
   if (p.layoutWrap) frame.layoutWrap = p.layoutWrap;
+  if (p.counterAxisSpacing !== undefined && p.layoutWrap === "WRAP") {
+    await applyTokens(frame, { counterAxisSpacing: p.counterAxisSpacing }, hints);
+  }
 
-  return { id: frame.id };
+  await applyFillWithAutoBind(frame, p, hints);
+  await applyStrokeWithAutoBind(frame, p, hints);
+
+  const result: any = { id: frame.id };
+  if (hints.length > 0) result.warning = hints.join(" ");
+  return result;
 }
 
 export const figmaHandlers: Record<string, (params: any) => Promise<any>> = {

@@ -1,20 +1,22 @@
-import { batchHandler, appendToParent, applyFillWithAutoBind, applyStrokeWithAutoBind, applyCornerRadius, applyTokens } from "./helpers";
+import { batchHandler, appendToParent } from "./helpers";
+import { setupFrameNode } from "./create-frame";
 import { createDispatcher, paginate, pickFields } from "@ufira/vibma/endpoint";
 
-function findTextNodes(node: BaseNode): TextNode[] {
+function findTextNodes(node: BaseNode, skipInstances = false): TextNode[] {
   if (node.type === "TEXT") return [node as TextNode];
+  if (skipInstances && node.type === "INSTANCE") return [];
   if ("children" in node) {
     const result: TextNode[] = [];
-    for (const child of (node as any).children) result.push(...findTextNodes(child));
+    for (const child of (node as any).children) result.push(...findTextNodes(child, skipInstances));
     return result;
   }
   return [];
 }
 
 function warnUnboundText(comp: ComponentNode, hints: string[]) {
-  const textNodes = findTextNodes(comp);
+  const textNodes = findTextNodes(comp, true);
   if (textNodes.length > 0) {
-    hints.push(`Component has ${textNodes.length} text node${textNodes.length > 1 ? "s" : ""} — use components(method: "create", type: "from_node", exposeText: true) or components(method: "update") to expose text as editable properties on instances.`);
+    hints.push(`Component has ${textNodes.length} unbound text node${textNodes.length > 1 ? "s" : ""}. Pass exposeText: true to auto-expose text as editable properties on instances.`);
   }
 }
 
@@ -42,55 +44,21 @@ function serializeComponent(node: any): Record<string, any> {
 
 async function createComponentSingle(p: any) {
   if (!p.name) throw new Error("Missing name");
-  const {
-    x = 0, y = 0, width = 100, height = 100, name, parentId,
-    layoutMode = "NONE", layoutWrap = "NO_WRAP",
-    primaryAxisAlignItems = "MIN", counterAxisAlignItems = "MIN",
-    layoutSizingHorizontal = "FIXED", layoutSizingVertical = "FIXED",
-  } = p;
-
-  const deferH = parentId && layoutSizingHorizontal === "FILL";
-  const deferV = parentId && layoutSizingVertical === "FILL";
 
   const comp = figma.createComponent();
-  comp.name = name;
-  comp.x = x; comp.y = y;
-  comp.resize(width, height);
+  comp.x = p.x ?? 0;
+  comp.y = p.y ?? 0;
+  comp.resize(p.width ?? 100, p.height ?? 100);
+  comp.name = p.name;
   comp.fills = [];
 
-  const hints: string[] = [];
+  const { hints } = await setupFrameNode(comp, p);
 
-  if (layoutMode !== "NONE") {
-    comp.layoutMode = layoutMode;
-    comp.layoutWrap = layoutWrap;
-    for (const f of ["paddingTop", "paddingRight", "paddingBottom", "paddingLeft", "itemSpacing"] as const) {
-      if (p[f] === undefined) (comp as any)[f] = 0;
-    }
-    await applyTokens(comp, {
-      paddingTop: p.paddingTop, paddingRight: p.paddingRight,
-      paddingBottom: p.paddingBottom, paddingLeft: p.paddingLeft,
-      itemSpacing: p.itemSpacing,
-    }, hints);
-    comp.primaryAxisAlignItems = primaryAxisAlignItems;
-    comp.counterAxisAlignItems = counterAxisAlignItems;
-    comp.layoutSizingHorizontal = deferH ? "FIXED" : layoutSizingHorizontal;
-    comp.layoutSizingVertical = deferV ? "FIXED" : layoutSizingVertical;
-  }
-
-  await applyFillWithAutoBind(comp, p, hints);
-  await applyStrokeWithAutoBind(comp, p, hints);
-  await applyCornerRadius(comp, p, hints);
-
-  const parent = await appendToParent(comp, parentId);
-  const parentIsAL = parent && "layoutMode" in parent && (parent as any).layoutMode !== "NONE";
-  if (parent) {
-    if (deferH) {
-      if (parentIsAL) { comp.layoutSizingHorizontal = "FILL"; }
-      else { hints.push("layoutSizingHorizontal 'FILL' ignored — parent is not an auto-layout frame."); }
-    }
-    if (deferV) {
-      if (parentIsAL) { comp.layoutSizingVertical = "FILL"; }
-      else { hints.push("layoutSizingVertical 'FILL' ignored — parent is not an auto-layout frame."); }
+  // Add component properties if provided
+  if (p.properties?.length) {
+    for (const prop of p.properties) {
+      const options = prop.preferredValues ? { preferredValues: prop.preferredValues } : undefined;
+      comp.addComponentProperty(prop.propertyName, prop.type, prop.defaultValue, options);
     }
   }
 
@@ -147,7 +115,7 @@ async function fromNodeSingle(p: any) {
   const exposedProperties: Record<string, string> = {};
 
   if (p.exposeText) {
-    const textNodes = findTextNodes(comp);
+    const textNodes = findTextNodes(comp, true);
     // Sort by vertical then horizontal position for consistent role assignment
     const sorted = [...textNodes].sort((a, b) => a.y - b.y || a.x - b.x);
     const usedNames = new Set<string>();

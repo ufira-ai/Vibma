@@ -123,6 +123,15 @@ function uniqBy<T>(arr: T[], predicate: string | ((item: T) => any)): T[] {
   ];
 }
 
+// Memoize font loading within the plugin session to avoid redundant async loads
+const loadedFonts = new Set<string>();
+async function loadFontCached(font: FontName): Promise<void> {
+  const key = `${font.family}::${font.style}`;
+  if (loadedFonts.has(key)) return;
+  await figma.loadFontAsync(font);
+  loadedFonts.add(key);
+}
+
 /** Set characters on a text node, handling mixed fonts gracefully */
 export const setCharacters = async (
   node: TextNode,
@@ -142,7 +151,7 @@ export const setCharacters = async (
         const prevailed = Object.entries(fontHashTree).sort((a, b) => b[1] - a[1])[0];
         const [family, style] = prevailed[0].split("::");
         const prevailedFont = { family, style };
-        await figma.loadFontAsync(prevailedFont);
+        await loadFontCached(prevailedFont);
         node.fontName = prevailedFont;
       } else if (options?.smartStrategy === "strict") {
         return setCharactersStrict(node, characters, fallbackFont);
@@ -150,14 +159,14 @@ export const setCharacters = async (
         return setCharactersSmart(node, characters, fallbackFont);
       } else {
         const firstCharFont = node.getRangeFontName(0, 1) as FontName;
-        await figma.loadFontAsync(firstCharFont);
+        await loadFontCached(firstCharFont);
         node.fontName = firstCharFont;
       }
     } else {
-      await figma.loadFontAsync(node.fontName as FontName);
+      await loadFontCached(node.fontName as FontName);
     }
   } catch {
-    await figma.loadFontAsync(fallbackFont);
+    await loadFontCached(fallbackFont);
     node.fontName = fallbackFont;
   }
   try {

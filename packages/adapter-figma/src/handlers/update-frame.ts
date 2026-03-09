@@ -1,4 +1,4 @@
-import { batchHandler } from "./helpers";
+import { batchHandler, applyTokens } from "./helpers";
 
 // ─── Figma Handlers ──────────────────────────────────────────────
 
@@ -8,6 +8,7 @@ export async function updateFrameSingle(p: any) {
   const node = await figma.getNodeByIdAsync(p.nodeId);
   if (!node) throw new Error(`Node not found: ${p.nodeId}`);
 
+  const hints: string[] = [];
   const isLayoutType = LAYOUT_TYPES.includes(node.type);
   const settingLayoutMode = p.layoutMode !== undefined;
   // Auto-layout is active if already set OR being set in this call
@@ -26,16 +27,16 @@ export async function updateFrameSingle(p: any) {
     (node as any).layoutWrap = p.layoutWrap;
   }
 
-  // 2. Padding
+  // 2. Padding (supports token strings for variable binding)
   const hasPadding = p.paddingTop !== undefined || p.paddingRight !== undefined ||
                      p.paddingBottom !== undefined || p.paddingLeft !== undefined;
   if (hasPadding) {
     if (!isLayoutType) throw new Error(`Node type ${node.type} does not support padding`);
     if (!hasAutoLayout) throw new Error("Padding requires auto-layout (layoutMode !== NONE)");
-    if (p.paddingTop !== undefined) (node as any).paddingTop = p.paddingTop;
-    if (p.paddingRight !== undefined) (node as any).paddingRight = p.paddingRight;
-    if (p.paddingBottom !== undefined) (node as any).paddingBottom = p.paddingBottom;
-    if (p.paddingLeft !== undefined) (node as any).paddingLeft = p.paddingLeft;
+    await applyTokens(node, {
+      paddingTop: p.paddingTop, paddingRight: p.paddingRight,
+      paddingBottom: p.paddingBottom, paddingLeft: p.paddingLeft,
+    }, hints);
   }
 
   // 3. Alignment
@@ -50,21 +51,23 @@ export async function updateFrameSingle(p: any) {
   if (p.layoutSizingHorizontal !== undefined) (node as any).layoutSizingHorizontal = p.layoutSizingHorizontal;
   if (p.layoutSizingVertical !== undefined) (node as any).layoutSizingVertical = p.layoutSizingVertical;
 
-  // 5. Spacing
+  // 5. Spacing (supports token strings for variable binding)
   if (p.itemSpacing !== undefined) {
     if (!isLayoutType) throw new Error(`Node type ${node.type} does not support item spacing`);
     if (!hasAutoLayout) throw new Error("Item spacing requires auto-layout (layoutMode !== NONE)");
-    (node as any).itemSpacing = p.itemSpacing;
+    await applyTokens(node, { itemSpacing: p.itemSpacing }, hints);
   }
   if (p.counterAxisSpacing !== undefined) {
     if (!isLayoutType) throw new Error(`Node type ${node.type} does not support counter-axis spacing`);
     if (!hasAutoLayout) throw new Error("Counter-axis spacing requires auto-layout");
     const wrap = p.layoutWrap || (node as any).layoutWrap;
     if (wrap !== "WRAP") throw new Error("counterAxisSpacing requires layoutWrap=WRAP");
-    (node as any).counterAxisSpacing = p.counterAxisSpacing;
+    await applyTokens(node, { counterAxisSpacing: p.counterAxisSpacing }, hints);
   }
 
-  return {};
+  const result: any = {};
+  if (hints.length > 0) result.warning = hints.join(" ");
+  return result;
 }
 
 export const figmaHandlers: Record<string, (params: any) => Promise<any>> = {
