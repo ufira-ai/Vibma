@@ -39,7 +39,7 @@ function paramToJsonSchema(param: RawParam): Record<string, any> {
     schema.description = (schema.description ?? "") || 'Hex "#FF0000" or {r,g,b,a?} 0-1';
   } else if (type === "variable_value") {
     schema.type = "any";
-    schema.description = (schema.description ?? "") || "number | boolean | Color | {type:VARIABLE_ALIAS, id}";
+    schema.description = (schema.description ?? "") || "number | boolean | Color | {type:VARIABLE_ALIAS, name}";
   } else if (type === "line_height") {
     schema.type = "any";
     schema.description = (schema.description ?? "") || 'number | {value, unit: "PIXELS"|"PERCENT"|"AUTO"}';

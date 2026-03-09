@@ -206,6 +206,27 @@ export async function serializeNode(
     if (n.maxHeight != null && n.maxHeight < Infinity) out.maxHeight = n.maxHeight;
   }
 
+  // ── Variable bindings ────────────────────────────────────────
+  if ("boundVariables" in node) {
+    const bv = (node as any).boundVariables;
+    if (bv && typeof bv === "object") {
+      const bindings: Record<string, any> = {};
+      for (const [field, val] of Object.entries(bv)) {
+        if (Array.isArray(val)) {
+          for (const v of val) {
+            if (!v?.id) continue;
+            const resolved = await figma.variables.getVariableByIdAsync(v.id);
+            if (resolved) bindings[field] = resolved.name;
+          }
+        } else if (val && typeof val === "object" && (val as any).id) {
+          const resolved = await figma.variables.getVariableByIdAsync((val as any).id);
+          if (resolved) bindings[field] = resolved.name;
+        }
+      }
+      if (Object.keys(bindings).length > 0) out.boundVariables = bindings;
+    }
+  }
+
   // ── Constraints ───────────────────────────────────────────────
   if ("constraints" in node) {
     out.constraints = (node as any).constraints;

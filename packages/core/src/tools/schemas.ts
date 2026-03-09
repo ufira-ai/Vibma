@@ -65,8 +65,8 @@ export const variableValue = z.preprocess((v) => {
   z.boolean(),
   z.string(),
   z.object({ r: z.number(), g: z.number(), b: z.number(), a: z.number().optional() }),
-  z.object({ type: z.literal("VARIABLE_ALIAS"), id: z.string() }),
-])).describe('number, boolean, string, hex "#FF0000", {r,g,b,a?}, or {type:"VARIABLE_ALIAS",id:"VariableID:..."}');
+  z.object({ type: z.literal("VARIABLE_ALIAS"), name: z.string() }),
+])).describe('number, boolean, string, hex "#FF0000", {r,g,b,a?}, or {type:"VARIABLE_ALIAS",name:"other/variable"}');
 
 /** Line height — number (px) or {value, unit} */
 export const lineHeight = z.union([

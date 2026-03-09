@@ -12,6 +12,8 @@ import ParameterTable from "../../../../components/ParameterTable.astro";
 
 ```ts
 // Lint runs automated design quality and accessibility checks on a node tree.
+// Rules: "all" (default), "wcag" (accessibility only), or specific rule names. Use help(topic:"check") for full rule list.
+// ---
 // Rules:
 //   "all" (default) — run every rule. "wcag" — all accessibility rules only.
 //   Design rules:
@@ -48,7 +50,7 @@ interface LintResult {
 
 Run design linter on a node tree
 
-<ParameterTable schema={{"type":"object","properties":{"nodeId":{"description":"Node ID to lint (default: current selection or page)","type":"string"},"rules":{"description":"Rules to run. Default: [\"all\"]. Use [\"wcag\"] for accessibility only.","type":"array","items":{"type":"string"}},"maxDepth":{"description":"Max tree depth (default: 10)","type":"number"},"maxFindings":{"description":"Max findings (default: 50)","type":"number"}}}} />
+<ParameterTable schema={{"type":"object","properties":{"nodeId":{"description":"Node ID to lint. If omitted: 1 selected node → lints that node, 2+ selected → lints entire page, 0 selected → error. Pass a page or frame ID explicitly for reliable targeting.","type":"string"},"rules":{"description":"Rules to run. Default: [\"all\"]. Use [\"wcag\"] for accessibility only.","type":"array","items":{"type":"string"}},"maxDepth":{"description":"Max tree depth (default: 10)","type":"number"},"maxFindings":{"description":"Max findings (default: 50)","type":"number"}}}} />
 
 **Response**
 

@@ -20,6 +20,7 @@ import { generateResponseTypes } from "./gen-response-types";
 import { generateDescription } from "./gen-descriptions";
 import { generateDocs } from "./gen-docs";
 import { generatePromptsTs, generatePromptsDocs } from "./gen-prompts";
+import { generateHelpTs } from "./gen-help";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, "../..");
@@ -55,6 +56,12 @@ const mcpCode = generateMcpDefs(resolved);
 const mcpPath = join(outDir, "defs.ts");
 writeFileSync(mcpPath, mcpCode);
 console.log(`Written: ${mcpPath}`);
+
+// ─── Generate Help Data ─────────────────────────────────────────
+const helpCode = generateHelpTs(resolved);
+const helpPath = join(outDir, "help.ts");
+writeFileSync(helpPath, helpCode);
+console.log(`Written: ${helpPath}`);
 
 // ─── Generate Response Types ────────────────────────────────────
 const responseCode = generateResponseTypes(resolved);

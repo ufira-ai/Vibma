@@ -11,12 +11,13 @@ import ParameterTable from "../../../../components/ParameterTable.astro";
 <summary>Type reference</summary>
 
 ```ts
-// Components are reusable design elements. Instances (copies) stay linked to their component and inherit changes.
+// Components are reusable design elements. Instances stay linked to the component and inherit changes.
+// Workflow: create component → add properties via update → create instances via instances.create.
+// ---
 // A component set (variant set) groups related components as variants (e.g. Button/Primary, Button/Secondary).
 // Property types: BOOLEAN (toggle visibility), TEXT (editable text), INSTANCE_SWAP (swap child instance), VARIANT (variant picker).
 // exposeText: when creating from_node, text children become editable TEXT properties on the component.
 // Property keys include a unique suffix like "Label#1:0" — use components.get to find exact keys.
-// Workflow: create component → add properties via update → create instances via instances.create.
 interface ComponentItem {
   name: string; x?: number; y?: number; width?: number; height?: number; parentId?: string;
   fillColor?: Color; fillStyleName?: string; fillVariableName?: string;
@@ -30,14 +31,16 @@ interface ComponentItem {
   itemSpacing?: number;
 }
 interface FromNodeItem { nodeId: string; exposeText?: boolean } // default exposeText: true — auto-expose text as editable properties
-interface VariantSetItem { componentIds: string[]; name?: string } // min 2 components
-interface UpdatePropertyItem { id: string; propertyName: string; action?: "add"|"edit"|"delete"; type?: "BOOLEAN"|"TEXT"|"INSTANCE_SWAP"|"VARIANT"; defaultValue?: string | boolean; name?: string; preferredValues?: {type: "COMPONENT"|"COMPONENT_SET", key: string}[] }
+interface VariantSetItem { componentIds: string[]; name?: string; variantPropertyName?: string } // min 2 components
+interface UpdatePropertyItem { id: string; propertyName: string; action?: "add"|"edit"|"delete"|"rename_variant"; type?: "BOOLEAN"|"TEXT"|"INSTANCE_SWAP"|"VARIANT"; defaultValue?: string | boolean; name?: string; preferredValues?: {type: "COMPONENT"|"COMPONENT_SET", key: string}[] }
 // action: "add" (default) adds property, "edit" renames/changes default, "delete" removes property
+// action: "rename_variant" renames a variant option (defaultValue=current name, name=new name)
+// For VARIANT properties: "edit" with defaultValue reorders children to set the default variant
 ```
 
 </details>
 
-4 methods available.
+5 methods available.
 
 ## list
 
@@ -74,7 +77,7 @@ Discriminated by `type`. Available types:
 
 Create component from scratch with layout/style params
 
-<ParameterTable schema={{"type":"object","properties":{"name":{"description":"Component name","type":"string"},"parentId":{"description":"Parent node ID. Omit to place on current page.","type":"string"},"x":{"description":"X position (default: 0)","type":"number"},"y":{"description":"Y position (default: 0)","type":"number"},"width":{"description":"Width (default: 100)","type":"number"},"height":{"description":"Height (default: 100)","type":"number"},"fillColor":{"description":"Fill color (auto-binds to matching variable/style)","type":"string"},"fillStyleName":{"description":"Paint style name for fill","type":"string"},"fillVariableName":{"description":"Color variable by name e.g. 'bg/primary'","type":"string"},"strokeColor":{"description":"Stroke color (auto-binds to matching variable/style)","type":"string"},"strokeStyleName":{"description":"Paint style name for stroke","type":"string"},"strokeVariableName":{"description":"Color variable by name for stroke","type":"string"},"strokeWeight":{"description":"Stroke weight (default: 1)","type":"number"},"cornerRadius":{"type":"number"},"layoutMode":{"description":"Layout direction (default: NONE)","type":"string","enum":["NONE","HORIZONTAL","VERTICAL"]},"layoutWrap":{"type":"string","enum":["NO_WRAP","WRAP"]},"paddingTop":{"type":"number"},"paddingRight":{"type":"number"},"paddingBottom":{"type":"number"},"paddingLeft":{"type":"number"},"primaryAxisAlignItems":{"type":"string","enum":["MIN","MAX","CENTER","SPACE_BETWEEN"]},"counterAxisAlignItems":{"type":"string","enum":["MIN","MAX","CENTER","BASELINE"]},"layoutSizingHorizontal":{"type":"string","enum":["FIXED","HUG","FILL"]},"layoutSizingVertical":{"type":"string","enum":["FIXED","HUG","FILL"]},"itemSpacing":{"description":"Spacing between children (default: 0)","type":"number"}},"required":["name"]}} />
+<ParameterTable schema={{"type":"object","properties":{"name":{"description":"Component name","type":"string"},"parentId":{"description":"Parent node ID. Omit to place on current page.","type":"string"},"x":{"description":"X position (default: 0)","type":"number"},"y":{"description":"Y position (default: 0)","type":"number"},"width":{"description":"Width (default: 100)","type":"number"},"height":{"description":"Height (default: 100)","type":"number"},"fillColor":{"description":"Fill color (auto-binds to matching variable/style)","type":"string"},"fillStyleName":{"description":"Paint style name for fill","type":"string"},"fillVariableName":{"description":"Color variable by name e.g. 'bg/primary'","type":"string"},"strokeColor":{"description":"Stroke color (auto-binds to matching variable/style)","type":"string"},"strokeStyleName":{"description":"Paint style name for stroke","type":"string"},"strokeVariableName":{"description":"Color variable by name for stroke","type":"string"},"strokeWeight":{"description":"Stroke weight (default: 1)","type":"number"},"cornerRadius":{"type":"number"},"cornerRadiusVariableName":{"description":"Bind FLOAT variable to corner radius by name","type":"string"},"layoutMode":{"description":"Layout direction (default: NONE)","type":"string","enum":["NONE","HORIZONTAL","VERTICAL"]},"layoutWrap":{"type":"string","enum":["NO_WRAP","WRAP"]},"paddingTop":{"type":"number"},"paddingRight":{"type":"number"},"paddingBottom":{"type":"number"},"paddingLeft":{"type":"number"},"primaryAxisAlignItems":{"type":"string","enum":["MIN","MAX","CENTER","SPACE_BETWEEN"]},"counterAxisAlignItems":{"type":"string","enum":["MIN","MAX","CENTER","BASELINE"]},"layoutSizingHorizontal":{"type":"string","enum":["FIXED","HUG","FILL"]},"layoutSizingVertical":{"type":"string","enum":["FIXED","HUG","FILL"]},"itemSpacing":{"description":"Spacing between children (default: 0)","type":"number"}},"required":["name"]}} />
 
 #### from_node
 
@@ -86,7 +89,7 @@ Convert existing nodes to components. Text children auto-exposed as editable pro
 
 Combine components into a variant set
 
-<ParameterTable schema={{"type":"object","properties":{"componentIds":{"description":"Component IDs to combine (min 2)","type":"array","items":{"type":"string"}},"name":{"description":"Name for the variant set","type":"string"}},"required":["componentIds"]}} />
+<ParameterTable schema={{"type":"object","properties":{"componentIds":{"description":"Component IDs to combine (min 2)","type":"array","items":{"type":"string"}},"name":{"description":"Name for the variant set","type":"string"},"variantPropertyName":{"description":"Rename the auto-generated variant property (default: 'Property 1')","type":"string"}},"required":["componentIds"]}} />
 
 **Response**
 
@@ -98,8 +101,20 @@ Combine components into a variant set
 
 Add, edit, or delete component properties
 
-<ParameterTable schema={{"type":"object","properties":{"items":{"description":"Array of {id, propertyName, action?, type?, defaultValue?, name?, preferredValues?}","type":"array","items":{"type":"object","properties":{"id":{"description":"Component or component set ID","type":"string"},"propertyName":{"description":"Property name (include #suffix for edit/delete)","type":"string"},"action":{"description":"Action: \"add\" (default), \"edit\", or \"delete\"","type":"string","enum":["add","edit","delete"]},"type":{"description":"Property type (required for add)","type":"string","enum":["BOOLEAN","TEXT","INSTANCE_SWAP","VARIANT"]},"defaultValue":{"description":"Default value (required for add)","type":"string | boolean"},"name":{"description":"New name (for edit action)","type":"string"},"preferredValues":{"description":"Preferred values for INSTANCE_SWAP","type":"array"}},"required":["id","propertyName"]}},"depth":{"description":"Response detail: omit for id+name only. 0=properties + child stubs. N=recurse N levels. -1=unlimited.","type":"number"}},"required":["items"]}} />
+<ParameterTable schema={{"type":"object","properties":{"items":{"description":"Array of {id, propertyName, action?, type?, defaultValue?, name?, preferredValues?}","type":"array","items":{"type":"object","properties":{"id":{"description":"Component or component set ID","type":"string"},"propertyName":{"description":"Property name (include #suffix for edit/delete)","type":"string"},"action":{"description":"Action: \"add\" (default), \"edit\", \"delete\", or \"rename_variant\"","type":"string","enum":["add","edit","delete","rename_variant"]},"type":{"description":"Property type (required for add)","type":"string","enum":["BOOLEAN","TEXT","INSTANCE_SWAP","VARIANT"]},"defaultValue":{"description":"Default value (required for add)","type":"string | boolean"},"name":{"description":"New name (for edit action)","type":"string"},"preferredValues":{"description":"Preferred values for INSTANCE_SWAP","type":"array"}},"required":["id","propertyName"]}},"depth":{"description":"Response detail: omit for id+name only. 0=properties + child stubs. N=recurse N levels. -1=unlimited.","type":"number"}},"required":["items"]}} />
 
 **Response**
 
 <ParameterTable schema={{"type":"object","properties":{"results":{"type":"array","description":"Array of \"ok\" or {error} per item","items":{"type":"any"}}}}} fieldLabel="Field" hideRequired />
+
+## delete
+
+**edit**
+
+Delete components or component sets
+
+<ParameterTable schema={{"type":"object","properties":{"id":{"description":"Component or component set ID","type":"string"}},"required":["id"]}} />
+
+**Response**
+
+<ParameterTable schema={{"type":"object","properties":{"results":{"type":"array","description":"One entry per input item","items":{"type":"object","properties":{}}}}}} fieldLabel="Field" hideRequired />

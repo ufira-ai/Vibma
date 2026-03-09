@@ -33,6 +33,8 @@ export interface RawMethodDef {
   inline?: boolean;
   timeout?: number;
   description: string;
+  /** Short example call for help output */
+  example?: string;
   params: Record<string, RawParam> | {};
   response: RawResponse;
   /** For create methods with type discriminant */
@@ -75,6 +77,7 @@ export interface ResolvedMethod {
   inline?: boolean;
   timeout?: number;
   description: string;
+  example?: string;
   params: Record<string, RawParam>;
   response: RawResponse;
   discriminant?: string;

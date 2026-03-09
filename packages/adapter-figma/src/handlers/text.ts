@@ -168,7 +168,7 @@ export async function setTextPropertiesSingle(p: any, ctx: TextPropsContext) {
   }
   if (p.fontColor) {
     const fc = coerceColor(p.fontColor) ?? { r: 0, g: 0, b: 0, a: 1 };
-    const match = await suggestStyleForColor(fc, "fontColorStyleName");
+    const match = await suggestStyleForColor(fc, "fontColorStyleName", "TEXT_FILL");
     if (match.variable) {
       const bound = figma.variables.setBoundVariableForPaint(node.fills[0] as SolidPaint, "color", match.variable);
       node.fills = [bound];

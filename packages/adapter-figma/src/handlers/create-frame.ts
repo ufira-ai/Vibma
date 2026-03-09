@@ -1,4 +1,4 @@
-import { batchHandler, appendToParent, applyFillWithAutoBind, applyStrokeWithAutoBind } from "./helpers";
+import { batchHandler, appendToParent, applyFillWithAutoBind, applyStrokeWithAutoBind, bindNumericVariable } from "./helpers";
 import { looksInteractive } from "@ufira/vibma/utils/wcag";
 
 async function createSingleFrame(p: any) {
@@ -19,6 +19,18 @@ async function createSingleFrame(p: any) {
   frame.name = name;
   frame.fills = []; // no fill by default
   if (cornerRadius !== undefined) frame.cornerRadius = cornerRadius;
+
+  // Bind numeric variables
+  const hints: string[] = [];
+  if (p.cornerRadiusVariableName) {
+    await bindNumericVariable(frame, ["topLeftRadius", "topRightRadius", "bottomRightRadius", "bottomLeftRadius"], p.cornerRadiusVariableName, hints);
+  }
+  if (p.opacityVariableName) {
+    await bindNumericVariable(frame, "opacity", p.opacityVariableName, hints);
+  }
+  if (p.itemSpacingVariableName) {
+    await bindNumericVariable(frame, "itemSpacing", p.itemSpacingVariableName, hints);
+  }
 
   const deferH = parentId && layoutSizingHorizontal === "FILL";
   const deferV = parentId && layoutSizingVertical === "FILL";
@@ -41,7 +53,6 @@ async function createSingleFrame(p: any) {
   }
 
   // Fill & stroke: shared helpers handle variableName > variableId > styleName > color (with auto-bind)
-  const hints: string[] = [];
   await applyFillWithAutoBind(frame, p, hints);
   await applyStrokeWithAutoBind(frame, p, hints);
 

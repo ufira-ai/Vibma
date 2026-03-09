@@ -6,6 +6,7 @@ description_zh: "管理变量集合和模式。"
 notes: |
   // Variable collections group related design tokens (variables) and define their modes.
   // Modes represent different contexts (e.g. Light/Dark theme, Desktop/Mobile breakpoint). Each collection has 1+ modes.
+  // ---
   // Workflow: create collection → add_mode for extra modes → create variables in the collection.
   // Deleting a collection cascades — all variables inside it are also deleted.
   // The default mode always exists and cannot be removed. Use add_mode/remove_mode for additional modes.

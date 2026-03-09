@@ -10,10 +10,64 @@ function getFontStyle(weight: number): string {
   return map[weight] || "Regular";
 }
 
+/** Strip a font style to lowercase letters only for fuzzy comparison. */
+function stripStyle(s: string): string {
+  return s.toLowerCase().replace(/[\s\-_]/g, "");
+}
+
+/**
+ * Resolve a font family + style to the exact Figma font name.
+ * Tries: exact → camelCase split → case-insensitive fuzzy → suggests available.
+ * Caches listAvailableFontsAsync results for the duration of the batch.
+ */
+let _fontCache: FontName[] | null = null;
+export async function resolveFontAsync(family: string, style: string): Promise<FontName> {
+  // 1. Exact match
+  try { await figma.loadFontAsync({ family, style }); return { family, style }; } catch {}
+
+  // 2. CamelCase split: "SemiBold" → "Semi Bold"
+  const normalized = style.replace(/([a-z])([A-Z])/g, "$1 $2");
+  if (normalized !== style) {
+    try { await figma.loadFontAsync({ family, style: normalized }); return { family, style: normalized }; } catch {}
+  }
+
+  // 3. Fuzzy match against available fonts
+  if (!_fontCache) _fontCache = await figma.listAvailableFontsAsync();
+  const familyFonts = _fontCache.filter(f => f.family.toLowerCase() === family.toLowerCase());
+  const stripped = stripStyle(style);
+  const match = familyFonts.find(f => stripStyle(f.style) === stripped);
+  if (match) {
+    await figma.loadFontAsync(match);
+    return match;
+  }
+
+  // 4. Case-insensitive family match (agent might say "inter" instead of "Inter")
+  if (familyFonts.length === 0) {
+    const looseFamilyFonts = _fontCache.filter(f => f.family.toLowerCase() === family.toLowerCase());
+    const looseMatch = looseFamilyFonts.find(f => stripStyle(f.style) === stripped);
+    if (looseMatch) {
+      await figma.loadFontAsync(looseMatch);
+      return looseMatch;
+    }
+  }
+
+  const available = [...new Set(familyFonts.map(f => f.style))];
+  throw new Error(`Font "${family}" style "${style}" not found. Available styles: [${available.join(", ")}]. Use fonts(method: "list") to see all fonts.`);
+}
+
+/** Clear font cache between batches. */
+export function clearFontCache() { _fontCache = null; }
+
+/** Compat wrapper for imports that use normalizeFontStyle — delegates to the sync portion. */
+export function normalizeFontStyle(style: string): string {
+  return style.replace(/([a-z])([A-Z])/g, "$1 $2");
+}
+
 interface CreateTextContext {
   textStyles: any[] | null;
   paintStyles: any[] | null;
   resolvedTextStyleMap: Map<string, any>;
+  resolvedFontMap: Map<string, FontName>;
   setCharacters: (node: TextNode, text: string) => Promise<void>;
 }
 
@@ -23,13 +77,7 @@ interface CreateTextContext {
 async function prepCreateText(params: any): Promise<CreateTextContext> {
   const items = params.items || [params];
 
-  // Collect unique font keys needed (family::style format)
-  const fontKeys = new Set<string>();
-  for (const p of items) {
-    const family = p.fontFamily || "Inter";
-    const style = p.fontStyle || getFontStyle(p.fontWeight || 400);
-    fontKeys.add(`${family}::${style}`);
-  }
+  clearFontCache();
 
   // Resolve text styles by name once (not per-item)
   const styleNames = new Set<string>();
@@ -48,7 +96,16 @@ async function prepCreateText(params: any): Promise<CreateTextContext> {
     paintStyles = await figma.getLocalPaintStylesAsync();
   }
 
-  // Resolve text style IDs and collect their fonts for preloading
+  // Collect font requirements from items and text styles
+  const fontRequests: Array<{ family: string; style: string }> = [];
+  for (const p of items) {
+    fontRequests.push({
+      family: p.fontFamily || "Inter",
+      style: p.fontStyle || getFontStyle(p.fontWeight || 400),
+    });
+  }
+
+  // Resolve text style IDs and collect their fonts
   const resolvedTextStyleMap = new Map<string, any>();
   for (const p of items) {
     let sid = p.textStyleId;
@@ -65,22 +122,24 @@ async function prepCreateText(params: any): Promise<CreateTextContext> {
       if (s?.type === "TEXT") {
         resolvedTextStyleMap.set(sid, s);
         const fn = (s as TextStyle).fontName;
-        if (fn) fontKeys.add(`${fn.family}::${fn.style}`);
+        if (fn) fontRequests.push({ family: fn.family, style: fn.style });
       }
     }
   }
 
-  // Preload all fonts in parallel
-  await Promise.all(
-    [...fontKeys].map(async key => {
-      const [family, style] = key.split("::");
-      try { await figma.loadFontAsync({ family, style }); }
-      catch { throw new Error(`Font "${family}" style "${style}" not found. Use fonts(method: "list") to see available fonts.`); }
-    })
-  );
+  // Resolve all fonts with fuzzy matching (dedup by key)
+  const resolvedFontMap = new Map<string, FontName>();
+  const seen = new Set<string>();
+  for (const { family, style } of fontRequests) {
+    const key = `${family}::${style}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    const resolved = await resolveFontAsync(family, style);
+    resolvedFontMap.set(key, resolved);
+  }
 
   const { setCharacters } = await import("../utils/figma-helpers");
-  return { textStyles, paintStyles, resolvedTextStyleMap, setCharacters };
+  return { textStyles, paintStyles, resolvedTextStyleMap, resolvedFontMap, setCharacters };
 }
 
 /**
@@ -103,8 +162,9 @@ async function createTextSingle(p: any, ctx: CreateTextContext) {
   textNode.name = name || text;
 
   const fontColor = rawFontColor ? coerceColor(rawFontColor) : undefined;
-  const style = fontStyle || getFontStyle(fontWeight);
-  textNode.fontName = { family: fontFamily, style };
+  const requestedStyle = fontStyle || getFontStyle(fontWeight);
+  const resolvedFont = ctx.resolvedFontMap.get(`${fontFamily}::${requestedStyle}`) ?? { family: fontFamily, style: requestedStyle };
+  textNode.fontName = resolvedFont;
   textNode.fontSize = parseInt(String(fontSize));
 
   await ctx.setCharacters(textNode, text);

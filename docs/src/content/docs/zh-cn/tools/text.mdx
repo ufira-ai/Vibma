@@ -11,15 +11,16 @@ import ParameterTable from "../../../../components/ParameterTable.astro";
 <summary>Type reference</summary>
 
 ```ts
-// These methods are inherited by frames, text, components, and instances — any node in the Figma scene graph.
 // depth: omit → id+name stubs | 0 → props + child stubs | N → recurse N | -1 → full tree
 // fields: whitelist e.g. ["fills","opacity"] — id, name, type always included. Pass ["*"] for all.
+// layoutSizingHorizontal/Vertical: FIXED | HUG | FILL — how the node sizes within auto-layout.
+// Colors: fillVariableName/strokeVariableName bind by name — preferred over raw color values.
+// ---
 // visible: false hides the node. Omitted from response when true (the default).
 // locked: true prevents editing in Figma UI. Omitted when false (the default).
 // rotation: degrees (0-360). Omitted when 0.
 // blendMode: layer blend mode. Omitted when PASS_THROUGH (the default).
 // layoutPositioning: ABSOLUTE = floating inside auto-layout parent. Omitted when AUTO (the default).
-// layoutSizingHorizontal/Vertical: FIXED | HUG | FILL — how the node sizes within auto-layout.
 // minWidth/maxWidth/minHeight/maxHeight: responsive constraints for auto-layout children.
 // constraints: position behavior in non-auto-layout parents. Ignored inside auto-layout frames.
 // bindings: bind design variables to node properties. field uses slash path e.g. "fills/0/color", "opacity", "width".
@@ -81,12 +82,12 @@ interface PatchItem {
   properties?: Record<string, unknown>; // direct Figma API props (escape hatch)
 }
 // Text nodes display text content with typography styling. They inherit node methods (get, list, update, delete, clone, reparent).
-// textAutoResize controls how the text box resizes: NONE = fixed box, WIDTH_AND_HEIGHT = grow both axes to fit text,
-//   HEIGHT = fixed width + auto height (most common for paragraphs), TRUNCATE = fixed box + ellipsis on overflow.
+// textAutoResize: NONE (fixed box), WIDTH_AND_HEIGHT (grow both), HEIGHT (fixed width, auto height), TRUNCATE (fixed + ellipsis).
+// Prefer textStyleName for typography, fontColorVariableName/fontColorStyleName for color.
+// ---
 // fontStyle vs fontWeight: fontStyle is a named variant like "Bold", "Italic", "SemiBold". When set, fontWeight is ignored.
 //   Use fonts.list to find available fontFamily + fontStyle combinations.
 // scan: finds all text nodes in a subtree. path (when includePath:true) shows the layer hierarchy e.g. "Frame > Card > Label".
-// Prefer textStyleName for typography, fontColorVariableName/fontColorStyleName for color.
 interface TextItem {
   text: string; name?: string;
   x?: number; y?: number; parentId?: string;

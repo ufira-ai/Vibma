@@ -7,6 +7,7 @@ notes: |
   // Variables are design tokens — reusable values (colors, numbers, strings, booleans) that can be bound to node properties.
   // Variables are identified by name (unique within a collection). No IDs needed — use name to get/update/delete.
   // Workflow: create a variable_collection first → then create variables inside it → bind to nodes via frames/text update PatchItem.bindings.
+  // ---
   // Each variable has values per mode (e.g. Light/Dark). Use modeId when setting values for a specific mode.
   // valuesByMode keys are mode IDs (from the collection), values match the variable's resolvedType.
   // Aliases: a variable can reference another variable by name via {type: "VARIABLE_ALIAS", name: "other/variable"}.
@@ -69,6 +70,7 @@ methods:
   create:
     tier: create
     description: Create variables
+    example: 'variables(method:"create", items:[{collectionName:"Colors", name:"bg/primary", resolvedType:"COLOR", value:"#1A1A2E"}])'
     params:
       items:
         type: array

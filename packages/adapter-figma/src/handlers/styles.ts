@@ -1,4 +1,5 @@
 import { batchHandler } from "./helpers";
+import { resolveFontAsync, clearFontCache } from "./create-text";
 import { createDispatcher, paginate, pickFields } from "@ufira/vibma/endpoint";
 import type { ListResponse } from "@ufira/vibma/endpoint";
 
@@ -122,8 +123,8 @@ async function createTextStyleSingle(p: any) {
   const style = figma.createTextStyle();
   style.name = p.name;
   if (p.description) style.description = p.description;
-  const fontStyle = p.fontStyle || "Regular";
-  // Font already preloaded by batch prep
+  // Font already resolved + preloaded by batch prep; use stored resolved name
+  const fontStyle = p._resolvedFontStyle ?? p.fontStyle ?? "Regular";
   style.fontName = { family: p.fontFamily, style: fontStyle };
   style.fontSize = p.fontSize;
   if (p.lineHeight !== undefined) {
@@ -329,56 +330,32 @@ async function patchStyleSingle(p: any) {
   return "ok";
 }
 
-// Max unique fonts to load per batch -- prevents timeouts with many font families
-const MAX_FONTS_PER_BATCH = 5;
-
-// Batch prep: preload fonts in parallel, cap unique fonts to avoid timeout
+// Batch prep: preload fonts via fuzzy resolution
 async function createTextStyleBatch(params: any) {
+  clearFontCache();
   const items: any[] = params.items || [params];
 
-  // Map each item to its font key
-  const itemFontKeys = items.map(p => `${p.fontFamily}::${p.fontStyle || "Regular"}`);
-  const uniqueFonts = [...new Set(itemFontKeys)];
-
-  // If within cap, process all
-  if (uniqueFonts.length <= MAX_FONTS_PER_BATCH) {
-    await Promise.all(
-      uniqueFonts.map(key => {
-        const [family, style] = key.split("::");
-        return figma.loadFontAsync({ family, style });
-      })
-    );
-    return batchHandler(params, createTextStyleSingle);
+  // Resolve all fonts with fuzzy matching and store resolved names on items
+  const resolved = new Map<string, string>();
+  for (const p of items) {
+    const family = p.fontFamily;
+    const style = p.fontStyle || "Regular";
+    const key = `${family}::${style}`;
+    if (!resolved.has(key)) {
+      const font = await resolveFontAsync(family, style);
+      resolved.set(key, font.style);
+    }
+    p._resolvedFontStyle = resolved.get(key);
   }
 
-  // Over cap: process items whose fonts fit, return remaining
-  const loadedFonts = new Set(uniqueFonts.slice(0, MAX_FONTS_PER_BATCH));
-  await Promise.all(
-    [...loadedFonts].map(key => {
-      const [family, style] = key.split("::");
-      return figma.loadFontAsync({ family, style });
-    })
-  );
-
-  const processItems: any[] = [];
-  const deferredItems: any[] = [];
-  for (let i = 0; i < items.length; i++) {
-    if (loadedFonts.has(itemFontKeys[i])) processItems.push(items[i]);
-    else deferredItems.push(items[i]);
-  }
-
-  const deferredFonts = uniqueFonts.slice(MAX_FONTS_PER_BATCH).map(k => k.replace("::", " "));
-  const result = await batchHandler({ ...params, items: processItems }, createTextStyleSingle);
-  result.deferred = `${deferredItems.length} text style(s) using fonts [${deferredFonts.join(", ")}] were NOT created to avoid timeout. Call styles(method: "create", type: "text") again with those items.`;
-  return result;
+  return batchHandler(params, createTextStyleSingle);
 }
 
 async function patchStylesBatch(params: any) {
+  clearFontCache();
   const items: any[] = params.items || [params];
 
-  // Resolve styles and collect font requirements for text styles
-  // Errors here are non-fatal -- batchHandler will catch them per-item
-  const fontKeys: string[] = [];
+  // Resolve fonts for text styles via fuzzy matching and store on items
   for (const p of items) {
     try {
       const style = await resolveAnyStyle(p.id);
@@ -386,47 +363,14 @@ async function patchStylesBatch(params: any) {
         const ts = style as TextStyle;
         const family = p.fontFamily ?? ts.fontName.family;
         const fontStyle = p.fontStyle ?? ts.fontName.style;
-        fontKeys.push(`${family}::${fontStyle}`);
-      }
-    } catch { /* skip -- will error in batchHandler */ }
-  }
-
-  // Preload fonts for text styles
-  const uniqueFonts = [...new Set(fontKeys)];
-  if (uniqueFonts.length > 0) {
-    const toLoad = uniqueFonts.slice(0, MAX_FONTS_PER_BATCH);
-    await Promise.all(
-      toLoad.map(key => {
-        const [family, style] = key.split("::");
-        return figma.loadFontAsync({ family, style });
-      })
-    );
-
-    if (uniqueFonts.length > MAX_FONTS_PER_BATCH) {
-      // Identify which items have unloaded fonts and defer them
-      const loadedSet = new Set(toLoad);
-      const processItems: any[] = [];
-      const deferredItems: any[] = [];
-      let fontIdx = 0;
-      for (const p of items) {
-        try {
-          const style = await resolveAnyStyle(p.id);
-          if (style.type === "TEXT") {
-            if (loadedSet.has(fontKeys[fontIdx])) processItems.push(p);
-            else deferredItems.push(p);
-            fontIdx++;
-          } else {
-            processItems.push(p);
-          }
-        } catch {
-          processItems.push(p); // let batchHandler report per-item error
+        const resolved = await resolveFontAsync(family, fontStyle);
+        // Store resolved values so patchStyleSingle uses the correct names
+        if (p.fontFamily !== undefined || p.fontStyle !== undefined) {
+          if (p.fontFamily !== undefined) p.fontFamily = resolved.family;
+          p.fontStyle = resolved.style;
         }
       }
-      const deferredFonts = uniqueFonts.slice(MAX_FONTS_PER_BATCH).map(k => k.replace("::", " "));
-      const result = await batchHandler({ ...params, items: processItems }, patchStyleSingle);
-      result.deferred = `${deferredItems.length} text style(s) using fonts [${deferredFonts.join(", ")}] were NOT updated to avoid timeout. Call styles(method: "update") again with those items.`;
-      return result;
-    }
+    } catch { /* skip -- will error in batchHandler */ }
   }
 
   return batchHandler(params, patchStyleSingle);

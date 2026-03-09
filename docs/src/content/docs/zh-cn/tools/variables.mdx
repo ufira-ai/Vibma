@@ -14,6 +14,7 @@ import ParameterTable from "../../../../components/ParameterTable.astro";
 // Variables are design tokens — reusable values (colors, numbers, strings, booleans) that can be bound to node properties.
 // Variables are identified by name (unique within a collection). No IDs needed — use name to get/update/delete.
 // Workflow: create a variable_collection first → then create variables inside it → bind to nodes via frames/text update PatchItem.bindings.
+// ---
 // Each variable has values per mode (e.g. Light/Dark). Use modeId when setting values for a specific mode.
 // valuesByMode keys are mode IDs (from the collection), values match the variable's resolvedType.
 // Aliases: a variable can reference another variable by name via {type: "VARIABLE_ALIAS", name: "other/variable"}.
@@ -65,7 +66,7 @@ Create variables
 
 Update variable metadata and/or set values per mode
 
-<ParameterTable schema={{"type":"object","properties":{"items":{"description":"Array of {name, collectionName?, rename?, description?, scopes?, modeId?, value?}","type":"array","items":{"type":"object","properties":{"name":{"description":"Variable name","type":"string"},"collectionName":{"description":"Collection name (required if same variable name exists in multiple collections)","type":"string"},"rename":{"description":"Rename the variable","type":"string"},"description":{"description":"Set description","type":"string"},"scopes":{"description":"UI scopes e.g. [\"ALL_SCOPES\"] or [\"WIDTH_HEIGHT\",\"CORNER_RADIUS\"]","type":"array","items":{"type":"string"}},"modeId":{"description":"Mode ID (required when setting value)","type":"string"},"value":{"type":"any","description":"number | boolean | Color | {type:VARIABLE_ALIAS, id}"}},"required":["name"]}}},"required":["items"]}} />
+<ParameterTable schema={{"type":"object","properties":{"items":{"description":"Array of {name, collectionName?, rename?, description?, scopes?, modeId?, value?}","type":"array","items":{"type":"object","properties":{"name":{"description":"Variable name","type":"string"},"collectionName":{"description":"Collection name (required if same variable name exists in multiple collections)","type":"string"},"rename":{"description":"Rename the variable","type":"string"},"description":{"description":"Set description","type":"string"},"scopes":{"description":"UI scopes e.g. [\"ALL_SCOPES\"] or [\"WIDTH_HEIGHT\",\"CORNER_RADIUS\"]","type":"array","items":{"type":"string"}},"modeId":{"description":"Mode ID (required when setting value)","type":"string"},"value":{"type":"any","description":"number | boolean | Color | {type:VARIABLE_ALIAS, name}"}},"required":["name"]}}},"required":["items"]}} />
 
 **Response**
 

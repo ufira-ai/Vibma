@@ -5,6 +5,8 @@ description_zh: "运行设计质量和无障碍检查。"
 
 notes: |
   // Lint runs automated design quality and accessibility checks on a node tree.
+  // Rules: "all" (default), "wcag" (accessibility only), or specific rule names. Use help(topic:"check") for full rule list.
+  // ---
   // Rules:
   //   "all" (default) — run every rule. "wcag" — all accessibility rules only.
   //   Design rules:
@@ -36,11 +38,12 @@ methods:
   check:
     tier: read
     description: Run design linter on a node tree
+    example: 'lint(method:"check", nodeId:"0:1", rules:["wcag","hardcoded-color"])'
     params:
       nodeId:
         type: string
         optional: true
-        description: "Node ID to lint (default: current selection or page)"
+        description: "Node ID to lint. If omitted: 1 selected node → lints that node, 2+ selected → lints entire page, 0 selected → error. Pass a page or frame ID explicitly for reliable targeting."
       rules:
         type: string[]
         coerce: json

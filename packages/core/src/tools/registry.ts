@@ -1,6 +1,7 @@
 import { ZodError } from "zod";
 import type { McpServer, SendCommandFn, Capabilities, ToolDef } from "./types";
 import { mcpJson, mcpError } from "./types";
+import { resolveHelp, resolveEndpointHelp } from "./generated/help";
 
 /**
  * Resolve the Figma command name for a tool call.
@@ -41,6 +42,12 @@ export function registerTools(
 
     server.registerTool(tool.name, { description: tool.description, inputSchema: schema }, async (params: any) => {
       try {
+        // Help method — handled inline, not sent to Figma
+        if (params.method === "help") {
+          const text = resolveEndpointHelp(tool.name, params.topic) ?? resolveHelp(tool.name);
+          return { content: [{ type: "text" as const, text }] };
+        }
+
         if (tool.validate) tool.validate(params);
         const command = resolveCommand(tool, params);
         const result = await sendCommand(command, params, timeout);

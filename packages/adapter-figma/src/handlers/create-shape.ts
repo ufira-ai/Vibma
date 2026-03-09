@@ -1,4 +1,22 @@
-import { batchHandler, appendToParent, solidPaint, applyFillWithAutoBind, applyStrokeWithAutoBind, findVariableById, findColorVariableByName } from "./helpers";
+import { batchHandler, appendToParent, solidPaint, applyFillWithAutoBind, applyStrokeWithAutoBind, bindNumericVariable, findVariableById, findColorVariableByName } from "./helpers";
+
+/**
+ * Apply auto-layout sizing to a shape node after appending to parent.
+ * Shape primitives (rect, ellipse, line) support layoutSizing when inside auto-layout.
+ */
+async function applyLayoutSizing(
+  node: SceneNode,
+  parent: BaseNode | null,
+  p: { layoutSizingHorizontal?: string; layoutSizingVertical?: string },
+  defaults?: { h?: string; v?: string },
+): Promise<void> {
+  const parentIsAL = parent && "layoutMode" in parent && (parent as any).layoutMode !== "NONE";
+  if (!parentIsAL) return;
+  const h = p.layoutSizingHorizontal || defaults?.h;
+  const v = p.layoutSizingVertical || defaults?.v;
+  if (h && "layoutSizingHorizontal" in node) (node as any).layoutSizingHorizontal = h;
+  if (v && "layoutSizingVertical" in node) (node as any).layoutSizingVertical = v;
+}
 
 // ─── Figma Handlers ──────────────────────────────────────────────
 
@@ -78,9 +96,13 @@ async function createSingleRectangle(p: any) {
   if (p.opacity !== undefined) rect.opacity = p.opacity;
 
   const hints: string[] = [];
+  if (p.cornerRadiusVariableName) {
+    await bindNumericVariable(rect, ["topLeftRadius", "topRightRadius", "bottomRightRadius", "bottomLeftRadius"], p.cornerRadiusVariableName, hints);
+  }
   await applyFillWithAutoBind(rect, p, hints);
   await applyStrokeWithAutoBind(rect, p, hints);
-  await appendToParent(rect, p.parentId);
+  const parent = await appendToParent(rect, p.parentId);
+  await applyLayoutSizing(rect, parent, p);
 
   const result: any = { id: rect.id };
   if (hints.length > 0) result.warning = hints.join(" ");
@@ -100,7 +122,8 @@ async function createSingleEllipse(p: any) {
   const hints: string[] = [];
   await applyFillWithAutoBind(ellipse, p, hints);
   await applyStrokeWithAutoBind(ellipse, p, hints);
-  await appendToParent(ellipse, p.parentId);
+  const parent = await appendToParent(ellipse, p.parentId);
+  await applyLayoutSizing(ellipse, parent, p);
 
   const result: any = { id: ellipse.id };
   if (hints.length > 0) result.warning = hints.join(" ");
@@ -127,7 +150,12 @@ async function createSingleLine(p: any) {
   }
   if (p.strokeWeight !== undefined) line.strokeWeight = p.strokeWeight;
 
-  await appendToParent(line, p.parentId);
+  const parent = await appendToParent(line, p.parentId);
+  // Lines in vertical auto-layout default to FILL width (divider pattern)
+  const parentMode = parent && "layoutMode" in parent ? (parent as any).layoutMode : null;
+  const defaultH = parentMode === "VERTICAL" ? "FILL" : undefined;
+  await applyLayoutSizing(line, parent, p, { h: defaultH });
+
   const result: any = { id: line.id };
   if (hints.length > 0) result.warning = hints.join(" ");
   return result;

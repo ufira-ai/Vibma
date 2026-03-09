@@ -34,7 +34,7 @@ function paramToTs(param: RawParam): string {
   }
 
   if (type === "color") return "Color";
-  if (type === "variable_value") return 'number | boolean | string | Color | {type: "VARIABLE_ALIAS", id: string}';
+  if (type === "variable_value") return 'number | boolean | string | Color | {type: "VARIABLE_ALIAS", name: string}';
   if (type === "line_height") return 'number | {value: number, unit: "PIXELS" | "PERCENT" | "AUTO"}';
   if (type === "letter_spacing") return 'number | {value: number, unit: "PIXELS" | "PERCENT"}';
   if (type === "string_or_boolean") return "string | boolean";
@@ -179,8 +179,25 @@ function appendSharedTypes(text: string): string {
   return text + "\n// Shared types:\n// " + needed.join("\n// ");
 }
 
+// ─── Notes filtering ──────────────────────────────────────────────
+
+/** Extract brief // comment lines from notes for the compact description.
+ *  Stops at `// ---` separator if present — lines after it are help-only detail. */
+function extractNoteComments(notes: string): string {
+  const lines: string[] = [];
+  for (const l of notes.split("\n")) {
+    if (l.trimStart() === "// ---") break;
+    if (l.trimStart().startsWith("//")) lines.push(l);
+  }
+  return lines.join("\n");
+}
+
 // ─── Main ─────────────────────────────────────────────────────────
 
+/**
+ * Generate the full description with all detail (interfaces, notes, shared types).
+ * Used by help system for detailed method-level docs.
+ */
 export function generateDescription(endpoint: ResolvedEndpoint): string {
   const sections: string[] = [];
 
@@ -209,5 +226,31 @@ export function generateDescription(endpoint: ResolvedEndpoint): string {
   }
 
   // 4. Auto-append shared type definitions referenced in the description
+  return appendSharedTypes(sections.join("\n"));
+}
+
+/**
+ * Generate a compact description for the MCP tool listing.
+ * Keeps summary + method DSL + essential notes (// comments only).
+ * Full interfaces and detailed notes are available via help(method: "help").
+ */
+export function generateCompactDescription(endpoint: ResolvedEndpoint): string {
+  const sections: string[] = [];
+
+  // 1. Summary + method DSL
+  sections.push(`/** ${endpoint.description.trim()} Use method "help" for detailed parameter docs. */`);
+  const methodLines: string[] = [];
+  for (const method of endpoint.methods) {
+    methodLines.push(methodLine(method));
+  }
+  sections.push(methodLines.join("\n"));
+
+  // 2. Essential notes only (// comments, no interfaces)
+  if (endpoint.notes) {
+    const comments = extractNoteComments(endpoint.notes);
+    if (comments) sections.push(comments);
+  }
+
+  // 3. Auto-append shared type definitions referenced in the description
   return appendSharedTypes(sections.join("\n"));
 }

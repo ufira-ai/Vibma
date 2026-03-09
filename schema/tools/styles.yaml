@@ -7,8 +7,23 @@ notes: |
   // Styles are named, reusable design properties that can be applied to nodes. Four types:
   //   paint: a named color (applied to fills/strokes), text: typography settings, effect: shadows/blurs, grid: layout grids.
   // Style names are case-sensitive for creation but case-insensitive for lookup in update (by ID or name).
+  // ---
   // leadingTrim: "CAP_HEIGHT" trims line-height to cap height (tighter text boxes), "NONE" is default.
   // fontStyle: font variant name like "Bold", "Italic", "Bold Italic". Use fonts.list to find available styles.
+  //
+  // Effect object shape (for effect styles):
+  //   { type: "DROP_SHADOW"|"INNER_SHADOW"|"LAYER_BLUR"|"BACKGROUND_BLUR",
+  //     color?: Color, offset?: {x, y}, radius: number, spread?: number,
+  //     visible?: boolean, blendMode?: string }
+  //   DROP_SHADOW/INNER_SHADOW require color, offset, radius. LAYER_BLUR/BACKGROUND_BLUR require radius only.
+  //   Example: { type: "DROP_SHADOW", color: "#00000040", offset: {x:0,y:4}, radius: 8 }
+  //
+  // LayoutGrid object shape (for grid styles):
+  //   Rows/Columns: { pattern: "ROWS"|"COLUMNS", alignment: "MIN"|"MAX"|"STRETCH"|"CENTER",
+  //     gutterSize: number, count: number, sectionSize?: number, offset?: number, visible?: boolean, color?: Color }
+  //   Grid: { pattern: "GRID", sectionSize: number, visible?: boolean, color?: Color }
+  //   Example: { pattern: "COLUMNS", alignment: "STRETCH", gutterSize: 20, count: 12, offset: 40 }
+  //
   interface PaintStyleItem { name: string; color: Color; description?: string }
   interface TextStyleItem {
     name: string; fontFamily: string; fontStyle?: string; fontSize: number;
@@ -78,6 +93,7 @@ methods:
   create:
     tier: create
     description: Create local styles
+    example: 'styles(method:"create", type:"effect", name:"Shadow/Medium", effects:[{type:"DROP_SHADOW", color:"#00000040", offset:{x:0,y:4}, radius:8}])'
     discriminant: type
     types:
       paint:

@@ -6,7 +6,7 @@
  * - A ToolDef export
  */
 import type { ResolvedEndpoint, ResolvedMethod, RawParam } from "./types";
-import { generateDescription } from "./gen-descriptions";
+import { generateCompactDescription } from "./gen-descriptions";
 
 /** Convert a YAML param type to Zod code */
 function paramToZod(name: string, param: RawParam, indent = 2): string {
@@ -83,7 +83,7 @@ function paramToZod(name: string, param: RawParam, indent = 2): string {
 /** Generate the Zod schema fields for an endpoint */
 function generateSchema(endpoint: ResolvedEndpoint): string {
   const lines: string[] = [];
-  const methodNames = endpoint.methods.map(m => `"${m.name}"`).join(", ");
+  const methodNames = [...endpoint.methods.map(m => `"${m.name}"`), `"help"`].join(", ");
 
   lines.push(`    method: z.enum([${methodNames}]),`);
 
@@ -134,6 +134,11 @@ function generateSchema(endpoint: ResolvedEndpoint): string {
     const optionalParam = { ...param, optional: true, required: undefined };
     const zodLine = paramToZod(name, optionalParam).trim();
     lines.push(`    ${name}: ${zodLine},`);
+  }
+
+  // Inject topic param for the help method
+  if (!allParams.has("topic")) {
+    lines.push(`    topic: z.string().optional().describe("Help topic — method name for endpoint help, e.g. \\"create\\""),`);
   }
 
   return lines.join("\n");
@@ -257,7 +262,7 @@ function generateValidate(endpoint: ResolvedEndpoint): string | null {
 
 /** Generate a single ToolDef */
 function generateToolDef(endpoint: ResolvedEndpoint): string {
-  const desc = generateDescription(endpoint);
+  const desc = generateCompactDescription(endpoint);
   const schema = generateSchema(endpoint);
   const tier = endpointTier(endpoint);
 
@@ -275,7 +280,7 @@ function generateToolDef(endpoint: ResolvedEndpoint): string {
     name: "${endpoint.name}",
     description: ${JSON.stringify(desc)},
     schema: (caps) => filterMethodsByTier({${schema}
-    }, caps, ${JSON.stringify(Object.fromEntries(endpoint.methods.map(m => [m.name, m.tier])))}),
+    }, caps, ${JSON.stringify({ ...Object.fromEntries(endpoint.methods.map(m => [m.name, m.tier])), help: "read" })}),
     tier: "${tier}" as const,${timeoutLine}${validateLine}
     commandMap: ${JSON.stringify(dispatchMap)},
   }`;

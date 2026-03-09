@@ -102,6 +102,22 @@ async function removeModeSingle(p: any): Promise<Record<string, never>> {
   return {};
 }
 
+/**
+ * Resolve a modeId that might be a mode name (e.g. "Dark") to the actual mode ID.
+ * Agents don't know internal mode IDs — this lets them use human-readable names.
+ */
+async function resolveModeId(collection: any, modeIdOrName: string): Promise<string> {
+  // Check if it's already a valid mode ID
+  if (collection.modes.some((m: any) => m.modeId === modeIdOrName)) return modeIdOrName;
+  // Try matching by name (case-insensitive)
+  const byName = collection.modes.find((m: any) =>
+    m.name === modeIdOrName || m.name.toLowerCase() === modeIdOrName.toLowerCase()
+  );
+  if (byName) return byName.modeId;
+  const available = collection.modes.map((m: any) => `${m.name} (${m.modeId})`).join(", ");
+  throw new Error(`Mode "${modeIdOrName}" not found in collection "${collection.name}". Available: ${available}`);
+}
+
 // -- variables handlers --
 
 async function createVariableSingle(p: any) {
@@ -113,13 +129,12 @@ async function createVariableSingle(p: any) {
   const variable = await figma.variables.getVariableByIdAsync(id);
   if (!variable) throw new Error(`Failed to re-fetch created variable: ${p.name}`);
   if (p.description !== undefined) variable.description = p.description;
-  if (p.scopes !== undefined) variable.scopes = p.scopes;
-  // Set initial value — uses provided modeId or falls back to default mode
+  // Set initial value BEFORE scopes — scope errors must not prevent value from being set
+  const hints: string[] = [];
   if (p.value !== undefined) {
-    const modeId = p.modeId ?? collection.defaultModeId;
+    const modeId = p.modeId ? await resolveModeId(collection, p.modeId) : collection.defaultModeId;
     let value = p.value;
     if (typeof value === "object" && value !== null && value.type === "VARIABLE_ALIAS") {
-      // Resolve alias by name or id
       const aliasVar = value.name
         ? await findVariableByName(value.name)
         : value.id ? await findVariableById(value.id) : null;
@@ -131,7 +146,13 @@ async function createVariableSingle(p: any) {
     }
     variable.setValueForMode(modeId, value);
   }
-  return {};
+  if (p.scopes !== undefined) {
+    try { variable.scopes = p.scopes; }
+    catch (e: any) { hints.push(`in set_scopes: ${e.message}`); }
+  }
+  const result: any = {};
+  if (hints.length > 0) result.warning = hints.join(" ");
+  return result;
 }
 
 async function getVariableFigma(params: any) {
@@ -166,10 +187,13 @@ async function updateVariableSingle(p: any) {
   if (p.rename !== undefined) variable.name = p.rename;
   if (p.description !== undefined) variable.description = p.description;
   if (p.scopes !== undefined) variable.scopes = p.scopes;
-  // Value update (requires modeId)
-  if (p.modeId !== undefined && p.value !== undefined) {
+  // Value update — falls back to collection's default modeId when omitted
+  // modeId accepts both IDs ("2:3") and names ("Dark") for agent convenience
+  if (p.value !== undefined) {
+    const collection = await findCollectionById(variable.variableCollectionId);
+    if (!collection) throw new Error(`Collection not found for variable: ${p.name}`);
+    const modeId = p.modeId ? await resolveModeId(collection, p.modeId) : collection.defaultModeId;
     let value = p.value;
-    // Alias: {type: "VARIABLE_ALIAS", name: "other/var"} — resolve by name
     if (typeof value === "object" && value !== null && value.type === "VARIABLE_ALIAS") {
       const aliasVar = value.name
         ? await findVariableByName(value.name)
@@ -180,7 +204,7 @@ async function updateVariableSingle(p: any) {
       const asColor = coerceColor(value);
       if (asColor) value = asColor;
     }
-    variable.setValueForMode(p.modeId, value);
+    variable.setValueForMode(modeId, value);
   }
   return {};
 }

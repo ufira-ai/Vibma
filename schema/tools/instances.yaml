@@ -7,6 +7,7 @@ notes: |
   // Instances are linked copies of components. Changes to the component propagate to all instances.
   // Overrides: instance-level changes (text, fills, visibility) that differ from the component. Shown in overrides array.
   // variantProperties: when creating from a component set, pick which variant e.g. {"Style":"Secondary","Size":"Large"}.
+  // ---
   // Property keys include a unique suffix like "Label#1:0" — use instances.get or components.get to find exact keys.
   // swap: change which component an instance points to while preserving compatible overrides.
   // detach: permanently converts an instance to a regular frame, breaking the component link.
@@ -43,6 +44,7 @@ methods:
   create:
     tier: create
     description: Create component instances
+    example: 'instances(method:"create", items:[{componentId:"1:23", variantProperties:{"Size":"Large"}, parentId:"2:45"}])'
     params:
       items:
         type: array

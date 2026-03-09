@@ -30,12 +30,21 @@ async function patchSingleNode(item: any, textCtx: TextPropsContext | null): Pro
     await moveSingle({ nodeId: item.nodeId, x: item.x, y: item.y });
   }
 
-  // 2. Geometry: resize
+  // 2. Geometry: resize (allow width-only or height-only by reading current bounds)
   if (item.width !== undefined || item.height !== undefined) {
-    if (item.width === undefined || item.height === undefined) {
-      throw new Error("width and height must both be provided for resize");
+    let w = item.width;
+    let h = item.height;
+    if (w === undefined || h === undefined) {
+      const node = await figma.getNodeByIdAsync(item.nodeId);
+      if (!node) throw new Error(`Node not found: ${item.nodeId}`);
+      if ("width" in node && "height" in node) {
+        w = w ?? (node as any).width;
+        h = h ?? (node as any).height;
+      } else {
+        throw new Error(`Node does not support resize: ${item.nodeId}`);
+      }
     }
-    await resizeSingle({ nodeId: item.nodeId, width: item.width, height: item.height });
+    await resizeSingle({ nodeId: item.nodeId, width: w, height: h });
   }
 
   // 3. Fill

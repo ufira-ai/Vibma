@@ -6,12 +6,12 @@ description_zh: "创建和管理文本节点。"
 
 notes: |
   // Text nodes display text content with typography styling. They inherit node methods (get, list, update, delete, clone, reparent).
-  // textAutoResize controls how the text box resizes: NONE = fixed box, WIDTH_AND_HEIGHT = grow both axes to fit text,
-  //   HEIGHT = fixed width + auto height (most common for paragraphs), TRUNCATE = fixed box + ellipsis on overflow.
+  // textAutoResize: NONE (fixed box), WIDTH_AND_HEIGHT (grow both), HEIGHT (fixed width, auto height), TRUNCATE (fixed + ellipsis).
+  // Prefer textStyleName for typography, fontColorVariableName/fontColorStyleName for color.
+  // ---
   // fontStyle vs fontWeight: fontStyle is a named variant like "Bold", "Italic", "SemiBold". When set, fontWeight is ignored.
   //   Use fonts.list to find available fontFamily + fontStyle combinations.
   // scan: finds all text nodes in a subtree. path (when includePath:true) shows the layer hierarchy e.g. "Frame > Card > Label".
-  // Prefer textStyleName for typography, fontColorVariableName/fontColorStyleName for color.
   interface TextItem {
     text: string; name?: string;
     x?: number; y?: number; parentId?: string;
@@ -39,6 +39,7 @@ methods:
   create:
     tier: create
     description: Create text nodes
+    example: 'text(method:"create", items:[{text:"Hello", fontFamily:"Inter", fontSize:16, textStyleName:"body/medium"}])'
     params:
       items:
         type: array

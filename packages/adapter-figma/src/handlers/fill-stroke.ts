@@ -45,7 +45,7 @@ export async function setFillSingle(p: any): Promise<any> {
     const c = coerceColor(p.color);
     if (!c) throw new Error(`Invalid fill color: ${JSON.stringify(p.color)}. Use hex "#FF0000" or {r, g, b, a?} with values 0-1.`);
     (node as any).fills = [{ type: "SOLID", color: { r: c.r, g: c.g, b: c.b }, opacity: c.a }];
-    const match = await suggestStyleForColor(c, "styleName");
+    const match = await suggestStyleForColor(c, "styleName", "ALL_FILLS");
     if (match.variable) {
       const bound = figma.variables.setBoundVariableForPaint((node as any).fills[0], "color", match.variable);
       (node as any).fills = [bound];
@@ -103,7 +103,7 @@ export async function setStrokeSingle(p: any): Promise<any> {
   if (p.color && !p.styleName && !p.variableId && !p.variableName) {
     const c = coerceColor(p.color);
     if (c) {
-      const match = await suggestStyleForColor(c, "styleName");
+      const match = await suggestStyleForColor(c, "styleName", "STROKE_COLOR");
       if (match.variable) {
         const bound = figma.variables.setBoundVariableForPaint((node as any).strokes[0], "color", match.variable);
         (node as any).strokes = [bound];

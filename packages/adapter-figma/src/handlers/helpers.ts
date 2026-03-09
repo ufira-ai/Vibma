@@ -26,17 +26,50 @@ export async function nodeSnapshot(id: string, depth: number): Promise<any> {
  * Reads `items` (array) and `depth` (number|undefined) from params.
  * If depth is defined and a result has an `id`, merges node snapshot into the result.
  */
+/** Max items per batch call. Prevents plugin timeouts on large operations. */
+const MAX_BATCH_SIZE = 20;
+
+/**
+ * Send a progress update through the Figma plugin → UI → relay → MCP pipeline.
+ * This extends the MCP-side timeout (30s → 60s) so long batches don't time out.
+ */
+function sendBatchProgress(commandId: string, processed: number, total: number, status: "started" | "in_progress" | "completed") {
+  const progress = Math.round((processed / total) * 100);
+  figma.ui.postMessage({
+    type: "command_progress",
+    commandId,
+    commandType: "batch",
+    status,
+    progress,
+    totalItems: total,
+    processedItems: processed,
+    message: `Processing ${processed}/${total} items`,
+    timestamp: Date.now(),
+  });
+}
+
 export async function batchHandler<TItem, TResult>(
   params: { items?: TItem[]; depth?: number } & Record<string, unknown>,
   fn: (item: TItem) => Promise<TResult>,
 ): Promise<BatchResult<TResult>> {
   const items = (params.items || [params]) as TItem[];
   const depth = params.depth;
+  const commandId = (params as any).commandId;
+
+  if (items.length > MAX_BATCH_SIZE) {
+    return {
+      results: [{ error: `Batch too large: ${items.length} items (max ${MAX_BATCH_SIZE}). Split into smaller batches.` } as any],
+    };
+  }
+
+  const useProgress = items.length > 3 && commandId;
+  if (useProgress) sendBatchProgress(commandId, 0, items.length, "started");
+
   const results: Array<TResult | "ok" | { error: string }> = [];
   const warningSet = new Set<string>();
-  for (const item of items) {
+  for (let i = 0; i < items.length; i++) {
     try {
-      let result: any = await fn(item);
+      let result: any = await fn(items[i]);
       if (depth !== undefined && result?.id) {
         const snapshot = await nodeSnapshot(result.id, depth);
         if (snapshot) result = { ...result, ...snapshot };
@@ -55,11 +88,22 @@ export async function batchHandler<TItem, TResult>(
     } catch (e: any) {
       results.push({ error: e.message });
     }
+    if (useProgress && (i + 1) % 3 === 0) {
+      sendBatchProgress(commandId, i + 1, items.length, "in_progress");
+    }
   }
+  if (useProgress) sendBatchProgress(commandId, items.length, items.length, "completed");
+
   const out: BatchResult<TResult> = { results };
   if (warningSet.size > 0) {
     out.warnings = [...warningSet];
-    out._action = "Fix these warnings before proceeding. Each warning describes the issue and the exact tool call to resolve it.";
+    // Only prompt action for actual problems, not informational auto-bind confirmations
+    const hasActionable = out.warnings.some(w =>
+      !w.startsWith("Auto-bound") && !w.startsWith("Bound ")
+    );
+    if (hasActionable) {
+      out._action = "Fix these warnings before proceeding. Each warning describes the issue and the exact tool call to resolve it.";
+    }
   }
   return out;
 }
@@ -189,29 +233,51 @@ export interface ColorMatchResult {
 export async function suggestStyleForColor(
   color: { r: number, g: number, b: number, a?: number },
   styleParam: string,
+  bindingContext?: "ALL_FILLS" | "FRAME_FILL" | "SHAPE_FILL" | "TEXT_FILL" | "STROKE_COLOR",
 ): Promise<ColorMatchResult> {
   const hex = `#${[color.r, color.g, color.b].map(v => Math.round((v ?? 0) * 255).toString(16).padStart(2, "0")).join("")}`;
   const eps = 0.02;
   const cr = color.r ?? 0, cg = color.g ?? 0, cb = color.b ?? 0, ca = color.a ?? 1;
+
+  const colorMatches = (vc: { r: number; g: number; b: number; a?: number }) =>
+    Math.abs(vc.r - cr) < eps && Math.abs(vc.g - cg) < eps &&
+    Math.abs(vc.b - cb) < eps && Math.abs((vc.a ?? 1) - ca) < eps;
 
   // Check color variables first (preferred — supports multi-mode theming)
   const colorVars = await figma.variables.getLocalVariablesAsync("COLOR");
   if (colorVars.length > 0) {
     const collections = await figma.variables.getLocalVariableCollectionsAsync();
     const defaultModes = new Map(collections.map(c => [c.id, c.defaultModeId]));
+
+    // Collect all matching variables, then pick the best by scope
+    let scopedMatch: any = null;
+    let fallbackMatch: any = null;
+
     for (const v of colorVars) {
       const modeId = defaultModes.get(v.variableCollectionId);
       if (!modeId) continue;
       const val = v.valuesByMode[modeId];
       if (!val || typeof val !== "object" || "type" in val) continue;
-      const vc = val as { r: number; g: number; b: number; a?: number };
-      if (Math.abs(vc.r - cr) < eps && Math.abs(vc.g - cg) < eps &&
-          Math.abs(vc.b - cb) < eps && Math.abs((vc.a ?? 1) - ca) < eps) {
-        return {
-          hint: `Auto-bound color ${hex} → variable '${v.name}'.`,
-          variable: v,
-        };
+      if (!colorMatches(val as any)) continue;
+
+      const scopes: string[] = (v as any).scopes || [];
+      const isAllScopes = scopes.length === 0 || scopes.includes("ALL_SCOPES");
+
+      if (bindingContext && !isAllScopes && scopes.includes(bindingContext)) {
+        // Exact scope match — best pick
+        scopedMatch = v;
+        break;
+      } else if (!fallbackMatch) {
+        fallbackMatch = v;
       }
+    }
+
+    const best = scopedMatch || fallbackMatch;
+    if (best) {
+      return {
+        hint: `Auto-bound color ${hex} → variable '${best.name}'.`,
+        variable: best,
+      };
     }
   }
 
@@ -291,7 +357,7 @@ export async function applyFillWithAutoBind(
   // 4. Direct color — auto-bind if matching variable/style exists
   if (p.fillColor) {
     node.fills = [solidPaint(p.fillColor)];
-    const match = await suggestStyleForColor(p.fillColor, "fillStyleName");
+    const match = await suggestStyleForColor(p.fillColor, "fillStyleName", "ALL_FILLS");
     if (match.variable) {
       // Auto-bind to matching variable
       const bound = figma.variables.setBoundVariableForPaint(node.fills[0] as SolidPaint, "color", match.variable);
@@ -357,7 +423,7 @@ export async function applyStrokeWithAutoBind(
     }
   } else if (p.strokeColor) {
     node.strokes = [solidPaint(p.strokeColor)];
-    const match = await suggestStyleForColor(p.strokeColor, "strokeStyleName");
+    const match = await suggestStyleForColor(p.strokeColor, "strokeStyleName", "STROKE_COLOR");
     if (match.variable) {
       const bound = figma.variables.setBoundVariableForPaint(node.strokes[0] as SolidPaint, "color", match.variable);
       node.strokes = [bound];
@@ -431,7 +497,7 @@ export async function applyFontColorWithAutoBind(
   if (p.fontColor) {
     const fc = p.fontColor;
     textNode.fills = [makeSolid(fc)];
-    const match = await suggestStyleForColor(fc, "fontColorStyleName");
+    const match = await suggestStyleForColor(fc, "fontColorStyleName", "TEXT_FILL");
     if (match.variable) {
       const bound = figma.variables.setBoundVariableForPaint(textNode.fills[0] as SolidPaint, "color", match.variable);
       textNode.fills = [bound];
@@ -446,6 +512,36 @@ export async function applyFontColorWithAutoBind(
   }
 
   return false;
+}
+
+/**
+ * Bind a FLOAT variable by name to one or more node properties.
+ * For cornerRadius, binds all four corners. Returns true if bound successfully.
+ */
+export async function bindNumericVariable(
+  node: any,
+  fields: string | string[],
+  variableName: string,
+  hints: string[],
+): Promise<boolean> {
+  const v = await findVariableByName(variableName);
+  if (!v) {
+    const floatVars = await figma.variables.getLocalVariablesAsync("FLOAT");
+    const names = floatVars.map(v => v.name).slice(0, 20);
+    hints.push(`Variable '${variableName}' not found. Available FLOAT variables: [${names.join(", ")}]`);
+    return false;
+  }
+  if (v.resolvedType !== "FLOAT") {
+    hints.push(`Variable '${variableName}' is ${v.resolvedType}, expected FLOAT.`);
+    return false;
+  }
+  const fieldList = Array.isArray(fields) ? fields : [fields];
+  for (const f of fieldList) {
+    node.setBoundVariable(f, v);
+  }
+  const label = fieldList.length > 1 ? fieldList[0].replace(/^topLeftRadius$/, "cornerRadius") : fieldList[0];
+  hints.push(`Bound ${label} → variable '${v.name}'.`);
+  return true;
 }
 
 /**
