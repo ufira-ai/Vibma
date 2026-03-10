@@ -23,8 +23,9 @@ async function setSelection(params: any): Promise<any> {
   const page = penpot.currentPage;
   if (!page) throw new Error("No current page");
 
-  const idSet = new Set(ids as string[]);
-  const shapes = page.findShapes().filter((s: any) => idSet.has(s.id));
+  const shapes = (ids as string[])
+    .map((id: string) => page.getShapeById(id))
+    .filter((s): s is NonNullable<typeof s> => s != null);
 
   penpot.selection = shapes;
 

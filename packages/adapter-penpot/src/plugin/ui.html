@@ -211,8 +211,13 @@
     </div>
 
     <script>
-      // Keep in sync with package.json version
+      // Single source of truth for version — kept in sync with package.json manually.
+      // TODO: code.ts should send a "version" message on init so the UI reads it from there.
       const VIBMA_VERSION = "0.1.0";
+
+      // Derive the Penpot app origin from ancestorOrigins when available.
+      // Falls back to "*" only when the browser API is absent (e.g. Firefox < 103).
+      const PENPOT_ORIGIN = window.location.ancestorOrigins?.[0] ?? "*";
 
       // ─── State ──────────────────────────────────────────────────
       const state = {
@@ -236,9 +241,10 @@
       const connectionInfo = document.getElementById("connection-info");
 
       // ─── Connection status ────────────────────────────────────
-      function updateConnectionStatus(isConnected, message) {
+      function updateConnectionStatus(isConnected, message, isError) {
         state.connected = isConnected;
-        connectionBanner.className = `connection-banner ${isConnected ? "connected" : "disconnected"}`;
+        const bannerClass = isConnected ? "connected" : (isError ? "error" : "disconnected");
+        connectionBanner.className = `connection-banner ${bannerClass}`;
         bannerIcon.textContent = isConnected ? "✓" : "○";
         bannerStatusLabel.textContent = isConnected ? "Connected" : (message || "Disconnected");
         connectionInfo.textContent = isConnected
@@ -256,7 +262,8 @@
       // so it can reach localhost directly without Figma's sandboxed network restrictions.
 
       function connectToServer(port) {
-        if (state.connected && state.socket) return;
+        // Guard against multiple concurrent connections (connecting OR connected).
+        if (state.socket) return;
         state.serverPort = port;
         const wsUrl = `ws://localhost:${port}`;
         state.socket = new WebSocket(wsUrl);
@@ -283,7 +290,7 @@
               updateConnectionStatus(true);
             } else if (data.type === "error") {
               state.lastError = data.message;
-              updateConnectionStatus(false, `Error: ${data.message}`);
+              updateConnectionStatus(false, `Error: ${data.message}`, true);
               if (state.socket) { state.socket.close(); state.socket = null; }
             }
             handleSocketMessage(data);
@@ -302,7 +309,7 @@
 
         state.socket.onerror = () => {
           state.lastError = `Relay not reachable on port ${port}`;
-          updateConnectionStatus(false, state.lastError);
+          updateConnectionStatus(false, state.lastError, true);
           state.connected = false;
           state.socket = null;
         };
@@ -331,8 +338,9 @@
         }
 
         if (data.command) {
-          // Forward command to plugin code via Penpot's postMessage channel
-          window.parent.postMessage({ type: "execute-command", id: data.id, command: data.command, params: data.params }, "*");
+          // Forward command to plugin code via Penpot's postMessage channel.
+          // PENPOT_ORIGIN is derived from ancestorOrigins so we avoid broadcasting to "*".
+          window.parent.postMessage({ type: "execute-command", id: data.id, command: data.command, params: data.params }, PENPOT_ORIGIN);
         }
       }
 
@@ -365,7 +373,9 @@
 
       document.getElementById("btn-reset").addEventListener("click", async () => {
         const port = parseInt(portInput.value, 10) || 3055;
-        const channel = channelInput.value.trim() || "vibma";
+        // Use state.channel (the sanitized name that was actually joined) so the DELETE
+        // targets the same channel as the join, even if the input has since been edited.
+        const channel = state.channel || channelInput.value.trim().replace(/[^a-zA-Z0-9_\-]/g, "") || "vibma";
         if (state.socket) { state.socket.onclose = null; state.socket.close(); state.socket = null; }
         state.connected = false;
         state.mcpPeer = null;
@@ -382,7 +392,9 @@
 
       // ─── Messages from plugin code ────────────────────────────
       // Penpot plugin iframe communication uses window.onmessage the same way as Figma.
+      // Only accept messages that originate from the parent frame (the Penpot app itself).
       window.onmessage = (event) => {
+        if (event.source !== window.parent) return;
         const message = event.data;
         if (!message || !message.type) return;
         switch (message.type) {

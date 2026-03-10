@@ -69,11 +69,11 @@ export function mapCounterAlign(vibmaAlign: string): string {
 /**
  * Map Vibma sizing mode to Penpot per-axis sizing string.
  * Vibma: "FIXED" | "HUG" | "FILL"
- * Penpot: "fixed" | "fill" | "auto" (hug → "auto" in Penpot terms)
+ * Penpot: "auto" (fixed size), "fit-content" (hug contents), "fill" (fill container)
  */
 export function mapSizing(vibmaSizing: string): 'fit-content' | 'fill' | 'auto' {
   // Maps Vibma sizing mode → Penpot CommonLayout sizing
-  // Penpot: "fit-content" (hug), "fill", "auto" (fixed in older docs)
+  // Penpot: "auto" (fixed), "fit-content" (hug), "fill" (fill parent)
   switch (vibmaSizing) {
     case "HUG":   return "fit-content";
     case "FILL":  return "fill";
@@ -96,10 +96,10 @@ export function vibmaColorToPenpotFill(c: {
   b: number;
   a?: number;
 }): { fillColor: string; fillOpacity: number } {
-  // TODO: implement
-  const toHex = (v: number) => Math.round(v * 255).toString(16).padStart(2, "0");
+  const clamp = (v: number) => Math.max(0, Math.min(1, v || 0));
+  const toHex = (v: number) => Math.round(clamp(v) * 255).toString(16).padStart(2, "0");
   return {
     fillColor: `#${toHex(c.r)}${toHex(c.g)}${toHex(c.b)}`,
-    fillOpacity: c.a ?? 1,
+    fillOpacity: clamp(c.a ?? 1),
   };
 }

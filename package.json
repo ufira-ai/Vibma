@@ -3,8 +3,7 @@
   "private": true,
   "license": "MIT",
   "workspaces": [
-    "packages/*",
-    "packages/adapter-penpot"
+    "packages/*"
   ],
   "scripts": {
     "start": "node dist/mcp.js",
