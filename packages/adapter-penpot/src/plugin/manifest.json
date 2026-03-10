@@ -1,8 +1,8 @@
 {
   "name": "Vibma",
   "description": "AI-driven design via Vibma relay",
-  "host": "http://localhost:7998",
-  "code": "index.js",
-  "icon": "/icon.png",
+  "host": "http://localhost:7996",
+  "code": "code.js",
+  "icon": "icon.png",
   "permissions": ["content:read", "content:write", "allow:downloads", "allow:display-notification"]
 }

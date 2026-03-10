@@ -46,7 +46,7 @@ async function createSingleFrame(p: any): Promise<any> {
 
   // Corner radius — Penpot uses borderRadius on ShapeBase
   if (cornerRadius !== undefined) {
-    (board as any).borderRadius = cornerRadius;
+    board.borderRadius = cornerRadius;
   }
 
   // Fill color
@@ -105,7 +105,8 @@ async function createSingleFrame(p: any): Promise<any> {
   if (parentId) {
     const parent = penpot.currentPage?.getShapeById(parentId);
     if (parent && parent.type === "board") {
-      (parent as any).appendChild(board);
+      const parentBoard = parent as any;
+      parentBoard.insertChild(parentBoard.children.length, board);
     }
     // If parent is not a board, we silently leave the frame on the root page
     // (Penpot plugin API does not support appending to non-board shapes).
