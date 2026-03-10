@@ -19,9 +19,9 @@ The relay runs on `localhost:3055` and bridges the MCP server to the Figma plugi
 - `plugin/code.js` — Figma plugin (IIFE bundle)
 - `plugin/ui.html` — copied from `src/figma-plugin/ui.html` via `tsup.config.ts` `onSuccess` hook
 
-**Figma watches `plugin/` for file changes.** When you run `npm run build`, Figma detects the updated `plugin/code.js` and/or `plugin/ui.html` and **automatically reloads the plugin, dropping the WebSocket connection**. The user must click **Connect** again in the Figma plugin UI after every build.
+**Figma watches `plugin/` for file changes.** When you run `npm run build`, Figma detects the updated `plugin/code.js` and/or `plugin/ui.html` and **automatically reloads the plugin and reconnects** to the relay — no manual action needed in Figma.
 
-This means: edit source → build → ask user to reconnect in Figma → `join_channel` + `ping` to verify.
+**The MCP server is a stdio process — it does NOT hot-reload.** After every build, the MCP server must be restarted (run `/mcp` in Claude Code). Then call `connection(method: "create")` + `connection(method: "get")` to verify.
 
 ## Running the Relay
 
@@ -40,9 +40,9 @@ If port 3055 is already in use (from a previous session):
 lsof -ti :3055 | xargs kill -9
 ```
 
-After restarting the relay, **both** the plugin and MCP must reconnect:
-1. User clicks **Connect** in the Figma plugin
-2. MCP calls `join_channel` → `ping`
+After restarting the relay, the plugin auto-reconnects. The MCP server must be restarted:
+1. Run `/mcp` in Claude Code to restart the MCP server
+2. Call `connection(method: "create")` → `connection(method: "get")` to verify
 
 ## MCP Auto-Connect
 
@@ -51,14 +51,14 @@ The plugin has a `clientStorage`-based setting persistence system:
 - On next plugin launch, saved settings are restored via `restore-settings`
 - `figma.on("run")` triggers `auto-connect`, which programmatically clicks the Connect button
 
-This means: once configured, the plugin auto-connects on launch. But after a relay restart or build-induced reload, the user needs to manually click Connect.
+This means: once configured, the plugin auto-connects on launch and after build-induced reloads. No manual action needed in Figma.
 
 ## Testing Changes End-to-End
 
 1. Make code changes
-2. `npm run build`
-3. Ask the user to click **Connect** in the Figma plugin (the build just dropped the connection)
-4. Call `join_channel` (channel: `vibma`) then `ping` to verify the full chain works
+2. `npm run build` (plugin auto-reloads and reconnects in Figma)
+3. Run `/mcp` to restart the MCP server (stdio process runs stale code until restarted)
+4. Call `connection(method: "create")` → `connection(method: "get")` to verify the full chain
 5. Test the specific tools you changed
 
 ## Key File Locations
@@ -134,25 +134,41 @@ The `type` parameter serves as a schema discriminant:
 5. Update `response-types.ts` — add item type + `toolResponseSchemas` entry
 6. See `src/tools/styles.ts` as the reference implementation
 
+## Tool Description Quality
+
+The YAML `notes:` field in each schema is embedded directly in the MCP tool description. This is the **only context** a model has when deciding how to call the tool. Not all models know the Figma Plugin API — lesser models need the description to be self-contained.
+
+Three mechanisms ensure self-contained descriptions:
+
+1. **Shared type auto-injection** (`gen-descriptions.ts`) — Color, Effect, Paint, LayoutGrid, NodeStub definitions are appended automatically when referenced in a description. No need to duplicate in YAML notes.
+2. **Domain context in YAML notes** — each `notes:` block explains what the resource is, when to use it, enum values, and cross-tool workflow.
+3. **Enhanced validation errors** (`gen-mcp.ts`) — Zod `.parse()` failures include field `.describe()` text as hints, so models know what format was expected.
+
+When editing `schema/*/notes:` or `gen-descriptions.ts`, review against this checklist:
+- Can a model that has **never seen the Figma API** understand what this tool does?
+- Are all referenced types (Color, Effect, Paint, etc.) defined or explained inline?
+- Are enum values listed, not just exampled?
+- Is the relationship to other endpoints clear?
+
 ## Response Schemas & Docs
 
-Tool response shapes are documented in `src/tools/response-types.ts`. This file serves dual purposes:
+Tool response shapes are documented in `packages/core/src/tools/generated/response-types.ts`. This file serves dual purposes:
 1. **TypeScript interfaces** — compile-time return type annotations on handlers
-2. **`toolResponseSchemas` map** — runtime JSON Schema + examples consumed by `scripts/extract-tools.ts` for docs generation
+2. **`toolResponseSchemas` map** — runtime JSON Schema + examples for docs generation
 
 **When you change a tool's response shape (add/remove/rename fields, change types), you must update `response-types.ts` to match.** The docs site renders directly from this file.
 
 Key patterns in `toolResponseSchemas`:
 - `batchSchema(itemProps, opts?)` — batch tools returning typed per-item results + error branch
 - `okBatchSchema(opts?)` — mutation-only batch tools returning `"ok"` per item
-- `mixedBatchSchema(itemProps, opts?)` — batch tools where per-item can be `"ok"` OR a typed success (e.g. `set_fill_color` returns `"ok"` for raw color, `{ matchedStyle }` for style match)
+- `mixedBatchSchema(itemProps, opts?)` — batch tools where per-item can be `"ok"` OR a typed success (e.g. `frames(method: "update")` with fill returns `"ok"` for raw color, `{ matchedStyle }` for style match)
 - `okSchema(opts?)` — non-batch tools returning bare `"ok"` string
 - Each entry has an `example` field with realistic sample data
 
 **Important:** `batchHandler` hoists per-item `warning` fields to the batch-level `warnings[]` array and removes them from individual results. Do NOT include `warning` in per-item schema properties — it will never appear there in the actual response.
 
-To regenerate docs after schema changes:
+To regenerate after schema changes:
 ```bash
-npm run docs:generate   # extracts schemas → MDX pages + manifest
-npm run docs:build      # full build including generate step
+npx tsx schema/compiler/index.ts   # regenerate defs, docs, prompts from YAML
+npm run build                       # rebuild MCP server + plugin
 ```

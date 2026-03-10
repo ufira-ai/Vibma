@@ -1,0 +1,149 @@
+endpoint: instances
+domain: design-system
+description: "Create and manage component instances."
+description_zh: "创建和管理组件实例。"
+
+notes: |
+  // Instances are linked copies of components. Changes to the component propagate to all instances.
+  // Overrides: instance-level changes (text, fills, visibility) that differ from the component. Shown in overrides array.
+  // variantProperties: when creating from a component set, pick which variant e.g. {"Style":"Secondary","Size":"Large"}.
+  // ---
+  // Property keys include a unique suffix like "Label#1:0" — use instances.get or components.get to find exact keys.
+  // swap: change which component an instance points to while preserving compatible overrides.
+  // detach: permanently converts an instance to a regular frame, breaking the component link.
+  // reset_overrides: reverts all instance overrides to match the main component.
+  // Workflow: components.list → instances.create with componentId → instances.update to set properties.
+  // Instances support frame-level overrides: layoutSizingHorizontal/Vertical (FIXED, FILL, HUG), opacity, width/height, min/max.
+  // Use layoutSizingHorizontal: "FILL" to make instances stretch in auto-layout parents.
+  interface InstanceCreateItem {
+    componentId: string;                     // component or component set ID
+    variantProperties?: Record<string, string>; // pick variant e.g. {"Style":"Secondary","Size":"Large"}
+    x?: number; y?: number; width?: number; height?: number; parentId?: string;
+    name?: string; opacity?: Token;
+    layoutSizingHorizontal?: "FIXED"|"FILL"|"HUG"; layoutSizingVertical?: "FIXED"|"FILL"|"HUG";
+    minWidth?: number; maxWidth?: number; minHeight?: number; maxHeight?: number;
+  }
+  interface InstanceUpdateItem {
+    id: string;                              // instance node ID
+    properties: Record<string, string | boolean>; // key→value e.g. {"Label#1:0":"Click Me"}
+  }
+
+methods:
+  get:
+    tier: read
+    description: Get instance properties, overrides, and main component
+    params:
+      id:
+        type: string
+        required: true
+        description: "Instance node ID"
+      fields:
+        $ref: fields
+    response:
+      type: object
+      properties:
+        mainComponentId: { type: string }
+        componentProperties: { type: object }
+        overrides: { type: array }
+
+  create:
+    tier: create
+    description: Create component instances
+    example: 'instances(method:"create", items:[{componentId:"1:23", variantProperties:{"Size":"Large"}, parentId:"2:45", layoutSizingHorizontal:"FILL"}])'
+    params:
+      items:
+        type: array
+        coerce: json
+        required: true
+        tsType: "InstanceCreateItem[]"
+        description: "Array of {componentId, variantProperties?, x?, y?, parentId?, layoutSizingHorizontal?, ...}"
+        items:
+          type: object
+          properties:
+            componentId: { type: string, required: true, description: "Component or component set ID" }
+            variantProperties: { type: object, coerce: json, optional: true, description: 'Pick variant e.g. {"Style":"Secondary"}' }
+            name: { type: string, optional: true, description: "Instance layer name" }
+            x: { type: number, coerce: true, optional: true }
+            y: { type: number, coerce: true, optional: true }
+            width: { type: number, coerce: true, optional: true, description: "Override width (resize)" }
+            height: { type: number, coerce: true, optional: true, description: "Override height (resize)" }
+            parentId: { $ref: parentId }
+            opacity: { type: token, optional: true }
+            layoutSizingHorizontal: { type: enum, values: [FIXED, FILL, HUG], optional: true, description: "Horizontal sizing in auto-layout parent" }
+            layoutSizingVertical: { type: enum, values: [FIXED, FILL, HUG], optional: true, description: "Vertical sizing in auto-layout parent" }
+            minWidth: { type: number, coerce: true, optional: true, description: "Min width constraint" }
+            maxWidth: { type: number, coerce: true, optional: true, description: "Max width constraint" }
+            minHeight: { type: number, coerce: true, optional: true, description: "Min height constraint" }
+            maxHeight: { type: number, coerce: true, optional: true, description: "Max height constraint" }
+      depth: { $ref: depth }
+    response:
+      type: batch
+      item: { id: { type: string } }
+
+  update:
+    tier: edit
+    description: Set instance properties
+    params:
+      items:
+        type: array
+        coerce: json
+        required: true
+        tsType: "InstanceUpdateItem[]"
+        description: 'Array of {id, properties: {"Label#1:0":"text"}}'
+        items:
+          type: object
+          properties:
+            id: { type: string, required: true, description: "Instance node ID" }
+            properties: { type: object, coerce: json, required: true, description: "Property key→value map" }
+    response:
+      type: batch_mixed
+
+  swap:
+    tier: edit
+    description: "Swap instance component (preserves overrides)"
+    params:
+      items:
+        type: array
+        coerce: json
+        required: true
+        description: "Array of {id, componentId}"
+        items:
+          type: object
+          properties:
+            id: { type: string, required: true, description: "Instance node ID" }
+            componentId: { type: string, required: true, description: "New component or component set ID" }
+    response:
+      type: batch_mixed
+
+  detach:
+    tier: edit
+    description: "Detach instances from their component (converts to frame)"
+    params:
+      items:
+        type: array
+        coerce: json
+        required: true
+        description: "Array of {id}"
+        items:
+          type: object
+          properties:
+            id: { type: string, required: true, description: "Instance node ID" }
+    response:
+      type: batch
+      item: { id: { type: string } }
+
+  reset_overrides:
+    tier: edit
+    description: "Reset all overrides on instances to match their main component"
+    params:
+      items:
+        type: array
+        coerce: json
+        required: true
+        description: "Array of {id}"
+        items:
+          type: object
+          properties:
+            id: { type: string, required: true, description: "Instance node ID" }
+    response:
+      type: batch_mixed

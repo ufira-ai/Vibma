@@ -1,30 +1,76 @@
 ---
-title: "Document & Navigation"
-description: "用于检查和浏览文档与页面的工具"
+title: "Document"
+description: "导航和管理 Figma 文档中的页面（画布）。"
 ---
 
-import ToolReference from "../../../../components/ToolReference.astro";
+import ParameterTable from "../../../../components/ParameterTable.astro";
 
-用于检查和浏览文档与页面的工具
+导航和管理 Figma 文档中的页面（画布）。
 
-此分类共 5 个工具。
+<details>
+<summary>Type reference</summary>
 
-### get_document_info
+```ts
+// A Figma document contains pages — each page is an independent canvas with its own node tree.
+// The "current page" is where all node operations happen. Use document.set to switch pages before working with nodes.
+// Page IDs look like "0:1", "1:1", etc. The first page is always "0:1".
+// get returns the current page with its top-level children as stubs. list returns all pages in the document.
+```
 
-<ToolReference name="get_document_info" description={"Get the document name, current page, and list of all pages."} schema={{}} tier="read" responseSchema={{"type":"object","properties":{"name":{"type":"string","description":"Document name"},"currentPageId":{"type":"string","description":"Active page ID"},"pages":{"type":"array","items":{"type":"object","properties":{"id":{"type":"string"},"name":{"type":"string"}}}}},"required":["name","currentPageId","pages"]}} responseExample={{"name":"Design System","currentPageId":"0:1","pages":[{"id":"0:1","name":"Components"},{"id":"5:0","name":"Icons"}]}} />
+</details>
 
-### get_current_page
+5 methods available.
 
-<ToolReference name="get_current_page" description={"Get the current page info and its top-level children."} schema={{}} tier="read" responseSchema={{"type":"object","properties":{"id":{"type":"string"},"name":{"type":"string"},"children":{"type":"array","description":"Top-level children on the page","items":{"type":"object","properties":{"id":{"type":"string","description":"Node ID"},"name":{"type":"string"},"type":{"type":"string"}}}}},"required":["id","name","children"]}} responseExample={{"id":"0:1","name":"Components","children":[{"id":"1:2","name":"Button","type":"COMPONENT_SET"}]}} />
+## get
 
-### set_current_page
+Get current page with top-level children
 
-<ToolReference name="set_current_page" description={"Switch to a different page. Provide either pageId or pageName."} schema={{"type":"object","properties":{"pageId":{"description":"The page ID to switch to","type":"string"},"pageName":{"description":"The page name (case-insensitive, partial match)","type":"string"}}}} tier="read" responseSchema={{"type":"object","properties":{"id":{"type":"string"},"name":{"type":"string"}},"required":["id","name"]}} responseExample={{"id":"5:0","name":"Icons"}} />
+No parameters.
 
-### create_page
+**Response**
 
-<ToolReference name="create_page" description={"Create a new page in the document"} schema={{"type":"object","properties":{"name":{"description":"Name for the new page (default: 'New Page')","type":"string"}}}} tier="create" responseSchema={{"type":"object","properties":{"id":{"type":"string","description":"New page ID"}},"required":["id"]}} responseExample={{"id":"12:0"}} />
+<ParameterTable schema={{"type":"object","properties":{"id":{"type":"string"},"name":{"type":"string"},"backgroundColor":{"description":"Canvas background hex color (e.g. \"#F5F5F5\")","type":"string"},"children":{"type":"array"}},"required":["id","name"]}} fieldLabel="Field" hideRequired />
 
-### rename_page
+## list
 
-<ToolReference name="rename_page" description={"Rename a page. Defaults to current page if no pageId given."} schema={{"type":"object","properties":{"newName":{"type":"string","description":"New name for the page"},"pageId":{"description":"Page ID (default: current page)","type":"string"}},"required":["newName"]}} tier="edit" responseSchema={{"type":"string","const":"ok"}} responseExample={"ok"} />
+Get document name and list all pages
+
+No parameters.
+
+**Response**
+
+<ParameterTable schema={{"type":"object","properties":{"name":{"description":"Document name","type":"string"},"currentPageId":{"type":"string"},"pages":{"type":"array","items":{"type":"object","properties":{"id":{"type":"string"},"name":{"type":"string"}},"required":["id","name"]}}},"required":["name","currentPageId"]}} fieldLabel="Field" hideRequired />
+
+## set
+
+Switch to a page by ID or name
+
+<ParameterTable schema={{"type":"object","properties":{"pageId":{"description":"Page ID","type":"string"},"pageName":{"description":"Page name (case-insensitive, substring match)","type":"string"}}}} />
+
+**Response**
+
+<ParameterTable schema={{"type":"object","properties":{"id":{"type":"string"},"name":{"type":"string"}},"required":["id","name"]}} fieldLabel="Field" hideRequired />
+
+## create
+
+**create**
+
+Create a new page
+
+<ParameterTable schema={{"type":"object","properties":{"name":{"description":"Page name (default: 'New Page')","type":"string"}}}} />
+
+**Response**
+
+<ParameterTable schema={{"type":"object","properties":{"id":{"description":"New page ID","type":"string"}},"required":["id"]}} fieldLabel="Field" hideRequired />
+
+## update
+
+**edit**
+
+Rename a page
+
+<ParameterTable schema={{"type":"object","properties":{"newName":{"description":"New page name","type":"string"},"pageId":{"description":"Page ID (default: current page)","type":"string"}},"required":["newName"]}} />
+
+**Response**
+
+<ParameterTable schema={{"type":"object","properties":{"result":{"type":"string","description":"String result"}}}} fieldLabel="Field" hideRequired />

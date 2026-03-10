@@ -58,7 +58,20 @@ export async function serializeNode(
   // ── Corner radius ─────────────────────────────────────────────
   if ("cornerRadius" in node) {
     const cr = (node as any).cornerRadius;
-    if (cr !== undefined && cr !== figma.mixed) out.cornerRadius = cr;
+    if (cr !== undefined && cr !== figma.mixed) {
+      out.cornerRadius = cr;
+    } else if (cr === figma.mixed && "topLeftRadius" in node) {
+      out.topLeftRadius = (node as any).topLeftRadius;
+      out.topRightRadius = (node as any).topRightRadius;
+      out.bottomRightRadius = (node as any).bottomRightRadius;
+      out.bottomLeftRadius = (node as any).bottomLeftRadius;
+    }
+  }
+
+  // ── Stroke weight ────────────────────────────────────────────
+  if ("strokeWeight" in node) {
+    const sw = (node as any).strokeWeight;
+    if (sw !== undefined && sw !== figma.mixed && sw > 0) out.strokeWeight = sw;
   }
 
   // ── Bounding box ──────────────────────────────────────────────
@@ -143,7 +156,15 @@ export async function serializeNode(
   // ── Layout ────────────────────────────────────────────────────
   if ("layoutMode" in node) {
     const lm = (node as any).layoutMode;
-    if (lm && lm !== "NONE") out.layoutMode = lm;
+    if (lm && lm !== "NONE") {
+      out.layoutMode = lm;
+      // These only matter when auto-layout is active
+      const n = node as any;
+      if (n.layoutWrap && n.layoutWrap !== "NO_WRAP") out.layoutWrap = n.layoutWrap;
+      if (n.primaryAxisAlignItems && n.primaryAxisAlignItems !== "MIN") out.primaryAxisAlignItems = n.primaryAxisAlignItems;
+      if (n.counterAxisAlignItems && n.counterAxisAlignItems !== "MIN") out.counterAxisAlignItems = n.counterAxisAlignItems;
+      if (n.counterAxisSpacing !== undefined && n.counterAxisSpacing > 0) out.counterAxisSpacing = n.counterAxisSpacing;
+    }
   }
   if ("itemSpacing" in node) {
     const is = (node as any).itemSpacing;
@@ -159,13 +180,72 @@ export async function serializeNode(
     }
   }
 
-  // ── Opacity / visibility ──────────────────────────────────────
+  // ── Opacity / visibility / locked ────────────────────────────
   if ("opacity" in node) {
     const op = (node as any).opacity;
     if (op !== undefined && op !== 1) out.opacity = op;
   }
   if ("visible" in node) {
     out.visible = (node as any).visible;
+  }
+  if ("locked" in node && (node as any).locked) {
+    out.locked = true;
+  }
+
+  // ── Rotation ───────────────────────────────────────────────────
+  if ("rotation" in node) {
+    const rot = (node as any).rotation;
+    if (rot !== undefined && rot !== 0) out.rotation = rot;
+  }
+
+  // ── Blend mode ─────────────────────────────────────────────────
+  if ("blendMode" in node) {
+    const bm = (node as any).blendMode;
+    if (bm && bm !== "PASS_THROUGH") out.blendMode = bm;
+  }
+
+  // ── Layout positioning ─────────────────────────────────────────
+  if ("layoutPositioning" in node) {
+    const lp = (node as any).layoutPositioning;
+    if (lp === "ABSOLUTE") out.layoutPositioning = lp;
+  }
+
+  // ── Layout sizing ──────────────────────────────────────────────
+  if ("layoutSizingHorizontal" in node) {
+    out.layoutSizingHorizontal = (node as any).layoutSizingHorizontal;
+  }
+  if ("layoutSizingVertical" in node) {
+    out.layoutSizingVertical = (node as any).layoutSizingVertical;
+  }
+
+  // ── Min/max dimensions ─────────────────────────────────────────
+  if ("minWidth" in node) {
+    const n = node as any;
+    if (n.minWidth != null && n.minWidth > 0) out.minWidth = n.minWidth;
+    if (n.maxWidth != null && n.maxWidth < Infinity) out.maxWidth = n.maxWidth;
+    if (n.minHeight != null && n.minHeight > 0) out.minHeight = n.minHeight;
+    if (n.maxHeight != null && n.maxHeight < Infinity) out.maxHeight = n.maxHeight;
+  }
+
+  // ── Variable bindings ────────────────────────────────────────
+  if ("boundVariables" in node) {
+    const bv = (node as any).boundVariables;
+    if (bv && typeof bv === "object") {
+      const bindings: Record<string, any> = {};
+      for (const [field, val] of Object.entries(bv)) {
+        if (Array.isArray(val)) {
+          for (const v of val) {
+            if (!v?.id) continue;
+            const resolved = await figma.variables.getVariableByIdAsync(v.id);
+            if (resolved) bindings[field] = resolved.name;
+          }
+        } else if (val && typeof val === "object" && (val as any).id) {
+          const resolved = await figma.variables.getVariableByIdAsync((val as any).id);
+          if (resolved) bindings[field] = resolved.name;
+        }
+      }
+      if (Object.keys(bindings).length > 0) out.boundVariables = bindings;
+    }
   }
 
   // ── Constraints ───────────────────────────────────────────────

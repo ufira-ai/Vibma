@@ -1,0 +1,69 @@
+# Shared schema fragments — referenced via $ref: <name>
+
+nodeId:
+  type: string
+  description: Node ID
+
+parentId:
+  type: string
+  optional: true
+  description: "Parent node ID. Omit to place on current page."
+
+depth:
+  type: number
+  coerce: true
+  optional: true
+  description: "Response detail: omit for id+name only. 0=properties + child stubs. N=recurse N levels. -1=unlimited."
+
+xPos:
+  type: number
+  coerce: true
+  optional: true
+  description: "X position (default: 0)"
+
+yPos:
+  type: number
+  coerce: true
+  optional: true
+  description: "Y position (default: 0)"
+
+color:
+  type: object
+  coerce: hex_or_rgba
+  description: 'Hex "#FF0000" or {r,g,b,a?} with values 0-1.'
+  properties:
+    r: { type: number, min: 0, max: 1 }
+    g: { type: number, min: 0, max: 1 }
+    b: { type: number, min: 0, max: 1 }
+    a: { type: number, min: 0, max: 1, optional: true }
+
+effectEntry:
+  type: object
+  properties:
+    type: { type: enum, values: [DROP_SHADOW, INNER_SHADOW, LAYER_BLUR, BACKGROUND_BLUR] }
+    color: { $ref: color, optional: true }
+    offset: { type: object, optional: true, properties: { x: { type: number }, y: { type: number } } }
+    radius: { type: number }
+    spread: { type: number, optional: true }
+    visible: { type: boolean, coerce: true, optional: true }
+    blendMode: { type: string, optional: true }
+
+fields:
+  type: string[]
+  coerce: json
+  optional: true
+  description: 'Property whitelist. Identity fields (id, name, type) always included. Omit for stubs on list, full on get. Pass ["*"] for all.'
+
+offset:
+  type: number
+  coerce: true
+  optional: true
+  default: 0
+  description: "Skip N items for pagination (default 0)"
+
+limit:
+  type: number
+  coerce: true
+  optional: true
+  default: 100
+  description: "Max items per page (default 100)"

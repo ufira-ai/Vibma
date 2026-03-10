@@ -13,11 +13,19 @@ async function getDocumentInfo() {
 async function getCurrentPage() {
   await figma.currentPage.loadAsync();
   const page = figma.currentPage;
-  return {
+  const result: any = {
     id: page.id,
     name: page.name,
     children: page.children.map((node: any) => ({ id: node.id, name: node.name, type: node.type })),
   };
+  if (page.backgrounds?.length) {
+    const bg = page.backgrounds[0];
+    if (bg.type === "SOLID") {
+      const c = (bg as any).color;
+      result.backgroundColor = `#${[c.r, c.g, c.b].map((v: number) => Math.round(v * 255).toString(16).padStart(2, "0")).join("")}`;
+    }
+  }
+  return result;
 }
 
 async function setCurrentPage(params: any) {

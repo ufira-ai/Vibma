@@ -14,12 +14,15 @@
     "dev": "npm run build:watch",
     "dev:mcp": "tsx packages/core/src/mcp.ts",
     "release": "./scripts/release.sh",
-    "docs:generate": "tsx scripts/extract-tools.ts",
+    "docs:generate": "tsx schema/compiler/index.ts",
     "docs:dev": "npm run docs:generate && cd docs && npm run dev",
     "docs:build": "npm run docs:generate && cd docs && npm run build"
   },
   "devDependencies": {
     "tsx": "^4.21.0",
     "typescript": "^5.9.3"
+  },
+  "dependencies": {
+    "yaml": "^2.8.2"
   }
 }

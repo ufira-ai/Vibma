@@ -4,7 +4,7 @@ description: Set up Vibma and connect your AI agent to Figma
 slug: index
 ---
 
-{/* Auto-generated from CARRYME.md by extract-tools.ts — do not edit manually */}
+{/* Auto-generated from CARRYME.md by schema compiler — do not edit manually */}
 
 > **No cloning, no building.** Install the tunnel and MCP server from npm, grab the plugin from GitHub, and connect.
 >
@@ -104,8 +104,8 @@ If using a non-default port, add `--port=`:
 
 1. In the Figma plugin, set the channel name to `vibma` (or any name you like)
 2. Click **Connect**
-3. In your AI tool, call `join_channel` with the same channel name (defaults to `vibma`)
-4. Call `ping` — you should get back `pong` with your document name
+3. In your AI tool, call `connection(method: "create")` with the same channel name (defaults to `vibma`)
+4. Call `connection(method: "get")` — you should get back `pong` with your document name
 
 ## Updating
 

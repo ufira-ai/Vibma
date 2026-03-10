@@ -1,0 +1,37 @@
+endpoint: fonts
+domain: design-system
+description: "Search available fonts in Figma."
+description_zh: "搜索 Figma 中可用的字体。"
+
+notes: |
+  // Returns font family names installed in the Figma environment. Use to verify a fontFamily before text.create or styles.create.
+  // query filters by family name substring (case-insensitive), e.g. query:"inter" matches "Inter", "Inter Tight".
+  // ---
+  // Default response: just family names. Set includeStyles:true to also get available styles per family (e.g. "Regular", "Bold", "Italic").
+  // Use fonts.list with query to narrow results before creating text with specific fontFamily + fontStyle.
+
+methods:
+  list:
+    tier: read
+    description: List available font families, optionally filtered by name
+    example: 'fonts(method:"list", query:"inter")'
+    params:
+      query:
+        type: string
+        optional: true
+        description: Filter by family name (case-insensitive substring)
+      includeStyles:
+        type: boolean
+        coerce: true
+        optional: true
+        description: "Include available styles per family (default: false)"
+      offset:
+        $ref: offset
+      limit:
+        $ref: limit
+    response:
+      type: object
+      properties:
+        count: { type: number, required: true, description: Number of matching families }
+        fonts: { type: array, description: "Array of {family} stubs, or {family, styles[]} when includeStyles:true", items: { type: object, properties: { family: { type: string, required: true }, styles: { type: array, items: { type: string } } } } }
+      required: [count, fonts]

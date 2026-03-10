@@ -1,0 +1,118 @@
+---
+title: "Variable Collections"
+description: "管理变量集合和模式。"
+---
+
+import ParameterTable from "../../../../components/ParameterTable.astro";
+
+管理变量集合和模式。
+
+<details>
+<summary>Type reference</summary>
+
+```ts
+// Variable collections group related design tokens (variables) and define their modes.
+// Modes represent different contexts (e.g. Light/Dark theme, Desktop/Mobile breakpoint). Each collection has 1+ modes.
+// ---
+// Workflow: create collection → add_mode for extra modes → create variables in the collection.
+// Deleting a collection cascades — all variables inside it are also deleted.
+// The default mode always exists and cannot be removed. Use add_mode/remove_mode for additional modes.
+// Collection IDs look like "VariableCollectionId:0:1". Mode IDs look like "0:0" or "1:0".
+interface Collection { id: string; name: string; modes: {modeId: string, name: string}[]; defaultModeId: string; variableNames: string[] }
+```
+
+</details>
+
+8 methods available.
+
+## list
+
+List variable collections
+
+<ParameterTable schema={{"type":"object","properties":{"fields":{"description":"Property whitelist. Identity fields (id, name, type) always included. Omit for stubs on list, full on get. Pass [\"*\"] for all.","type":"array","items":{"type":"string"}},"offset":{"description":"Skip N items for pagination (default 0) (default: 0)","type":"number"},"limit":{"description":"Max items per page (default 100) (default: 100)","type":"number"}}}} />
+
+**Response**
+
+<ParameterTable schema={{"type":"object","properties":{"totalCount":{"type":"number","description":"Total matching items"},"returned":{"type":"number","description":"Items in this page"},"offset":{"type":"number"},"limit":{"type":"number"},"items":{"type":"array","items":{"type":"object","properties":{"id":{"type":"string"},"name":{"type":"string"}}}}},"required":["totalCount","items"]}} fieldLabel="Field" hideRequired />
+
+## get
+
+Get collection detail
+
+<ParameterTable schema={{"type":"object","properties":{"id":{"description":"Collection ID","type":"string"},"fields":{"description":"Property whitelist. Identity fields (id, name, type) always included. Omit for stubs on list, full on get. Pass [\"*\"] for all.","type":"array","items":{"type":"string"}}},"required":["id"]}} />
+
+**Response**
+
+<ParameterTable schema={{"type":"object","properties":{"id":{"type":"string"},"name":{"type":"string"},"modes":{"type":"array"},"defaultModeId":{"type":"string"},"variableNames":{"type":"array"}}}} fieldLabel="Field" hideRequired />
+
+## create
+
+**create**
+
+Create variable collections
+
+<ParameterTable schema={{"type":"object","properties":{"items":{"description":"Array of {name}","type":"array","items":{"type":"object","properties":{"name":{"description":"Collection name","type":"string"}},"required":["name"]}}},"required":["items"]}} />
+
+**Response**
+
+<ParameterTable schema={{"type":"object","properties":{"results":{"type":"array","description":"One entry per input item","items":{"type":"object","properties":{"id":{"type":"string"}}}}}}} fieldLabel="Field" hideRequired />
+
+## update
+
+**edit**
+
+Rename collections
+
+<ParameterTable schema={{"type":"object","properties":{"items":{"description":"Array of {id, name}","type":"array","items":{"type":"object","properties":{"id":{"description":"Collection ID","type":"string"},"name":{"description":"New name","type":"string"}},"required":["id","name"]}}},"required":["items"]}} />
+
+**Response**
+
+<ParameterTable schema={{"type":"object","properties":{"results":{"type":"array","description":"Array of \"ok\" or {error} per item","items":{"type":"any"}}}}} fieldLabel="Field" hideRequired />
+
+## delete
+
+**edit**
+
+Delete collections
+
+<ParameterTable schema={{"type":"object","properties":{"id":{"description":"Single collection ID","type":"string"},"items":{"description":"Batch: [{id}, ...]","type":"array","items":{"type":"object","properties":{"id":{"type":"string"}},"required":["id"]}}}}} />
+
+**Response**
+
+<ParameterTable schema={{"type":"object","properties":{"results":{"type":"array","description":"Array of \"ok\" per item","items":{"type":"string"}}}}} fieldLabel="Field" hideRequired />
+
+## add_mode
+
+**create**
+
+Add a mode to a collection
+
+<ParameterTable schema={{"type":"object","properties":{"items":{"description":"Array of {collectionId, name}","type":"array","items":{"type":"object","properties":{"collectionId":{"description":"Collection ID","type":"string"},"name":{"description":"Mode name","type":"string"}},"required":["collectionId","name"]}}},"required":["items"]}} />
+
+**Response**
+
+<ParameterTable schema={{"type":"object","properties":{"results":{"type":"array","description":"One entry per input item","items":{"type":"object","properties":{"modeId":{"type":"string"}}}}}}} fieldLabel="Field" hideRequired />
+
+## rename_mode
+
+**edit**
+
+Rename a mode
+
+<ParameterTable schema={{"type":"object","properties":{"items":{"description":"Array of {collectionId, modeId, name}","type":"array","items":{"type":"object","properties":{"collectionId":{"description":"Collection ID","type":"string"},"modeId":{"description":"Mode ID","type":"string"},"name":{"description":"New name","type":"string"}},"required":["collectionId","modeId","name"]}}},"required":["items"]}} />
+
+**Response**
+
+<ParameterTable schema={{"type":"object","properties":{"results":{"type":"array","description":"Array of \"ok\" or {error} per item","items":{"type":"any"}}}}} fieldLabel="Field" hideRequired />
+
+## remove_mode
+
+**edit**
+
+Remove a mode from a collection
+
+<ParameterTable schema={{"type":"object","properties":{"items":{"description":"Array of {collectionId, modeId}","type":"array","items":{"type":"object","properties":{"collectionId":{"description":"Collection ID","type":"string"},"modeId":{"description":"Mode ID","type":"string"}},"required":["collectionId","modeId"]}}},"required":["items"]}} />
+
+**Response**
+
+<ParameterTable schema={{"type":"object","properties":{"results":{"type":"array","description":"Array of \"ok\" per item","items":{"type":"string"}}}}} fieldLabel="Field" hideRequired />

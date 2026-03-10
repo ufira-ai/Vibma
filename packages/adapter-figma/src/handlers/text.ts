@@ -1,4 +1,4 @@
-import { batchHandler, suggestStyleForColor, suggestTextStyle } from "./helpers";
+import { batchHandler, coerceColor, suggestStyleForColor, suggestTextStyle } from "./helpers";
 
 // ─── Figma Handlers ──────────────────────────────────────────────
 
@@ -134,25 +134,29 @@ export async function setTextPropertiesSingle(p: any, ctx: TextPropsContext) {
   }
 
   if (p.fontColor) {
+    const fc = coerceColor(p.fontColor) ?? { r: 0, g: 0, b: 0, a: 1 };
     node.fills = [{
       type: "SOLID",
-      color: { r: p.fontColor.r ?? 0, g: p.fontColor.g ?? 0, b: p.fontColor.b ?? 0 },
-      opacity: p.fontColor.a ?? 1,
+      color: { r: fc.r, g: fc.g, b: fc.b },
+      opacity: fc.a,
     }];
   }
 
   if (p.textAlignHorizontal) node.textAlignHorizontal = p.textAlignHorizontal;
   if (p.textAlignVertical) node.textAlignVertical = p.textAlignVertical;
   if (p.textAutoResize) node.textAutoResize = p.textAutoResize;
-  if (p.layoutSizingHorizontal) {
-    try { node.layoutSizingHorizontal = p.layoutSizingHorizontal; } catch {}
-  }
-  if (p.layoutSizingVertical) {
-    try { node.layoutSizingVertical = p.layoutSizingVertical; } catch {}
-  }
-
   // Warnings
   const warnings: string[] = [];
+  if (p.layoutSizingHorizontal) {
+    const parentIsAL = node.parent && "layoutMode" in node.parent && (node.parent as any).layoutMode !== "NONE";
+    if (parentIsAL || p.layoutSizingHorizontal !== "FILL") { node.layoutSizingHorizontal = p.layoutSizingHorizontal; }
+    else { warnings.push(`layoutSizingHorizontal '${p.layoutSizingHorizontal}' ignored — node is not inside an auto-layout frame.`); }
+  }
+  if (p.layoutSizingVertical) {
+    const parentIsAL = node.parent && "layoutMode" in node.parent && (node.parent as any).layoutMode !== "NONE";
+    if (parentIsAL || p.layoutSizingVertical !== "FILL") { node.layoutSizingVertical = p.layoutSizingVertical; }
+    else { warnings.push(`layoutSizingVertical '${p.layoutSizingVertical}' ignored — node is not inside an auto-layout frame.`); }
+  }
   if (p.textStyleName && p.textStyleId) {
     warnings.push("Both textStyleName and textStyleId provided — used textStyleId. Pass only one.");
   }
@@ -163,8 +167,15 @@ export async function setTextPropertiesSingle(p: any, ctx: TextPropsContext) {
     warnings.push(await suggestTextStyle(fs, fw));
   }
   if (p.fontColor) {
-    const suggestion = await suggestStyleForColor(p.fontColor, "fontColorStyleName");
-    if (suggestion) warnings.push(suggestion);
+    const fc = coerceColor(p.fontColor) ?? { r: 0, g: 0, b: 0, a: 1 };
+    const match = await suggestStyleForColor(fc, "fontColorStyleName", "TEXT_FILL");
+    if (match.variable) {
+      const bound = figma.variables.setBoundVariableForPaint(node.fills[0] as SolidPaint, "color", match.variable);
+      node.fills = [bound];
+    } else if (match.paintStyleId) {
+      try { await (node as any).setFillStyleIdAsync(match.paintStyleId); } catch {}
+    }
+    warnings.push(match.hint);
   }
 
   const result: any = {};

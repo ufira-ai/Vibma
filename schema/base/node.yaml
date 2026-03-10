@@ -1,0 +1,220 @@
+# Base methods inherited by all scene-graph endpoints (frames, text, shapes, components, instances)
+# The compiler merges these into each endpoint that declares `extends: node`
+
+base: node
+
+notes: |
+  // depth: omit → id+name stubs | 0 → props + child stubs | N → recurse N | -1 → full tree
+  // fields: whitelist e.g. ["fills","opacity"] — id, name, type always included. Pass ["*"] for all.
+  // layoutSizingHorizontal/Vertical: FIXED | HUG | FILL — how the node sizes within auto-layout.
+  // Colors: fillVariableName/strokeVariableName bind by name — preferred over raw color values.
+  // ---
+  // visible: false hides the node. Omitted from response when true (the default).
+  // locked: true prevents editing in Figma UI. Omitted when false (the default).
+  // rotation: degrees (0-360). Omitted when 0.
+  // blendMode: layer blend mode. Omitted when PASS_THROUGH (the default).
+  // layoutPositioning: ABSOLUTE = floating inside auto-layout parent. Omitted when AUTO (the default).
+  // minWidth/maxWidth/minHeight/maxHeight: responsive constraints for auto-layout children.
+  // constraints: position behavior in non-auto-layout parents. Ignored inside auto-layout frames.
+  // bindings: bind design variables to node properties. field uses slash path e.g. "fills/0/color", "opacity", "width".
+  // explicitMode: pin a variable mode on this node. Use { collectionName, modeName } (preferred) or { collectionId, modeId }.
+  // properties: escape hatch — set any Figma node property directly. Use only when no dedicated field exists.
+  interface Node {
+    id: string; name: string; type: string;
+    visible?: boolean;       // omitted when true
+    locked?: boolean;        // omitted when false
+    opacity?: number;        // omitted when 1
+    rotation?: number;       // omitted when 0
+    blendMode?: string;      // omitted when PASS_THROUGH
+    layoutPositioning?: "AUTO" | "ABSOLUTE";
+    layoutSizingHorizontal?: "FIXED" | "HUG" | "FILL";
+    layoutSizingVertical?: "FIXED" | "HUG" | "FILL";
+    minWidth?: number; maxWidth?: number; minHeight?: number; maxHeight?: number;
+    absoluteBoundingBox: { x: number; y: number; width: number; height: number };
+    fills?: Paint[];         // solid: {type: "SOLID", color: {r, g, b, a}}
+    strokes?: Paint[];
+    effects?: Effect[];      // DROP_SHADOW | INNER_SHADOW | LAYER_BLUR | BACKGROUND_BLUR
+    children?: NodeStub[];   // stubs: {id, name, type} — use depth to expand
+  }
+  interface PatchItem {
+    id: string;
+    name?: string; // rename node
+    visible?: boolean; // show/hide (default true)
+    locked?: boolean; // lock/unlock (default false)
+    rotation?: number; // degrees (0-360)
+    blendMode?: "PASS_THROUGH" | "NORMAL" | "DARKEN" | "MULTIPLY" | "LINEAR_BURN" | "COLOR_BURN" | "LIGHTEN" | "SCREEN" | "LINEAR_DODGE" | "COLOR_DODGE" | "OVERLAY" | "SOFT_LIGHT" | "HARD_LIGHT" | "DIFFERENCE" | "EXCLUSION" | "HUE" | "SATURATION" | "COLOR" | "LUMINOSITY";
+    layoutPositioning?: "AUTO" | "ABSOLUTE"; // ABSOLUTE = floating inside auto-layout parent
+    x?: number; y?: number; width?: number; height?: number;
+    minWidth?: number; maxWidth?: number; // responsive auto-layout constraints
+    minHeight?: number; maxHeight?: number;
+    opacity?: number | string; // number (0-1) or variable name
+    fill?: { color?: Color; styleName?: string; variableName?: string; clear?: boolean };
+    stroke?: { color?: Color; weight?: number | string; styleName?: string; variableName?: string; strokeTopWeight?: number | string; strokeBottomWeight?: number | string; strokeLeftWeight?: number | string; strokeRightWeight?: number | string };
+    cornerRadius?: { radius?: number | string; topLeft?: number | string; topRight?: number | string; bottomRight?: number | string; bottomLeft?: number | string };
+    effects?: { effects?: Effect[]; styleName?: string };
+    layout?: {
+      layoutMode?: "NONE" | "HORIZONTAL" | "VERTICAL";
+      paddingTop?: number | string; paddingRight?: number | string; paddingBottom?: number | string; paddingLeft?: number | string;
+      primaryAxisAlignItems?: "MIN" | "MAX" | "CENTER" | "SPACE_BETWEEN";
+      counterAxisAlignItems?: "MIN" | "MAX" | "CENTER" | "BASELINE";
+      layoutSizingHorizontal?: "FIXED" | "HUG" | "FILL";
+      layoutSizingVertical?: "FIXED" | "HUG" | "FILL";
+      itemSpacing?: number | string; counterAxisSpacing?: number | string;
+      layoutWrap?: "NO_WRAP" | "WRAP";
+    };
+    text?: {
+      fontSize?: number; fontWeight?: number; fontColor?: Color;
+      textStyleId?: string; textStyleName?: string;
+      textAlignHorizontal?: "LEFT" | "CENTER" | "RIGHT" | "JUSTIFIED";
+      textAlignVertical?: "TOP" | "CENTER" | "BOTTOM";
+      textAutoResize?: "NONE" | "WIDTH_AND_HEIGHT" | "HEIGHT" | "TRUNCATE";
+    };
+    constraints?: { horizontal: "MIN" | "CENTER" | "MAX" | "STRETCH" | "SCALE"; vertical: "MIN" | "CENTER" | "MAX" | "STRETCH" | "SCALE" };
+    bindings?: { field: string; variableName: string }[]; // bind variables by name. field e.g. "fills/0/color", "opacity"
+    explicitMode?: { collectionName: string; modeName: string } | { collectionId: string; modeId: string }; // pin variable mode — prefer names
+    properties?: Record<string, unknown>; // direct Figma API props (escape hatch)
+  }
+
+methods:
+  get:
+    # command auto-derived as {endpoint}.get
+    tier: read
+    description: Get serialized node data
+    params:
+      id:
+        $ref: nodeId
+        required: true
+      fields:
+        $ref: fields
+      depth:
+        $ref: depth
+    response:
+      type: object
+      description: Serialized node tree. Shape depends on depth parameter.
+      properties:
+        results: { type: array, tsType: "Node[]", description: Serialized node trees, items: { type: object } }
+        _truncated: { type: boolean, description: True when node budget exceeded }
+        _notice: { type: string, description: Human-readable truncation notice }
+      required: [results]
+
+  list:
+    # command auto-derived as {endpoint}.list
+    tier: read
+    description: Search for nodes
+    params:
+      query:
+        type: string
+        optional: true
+        description: Name search query (case-insensitive substring match)
+      types:
+        type: string[]
+        coerce: json
+        optional: true
+        description: Filter by node types (e.g. ["FRAME", "TEXT"])
+      parentId:
+        type: string
+        optional: true
+        description: Search only within this subtree
+      fields:
+        $ref: fields
+      offset:
+        $ref: offset
+      limit:
+        $ref: limit
+    response:
+      type: object
+      description: Paginated node search results (uses `results` not `items`)
+      properties:
+        totalCount: { type: number, required: true, description: Total matching nodes }
+        returned: { type: number, required: true, description: Nodes in this page }
+        offset: { type: number }
+        limit: { type: number }
+        results:
+          type: array
+          description: Matching node stubs
+          items:
+            type: object
+            properties:
+              id: { type: string, required: true }
+              name: { type: string, required: true }
+              type: { type: string, required: true }
+              parentId: { type: string, required: true }
+              parentName: { type: string }
+              bounds: { type: object, properties: { x: { type: number }, y: { type: number }, width: { type: number }, height: { type: number } } }
+      required: [totalCount, results]
+
+  update:
+    # command auto-derived as {endpoint}.update
+    tier: edit
+    description: Patch node properties
+    params:
+      items:
+        type: array
+        coerce: json
+        required: true
+        tsType: "PatchItem[]"
+        description: "Array of {id, ...properties} to patch"
+        items:
+          type: object
+    response:
+      type: batch_mixed
+
+  delete:
+    # command auto-derived as {endpoint}.delete
+    tier: edit
+    description: Delete nodes
+    params:
+      id:
+        type: string
+        optional: true
+        description: Single node ID
+      items:
+        type: array
+        coerce: json
+        optional: true
+        description: "Batch: [{id}, ...]"
+        items:
+          type: object
+          properties:
+            id: { type: string }
+    response:
+      type: batch_ok
+
+  clone:
+    # command auto-derived as {endpoint}.clone
+    tier: create
+    description: Duplicate nodes
+    params:
+      id:
+        $ref: nodeId
+        required: true
+      parentId:
+        $ref: parentId
+      x:
+        $ref: xPos
+      y:
+        $ref: yPos
+      depth:
+        $ref: depth
+    response:
+      type: batch
+      item: { id: { type: string } }
+
+  reparent:
+    # command auto-derived as {endpoint}.reparent
+    tier: edit
+    description: Move nodes into a new parent
+    params:
+      items:
+        type: array
+        coerce: json
+        required: true
+        description: "Array of {id, parentId, index?}"
+        items:
+          type: object
+          properties:
+            id: { type: string, required: true }
+            parentId: { type: string, required: true }
+            index: { type: number, optional: true }
+    response:
+      type: batch_ok

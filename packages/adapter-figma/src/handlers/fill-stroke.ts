@@ -1,4 +1,4 @@
-import { batchHandler, styleNotFoundHint, suggestStyleForColor } from "./helpers";
+import { applyToken, applyTokens, batchHandler, coerceColor, findVariableById, findVariableByName, solidPaint, styleNotFoundHint, suggestStyleForColor } from "./helpers";
 
 // ─── Figma Handlers ──────────────────────────────────────────────
 
@@ -22,7 +22,17 @@ export async function setFillSingle(p: any): Promise<any> {
     return {};
   }
 
-  if (p.styleName) {
+  if (p.variableName || p.variableId) {
+    const v = p.variableName
+      ? await findVariableByName(p.variableName)
+      : await findVariableById(p.variableId);
+    if (!v) throw new Error(`Fill variable '${p.variableName || p.variableId}' not found`);
+    const c = coerceColor(p.color) ?? { r: 0, g: 0, b: 0, a: 1 };
+    (node as any).fills = [solidPaint(c)];
+    const bound = figma.variables.setBoundVariableForPaint((node as any).fills[0], "color", v);
+    (node as any).fills = [bound];
+    return {};
+  } else if (p.styleName) {
     const { match, available } = await resolveStyle(p.styleName);
     if (match) {
       await (node as any).setFillStyleIdAsync(match.id);
@@ -32,10 +42,19 @@ export async function setFillSingle(p: any): Promise<any> {
     }
     throw new Error(styleNotFoundHint("styleName", p.styleName, available));
   } else if (p.color) {
-    const { r = 0, g = 0, b = 0, a = 1 } = p.color;
-    (node as any).fills = [{ type: "SOLID", color: { r, g, b }, opacity: a }];
-    const suggestion = await suggestStyleForColor(p.color, "styleName");
-    if (suggestion) return { warning: suggestion };
+    const c = coerceColor(p.color);
+    if (!c) throw new Error(`Invalid fill color: ${JSON.stringify(p.color)}. Use hex "#FF0000" or {r, g, b, a?} with values 0-1.`);
+    (node as any).fills = [{ type: "SOLID", color: { r: c.r, g: c.g, b: c.b }, opacity: c.a }];
+    const match = await suggestStyleForColor(c, "styleName", "ALL_FILLS");
+    if (match.variable) {
+      const bound = figma.variables.setBoundVariableForPaint((node as any).fills[0], "color", match.variable);
+      (node as any).fills = [bound];
+      return { warning: match.hint };
+    }
+    if (match.paintStyleId) {
+      try { await (node as any).setFillStyleIdAsync(match.paintStyleId); return { warning: match.hint }; } catch {}
+    }
+    return { warning: match.hint };
   }
   return {};
 }
@@ -45,25 +64,54 @@ export async function setStrokeSingle(p: any): Promise<any> {
   if (!node) throw new Error(`Node not found: ${p.nodeId}`);
   if (!("strokes" in node)) throw new Error(`Node does not support strokes: ${p.nodeId}`);
 
-  if (p.styleName) {
+  if (p.variableName || p.variableId) {
+    const v = p.variableName
+      ? await findVariableByName(p.variableName)
+      : await findVariableById(p.variableId);
+    if (!v) throw new Error(`Stroke variable '${p.variableName || p.variableId}' not found`);
+    const c = coerceColor(p.color) ?? { r: 0, g: 0, b: 0, a: 1 };
+    (node as any).strokes = [solidPaint(c)];
+    const bound = figma.variables.setBoundVariableForPaint((node as any).strokes[0], "color", v);
+    (node as any).strokes = [bound];
+  } else if (p.styleName) {
     const { match, available } = await resolveStyle(p.styleName);
     if (match) {
       await (node as any).setStrokeStyleIdAsync(match.id);
       const result: any = { matchedStyle: match.name };
       if (p.color) result.warning = "Both styleName and color provided — used styleName, ignored color. Pass only one.";
-      if (p.strokeWeight !== undefined && "strokeWeight" in node) (node as any).strokeWeight = p.strokeWeight;
+      if (p.strokeWeight !== undefined && "strokeWeight" in node) {
+        const swHints: string[] = [];
+        await applyTokens(node, { strokeWeight: p.strokeWeight }, swHints);
+        if (swHints.length > 0) result.warning = (result.warning ? result.warning + " " : "") + swHints.join(" ");
+      }
       return result;
     }
     throw new Error(styleNotFoundHint("styleName", p.styleName, available));
   } else if (p.color) {
-    const { r = 0, g = 0, b = 0, a = 1 } = p.color;
-    (node as any).strokes = [{ type: "SOLID", color: { r, g, b }, opacity: a }];
+    const c = coerceColor(p.color);
+    if (!c) throw new Error(`Invalid stroke color: ${JSON.stringify(p.color)}. Use hex "#FF0000" or {r, g, b, a?} with values 0-1.`);
+    (node as any).strokes = [{ type: "SOLID", color: { r: c.r, g: c.g, b: c.b }, opacity: c.a }];
   }
-  if (p.strokeWeight !== undefined && "strokeWeight" in node) (node as any).strokeWeight = p.strokeWeight;
+  const hints: string[] = [];
+  const swFields: Record<string, any> = {};
+  for (const f of ["strokeWeight", "strokeTopWeight", "strokeBottomWeight", "strokeLeftWeight", "strokeRightWeight"]) {
+    if (p[f] !== undefined && f in node) swFields[f] = p[f];
+  }
+  await applyTokens(node, swFields, hints);
   const result: any = {};
-  if (p.color) {
-    const suggestion = await suggestStyleForColor(p.color, "styleName");
-    if (suggestion) result.warning = suggestion;
+  if (hints.length > 0) result.warning = hints.join(" ");
+  if (p.color && !p.styleName && !p.variableId && !p.variableName) {
+    const c = coerceColor(p.color);
+    if (c) {
+      const match = await suggestStyleForColor(c, "styleName", "STROKE_COLOR");
+      if (match.variable) {
+        const bound = figma.variables.setBoundVariableForPaint((node as any).strokes[0], "color", match.variable);
+        (node as any).strokes = [bound];
+      } else if (match.paintStyleId) {
+        try { await (node as any).setStrokeStyleIdAsync(match.paintStyleId); } catch {}
+      }
+      result.warning = match.hint;
+    }
   }
   return result;
 }
@@ -73,24 +121,53 @@ export async function setCornerSingle(p: any) {
   if (!node) throw new Error(`Node not found: ${p.nodeId}`);
   if (!("cornerRadius" in node)) throw new Error(`Node does not support corner radius: ${p.nodeId}`);
 
-  const corners = p.corners || [true, true, true, true];
-  if ("topLeftRadius" in node && Array.isArray(corners) && corners.length === 4) {
-    if (corners[0]) (node as any).topLeftRadius = p.radius;
-    if (corners[1]) (node as any).topRightRadius = p.radius;
-    if (corners[2]) (node as any).bottomRightRadius = p.radius;
-    if (corners[3]) (node as any).bottomLeftRadius = p.radius;
-  } else {
-    (node as any).cornerRadius = p.radius;
+  const hints: string[] = [];
+
+  // Map input params (topLeft, topRight, etc.) to Figma fields (topLeftRadius, etc.)
+  const mapping = [
+    ["topLeft", "topLeftRadius"],
+    ["topRight", "topRightRadius"],
+    ["bottomRight", "bottomRightRadius"],
+    ["bottomLeft", "bottomLeftRadius"],
+  ] as const;
+
+  const hasPer = mapping.some(([key]) => p[key] !== undefined);
+
+  if (hasPer && "topLeftRadius" in node) {
+    const cornerFields: Record<string, number | string | undefined> = {};
+    for (const [key, field] of mapping) {
+      cornerFields[field] = p[key] ?? p.radius;
+    }
+    await applyTokens(node, cornerFields, hints);
+  } else if (p.radius !== undefined) {
+    if ("topLeftRadius" in node) {
+      // Expand shorthand to all four corners
+      const cornerFields: Record<string, number | string> = {};
+      for (const [, field] of mapping) cornerFields[field] = p.radius;
+      await applyTokens(node, cornerFields, hints);
+    } else {
+      // Node only supports single cornerRadius (e.g. non-rectangle)
+      const bound = await applyToken(node, "cornerRadius", p.radius, hints);
+      if (!bound) {
+        hints.push(`Hardcoded cornerRadius. Use an existing FLOAT variable or create one with variables(method:"create"), then pass the variable name string instead of a number.`);
+      }
+    }
   }
-  return {};
+
+  const result: any = {};
+  if (hints.length > 0) result.warning = hints.join(" ");
+  return result;
 }
 
 export async function setOpacitySingle(p: any) {
   const node = await figma.getNodeByIdAsync(p.nodeId);
   if (!node) throw new Error(`Node not found: ${p.nodeId}`);
   if (!("opacity" in node)) throw new Error(`Node does not support opacity`);
-  (node as any).opacity = p.opacity;
-  return {};
+  const hints: string[] = [];
+  await applyTokens(node, { opacity: p.opacity }, hints);
+  const result: any = {};
+  if (hints.length > 0) result.warning = hints.join(" ");
+  return result;
 }
 
 export const figmaHandlers: Record<string, (params: any) => Promise<any>> = {

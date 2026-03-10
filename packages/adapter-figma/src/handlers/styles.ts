@@ -1,4 +1,5 @@
-import { batchHandler } from "./helpers";
+import { batchHandler, coerceColor, findColorVariableByName, suggestStyleForColor } from "./helpers";
+import { resolveFontAsync, clearFontCache } from "./create-text";
 import { createDispatcher, paginate, pickFields } from "@ufira/vibma/endpoint";
 import type { ListResponse } from "@ufira/vibma/endpoint";
 
@@ -33,7 +34,7 @@ function ensureStyleId(id: string): string {
 }
 
 const TYPE_FILTER_MAP: Record<string, string> = {
-  paint: "PAINT", text: "TEXT", effect: "EFFECT",
+  paint: "PAINT", text: "TEXT", effect: "EFFECT", grid: "GRID",
 };
 
 function rgbaToHex(color: any): string {
@@ -48,6 +49,7 @@ function rgbaToHex(color: any): string {
 /** Serialize a Figma BaseStyle to a plain object. Shared by get and list. */
 function serializeStyle(style: BaseStyle): Record<string, any> {
   const r: any = { id: style.id, name: style.name, type: style.type };
+  if (style.description) r.description = style.description;
   if (style.type === "PAINT") {
     r.paints = (style as PaintStyle).paints.map((p: any) => {
       const paint = { ...p };
@@ -59,8 +61,12 @@ function serializeStyle(style: BaseStyle): Record<string, any> {
     r.fontSize = ts.fontSize; r.fontName = ts.fontName;
     r.letterSpacing = ts.letterSpacing; r.lineHeight = ts.lineHeight;
     r.textCase = ts.textCase; r.textDecoration = ts.textDecoration;
+    r.paragraphIndent = ts.paragraphIndent; r.paragraphSpacing = ts.paragraphSpacing;
+    if ("leadingTrim" in ts) r.leadingTrim = (ts as any).leadingTrim;
   } else if (style.type === "EFFECT") {
     r.effects = (style as EffectStyle).effects;
+  } else if (style.type === "GRID") {
+    r.layoutGrids = (style as GridStyle).layoutGrids;
   }
   return r;
 }
@@ -73,7 +79,7 @@ async function listStylesFigma(params: StyleParams & { method: "list" }): Promis
   if (!typeFilter || typeFilter === "PAINT")  fetchers.push(figma.getLocalPaintStylesAsync());
   if (!typeFilter || typeFilter === "TEXT")   fetchers.push(figma.getLocalTextStylesAsync());
   if (!typeFilter || typeFilter === "EFFECT") fetchers.push(figma.getLocalEffectStylesAsync());
-  if (!typeFilter)                            fetchers.push(figma.getLocalGridStylesAsync());
+  if (!typeFilter || typeFilter === "GRID")   fetchers.push(figma.getLocalGridStylesAsync());
 
   const groups = await Promise.all(fetchers);
   const allStyles = groups.flat();
@@ -98,25 +104,51 @@ async function getStyleByIdFigma(params: any) {
 }
 
 async function removeStyleSingle(p: any) {
-  const style = await figma.getStyleByIdAsync(ensureStyleId(p.id));
-  if (!style) throw new Error(`Style not found: ${p.id}`);
+  const identifier = p.id || p.styleName;
+  if (!identifier) throw new Error("Each item requires 'id' or 'styleName'.");
+  const style = await resolveAnyStyle(identifier);
   style.remove();
   return "ok";
 }
 
 async function createPaintStyleSingle(p: any) {
+  const c = coerceColor(p.color);
+  if (!c) throw new Error(`Invalid color for paint style "${p.name}": ${JSON.stringify(p.color)}`);
   const style = figma.createPaintStyle();
   style.name = p.name;
-  const { r, g, b, a = 1 } = p.color;
-  style.paints = [{ type: "SOLID", color: { r, g, b }, opacity: a }];
-  return { id: style.id };
+  if (p.description) style.description = p.description;
+  style.paints = [{ type: "SOLID", color: { r: c.r, g: c.g, b: c.b }, opacity: c.a }];
+  const result: any = { id: style.id };
+  if (p.colorVariableName) {
+    const v = await findColorVariableByName(p.colorVariableName);
+    if (v) {
+      const bound = figma.variables.setBoundVariableForPaint(style.paints[0] as SolidPaint, "color", v);
+      style.paints = [bound];
+      result.boundVariable = v.name;
+    } else {
+      style.remove();
+      const colorVars = await figma.variables.getLocalVariablesAsync("COLOR");
+      const names = colorVars.map(v => v.name).slice(0, 20);
+      throw new Error(`colorVariableName '${p.colorVariableName}' not found. Available: [${names.join(", ")}]`);
+    }
+  } else {
+    // Auto-bind: find matching color variable
+    const match = await suggestStyleForColor(c, "colorVariableName", "ALL_FILLS");
+    if (match.variable) {
+      const bound = figma.variables.setBoundVariableForPaint(style.paints[0] as SolidPaint, "color", match.variable);
+      style.paints = [bound];
+      result.boundVariable = match.variable.name;
+    }
+  }
+  return result;
 }
 
 async function createTextStyleSingle(p: any) {
   const style = figma.createTextStyle();
   style.name = p.name;
-  const fontStyle = p.fontStyle || "Regular";
-  // Font already preloaded by batch prep
+  if (p.description) style.description = p.description;
+  // Font already resolved + preloaded by batch prep; use stored resolved name
+  const fontStyle = p._resolvedFontStyle ?? p.fontStyle ?? "Regular";
   style.fontName = { family: p.fontFamily, style: fontStyle };
   style.fontSize = p.fontSize;
   if (p.lineHeight !== undefined) {
@@ -130,6 +162,9 @@ async function createTextStyleSingle(p: any) {
   }
   if (p.textCase) style.textCase = p.textCase;
   if (p.textDecoration) style.textDecoration = p.textDecoration;
+  if (p.paragraphIndent !== undefined) style.paragraphIndent = p.paragraphIndent;
+  if (p.paragraphSpacing !== undefined) style.paragraphSpacing = p.paragraphSpacing;
+  if (p.leadingTrim !== undefined) (style as any).leadingTrim = p.leadingTrim;
 
   // WCAG recommendations for text styles
   const result: any = { id: style.id };
@@ -152,17 +187,35 @@ async function createTextStyleSingle(p: any) {
 }
 
 async function createEffectStyleSingle(p: any) {
+  const effects = mapEffects(p.effects);
   const style = figma.createEffectStyle();
   style.name = p.name;
-  style.effects = p.effects.map((e: any) => {
+  if (p.description) style.description = p.description;
+  style.effects = effects;
+  return { id: style.id };
+}
+
+async function createGridStyleSingle(p: any) {
+  const style = figma.createGridStyle();
+  style.name = p.name;
+  if (p.description) style.description = p.description;
+  style.layoutGrids = p.layoutGrids;
+  return { id: style.id };
+}
+
+/** Map effect descriptors to Figma Effect objects, coercing hex color strings. */
+function mapEffects(effects: any[]): any[] {
+  return effects.map((e: any) => {
     const eff: any = { type: e.type, radius: e.radius, visible: e.visible ?? true };
     if (e.type === "DROP_SHADOW" || e.type === "INNER_SHADOW") eff.blendMode = e.blendMode || "NORMAL";
-    if (e.color) eff.color = { r: e.color.r, g: e.color.g, b: e.color.b, a: e.color.a ?? 1 };
-    if (e.offset) eff.offset = { x: e.offset.x, y: e.offset.y };
+    if (e.color) {
+      const c = coerceColor(e.color);
+      if (c) eff.color = c;
+    }
+    if (e.offset) eff.offset = { x: e.offset.x ?? 0, y: e.offset.y ?? 0 };
     if (e.spread !== undefined) eff.spread = e.spread;
     return eff;
   });
-  return { id: style.id };
 }
 
 // ─── Style Resolution Helpers ────────────────────────────────────
@@ -207,12 +260,13 @@ async function resolveAnyStyle(idOrName: string): Promise<BaseStyle> {
   const byId = await figma.getStyleByIdAsync(ensureStyleId(idOrName));
   if (byId) return byId;
   // Fallback: search by name across all types
-  const [paints, texts, effects] = await Promise.all([
+  const [paints, texts, effects, grids] = await Promise.all([
     figma.getLocalPaintStylesAsync(),
     figma.getLocalTextStylesAsync(),
     figma.getLocalEffectStylesAsync(),
+    figma.getLocalGridStylesAsync(),
   ]);
-  const all = [...paints, ...texts, ...effects];
+  const all = [...paints, ...texts, ...effects, ...grids];
   const exact = all.find(s => s.name === idOrName);
   if (exact) return exact;
   const fuzzy = all.find(s => s.name.toLowerCase().includes(idOrName.toLowerCase()));
@@ -223,25 +277,47 @@ async function resolveAnyStyle(idOrName: string): Promise<BaseStyle> {
 // ─── Patch Styles Handler ────────────────────────────────────────
 
 // Fields applicable to each style type (excluding shared fields: id, name)
-const PAINT_FIELDS = ["color"];
-const TEXT_FIELDS = ["fontFamily", "fontStyle", "fontSize", "lineHeight", "letterSpacing", "textCase", "textDecoration"];
+const PAINT_FIELDS = ["color", "colorVariableName"];
+const TEXT_FIELDS = ["fontFamily", "fontStyle", "fontSize", "lineHeight", "letterSpacing", "textCase", "textDecoration", "paragraphIndent", "paragraphSpacing", "leadingTrim"];
 const EFFECT_FIELDS = ["effects"];
-const TYPE_FIELDS: Record<string, string[]> = { PAINT: PAINT_FIELDS, TEXT: TEXT_FIELDS, EFFECT: EFFECT_FIELDS };
+const GRID_FIELDS = ["layoutGrids"];
+const TYPE_FIELDS: Record<string, string[]> = { PAINT: PAINT_FIELDS, TEXT: TEXT_FIELDS, EFFECT: EFFECT_FIELDS, GRID: GRID_FIELDS };
 
 async function patchStyleSingle(p: any) {
-  const style = await resolveAnyStyle(p.id);
+  const identifier = p.id || p.styleName;
+  if (!identifier) throw new Error("Each item requires 'id' or 'styleName' to identify the style to update.");
+  const style = await resolveAnyStyle(identifier);
   if (p.name !== undefined) style.name = p.name;
+  if (p.description !== undefined) style.description = p.description;
 
   // Warn about inapplicable fields
   const applicable = TYPE_FIELDS[style.type] || [];
-  const allTypeFields = [...PAINT_FIELDS, ...TEXT_FIELDS, ...EFFECT_FIELDS];
+  const allTypeFields = [...PAINT_FIELDS, ...TEXT_FIELDS, ...EFFECT_FIELDS, ...GRID_FIELDS];
   const ignored = allTypeFields.filter(f => p[f] !== undefined && !applicable.includes(f));
 
   if (style.type === "PAINT") {
     const ps = style as PaintStyle;
-    if (p.color !== undefined) {
-      const { r, g, b, a = 1 } = p.color;
-      ps.paints = [{ type: "SOLID", color: { r, g, b }, opacity: a }];
+    if (p.color !== undefined || p.colorVariableName !== undefined) {
+      const c = p.color ? coerceColor(p.color) : null;
+      ps.paints = [{ type: "SOLID", color: c ? { r: c.r, g: c.g, b: c.b } : (ps.paints[0] as SolidPaint)?.color ?? { r: 0, g: 0, b: 0 }, opacity: c?.a ?? 1 }];
+      if (p.colorVariableName) {
+        const v = await findColorVariableByName(p.colorVariableName);
+        if (v) {
+          const bound = figma.variables.setBoundVariableForPaint(ps.paints[0] as SolidPaint, "color", v);
+          ps.paints = [bound];
+        } else {
+          const colorVars = await figma.variables.getLocalVariablesAsync("COLOR");
+          const names = colorVars.map(v => v.name).slice(0, 20);
+          throw new Error(`colorVariableName '${p.colorVariableName}' not found. Available: [${names.join(", ")}]`);
+        }
+      } else if (c) {
+        // Auto-bind: find matching color variable
+        const match = await suggestStyleForColor(c, "colorVariableName", "ALL_FILLS");
+        if (match.variable) {
+          const bound = figma.variables.setBoundVariableForPaint(ps.paints[0] as SolidPaint, "color", match.variable);
+          ps.paints = [bound];
+        }
+      }
     }
   } else if (style.type === "TEXT") {
     const ts = style as TextStyle;
@@ -263,18 +339,17 @@ async function patchStyleSingle(p: any) {
     }
     if (p.textCase !== undefined) ts.textCase = p.textCase;
     if (p.textDecoration !== undefined) ts.textDecoration = p.textDecoration;
+    if (p.paragraphIndent !== undefined) ts.paragraphIndent = p.paragraphIndent;
+    if (p.paragraphSpacing !== undefined) ts.paragraphSpacing = p.paragraphSpacing;
+    if (p.leadingTrim !== undefined) (ts as any).leadingTrim = p.leadingTrim;
   } else if (style.type === "EFFECT") {
     const es = style as EffectStyle;
     if (p.effects !== undefined) {
-      es.effects = p.effects.map((e: any) => {
-        const eff: any = { type: e.type, radius: e.radius, visible: e.visible ?? true };
-        if (e.type === "DROP_SHADOW" || e.type === "INNER_SHADOW") eff.blendMode = e.blendMode || "NORMAL";
-        if (e.color) eff.color = { r: e.color.r, g: e.color.g, b: e.color.b, a: e.color.a ?? 1 };
-        if (e.offset) eff.offset = { x: e.offset.x, y: e.offset.y };
-        if (e.spread !== undefined) eff.spread = e.spread;
-        return eff;
-      });
+      es.effects = mapEffects(p.effects);
     }
+  } else if (style.type === "GRID") {
+    const gs = style as GridStyle;
+    if (p.layoutGrids !== undefined) gs.layoutGrids = p.layoutGrids;
   }
 
   // Collect warnings
@@ -302,104 +377,47 @@ async function patchStyleSingle(p: any) {
   return "ok";
 }
 
-// Max unique fonts to load per batch -- prevents timeouts with many font families
-const MAX_FONTS_PER_BATCH = 5;
-
-// Batch prep: preload fonts in parallel, cap unique fonts to avoid timeout
+// Batch prep: preload fonts via fuzzy resolution
 async function createTextStyleBatch(params: any) {
+  clearFontCache();
   const items: any[] = params.items || [params];
 
-  // Map each item to its font key
-  const itemFontKeys = items.map(p => `${p.fontFamily}::${p.fontStyle || "Regular"}`);
-  const uniqueFonts = [...new Set(itemFontKeys)];
-
-  // If within cap, process all
-  if (uniqueFonts.length <= MAX_FONTS_PER_BATCH) {
-    await Promise.all(
-      uniqueFonts.map(key => {
-        const [family, style] = key.split("::");
-        return figma.loadFontAsync({ family, style });
-      })
-    );
-    return batchHandler(params, createTextStyleSingle);
+  // Resolve all fonts with fuzzy matching and store resolved names on items
+  const resolved = new Map<string, string>();
+  for (const p of items) {
+    const family = p.fontFamily;
+    const style = p.fontStyle || "Regular";
+    const key = `${family}::${style}`;
+    if (!resolved.has(key)) {
+      const font = await resolveFontAsync(family, style);
+      resolved.set(key, font.style);
+    }
+    p._resolvedFontStyle = resolved.get(key);
   }
 
-  // Over cap: process items whose fonts fit, return remaining
-  const loadedFonts = new Set(uniqueFonts.slice(0, MAX_FONTS_PER_BATCH));
-  await Promise.all(
-    [...loadedFonts].map(key => {
-      const [family, style] = key.split("::");
-      return figma.loadFontAsync({ family, style });
-    })
-  );
-
-  const processItems: any[] = [];
-  const deferredItems: any[] = [];
-  for (let i = 0; i < items.length; i++) {
-    if (loadedFonts.has(itemFontKeys[i])) processItems.push(items[i]);
-    else deferredItems.push(items[i]);
-  }
-
-  const deferredFonts = uniqueFonts.slice(MAX_FONTS_PER_BATCH).map(k => k.replace("::", " "));
-  const result = await batchHandler({ ...params, items: processItems }, createTextStyleSingle);
-  result.deferred = `${deferredItems.length} text style(s) using fonts [${deferredFonts.join(", ")}] were NOT created to avoid timeout. Call styles(method: "create", type: "text") again with those items.`;
-  return result;
+  return batchHandler(params, createTextStyleSingle);
 }
 
 async function patchStylesBatch(params: any) {
+  clearFontCache();
   const items: any[] = params.items || [params];
 
-  // Resolve styles and collect font requirements for text styles
-  // Errors here are non-fatal -- batchHandler will catch them per-item
-  const fontKeys: string[] = [];
+  // Resolve fonts for text styles via fuzzy matching and store on items
   for (const p of items) {
     try {
-      const style = await resolveAnyStyle(p.id);
+      const style = await resolveAnyStyle(p.id || p.styleName);
       if (style.type === "TEXT") {
         const ts = style as TextStyle;
         const family = p.fontFamily ?? ts.fontName.family;
         const fontStyle = p.fontStyle ?? ts.fontName.style;
-        fontKeys.push(`${family}::${fontStyle}`);
-      }
-    } catch { /* skip -- will error in batchHandler */ }
-  }
-
-  // Preload fonts for text styles
-  const uniqueFonts = [...new Set(fontKeys)];
-  if (uniqueFonts.length > 0) {
-    const toLoad = uniqueFonts.slice(0, MAX_FONTS_PER_BATCH);
-    await Promise.all(
-      toLoad.map(key => {
-        const [family, style] = key.split("::");
-        return figma.loadFontAsync({ family, style });
-      })
-    );
-
-    if (uniqueFonts.length > MAX_FONTS_PER_BATCH) {
-      // Identify which items have unloaded fonts and defer them
-      const loadedSet = new Set(toLoad);
-      const processItems: any[] = [];
-      const deferredItems: any[] = [];
-      let fontIdx = 0;
-      for (const p of items) {
-        try {
-          const style = await resolveAnyStyle(p.id);
-          if (style.type === "TEXT") {
-            if (loadedSet.has(fontKeys[fontIdx])) processItems.push(p);
-            else deferredItems.push(p);
-            fontIdx++;
-          } else {
-            processItems.push(p);
-          }
-        } catch {
-          processItems.push(p); // let batchHandler report per-item error
+        const resolved = await resolveFontAsync(family, fontStyle);
+        // Store resolved values so patchStyleSingle uses the correct names
+        if (p.fontFamily !== undefined || p.fontStyle !== undefined) {
+          if (p.fontFamily !== undefined) p.fontFamily = resolved.family;
+          p.fontStyle = resolved.style;
         }
       }
-      const deferredFonts = uniqueFonts.slice(MAX_FONTS_PER_BATCH).map(k => k.replace("::", " "));
-      const result = await batchHandler({ ...params, items: processItems }, patchStyleSingle);
-      result.deferred = `${deferredItems.length} text style(s) using fonts [${deferredFonts.join(", ")}] were NOT updated to avoid timeout. Call styles(method: "update") again with those items.`;
-      return result;
-    }
+    } catch { /* skip -- will error in batchHandler */ }
   }
 
   return batchHandler(params, patchStyleSingle);
@@ -414,7 +432,8 @@ export const figmaHandlers: Record<string, (params: any) => Promise<any>> = {
         case "paint":  return batchHandler(p, createPaintStyleSingle);
         case "text":   return createTextStyleBatch(p);
         case "effect": return batchHandler(p, createEffectStyleSingle);
-        default: throw new Error(`create requires type: "paint", "text", or "effect"`);
+        case "grid":   return batchHandler(p, createGridStyleSingle);
+        default: throw new Error(`create requires type: "paint", "text", "effect", or "grid"`);
       }
     },
     get:    (p: StyleParams & { method: "get" })    => getStyleByIdFigma(p),

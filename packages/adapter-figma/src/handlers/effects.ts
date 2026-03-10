@@ -1,4 +1,4 @@
-import { batchHandler } from "./helpers";
+import { batchHandler, coerceColor } from "./helpers";
 
 // ─── Figma Handlers ──────────────────────────────────────────────
 
@@ -25,7 +25,7 @@ export async function setEffectsSingle(p: any): Promise<any> {
     const mapped = p.effects.map((e: any) => {
       const eff: any = { type: e.type, radius: e.radius, visible: e.visible ?? true };
       if (e.type === "DROP_SHADOW" || e.type === "INNER_SHADOW") eff.blendMode = e.blendMode || "NORMAL";
-      if (e.color) eff.color = { r: e.color.r ?? 0, g: e.color.g ?? 0, b: e.color.b ?? 0, a: e.color.a ?? 1 };
+      if (e.color) { const c = coerceColor(e.color); if (c) eff.color = c; }
       if (e.offset) eff.offset = { x: e.offset.x ?? 0, y: e.offset.y ?? 0 };
       if (e.spread !== undefined) eff.spread = e.spread;
       return eff;

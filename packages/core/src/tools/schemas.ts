@@ -45,16 +45,54 @@ function parseHex(hex: string): { r: number; g: number; b: number; a?: number } 
   return { r, g, b };
 }
 
-/** RGBA color — accepts {r,g,b,a?} object (0-1) or hex string (#RGB, #RRGGBB, #RRGGBBAA) */
+/** RGBA color — accepts {r,g,b,a?} object (0-1), hex string (#RGB, #RRGGBB, #RRGGBBAA), or style/variable name string */
 export const colorRgba = z.preprocess((v) => {
   if (typeof v === "string") return parseHex(v) ?? v;
   return v;
-}, z.object({
-  r: z.coerce.number().min(0).max(1),
-  g: z.coerce.number().min(0).max(1),
-  b: z.coerce.number().min(0).max(1),
-  a: z.coerce.number().min(0).max(1).optional(),
-})).describe('Hex "#FF0000" or {r,g,b,a?} with values 0-1.');
+}, z.union([
+  z.object({
+    r: z.coerce.number().min(0).max(1),
+    g: z.coerce.number().min(0).max(1),
+    b: z.coerce.number().min(0).max(1),
+    a: z.coerce.number().min(0).max(1).optional(),
+  }),
+  z.string(), // Non-hex strings pass through for handler-level style/variable resolution
+])).describe('Hex "#FF0000", {r,g,b,a?} 0-1, or style/variable name.');
+
+/** Variable value — color (hex or RGBA), number, boolean, string, or alias */
+export const variableValue = z.preprocess((v) => {
+  if (typeof v === "string") return parseHex(v) ?? v;
+  return v;
+}, z.union([
+  z.number(),
+  z.boolean(),
+  z.string(),
+  z.object({ r: z.number(), g: z.number(), b: z.number(), a: z.number().optional() }),
+  z.object({ type: z.literal("VARIABLE_ALIAS"), name: z.string() }),
+])).describe('number, boolean, string, hex "#FF0000", {r,g,b,a?}, or {type:"VARIABLE_ALIAS",name:"other/variable"}');
+
+/** Line height — number (px) or {value, unit} */
+export const lineHeight = z.union([
+  z.coerce.number(),
+  z.object({ value: z.coerce.number(), unit: z.enum(["PIXELS", "PERCENT", "AUTO"]) }),
+]).describe('number (px) or {value, unit: "PIXELS"|"PERCENT"|"AUTO"}');
+
+/** Letter spacing — number (px) or {value, unit} */
+export const letterSpacing = z.union([
+  z.coerce.number(),
+  z.object({ value: z.coerce.number(), unit: z.enum(["PIXELS", "PERCENT"]) }),
+]).describe('number (px) or {value, unit: "PIXELS"|"PERCENT"}');
+
+/** String or boolean — for component property defaults */
+export const stringOrBoolean = z.union([z.string(), z.boolean()]);
+
+/** Design token — accepts a string that is either a numeric value ("8") or a variable name/ID ("Radii/Medium").
+ *  Numeric strings are parsed to numbers in the handler; non-numeric strings are variable references. */
+export const token = z.preprocess((v) => {
+  // Accept raw numbers from agents that pass them correctly
+  if (typeof v === "number") return String(v);
+  return v;
+}, z.string()).describe('number as string ("8") or variable name ("Radii/Medium")');
 
 /** Single effect entry — shared by set_effects and styles create */
 export const effectEntry = z.object({

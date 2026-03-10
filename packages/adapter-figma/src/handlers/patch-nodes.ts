@@ -1,4 +1,4 @@
-import { batchHandler } from "./helpers";
+import { batchHandler, findVariableById, findVariableByName } from "./helpers";
 import { setFillSingle, setStrokeSingle, setCornerSingle, setOpacitySingle } from "./fill-stroke";
 import { setEffectsSingle, setConstraintsSingle, setExportSettingsSingle, setNodePropertiesSingle } from "./effects";
 import { moveSingle, resizeSingle } from "./modify-node";
@@ -8,20 +8,49 @@ import type { TextPropsContext } from "./text";
 
 // ─── Figma Handlers ──────────────────────────────────────────────
 
+const SIMPLE_PROPS = ["name", "visible", "locked", "rotation", "blendMode", "layoutPositioning",
+  "minWidth", "maxWidth", "minHeight", "maxHeight"] as const;
+
+async function doResize(item: any): Promise<void> {
+  let w = item.width;
+  let h = item.height;
+  if (w === undefined || h === undefined) {
+    const node = await figma.getNodeByIdAsync(item.nodeId);
+    if (!node) throw new Error(`Node not found: ${item.nodeId}`);
+    if ("width" in node && "height" in node) {
+      w = w ?? (node as any).width;
+      h = h ?? (node as any).height;
+    } else {
+      throw new Error(`Node does not support resize: ${item.nodeId}`);
+    }
+  }
+  await resizeSingle({ nodeId: item.nodeId, width: w, height: h });
+}
+
 async function patchSingleNode(item: any, textCtx: TextPropsContext | null): Promise<any> {
   const result: any = {};
+
+  // 0. Simple scalar properties
+  const simpleUpdates = SIMPLE_PROPS.filter(k => item[k] !== undefined);
+  if (simpleUpdates.length > 0) {
+    const node = await figma.getNodeByIdAsync(item.nodeId);
+    if (!node) throw new Error(`Node not found: ${item.nodeId}`);
+    for (const key of simpleUpdates) {
+      if (key in node) (node as any)[key] = item[key];
+      else result.warning = appendWarning(result.warning, `Property '${key}' not supported on ${node.type}`);
+    }
+  }
 
   // 1. Geometry: move
   if (item.x !== undefined || item.y !== undefined) {
     await moveSingle({ nodeId: item.nodeId, x: item.x, y: item.y });
   }
 
-  // 2. Geometry: resize
-  if (item.width !== undefined || item.height !== undefined) {
-    if (item.width === undefined || item.height === undefined) {
-      throw new Error("width and height must both be provided for resize");
-    }
-    await resizeSingle({ nodeId: item.nodeId, width: item.width, height: item.height });
+  // 2. Geometry: resize — deferred to after layout (step 10b) when layout is also being patched,
+  //    because auto-layout sizing mode must be set before width/height will stick.
+  const needsResize = item.width !== undefined || item.height !== undefined;
+  if (needsResize && !item.layout) {
+    await doResize(item);
   }
 
   // 3. Fill
@@ -38,6 +67,12 @@ async function patchSingleNode(item: any, textCtx: TextPropsContext | null): Pro
       color: item.stroke.color,
       strokeWeight: item.stroke.weight,
       styleName: item.stroke.styleName,
+      variableName: item.stroke.variableName,
+      variableId: item.stroke.variableId,
+      strokeTopWeight: item.stroke.strokeTopWeight,
+      strokeBottomWeight: item.stroke.strokeBottomWeight,
+      strokeLeftWeight: item.stroke.strokeLeftWeight,
+      strokeRightWeight: item.stroke.strokeRightWeight,
     });
     if (r.matchedStyle) result.matchedStrokeStyle = r.matchedStyle;
     if (r.warning) result.warning = appendWarning(result.warning, r.warning);
@@ -76,7 +111,13 @@ async function patchSingleNode(item: any, textCtx: TextPropsContext | null): Pro
 
   // 10. Layout
   if (item.layout) {
-    await updateFrameSingle({ nodeId: item.nodeId, ...item.layout });
+    const r = await updateFrameSingle({ nodeId: item.nodeId, ...item.layout });
+    if (r.warning) result.warning = appendWarning(result.warning, r.warning);
+  }
+
+  // 10b. Deferred resize — after layout so sizing mode (FIXED/HUG/FILL) is set first
+  if (needsResize && item.layout) {
+    await doResize(item);
   }
 
   // 11. Text
@@ -85,7 +126,71 @@ async function patchSingleNode(item: any, textCtx: TextPropsContext | null): Pro
     if (r.warning) result.warning = appendWarning(result.warning, r.warning);
   }
 
-  // 12. Properties escape hatch (last)
+  // 12. Variable bindings
+  if (item.bindings) {
+    const node = await figma.getNodeByIdAsync(item.nodeId);
+    if (!node) throw new Error(`Node not found: ${item.nodeId}`);
+    for (const b of item.bindings) {
+      const variable = b.variableName
+        ? await findVariableByName(b.variableName)
+        : await findVariableById(b.variableId);
+      if (!variable) { result.warning = appendWarning(result.warning, `Variable not found: ${b.variableName || b.variableId}`); continue; }
+      const paintMatch = b.field.match(/^(fills|strokes)\/(\d+)\/color$/);
+      if (paintMatch) {
+        const prop = paintMatch[1];
+        const index = parseInt(paintMatch[2], 10);
+        if (!(prop in node)) throw new Error(`Node does not have ${prop}`);
+        const paints = (node as any)[prop].slice();
+        // Auto-create default solid paints if index doesn't exist yet
+        while (index >= paints.length) {
+          paints.push({ type: "SOLID", color: { r: 0, g: 0, b: 0 }, opacity: 1 });
+        }
+        paints[index] = figma.variables.setBoundVariableForPaint(paints[index], "color", variable);
+        (node as any)[prop] = paints;
+      } else if ("setBoundVariable" in node) {
+        (node as any).setBoundVariable(b.field, variable);
+      } else {
+        result.warning = appendWarning(result.warning, `Node does not support variable binding for field: ${b.field}`);
+      }
+    }
+  }
+
+  // 13. Explicit variable mode — accepts name-based ({ collectionName, modeName }) or ID-based ({ collectionId, modeId })
+  if (item.explicitMode) {
+    const node = await figma.getNodeByIdAsync(item.nodeId);
+    if (!node) throw new Error(`Node not found: ${item.nodeId}`);
+    if (!("setExplicitVariableModeForCollection" in node)) {
+      result.warning = appendWarning(result.warning, `Node ${item.nodeId} does not support explicit variable modes.`);
+    } else {
+      const allCollections = await figma.variables.getLocalVariableCollectionsAsync();
+      const em = item.explicitMode;
+      let collection: any;
+      let modeId: string;
+
+      if (em.collectionName) {
+        const cName = em.collectionName.toLowerCase();
+        collection = allCollections.find((c: any) => c.name.toLowerCase() === cName);
+        if (!collection) throw new Error(`Collection not found: "${em.collectionName}". Available: ${allCollections.map((c: any) => c.name).join(", ")}`);
+      } else {
+        collection = allCollections.find((c: any) => c.id === em.collectionId);
+        if (!collection) throw new Error(`Collection not found: ${em.collectionId}. Available: ${allCollections.map((c: any) => `${c.name} (${c.id})`).join(", ")}`);
+      }
+
+      if (em.modeName) {
+        const mName = em.modeName.toLowerCase();
+        const mode = collection.modes.find((m: any) => m.name.toLowerCase() === mName);
+        if (!mode) throw new Error(`Mode not found: "${em.modeName}" in collection "${collection.name}". Available: ${collection.modes.map((m: any) => m.name).join(", ")}`);
+        modeId = mode.modeId;
+      } else {
+        modeId = em.modeId;
+        if (!modeId) throw new Error(`explicitMode requires either modeName or modeId`);
+      }
+
+      (node as any).setExplicitVariableModeForCollection(collection, modeId);
+    }
+  }
+
+  // 14. Properties escape hatch (last)
   if (item.properties) {
     await setNodePropertiesSingle({ nodeId: item.nodeId, properties: item.properties });
   }

@@ -1,77 +1,79 @@
 ---
 title: Endpoints
-description: How REST-style endpoint tools work in Vibma
+description: How Vibma organizes tools as REST-style endpoints
 ---
 
-Some Vibma tools are **endpoint tools** — they consolidate multiple operations (create, get, list, update, delete) into a single tool using a `method` parameter, similar to a REST API.
+Vibma exposes **12 endpoint tools** instead of dozens of standalone tools. Each endpoint groups related operations behind a single tool with a `method` parameter — similar to a REST resource.
 
 ## Why endpoints?
 
-Instead of separate tools like `create_style`, `get_style`, `list_styles`, `update_style`, `delete_style`, a single `styles` endpoint handles all operations. This reduces the total tool count and keeps related operations together.
+LLMs work better with fewer, well-documented tools than with a long flat list. Instead of `create_frame`, `get_frame`, `list_frames`, `update_frame`, `delete_frame` as five separate tools, a single `frames` endpoint handles all of them. This:
 
-## Common contract
+- **Reduces tool count** — 12 endpoints cover 59 methods
+- **Groups related operations** — the AI sees all frame operations together in one description
+- **Shares parameters** — `fields`, `depth`, `offset`, `limit` work the same everywhere
+- **Enables capability gating** — read methods are always available, create/edit methods appear based on `--create` / `--edit` flags
 
-Every endpoint follows the same pattern:
+## Calling an endpoint
 
-| Method | Input | Output |
-|--------|-------|--------|
-| `create` | `{items: [{...}]}` | `{results: [{id}, ...]}` |
-| `get` | `{id, fields?}` | Resource object (field-filtered) |
-| `list` | `{fields?, offset?, limit?}` | `{totalCount, returned, offset, limit, items}` |
-| `update` | `{items: [{id, ...}]}` | `{results: ["ok", ...]}` |
-| `delete` | `{id}` or `{items: [{id}]}` | `"ok"` or `{results: ["ok", ...]}` |
+Every call requires a `method` parameter:
 
-Not every endpoint supports all five methods. Check each tool's `method` enum for available operations.
+```json
+{ "method": "list" }
+{ "method": "get", "id": "1:2", "depth": 0 }
+{ "method": "create", "type": "frame", "items": [{"name": "Card", "width": 300, "height": 200}] }
+```
 
-## Shared parameters
+## Common methods
 
-These parameters are automatically available based on which methods an endpoint supports:
+Most endpoints support some subset of these:
 
-- **`method`** (required) — the operation to perform
-- **`id`** — resource ID, used by `get` and `delete`
-- **`fields`** — property whitelist for `get` and `list`. Identity fields (`id`, `name`, `type`) are always included. Pass `["*"]` to return all fields.
-- **`offset`** / **`limit`** — pagination for `list` (default limit: 100)
-- **`items`** — array of objects for batch operations (`create`, `update`, `delete`)
+| Method | Purpose | Tier |
+|--------|---------|------|
+| `list` | Search / paginate resources | read |
+| `get` | Get detail by ID | read |
+| `create` | Create new resources | create |
+| `update` | Patch existing resources | edit |
+| `delete` | Remove resources | edit |
+
+Some endpoints add domain-specific methods like `clone`, `reparent`, `export`, `scan`, `swap`, `detach`, `add_mode`, etc.
 
 ## Batch responses
 
-`create`, `update`, and `delete` return a `results` array with one entry per item in the same order. Each entry is either `"ok"`, an object with the result data (e.g. `{id: "..."}` for create), or `{error: "message"}` if that item failed. This allows partial success — some items can succeed while others fail.
+`create`, `update`, and `delete` return a `results` array — one entry per input item, in order. Each entry is either `"ok"`, an object like `{id: "..."}`, or `{error: "message"}`. This allows partial success:
 
 ```json
 {
   "results": [
-    {"id": "S:abc123"},
-    {"error": "Name already exists: Primary"}
+    { "id": "5:2" },
+    { "error": "Name already exists" }
   ]
 }
 ```
 
-## Field filtering
+## Inherited methods
 
-Use `fields` on `get` and `list` to reduce response size. Without `fields`, `list` returns stubs (identity fields only) and `get` returns full detail.
+Endpoints that operate on scene-graph nodes (`frames`, `text`) extend a shared **node base** that provides `get`, `list`, `update`, `delete`, `clone`, and `reparent` automatically. These inherited methods work identically across all node endpoints.
+
+## Discriminated creates
+
+Some `create` methods use a `type` discriminant to select between different item shapes:
 
 ```json
-{"method": "list", "fields": ["description", "valuesByMode"]}
+{ "method": "create", "type": "auto_layout", "items": [{"layoutMode": "VERTICAL", "itemSpacing": 8}] }
+{ "method": "create", "type": "section", "items": [{"name": "Hero"}] }
 ```
+
+Each type has its own parameter schema documented on the endpoint page.
 
 ## Access tiers
 
-Each method within an endpoint is gated by [access tiers](/Vibma/#access-tiers):
+Methods are gated by startup flags:
 
-| Method | Required tier |
-|--------|--------------|
-| `get`, `list` | read (always available) |
-| `create` | `--create` |
-| `update`, `delete` | `--edit` |
+| Flag | Available methods |
+|------|------------------|
+| _(none)_ | `get`, `list`, `check`, `scan`, `export` |
+| `--create` | Above + `create`, `clone` |
+| `--edit` | All methods |
 
-Some endpoints define custom method tiers. For example, `variable_collections` maps `add_mode` to `create` and `rename_mode` / `remove_mode` to `edit`.
-
-## Endpoint tools
-
-The following tools use the endpoint pattern:
-
-- [**styles**](/Vibma/tools/styles/) — paint, text, and effect styles
-- [**variable_collections**](/Vibma/tools/variables/#variable_collections) — collections and mode management
-- [**variables**](/Vibma/tools/variables/#variables) — design variables
-- [**components**](/Vibma/tools/components/#components) — components and variant sets
-- [**instances**](/Vibma/tools/components/#instances) — component instances
+If create/edit methods are missing, see the `missing_tools` prompt.

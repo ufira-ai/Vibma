@@ -1,18 +1,126 @@
 ---
 title: "Components"
-description: "用于创建组件、变体和实例的工具"
+description: "创建和管理可复用组件和变体集。"
 ---
 
-import ToolReference from "../../../../components/ToolReference.astro";
+import ParameterTable from "../../../../components/ParameterTable.astro";
 
-用于创建组件、变体和实例的工具
+创建和管理可复用组件和变体集。
 
-此分类共 2 个工具。
+<details>
+<summary>Type reference</summary>
 
-### components
+```ts
+// Components are reusable design elements. Instances stay linked to the component and inherit changes.
+// Workflow: create component (with properties) → add children → create instances via instances.create.
+// ---
+// A component set (variant set) groups related components as variants (e.g. Button/Primary, Button/Secondary).
+// Property types: BOOLEAN (toggle visibility), TEXT (editable text), INSTANCE_SWAP (swap child instance), VARIANT (variant picker).
+// exposeText: when creating from_node, text children become editable TEXT properties on the component.
+// Property keys include a unique suffix like "Label#1:0" — use components.get to find exact keys.
+// ComponentItem accepts the same params as FrameItem (layout, fill, stroke, sizing, min/max).
+// A component IS a frame — create it directly with all layout properties, then add children.
+interface ComponentItem {
+  name: string; x?: number; y?: number; width?: number; height?: number; parentId?: string;
+  opacity?: string; // token
+  fillColor?: Color; fillStyleName?: string; fillVariableName?: string;
+  strokeColor?: Color; strokeStyleName?: string; strokeVariableName?: string;
+  strokeWeight?: string; cornerRadius?: string; // token: number or variable name
+  layoutMode?: "NONE"|"HORIZONTAL"|"VERTICAL"; layoutWrap?: "NO_WRAP"|"WRAP";
+  padding?: string; paddingTop?: string; paddingRight?: string; paddingBottom?: string; paddingLeft?: string; // token
+  primaryAxisAlignItems?: "MIN"|"MAX"|"CENTER"|"SPACE_BETWEEN";
+  counterAxisAlignItems?: "MIN"|"MAX"|"CENTER"|"BASELINE";
+  layoutSizingHorizontal?: "FIXED"|"HUG"|"FILL"; layoutSizingVertical?: "FIXED"|"HUG"|"FILL";
+  itemSpacing?: string; counterAxisSpacing?: string; // token
+  minWidth?: number; maxWidth?: number; minHeight?: number; maxHeight?: number;
+  properties?: ComponentPropertyDef[]; // define properties at creation time
+}
+interface ComponentPropertyDef { propertyName: string; type: "BOOLEAN"|"TEXT"|"INSTANCE_SWAP"; defaultValue: string | boolean; preferredValues?: {type: "COMPONENT"|"COMPONENT_SET", key: string}[] }
+interface FromNodeItem { nodeId: string; exposeText?: boolean } // default exposeText: true — auto-expose text as editable properties
+interface VariantSetItem { componentIds: string[]; name?: string; variantPropertyName?: string } // min 2 components
+interface UpdatePropertyItem { id: string; propertyName: string; action?: "add"|"edit"|"delete"|"rename_variant"; type?: "BOOLEAN"|"TEXT"|"INSTANCE_SWAP"|"VARIANT"; defaultValue?: string | boolean; name?: string; preferredValues?: {type: "COMPONENT"|"COMPONENT_SET", key: string}[] }
+// action: "add" (default) adds property, "edit" renames/changes default, "delete" removes property
+// action: "rename_variant" renames a variant option (defaultValue=current name, name=new name)
+// For VARIANT properties: "edit" with defaultValue reorders children to set the default variant
+```
 
-<ToolReference name="components" description={"CRUD endpoint for components.\n  create  → {type, items, depth?} → {results: [{id}, ...]}\n    type 'component': create from scratch with layout/style params\n    type 'from_node': convert existing nodes to components. Text children are auto-exposed as editable properties by default (exposeText: true) — instances can set text directly via properties.\n    type 'variant_set': combine components into variant sets\n  get     → {id, fields?} → component object (full detail, field-filterable)\n  list    → {name?, setsOnly?, fields?, offset?, limit?} → paginated stubs\n  update  → {items: [{id, propertyName, type, defaultValue}]} → creates property AND binds matching text node automatically"} schema={{"type":"object","properties":{"method":{"type":"string","enum":["create","get","list","update"]},"id":{"description":"Resource ID (get, delete)","type":"string"},"fields":{"description":"Property whitelist (get/list). Identity fields (id, name, type) always included. Omit for stubs on list, full detail on get. Pass [\"*\"] for all fields.","type":"array","items":{"type":"string"}},"offset":{"description":"Skip N items for pagination (default 0)","type":"number"},"limit":{"description":"Max items per page (default 100)","type":"number"},"items":{"description":"create (component): [{name, parentId?, ...layout}]. create (from_node): [{nodeId, exposeText?}]. create (variant_set): [{componentIds, name?}]. update: [{id, propertyName, type, defaultValue}].","type":"array","items":{}},"type":{"description":"Create type. Required for create: 'component' (from scratch), 'from_node' (convert existing), 'variant_set' (combine as variants).","type":"string","enum":["component","from_node","variant_set"]},"depth":{"description":"Response detail: omit for id+name only. 0=properties + child stubs. N=recurse N levels. -1=unlimited.","type":"number"},"name":{"description":"Filter list by name (case-insensitive substring).","type":"string"},"setsOnly":{"description":"If true, list returns only COMPONENT_SET nodes.","type":"boolean"}},"required":["method"]}} tier="read" endpoint responseSchema={{"type":"object","description":"Response varies by method. create → {results: [{id}]}. get → component object (full detail, field-filterable). list → paginated stubs. update → {results: ['ok', ...]}."}} responseExample={{"totalCount":2,"returned":2,"offset":0,"limit":100,"items":[{"id":"20:3","name":"Button","type":"COMPONENT_SET","variantCount":4,"pageId":"0:1","pageName":"Components"},{"id":"20:10","name":"Icon/Star","type":"COMPONENT","pageId":"5:0","pageName":"Icons"}]}} />
+</details>
 
-### instances
+5 methods available.
 
-<ToolReference name="instances" description={"CRUD endpoint for component instances.\n  create  → {items: [{componentId, variantProperties?, x?, y?, parentId?}], depth?} → {results: [{id}]}\n  get     → {id} → {mainComponentId, overrides: [{id, fields}]}\n  update  → {items: [{id, properties}]} → {results: ['ok', ...]}"} schema={{"type":"object","properties":{"method":{"type":"string","enum":["create","get","update"]},"id":{"description":"Resource ID (get, delete)","type":"string"},"fields":{"description":"Property whitelist (get/list). Identity fields (id, name, type) always included. Omit for stubs on list, full detail on get. Pass [\"*\"] for all fields.","type":"array","items":{"type":"string"}},"items":{"description":"create: [{componentId, variantProperties?, x?, y?, parentId?}]. update: [{id, properties}].","type":"array","items":{}},"depth":{"description":"Response detail: omit for id+name only. 0=properties + child stubs. N=recurse N levels. -1=unlimited.","type":"number"}},"required":["method"]}} tier="read" endpoint responseSchema={{"type":"object","description":"Response varies by method. create → {results: [{id}]}. get → {mainComponentId, overrides: [{id, fields}]}. update → {results: ['ok', ...]}."}} responseExample={{"results":[{"id":"21:1"}]}} />
+## list
+
+List components and component sets
+
+<ParameterTable schema={{"type":"object","properties":{"name":{"description":"Filter by name (case-insensitive substring)","type":"string"},"setsOnly":{"description":"If true, return only COMPONENT_SET nodes","type":"boolean"},"fields":{"description":"Property whitelist. Identity fields (id, name, type) always included. Omit for stubs on list, full on get. Pass [\"*\"] for all.","type":"array","items":{"type":"string"}},"offset":{"description":"Skip N items for pagination (default 0) (default: 0)","type":"number"},"limit":{"description":"Max items per page (default 100) (default: 100)","type":"number"}}}} />
+
+**Response**
+
+<ParameterTable schema={{"type":"object","properties":{"totalCount":{"type":"number","description":"Total matching items"},"returned":{"type":"number","description":"Items in this page"},"offset":{"type":"number"},"limit":{"type":"number"},"items":{"type":"array","items":{"type":"object","properties":{"id":{"type":"string"},"name":{"type":"string"},"type":{"type":"string"}}}}},"required":["totalCount","items"]}} fieldLabel="Field" hideRequired />
+
+## get
+
+Get component or component set detail
+
+<ParameterTable schema={{"type":"object","properties":{"id":{"description":"Component or component set ID","type":"string"},"fields":{"description":"Property whitelist. Identity fields (id, name, type) always included. Omit for stubs on list, full on get. Pass [\"*\"] for all.","type":"array","items":{"type":"string"}}},"required":["id"]}} />
+
+**Response**
+
+<ParameterTable schema={{"type":"object","properties":{"id":{"type":"string"},"name":{"type":"string"},"type":{"type":"string"},"propertyDefinitions":{"type":"object"}}}} fieldLabel="Field" hideRequired />
+
+## create
+
+**create**
+
+Create components
+
+No parameters.
+
+
+Discriminated by `type`. Available types:
+
+#### component
+
+Create component with full frame properties (layout, fill, stroke, sizing). A component IS a frame — build directly, no need to create a frame first.
+
+<ParameterTable schema={{"type":"object","properties":{"name":{"description":"Component name","type":"string"},"parentId":{"description":"Parent node ID. Omit to place on current page.","type":"string"},"x":{"description":"X position (default: 0)","type":"number"},"y":{"description":"Y position (default: 0)","type":"number"},"width":{"description":"Width (default: 100)","type":"number"},"height":{"description":"Height (default: 100)","type":"number"},"opacity":{"description":"Opacity (0-1) or variable name","type":"token"},"fillColor":{"description":"Fill color (auto-binds to matching variable/style)","type":"string"},"fillStyleName":{"description":"Paint style name for fill","type":"string"},"fillVariableName":{"description":"Color variable by name e.g. 'bg/primary'","type":"string"},"strokeColor":{"description":"Stroke color (auto-binds to matching variable/style)","type":"string"},"strokeStyleName":{"description":"Paint style name for stroke","type":"string"},"strokeVariableName":{"description":"Color variable by name for stroke","type":"string"},"strokeWeight":{"description":"Stroke weight (default: 1)","type":"token"},"cornerRadius":{"description":"All corners (number) or variable name (string). Per-corner: topLeftRadius, topRightRadius, bottomRightRadius, bottomLeftRadius.","type":"token"},"topLeftRadius":{"type":"token"},"topRightRadius":{"type":"token"},"bottomRightRadius":{"type":"token"},"bottomLeftRadius":{"type":"token"},"effectStyleName":{"description":"Effect style name (e.g. 'Shadow/Card') for shadows, blurs","type":"string"},"layoutMode":{"description":"Layout direction (default: NONE)","type":"string","enum":["NONE","HORIZONTAL","VERTICAL"]},"layoutWrap":{"type":"string","enum":["NO_WRAP","WRAP"]},"padding":{"description":"All edges (number) or variable name (string). Per-edge: paddingTop, paddingRight, paddingBottom, paddingLeft.","type":"token"},"paddingTop":{"type":"token"},"paddingRight":{"type":"token"},"paddingBottom":{"type":"token"},"paddingLeft":{"type":"token"},"primaryAxisAlignItems":{"type":"string","enum":["MIN","MAX","CENTER","SPACE_BETWEEN"]},"counterAxisAlignItems":{"type":"string","enum":["MIN","MAX","CENTER","BASELINE"]},"layoutSizingHorizontal":{"type":"string","enum":["FIXED","HUG","FILL"]},"layoutSizingVertical":{"type":"string","enum":["FIXED","HUG","FILL"]},"itemSpacing":{"description":"Spacing between children (default: 0)","type":"token"},"counterAxisSpacing":{"description":"Gap between wrapped rows (requires layoutWrap: WRAP)","type":"token"},"minWidth":{"description":"Min width for responsive auto-layout","type":"number"},"maxWidth":{"description":"Max width for responsive auto-layout","type":"number"},"minHeight":{"description":"Min height for responsive auto-layout","type":"number"},"maxHeight":{"description":"Max height for responsive auto-layout","type":"number"},"properties":{"description":"Component properties to define at creation: [{propertyName, type, defaultValue}]","type":"array","items":{"type":"object","properties":{"propertyName":{"description":"Property name","type":"string"},"type":{"description":"Property type","type":"string","enum":["BOOLEAN","TEXT","INSTANCE_SWAP"]},"defaultValue":{"description":"Default value","type":"string | boolean"},"preferredValues":{"description":"Preferred values for INSTANCE_SWAP","type":"array"}},"required":["propertyName","type","defaultValue"]}}},"required":["name"]}} />
+
+#### from_node
+
+Convert existing nodes to components. Text children auto-exposed as editable properties (exposeText: true).
+
+<ParameterTable schema={{"type":"object","properties":{"nodeId":{"description":"Node ID to convert","type":"string"},"exposeText":{"description":"Auto-expose text as editable properties (default: true)","type":"boolean"}},"required":["nodeId"]}} />
+
+#### variant_set
+
+Combine components into a variant set. The resulting set is a frame — accepts all frame properties for layout/styling.
+
+<ParameterTable schema={{"type":"object","properties":{"name":{"description":"Node name","type":"string"},"parentId":{"description":"Parent node ID. Omit to place on current page.","type":"string"},"x":{"description":"X position (default: 0)","type":"number"},"y":{"description":"Y position (default: 0)","type":"number"},"width":{"description":"Width (default: 100)","type":"number"},"height":{"description":"Height (default: 100)","type":"number"},"opacity":{"description":"Opacity (0-1) or variable name","type":"token"},"fillColor":{"description":"Fill color (auto-binds to matching variable/style)","type":"string"},"fillStyleName":{"description":"Paint style name for fill","type":"string"},"fillVariableName":{"description":"Color variable by name e.g. 'bg/primary'","type":"string"},"strokeColor":{"description":"Stroke color (auto-binds to matching variable/style)","type":"string"},"strokeStyleName":{"description":"Paint style name for stroke","type":"string"},"strokeVariableName":{"description":"Color variable by name for stroke","type":"string"},"strokeWeight":{"description":"Stroke weight (default: 1)","type":"token"},"cornerRadius":{"description":"All corners (number) or variable name (string). Per-corner: topLeftRadius, topRightRadius, bottomRightRadius, bottomLeftRadius.","type":"token"},"topLeftRadius":{"type":"token"},"topRightRadius":{"type":"token"},"bottomRightRadius":{"type":"token"},"bottomLeftRadius":{"type":"token"},"effectStyleName":{"description":"Effect style name (e.g. 'Shadow/Card') for shadows, blurs","type":"string"},"layoutMode":{"description":"Layout direction (default: NONE)","type":"string","enum":["NONE","HORIZONTAL","VERTICAL"]},"layoutWrap":{"type":"string","enum":["NO_WRAP","WRAP"]},"padding":{"description":"All edges (number) or variable name (string). Per-edge: paddingTop, paddingRight, paddingBottom, paddingLeft.","type":"token"},"paddingTop":{"type":"token"},"paddingRight":{"type":"token"},"paddingBottom":{"type":"token"},"paddingLeft":{"type":"token"},"primaryAxisAlignItems":{"type":"string","enum":["MIN","MAX","CENTER","SPACE_BETWEEN"]},"counterAxisAlignItems":{"type":"string","enum":["MIN","MAX","CENTER","BASELINE"]},"layoutSizingHorizontal":{"type":"string","enum":["FIXED","HUG","FILL"]},"layoutSizingVertical":{"type":"string","enum":["FIXED","HUG","FILL"]},"itemSpacing":{"description":"Spacing between children (default: 0)","type":"token"},"counterAxisSpacing":{"description":"Gap between wrapped rows (requires layoutWrap: WRAP)","type":"token"},"minWidth":{"description":"Min width for responsive auto-layout","type":"number"},"maxWidth":{"description":"Max width for responsive auto-layout","type":"number"},"minHeight":{"description":"Min height for responsive auto-layout","type":"number"},"maxHeight":{"description":"Max height for responsive auto-layout","type":"number"},"componentIds":{"description":"Component IDs to combine (min 2)","type":"array","items":{"type":"string"}},"variantPropertyName":{"description":"Rename the auto-generated variant property (default: 'Property 1')","type":"string"}},"required":["componentIds"]}} />
+
+**Response**
+
+<ParameterTable schema={{"type":"object","properties":{"results":{"type":"array","description":"One entry per input item","items":{"type":"object","properties":{"id":{"type":"string"}}}}}}} fieldLabel="Field" hideRequired />
+
+## update
+
+**edit**
+
+Add, edit, or delete component properties
+
+<ParameterTable schema={{"type":"object","properties":{"items":{"description":"Array of {id, propertyName, action?, type?, defaultValue?, name?, preferredValues?}","type":"array","items":{"type":"object","properties":{"id":{"description":"Component or component set ID","type":"string"},"propertyName":{"description":"Property name (include #suffix for edit/delete)","type":"string"},"action":{"description":"Action: \"add\" (default), \"edit\", \"delete\", or \"rename_variant\"","type":"string","enum":["add","edit","delete","rename_variant"]},"type":{"description":"Property type (required for add)","type":"string","enum":["BOOLEAN","TEXT","INSTANCE_SWAP","VARIANT"]},"defaultValue":{"description":"Default value (required for add)","type":"string | boolean"},"name":{"description":"New name (for edit action)","type":"string"},"preferredValues":{"description":"Preferred values for INSTANCE_SWAP","type":"array"}},"required":["id","propertyName"]}},"depth":{"description":"Response detail: omit for id+name only. 0=properties + child stubs. N=recurse N levels. -1=unlimited.","type":"number"}},"required":["items"]}} />
+
+**Response**
+
+<ParameterTable schema={{"type":"object","properties":{"results":{"type":"array","description":"Array of \"ok\" or {error} per item","items":{"type":"any"}}}}} fieldLabel="Field" hideRequired />
+
+## delete
+
+**edit**
+
+Delete components or component sets
+
+<ParameterTable schema={{"type":"object","properties":{"id":{"description":"Component or component set ID","type":"string"}},"required":["id"]}} />
+
+**Response**
+
+<ParameterTable schema={{"type":"object","properties":{"results":{"type":"array","description":"One entry per input item","items":{"type":"object","properties":{}}}}}} fieldLabel="Field" hideRequired />

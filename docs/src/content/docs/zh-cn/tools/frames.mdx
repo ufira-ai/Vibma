@@ -1,0 +1,257 @@
+---
+title: "Frames"
+description: "创建和管理框架、自动布局容器和分区。"
+---
+
+import ParameterTable from "../../../../components/ParameterTable.astro";
+
+创建和管理框架、自动布局容器和分区。
+
+<details>
+<summary>Type reference</summary>
+
+```ts
+// depth: omit → id+name stubs | 0 → props + child stubs | N → recurse N | -1 → full tree
+// fields: whitelist e.g. ["fills","opacity"] — id, name, type always included. Pass ["*"] for all.
+// layoutSizingHorizontal/Vertical: FIXED | HUG | FILL — how the node sizes within auto-layout.
+// Colors: fillVariableName/strokeVariableName bind by name — preferred over raw color values.
+// ---
+// visible: false hides the node. Omitted from response when true (the default).
+// locked: true prevents editing in Figma UI. Omitted when false (the default).
+// rotation: degrees (0-360). Omitted when 0.
+// blendMode: layer blend mode. Omitted when PASS_THROUGH (the default).
+// layoutPositioning: ABSOLUTE = floating inside auto-layout parent. Omitted when AUTO (the default).
+// minWidth/maxWidth/minHeight/maxHeight: responsive constraints for auto-layout children.
+// constraints: position behavior in non-auto-layout parents. Ignored inside auto-layout frames.
+// bindings: bind design variables to node properties. field uses slash path e.g. "fills/0/color", "opacity", "width".
+// explicitMode: pin a variable mode on this node. Use { collectionName, modeName } (preferred) or { collectionId, modeId }.
+// properties: escape hatch — set any Figma node property directly. Use only when no dedicated field exists.
+interface Node {
+  id: string; name: string; type: string;
+  visible?: boolean;       // omitted when true
+  locked?: boolean;        // omitted when false
+  opacity?: number;        // omitted when 1
+  rotation?: number;       // omitted when 0
+  blendMode?: string;      // omitted when PASS_THROUGH
+  layoutPositioning?: "AUTO" | "ABSOLUTE";
+  layoutSizingHorizontal?: "FIXED" | "HUG" | "FILL";
+  layoutSizingVertical?: "FIXED" | "HUG" | "FILL";
+  minWidth?: number; maxWidth?: number; minHeight?: number; maxHeight?: number;
+  absoluteBoundingBox: { x: number; y: number; width: number; height: number };
+  fills?: Paint[];         // solid: {type: "SOLID", color: {r, g, b, a}}
+  strokes?: Paint[];
+  effects?: Effect[];      // DROP_SHADOW | INNER_SHADOW | LAYER_BLUR | BACKGROUND_BLUR
+  children?: NodeStub[];   // stubs: {id, name, type} — use depth to expand
+}
+interface PatchItem {
+  id: string;
+  name?: string; // rename node
+  visible?: boolean; // show/hide (default true)
+  locked?: boolean; // lock/unlock (default false)
+  rotation?: number; // degrees (0-360)
+  blendMode?: "PASS_THROUGH" | "NORMAL" | "DARKEN" | "MULTIPLY" | "LINEAR_BURN" | "COLOR_BURN" | "LIGHTEN" | "SCREEN" | "LINEAR_DODGE" | "COLOR_DODGE" | "OVERLAY" | "SOFT_LIGHT" | "HARD_LIGHT" | "DIFFERENCE" | "EXCLUSION" | "HUE" | "SATURATION" | "COLOR" | "LUMINOSITY";
+  layoutPositioning?: "AUTO" | "ABSOLUTE"; // ABSOLUTE = floating inside auto-layout parent
+  x?: number; y?: number; width?: number; height?: number;
+  minWidth?: number; maxWidth?: number; // responsive auto-layout constraints
+  minHeight?: number; maxHeight?: number;
+  opacity?: number | string; // number (0-1) or variable name
+  fill?: { color?: Color; styleName?: string; variableName?: string; clear?: boolean };
+  stroke?: { color?: Color; weight?: number | string; styleName?: string; variableName?: string; strokeTopWeight?: number | string; strokeBottomWeight?: number | string; strokeLeftWeight?: number | string; strokeRightWeight?: number | string };
+  cornerRadius?: { radius?: number | string; topLeft?: number | string; topRight?: number | string; bottomRight?: number | string; bottomLeft?: number | string };
+  effects?: { effects?: Effect[]; styleName?: string };
+  layout?: {
+    layoutMode?: "NONE" | "HORIZONTAL" | "VERTICAL";
+    paddingTop?: number | string; paddingRight?: number | string; paddingBottom?: number | string; paddingLeft?: number | string;
+    primaryAxisAlignItems?: "MIN" | "MAX" | "CENTER" | "SPACE_BETWEEN";
+    counterAxisAlignItems?: "MIN" | "MAX" | "CENTER" | "BASELINE";
+    layoutSizingHorizontal?: "FIXED" | "HUG" | "FILL";
+    layoutSizingVertical?: "FIXED" | "HUG" | "FILL";
+    itemSpacing?: number | string; counterAxisSpacing?: number | string;
+    layoutWrap?: "NO_WRAP" | "WRAP";
+  };
+  text?: {
+    fontSize?: number; fontWeight?: number; fontColor?: Color;
+    textStyleId?: string; textStyleName?: string;
+    textAlignHorizontal?: "LEFT" | "CENTER" | "RIGHT" | "JUSTIFIED";
+    textAlignVertical?: "TOP" | "CENTER" | "BOTTOM";
+    textAutoResize?: "NONE" | "WIDTH_AND_HEIGHT" | "HEIGHT" | "TRUNCATE";
+  };
+  constraints?: { horizontal: "MIN" | "CENTER" | "MAX" | "STRETCH" | "SCALE"; vertical: "MIN" | "CENTER" | "MAX" | "STRETCH" | "SCALE" };
+  bindings?: { field: string; variableName: string }[]; // bind variables by name. field e.g. "fills/0/color", "opacity"
+  explicitMode?: { collectionName: string; modeName: string } | { collectionId: string; modeId: string }; // pin variable mode — prefer names
+  properties?: Record<string, unknown>; // direct Figma API props (escape hatch)
+}
+// Frames are the primary container in Figma. Use auto_layout for responsive containers.
+// Sizing: FIXED = explicit size, HUG = shrink to children, FILL = expand to fill parent.
+// fillColor auto-binds: if a matching color variable or paint style exists, it is bound automatically.
+// Token fields (cornerRadius, opacity, itemSpacing, padding, strokeWeight): pass number for value, string for variable name/ID.
+// ---
+// HUG and FILL only work inside an auto-layout parent. Use FIXED for top-level frames.
+// minWidth/maxWidth/minHeight/maxHeight: responsive constraints for auto-layout children.
+// clipsContent: true (default) clips children to the frame bounds. Set false for overflow-visible.
+// Sections are top-level organizers (like artboards) — they cannot be nested inside frames.
+// Shape primitives: rectangle, ellipse, line — for decorative/visual elements (not containers).
+// group: wraps existing nodes into a Group. boolean_operation: UNION/SUBTRACT/INTERSECT/EXCLUDE combines shapes.
+// SVG create: pass raw SVG markup string (e.g. "<svg>...</svg>") — Figma converts it to vector nodes.
+```
+
+</details>
+
+8 methods available.
+
+## get
+
+*inherited*
+
+Get serialized node data
+
+<ParameterTable schema={{"type":"object","properties":{"id":{"description":"Node ID","type":"string"},"fields":{"description":"Property whitelist. Identity fields (id, name, type) always included. Omit for stubs on list, full on get. Pass [\"*\"] for all.","type":"array","items":{"type":"string"}},"depth":{"description":"Response detail: omit for id+name only. 0=properties + child stubs. N=recurse N levels. -1=unlimited.","type":"number"}},"required":["id"]}} />
+
+**Response**
+
+Serialized node tree. Shape depends on depth parameter.
+
+<ParameterTable schema={{"type":"object","properties":{"results":{"description":"Serialized node trees","type":"array","items":{"type":"object"}},"_truncated":{"description":"True when node budget exceeded","type":"boolean"},"_notice":{"description":"Human-readable truncation notice","type":"string"}}}} fieldLabel="Field" hideRequired />
+
+## list
+
+*inherited*
+
+Search for nodes
+
+<ParameterTable schema={{"type":"object","properties":{"query":{"description":"Name search query (case-insensitive substring match)","type":"string"},"types":{"description":"Filter by node types (e.g. [\"FRAME\", \"TEXT\"])","type":"array","items":{"type":"string"}},"parentId":{"description":"Search only within this subtree","type":"string"},"fields":{"description":"Property whitelist. Identity fields (id, name, type) always included. Omit for stubs on list, full on get. Pass [\"*\"] for all.","type":"array","items":{"type":"string"}},"offset":{"description":"Skip N items for pagination (default 0) (default: 0)","type":"number"},"limit":{"description":"Max items per page (default 100) (default: 100)","type":"number"}}}} />
+
+**Response**
+
+Paginated node search results (uses `results` not `items`)
+
+<ParameterTable schema={{"type":"object","properties":{"totalCount":{"description":"Total matching nodes","type":"number"},"returned":{"description":"Nodes in this page","type":"number"},"offset":{"type":"number"},"limit":{"type":"number"},"results":{"description":"Matching node stubs","type":"array","items":{"type":"object","properties":{"id":{"type":"string"},"name":{"type":"string"},"type":{"type":"string"},"parentId":{"type":"string"},"parentName":{"type":"string"},"bounds":{"type":"object","properties":{"x":{"type":"number"},"y":{"type":"number"},"width":{"type":"number"},"height":{"type":"number"}}}},"required":["id","name","type","parentId"]}}},"required":["totalCount","returned"]}} fieldLabel="Field" hideRequired />
+
+## update
+
+**edit** | *inherited*
+
+Patch node properties
+
+<ParameterTable schema={{"type":"object","properties":{"items":{"description":"Array of {id, ...properties} to patch","type":"array","items":{"type":"object"}}},"required":["items"]}} />
+
+**Response**
+
+<ParameterTable schema={{"type":"object","properties":{"results":{"type":"array","description":"Array of \"ok\" or {error} per item","items":{"type":"any"}}}}} fieldLabel="Field" hideRequired />
+
+## delete
+
+**edit** | *inherited*
+
+Delete nodes
+
+<ParameterTable schema={{"type":"object","properties":{"id":{"description":"Single node ID","type":"string"},"items":{"description":"Batch: [{id}, ...]","type":"array","items":{"type":"object","properties":{"id":{"type":"string"}}}}}}} />
+
+**Response**
+
+<ParameterTable schema={{"type":"object","properties":{"results":{"type":"array","description":"Array of \"ok\" per item","items":{"type":"string"}}}}} fieldLabel="Field" hideRequired />
+
+## clone
+
+**create** | *inherited*
+
+Duplicate nodes
+
+<ParameterTable schema={{"type":"object","properties":{"id":{"description":"Node ID","type":"string"},"parentId":{"description":"Parent node ID. Omit to place on current page.","type":"string"},"x":{"description":"X position (default: 0)","type":"number"},"y":{"description":"Y position (default: 0)","type":"number"},"depth":{"description":"Response detail: omit for id+name only. 0=properties + child stubs. N=recurse N levels. -1=unlimited.","type":"number"}},"required":["id"]}} />
+
+**Response**
+
+<ParameterTable schema={{"type":"object","properties":{"results":{"type":"array","description":"One entry per input item","items":{"type":"object","properties":{"id":{"type":"string"}}}}}}} fieldLabel="Field" hideRequired />
+
+## reparent
+
+**edit** | *inherited*
+
+Move nodes into a new parent
+
+<ParameterTable schema={{"type":"object","properties":{"items":{"description":"Array of {id, parentId, index?}","type":"array","items":{"type":"object","properties":{"id":{"type":"string"},"parentId":{"type":"string"},"index":{"type":"number"}},"required":["id","parentId"]}}},"required":["items"]}} />
+
+**Response**
+
+<ParameterTable schema={{"type":"object","properties":{"results":{"type":"array","description":"Array of \"ok\" per item","items":{"type":"string"}}}}} fieldLabel="Field" hideRequired />
+
+## create
+
+**create**
+
+Create frame-like containers
+
+No parameters.
+
+
+Discriminated by `type`. Available types:
+
+#### frame
+
+Static frame with fixed dimensions
+
+<ParameterTable schema={{"type":"object","properties":{"name":{"description":"Node name","type":"string"},"parentId":{"description":"Parent node ID. Omit to place on current page.","type":"string"},"x":{"description":"X position (default: 0)","type":"number"},"y":{"description":"Y position (default: 0)","type":"number"},"width":{"description":"Width (default: 100)","type":"number"},"height":{"description":"Height (default: 100)","type":"number"},"opacity":{"description":"Opacity (0-1) or variable name","type":"token"},"fillColor":{"description":"Fill color (auto-binds to matching variable/style)","type":"string"},"fillStyleName":{"description":"Paint style name for fill","type":"string"},"fillVariableName":{"description":"Color variable by name e.g. 'bg/primary'","type":"string"},"strokeColor":{"description":"Stroke color (auto-binds to matching variable/style)","type":"string"},"strokeStyleName":{"description":"Paint style name for stroke","type":"string"},"strokeVariableName":{"description":"Color variable by name for stroke","type":"string"},"strokeWeight":{"description":"All sides (number) or variable name (string). Per-side: strokeTopWeight, strokeBottomWeight, strokeLeftWeight, strokeRightWeight.","type":"token"},"strokeTopWeight":{"type":"token"},"strokeBottomWeight":{"type":"token"},"strokeLeftWeight":{"type":"token"},"strokeRightWeight":{"type":"token"},"cornerRadius":{"description":"All corners (number) or variable name (string). Per-corner: topLeftRadius, topRightRadius, bottomRightRadius, bottomLeftRadius.","type":"token"},"topLeftRadius":{"type":"token"},"topRightRadius":{"type":"token"},"bottomRightRadius":{"type":"token"},"bottomLeftRadius":{"type":"token"},"effectStyleName":{"description":"Effect style name (e.g. 'Shadow/Card') for shadows, blurs","type":"string"},"layoutMode":{"description":"Layout direction (default: NONE)","type":"string","enum":["NONE","HORIZONTAL","VERTICAL"]},"layoutWrap":{"type":"string","enum":["NO_WRAP","WRAP"]},"padding":{"description":"All edges (number) or variable name (string). Per-edge: paddingTop, paddingRight, paddingBottom, paddingLeft.","type":"token"},"paddingTop":{"type":"token"},"paddingRight":{"type":"token"},"paddingBottom":{"type":"token"},"paddingLeft":{"type":"token"},"primaryAxisAlignItems":{"type":"string","enum":["MIN","MAX","CENTER","SPACE_BETWEEN"]},"counterAxisAlignItems":{"type":"string","enum":["MIN","MAX","CENTER","BASELINE"]},"layoutSizingHorizontal":{"type":"string","enum":["FIXED","HUG","FILL"]},"layoutSizingVertical":{"type":"string","enum":["FIXED","HUG","FILL"]},"itemSpacing":{"description":"Spacing between children (default: 0)","type":"token"},"counterAxisSpacing":{"description":"Gap between wrapped rows (requires layoutWrap: WRAP)","type":"token"},"minWidth":{"description":"Min width for responsive auto-layout","type":"number"},"maxWidth":{"description":"Max width for responsive auto-layout","type":"number"},"minHeight":{"description":"Min height for responsive auto-layout","type":"number"},"maxHeight":{"description":"Max height for responsive auto-layout","type":"number"},"clipsContent":{"type":"boolean"}}}} />
+
+#### auto_layout
+
+Auto-layout frame that arranges children automatically
+
+<ParameterTable schema={{"type":"object","properties":{"name":{"description":"Node name","type":"string"},"parentId":{"description":"Parent node ID. Omit to place on current page.","type":"string"},"x":{"description":"X position (default: 0)","type":"number"},"y":{"description":"Y position (default: 0)","type":"number"},"width":{"description":"Width (default: 100)","type":"number"},"height":{"description":"Height (default: 100)","type":"number"},"opacity":{"description":"Opacity (0-1) or variable name","type":"token"},"fillColor":{"description":"Fill color (auto-binds to matching variable/style)","type":"string"},"fillStyleName":{"description":"Paint style name for fill","type":"string"},"fillVariableName":{"description":"Color variable by name e.g. 'bg/primary'","type":"string"},"strokeColor":{"description":"Stroke color (auto-binds to matching variable/style)","type":"string"},"strokeStyleName":{"description":"Paint style name for stroke","type":"string"},"strokeVariableName":{"description":"Color variable by name for stroke","type":"string"},"strokeWeight":{"description":"Stroke weight (default: 1)","type":"token"},"cornerRadius":{"description":"All corners (number) or variable name (string). Per-corner: topLeftRadius, topRightRadius, bottomRightRadius, bottomLeftRadius.","type":"token"},"topLeftRadius":{"type":"token"},"topRightRadius":{"type":"token"},"bottomRightRadius":{"type":"token"},"bottomLeftRadius":{"type":"token"},"effectStyleName":{"description":"Effect style name (e.g. 'Shadow/Card') for shadows, blurs","type":"string"},"layoutMode":{"description":"Primary axis direction","type":"string","enum":["HORIZONTAL","VERTICAL"]},"layoutWrap":{"type":"string","enum":["NO_WRAP","WRAP"]},"padding":{"description":"All edges (number) or variable name (string). Per-edge: paddingTop, paddingRight, paddingBottom, paddingLeft.","type":"token"},"paddingTop":{"type":"token"},"paddingRight":{"type":"token"},"paddingBottom":{"type":"token"},"paddingLeft":{"type":"token"},"primaryAxisAlignItems":{"type":"string","enum":["MIN","MAX","CENTER","SPACE_BETWEEN"]},"counterAxisAlignItems":{"type":"string","enum":["MIN","MAX","CENTER","BASELINE"]},"layoutSizingHorizontal":{"type":"string","enum":["FIXED","HUG","FILL"]},"layoutSizingVertical":{"type":"string","enum":["FIXED","HUG","FILL"]},"itemSpacing":{"description":"Spacing between children (default: 0)","type":"token"},"counterAxisSpacing":{"description":"Gap between wrapped rows (requires layoutWrap: WRAP)","type":"token"},"minWidth":{"description":"Min width for responsive auto-layout","type":"number"},"maxWidth":{"description":"Max width for responsive auto-layout","type":"number"},"minHeight":{"description":"Min height for responsive auto-layout","type":"number"},"maxHeight":{"description":"Max height for responsive auto-layout","type":"number"},"clipsContent":{"type":"boolean"},"nodeIds":{"description":"Existing node IDs to wrap into auto-layout","type":"array","items":{"type":"string"}}},"required":["layoutMode"]}} />
+
+#### section
+
+Figma section (top-level organizer)
+
+<ParameterTable schema={{"type":"object","properties":{"name":{"description":"Section name","type":"string"},"parentId":{"description":"Parent node ID. Omit to place on current page.","type":"string"},"x":{"description":"X position (default: 0)","type":"number"},"y":{"description":"Y position (default: 0)","type":"number"},"width":{"description":"Width (default: 500)","type":"number"},"height":{"description":"Height (default: 500)","type":"number"},"fillColor":{"description":"Background fill color (auto-binds to matching variable/style)","type":"string"},"fillStyleName":{"description":"Paint style name for fill","type":"string"},"fillVariableName":{"description":"Color variable by name e.g. 'bg/primary'","type":"string"}},"required":["name"]}} />
+
+#### rectangle
+
+Rectangle shape node
+
+<ParameterTable schema={{"type":"object","properties":{"name":{"description":"Layer name (default: 'Rectangle')","type":"string"},"parentId":{"description":"Parent node ID. Omit to place on current page.","type":"string"},"x":{"description":"X position (default: 0)","type":"number"},"y":{"description":"Y position (default: 0)","type":"number"},"width":{"description":"Width in px (default: 100)","type":"number"},"height":{"description":"Height in px (default: 100)","type":"number"},"fillColor":{"description":"Fill color (auto-binds to matching variable/style)","type":"string"},"fillStyleName":{"description":"Paint style name for fill","type":"string"},"fillVariableName":{"description":"Color variable by name e.g. 'bg/primary'","type":"string"},"strokeColor":{"description":"Stroke color (auto-binds to matching variable/style)","type":"string"},"strokeVariableName":{"description":"Color variable by name for stroke","type":"string"},"strokeWeight":{"type":"token"},"cornerRadius":{"description":"All corners (number) or variable name (string). Per-corner: topLeftRadius, topRightRadius, bottomRightRadius, bottomLeftRadius.","type":"token"},"topLeftRadius":{"type":"token"},"topRightRadius":{"type":"token"},"bottomRightRadius":{"type":"token"},"bottomLeftRadius":{"type":"token"},"opacity":{"type":"token"},"layoutSizingHorizontal":{"description":"Horizontal sizing in auto-layout parent","type":"string"},"layoutSizingVertical":{"description":"Vertical sizing in auto-layout parent","type":"string"}}}} />
+
+#### ellipse
+
+Ellipse/circle shape node
+
+<ParameterTable schema={{"type":"object","properties":{"name":{"description":"Layer name (default: 'Ellipse')","type":"string"},"parentId":{"description":"Parent node ID. Omit to place on current page.","type":"string"},"x":{"description":"X position (default: 0)","type":"number"},"y":{"description":"Y position (default: 0)","type":"number"},"width":{"description":"Width in px (default: 100)","type":"number"},"height":{"description":"Height in px (default: 100, same as width for circle)","type":"number"},"fillColor":{"description":"Fill color (auto-binds to matching variable/style)","type":"string"},"fillStyleName":{"description":"Paint style name for fill","type":"string"},"fillVariableName":{"description":"Color variable by name e.g. 'bg/primary'","type":"string"},"strokeColor":{"description":"Stroke color (auto-binds to matching variable/style)","type":"string"},"strokeVariableName":{"description":"Color variable by name for stroke","type":"string"},"strokeWeight":{"type":"token"},"opacity":{"type":"token"},"layoutSizingHorizontal":{"description":"Horizontal sizing in auto-layout parent","type":"string"},"layoutSizingVertical":{"description":"Vertical sizing in auto-layout parent","type":"string"}}}} />
+
+#### line
+
+Line shape node
+
+<ParameterTable schema={{"type":"object","properties":{"name":{"description":"Layer name (default: 'Line')","type":"string"},"parentId":{"description":"Parent node ID. Omit to place on current page.","type":"string"},"x":{"description":"X position (default: 0)","type":"number"},"y":{"description":"Y position (default: 0)","type":"number"},"length":{"description":"Line length in px (default: 100)","type":"number"},"rotation":{"description":"Rotation in degrees (default: 0 = horizontal)","type":"number"},"strokeColor":{"description":"Line color (default: black, auto-binds to matching variable/style)","type":"string"},"strokeVariableName":{"description":"Color variable by name for stroke","type":"string"},"strokeWeight":{"description":"Line thickness (default: 1)","type":"token"},"opacity":{"type":"token"},"layoutSizingHorizontal":{"description":"Horizontal sizing in auto-layout parent (defaults to FILL in vertical auto-layout)","type":"string"}}}} />
+
+#### group
+
+Group existing nodes together
+
+<ParameterTable schema={{"type":"object","properties":{"nodeIds":{"description":"Node IDs to group (min 1)","type":"array","items":{"type":"string"}},"name":{"description":"Group name","type":"string"},"parentId":{"description":"Parent node ID. Omit to place on current page.","type":"string"}},"required":["nodeIds"]}} />
+
+#### boolean_operation
+
+Combine shapes with boolean operations (union, subtract, intersect, exclude)
+
+<ParameterTable schema={{"type":"object","properties":{"operation":{"description":"Boolean operation type","type":"string","enum":["UNION","SUBTRACT","INTERSECT","EXCLUDE"]},"nodeIds":{"description":"Node IDs to combine (min 2, first node is the base for SUBTRACT)","type":"array","items":{"type":"string"}},"name":{"description":"Result node name","type":"string"},"parentId":{"description":"Parent node ID. Omit to place on current page.","type":"string"}},"required":["operation","nodeIds"]}} />
+
+#### svg
+
+Create node from SVG markup
+
+<ParameterTable schema={{"type":"object","properties":{"svg":{"description":"SVG markup string","type":"string"},"name":{"description":"Layer name (default: 'SVG')","type":"string"},"parentId":{"description":"Parent node ID. Omit to place on current page.","type":"string"},"x":{"description":"X position (default: 0)","type":"number"},"y":{"description":"Y position (default: 0)","type":"number"},"fillStyleName":{"description":"Paint style to apply to vector fills","type":"string"},"fillVariableName":{"description":"Color variable by name for vector fills","type":"string"}},"required":["svg"]}} />
+
+**Response**
+
+<ParameterTable schema={{"type":"object","properties":{"results":{"type":"array","description":"One entry per input item","items":{"type":"object","properties":{"id":{"type":"string"}}}}}}} fieldLabel="Field" hideRequired />
+
+## export
+
+Export a node as PNG, JPG, SVG, SVG_STRING, or PDF
+
+<ParameterTable schema={{"type":"object","properties":{"nodeId":{"description":"Node ID to export","type":"string"},"format":{"description":"Export format (default: PNG). SVG_STRING returns raw SVG text.","type":"string","enum":["PNG","JPG","SVG","SVG_STRING","PDF"]},"scale":{"description":"Export scale (default: 1, only for PNG/JPG)","type":"number"}},"required":["nodeId"]}} />
+
+**Response**
+
+Binary image data returned as MCP image content (SVG_STRING returns text)
+
+<ParameterTable schema={{"type":"object","properties":{"imageData":{"type":"string"},"mimeType":{"type":"string"}}}} fieldLabel="Field" hideRequired />

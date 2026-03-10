@@ -1,51 +1,22 @@
-import { batchHandler, appendToParent, solidPaint, styleNotFoundHint, suggestStyleForColor, findVariableById } from "./helpers";
+import { batchHandler, appendToParent, applyTokens } from "./helpers";
+import { setupFrameNode } from "./create-frame";
 import { createDispatcher, paginate, pickFields } from "@ufira/vibma/endpoint";
 
-// ─── Figma Handlers ──────────────────────────────────────────────
-
-// -- Shared helpers --
-
-async function resolvePaintStyle(name: string): Promise<{ id: string | null, available: string[] }> {
-  const styles = await figma.getLocalPaintStylesAsync();
-  const available = styles.map(s => s.name);
-  const exact = styles.find(s => s.name === name);
-  if (exact) return { id: exact.id, available };
-  const fuzzy = styles.find(s => s.name.toLowerCase().includes(name.toLowerCase()));
-  return { id: fuzzy?.id ?? null, available };
-}
-
-async function bindFillVariable(node: any, variableId: string, fallbackColor?: any) {
-  const v = await findVariableById(variableId);
-  if (!v) return false;
-  node.fills = [solidPaint(fallbackColor || { r: 0, g: 0, b: 0 })];
-  const bound = figma.variables.setBoundVariableForPaint(node.fills[0], "color", v);
-  node.fills = [bound];
-  return true;
-}
-
-async function bindStrokeVariable(node: any, variableId: string, fallbackColor?: any) {
-  const v = await findVariableById(variableId);
-  if (!v) return false;
-  node.strokes = [solidPaint(fallbackColor || { r: 0, g: 0, b: 0 })];
-  const bound = figma.variables.setBoundVariableForPaint(node.strokes[0], "color", v);
-  node.strokes = [bound];
-  return true;
-}
-
-function findTextNodes(node: BaseNode): TextNode[] {
+function findTextNodes(node: BaseNode, skipInstances = false): TextNode[] {
   if (node.type === "TEXT") return [node as TextNode];
+  if (skipInstances && node.type === "INSTANCE") return [];
   if ("children" in node) {
     const result: TextNode[] = [];
-    for (const child of (node as any).children) result.push(...findTextNodes(child));
+    for (const child of (node as any).children) result.push(...findTextNodes(child, skipInstances));
     return result;
   }
   return [];
 }
 
 function warnUnboundText(comp: ComponentNode, hints: string[]) {
-  const textNodes = findTextNodes(comp);
+  const textNodes = findTextNodes(comp, true);
   if (textNodes.length > 0) {
-    hints.push(`Component has ${textNodes.length} text node${textNodes.length > 1 ? "s" : ""} — use components(method: "create", type: "from_node", exposeText: true) or components(method: "update") to expose text as editable properties on instances.`);
+    hints.push(`Component has ${textNodes.length} unbound text node${textNodes.length > 1 ? "s" : ""}. Pass exposeText: true to auto-expose text as editable properties on instances.`);
   }
 }
 
@@ -73,76 +44,22 @@ function serializeComponent(node: any): Record<string, any> {
 
 async function createComponentSingle(p: any) {
   if (!p.name) throw new Error("Missing name");
-  const {
-    x = 0, y = 0, width = 100, height = 100, name, parentId,
-    fillColor, fillStyleName, fillVariableId,
-    strokeColor, strokeStyleName, strokeVariableId,
-    strokeWeight, cornerRadius,
-    layoutMode = "NONE", layoutWrap = "NO_WRAP",
-    paddingTop = 0, paddingRight = 0, paddingBottom = 0, paddingLeft = 0,
-    primaryAxisAlignItems = "MIN", counterAxisAlignItems = "MIN",
-    layoutSizingHorizontal = "FIXED", layoutSizingVertical = "FIXED",
-    itemSpacing = 0,
-  } = p;
-
-  const deferH = parentId && layoutSizingHorizontal === "FILL";
-  const deferV = parentId && layoutSizingVertical === "FILL";
 
   const comp = figma.createComponent();
-  comp.name = name;
-  comp.x = x; comp.y = y;
-  comp.resize(width, height);
+  comp.x = p.x ?? 0;
+  comp.y = p.y ?? 0;
+  comp.resize(p.width ?? 100, p.height ?? 100);
+  comp.name = p.name;
   comp.fills = [];
 
-  if (layoutMode !== "NONE") {
-    comp.layoutMode = layoutMode;
-    comp.layoutWrap = layoutWrap;
-    comp.paddingTop = paddingTop; comp.paddingRight = paddingRight;
-    comp.paddingBottom = paddingBottom; comp.paddingLeft = paddingLeft;
-    comp.primaryAxisAlignItems = primaryAxisAlignItems;
-    comp.counterAxisAlignItems = counterAxisAlignItems;
-    comp.layoutSizingHorizontal = deferH ? "FIXED" : layoutSizingHorizontal;
-    comp.layoutSizingVertical = deferV ? "FIXED" : layoutSizingVertical;
-    comp.itemSpacing = itemSpacing;
-  }
+  const { hints } = await setupFrameNode(comp, p);
 
-  const hints: string[] = [];
-  if (fillVariableId) {
-    const ok = await bindFillVariable(comp, fillVariableId, fillColor);
-    if (!ok) hints.push(`fillVariableId '${fillVariableId}' not found.`);
-  } else if (fillStyleName) {
-    const { id: sid, available } = await resolvePaintStyle(fillStyleName);
-    if (sid) {
-      try { await (comp as any).setFillStyleIdAsync(sid); }
-      catch (e: any) { hints.push(`fillStyleName '${fillStyleName}' matched but failed to apply: ${e.message}`); }
-    } else hints.push(styleNotFoundHint("fillStyleName", fillStyleName, available));
-  } else if (fillColor) {
-    comp.fills = [solidPaint(fillColor)];
-    const suggestion = await suggestStyleForColor(fillColor, "fillStyleName");
-    if (suggestion) hints.push(suggestion);
-  }
-
-  if (strokeVariableId) {
-    const ok = await bindStrokeVariable(comp, strokeVariableId, strokeColor);
-    if (!ok) hints.push(`strokeVariableId '${strokeVariableId}' not found.`);
-  } else if (strokeStyleName) {
-    const { id: sid, available } = await resolvePaintStyle(strokeStyleName);
-    if (sid) {
-      try { await (comp as any).setStrokeStyleIdAsync(sid); }
-      catch (e: any) { hints.push(`strokeStyleName '${strokeStyleName}' matched but failed to apply: ${e.message}`); }
-    } else hints.push(styleNotFoundHint("strokeStyleName", strokeStyleName, available));
-  } else if (strokeColor) {
-    comp.strokes = [solidPaint(strokeColor)];
-    const suggestion = await suggestStyleForColor(strokeColor, "strokeStyleName");
-    if (suggestion) hints.push(suggestion);
-  }
-  if (strokeWeight !== undefined) comp.strokeWeight = strokeWeight;
-  if (cornerRadius !== undefined) comp.cornerRadius = cornerRadius;
-
-  const parent = await appendToParent(comp, parentId);
-  if (parent) {
-    if (deferH) { try { comp.layoutSizingHorizontal = "FILL"; } catch {} }
-    if (deferV) { try { comp.layoutSizingVertical = "FILL"; } catch {} }
+  // Add component properties if provided
+  if (p.properties?.length) {
+    for (const prop of p.properties) {
+      const options = prop.preferredValues ? { preferredValues: prop.preferredValues } : undefined;
+      comp.addComponentProperty(prop.propertyName, prop.type, prop.defaultValue, options);
+    }
   }
 
   warnUnboundText(comp, hints);
@@ -152,23 +69,66 @@ async function createComponentSingle(p: any) {
   return result;
 }
 
+/**
+ * Derive a semantic property name for a text node.
+ * Priority: explicit layer name (if different from content) > positional role > sanitized content.
+ */
+function deriveTextPropertyName(textNode: TextNode, index: number, total: number, usedNames: Set<string>): string {
+  const layerName = textNode.name;
+  const content = textNode.characters;
+
+  let name: string;
+
+  // If the layer was explicitly renamed (name differs from content), trust the layer name
+  if (layerName !== content) {
+    name = layerName;
+  } else if (total <= 4) {
+    // For small groups, assign semantic names based on order
+    const roles = ["title", "description", "detail", "caption"];
+    name = roles[index] || `text_${index + 1}`;
+  } else {
+    // Fallback: sanitize content to a short slug
+    const slug = content.replace(/[^a-zA-Z0-9]+/g, "_").replace(/^_|_$/g, "").toLowerCase().slice(0, 24);
+    name = slug || `text_${index + 1}`;
+  }
+
+  // Deduplicate: append _2, _3 etc. if name already used
+  const base = name;
+  let counter = 2;
+  while (usedNames.has(name)) {
+    name = `${base}_${counter++}`;
+  }
+  usedNames.add(name);
+  return name;
+}
+
 async function fromNodeSingle(p: any) {
   const node = await figma.getNodeByIdAsync(p.nodeId);
   if (!node) throw new Error(`Node not found: ${p.nodeId}`);
   if (node.type === "DOCUMENT" || node.type === "PAGE") throw new Error(`Cannot convert ${node.type} to a component.`);
   if (node.type === "COMPONENT") throw new Error(`Node "${node.name}" is already a COMPONENT.`);
   if (node.type === "COMPONENT_SET") throw new Error(`Node "${node.name}" is already a COMPONENT_SET. Use components(method: "get") to inspect it.`);
-  if (node.type === "INSTANCE") throw new Error(`Node "${node.name}" is an INSTANCE. Detach it first with patch_nodes, or use the source component directly.`);
+  if (node.type === "INSTANCE") throw new Error(`Node "${node.name}" is an INSTANCE. Detach it first with instances(method:"detach"), or use the source component directly.`);
   const comp = figma.createComponentFromNode(node as SceneNode);
 
   const hints: string[] = [];
   const exposedProperties: Record<string, string> = {};
 
-  if (p.exposeText) {
-    const textNodes = findTextNodes(comp);
-    for (const textNode of textNodes) {
-      const propName = textNode.name;
+  if (p.exposeText !== false) {
+    const textNodes = findTextNodes(comp, true);
+    // Sort by vertical then horizontal position for consistent role assignment
+    const sorted = [...textNodes].sort((a, b) => a.y - b.y || a.x - b.x);
+    const usedNames = new Set<string>();
+    for (let i = 0; i < sorted.length; i++) {
+      const textNode = sorted[i];
+      const propName = deriveTextPropertyName(textNode, i, sorted.length, usedNames);
       const defaultValue = textNode.characters;
+
+      // Also rename the layer to match the property name for consistency
+      if (textNode.name === textNode.characters) {
+        textNode.name = propName;
+      }
+
       comp.addComponentProperty(propName, "TEXT", defaultValue);
       const defs = comp.componentPropertyDefinitions;
       const key = Object.keys(defs).find(k => k === propName || k.startsWith(propName + "#"));
@@ -200,14 +160,43 @@ async function combineSingle(p: any) {
     ? comps[0].parent : figma.currentPage;
   const set = figma.combineAsVariants(comps, parent as any);
   if (p.name) set.name = p.name;
+
+  // Reset combineAsVariants' default layout so setupFrameNode applies cleanly
+  set.layoutMode = "NONE";
+  set.fills = [];
+
+  const { hints } = await setupFrameNode(set as any, p);
+
+  // Rename auto-generated variant property if variantPropertyName is specified
+  if (p.variantPropertyName) {
+    const defs = set.componentPropertyDefinitions;
+    const variantKeys = Object.keys(defs).filter(k => defs[k].type === "VARIANT");
+    // Prefer auto-generated "Property N" names
+    let autoKey = variantKeys.find(k => /^Property \d+$/.test(k));
+    // If no auto-generated key and exactly one variant prop, rename that
+    if (!autoKey && variantKeys.length === 1) autoKey = variantKeys[0];
+    if (autoKey) {
+      try {
+        set.editComponentProperty(autoKey, { name: p.variantPropertyName });
+      } catch (e: any) {
+        hints.push(`Failed to rename variant property "${autoKey}" to "${p.variantPropertyName}": ${e.message}`);
+      }
+    } else if (variantKeys.length === 0) {
+      hints.push(`No VARIANT properties found to rename.`);
+    } else {
+      hints.push(`Multiple variant properties found (${variantKeys.join(", ")}). Cannot auto-rename — use components(method:"update", action:"edit") to rename each.`);
+    }
+  }
+
   // Check for unbound text nodes across all variants
   const unboundCount = comps.reduce((n, c) => {
     return n + findTextNodes(c).filter(t => !(t as any).componentPropertyReferences?.characters).length;
   }, 0);
   const result: any = { id: set.id };
   if (unboundCount > 0) {
-    result.warning = `${unboundCount} text node${unboundCount > 1 ? "s" : ""} across variants not exposed as properties — instances cannot edit this text via properties. Fix: components(method: "update", items: [{id: "${set.id}", propertyName: "<textNodeName>", type: "TEXT", defaultValue: "<text>"}])`;
+    hints.push(`${unboundCount} text node${unboundCount > 1 ? "s" : ""} across variants not exposed as properties — instances cannot edit this text via properties. Fix: components(method: "update", items: [{id: "${set.id}", propertyName: "<textNodeName>", type: "TEXT", defaultValue: "<text>"}])`);
   }
+  if (hints.length > 0) result.warning = hints.join(" ");
   return result;
 }
 
@@ -251,17 +240,100 @@ async function listComponentsFigma(params: any) {
   return { ...paged, items };
 }
 
-async function addComponentPropertySingle(p: any) {
+async function updateComponentPropertySingle(p: any) {
   const node = await figma.getNodeByIdAsync(p.id);
   if (!node) throw new Error(`Node not found: ${p.id}`);
   if (node.type !== "COMPONENT" && node.type !== "COMPONENT_SET") throw new Error(`Node ${p.id} is a ${node.type}, not a COMPONENT or COMPONENT_SET.`);
-  (node as any).addComponentProperty(p.propertyName, p.type, p.defaultValue);
-  const defs = (node as any).componentPropertyDefinitions;
+  const comp = node as any;
+
+  // Resolve property name with prefix matching (agents may omit the #suffix)
+  function resolveKey(name: string): string {
+    const defs = comp.componentPropertyDefinitions;
+    if (defs[name]) return name;
+    const match = Object.keys(defs).find(k => k.startsWith(name + "#"));
+    return match ?? name;
+  }
+
+  // Delete property
+  if (p.action === "delete") {
+    comp.deleteComponentProperty(resolveKey(p.propertyName));
+    return {};
+  }
+
+  // Rename variant options: changes child component names within a component set
+  if (p.action === "rename_variant") {
+    if (comp.type !== "COMPONENT_SET") throw new Error("rename_variant requires a COMPONENT_SET node");
+    const propName = p.propertyName;
+    if (p.defaultValue === undefined || p.name === undefined) throw new Error("rename_variant requires defaultValue (current option name) and name (new option name)");
+    const fromValue = String(p.defaultValue);
+    const toValue = String(p.name);
+    let renamed = 0;
+    for (const child of comp.children) {
+      if (child.type !== "COMPONENT") continue;
+      const vp = child.variantProperties;
+      if (!vp || vp[propName] !== fromValue) continue;
+      const parts = child.name.split(", ");
+      child.name = parts.map((part: string) => {
+        const eq = part.indexOf("=");
+        if (eq === -1) return part;
+        const key = part.slice(0, eq).trim();
+        const val = part.slice(eq + 1).trim();
+        return key === propName && val === fromValue ? `${key}=${toValue}` : part;
+      }).join(", ");
+      renamed++;
+    }
+    if (renamed === 0) {
+      const available = comp.children
+        .filter((c: any) => c.type === "COMPONENT" && c.variantProperties?.[propName])
+        .map((c: any) => c.variantProperties[propName]);
+      throw new Error(`No variant with ${propName}="${fromValue}" found. Available: [${[...new Set(available)].join(", ")}]`);
+    }
+    return { renamed };
+  }
+
+  // Edit existing property
+  if (p.action === "edit") {
+    const propKey = resolveKey(p.propertyName);
+    const propDef = comp.componentPropertyDefinitions[propKey];
+
+    // VARIANT defaultValue: reorder children to set the default variant
+    if (propDef?.type === "VARIANT" && p.defaultValue !== undefined && comp.type === "COMPONENT_SET") {
+      const targetChild = comp.children.find((c: any) => {
+        if (c.type !== "COMPONENT") return false;
+        return c.variantProperties?.[propKey] === String(p.defaultValue);
+      });
+      if (!targetChild) {
+        const available = comp.children
+          .filter((c: any) => c.type === "COMPONENT")
+          .map((c: any) => c.variantProperties?.[propKey])
+          .filter(Boolean);
+        throw new Error(`Variant "${p.defaultValue}" not found for property "${propKey}". Available: [${[...new Set(available)].join(", ")}]`);
+      }
+      comp.insertChild(0, targetChild);
+      // Process other edits (e.g. name rename) without defaultValue
+      const edit: any = {};
+      if (p.name !== undefined) edit.name = p.name;
+      if (p.preferredValues !== undefined) edit.preferredValues = p.preferredValues;
+      if (Object.keys(edit).length > 0) comp.editComponentProperty(propKey, edit);
+      return {};
+    }
+
+    const edit: any = {};
+    if (p.name !== undefined) edit.name = p.name;
+    if (p.defaultValue !== undefined) edit.defaultValue = p.defaultValue;
+    if (p.preferredValues !== undefined) edit.preferredValues = p.preferredValues;
+    const newKey = comp.editComponentProperty(propKey, edit);
+    return { propertyKey: newKey };
+  }
+
+  // Default: add property (backward compat)
+  const options = p.preferredValues ? { preferredValues: p.preferredValues } : undefined;
+  comp.addComponentProperty(p.propertyName, p.type, p.defaultValue, options);
+  const defs = comp.componentPropertyDefinitions;
   const key = Object.keys(defs).find(k => k === p.propertyName || k.startsWith(p.propertyName + "#"));
   if (key && p.type === "TEXT") {
-    // Auto-bind: find matching text nodes and set componentPropertyReferences
     const roots = node.type === "COMPONENT_SET"
-      ? (node as any).children.filter((c: any) => c.type === "COMPONENT")
+      ? comp.children.filter((c: any) => c.type === "COMPONENT")
       : [node];
     for (const root of roots) {
       const textNode = findTextNodes(root).find(
@@ -271,6 +343,14 @@ async function addComponentPropertySingle(p: any) {
     }
   }
   return key ? { propertyKey: key } : {};
+}
+
+async function deleteComponentSingle(p: any) {
+  const node = await figma.getNodeByIdAsync(p.id);
+  if (!node) throw new Error(`Node not found: ${p.id}`);
+  if (node.type !== "COMPONENT" && node.type !== "COMPONENT_SET") throw new Error(`Node ${p.id} is a ${node.type}, not a COMPONENT or COMPONENT_SET.`);
+  node.remove();
+  return {};
 }
 
 // -- instances handlers --
@@ -315,10 +395,42 @@ async function instanceCreateSingle(p: any) {
   }
   if (node.type !== "COMPONENT") throw new Error(`Not a component: ${node.type}`);
   const inst = node.createInstance();
+  if (p.name) inst.name = p.name;
   if (p.x !== undefined) inst.x = p.x;
   if (p.y !== undefined) inst.y = p.y;
-  await appendToParent(inst, p.parentId);
-  return { id: inst.id };
+  if (p.width !== undefined || p.height !== undefined) {
+    inst.resize(p.width ?? inst.width, p.height ?? inst.height);
+  }
+
+  const hints: string[] = [];
+  await applyTokens(inst, { opacity: p.opacity }, hints);
+
+  // Min/max constraints
+  if (p.minWidth !== undefined) (inst as any).minWidth = p.minWidth;
+  if (p.maxWidth !== undefined) (inst as any).maxWidth = p.maxWidth;
+  if (p.minHeight !== undefined) (inst as any).minHeight = p.minHeight;
+  if (p.maxHeight !== undefined) (inst as any).maxHeight = p.maxHeight;
+
+  // Defer FILL sizing until after parent append
+  const deferH = p.parentId && p.layoutSizingHorizontal === "FILL";
+  const deferV = p.parentId && p.layoutSizingVertical === "FILL";
+  if (p.layoutSizingHorizontal && !deferH) inst.layoutSizingHorizontal = p.layoutSizingHorizontal;
+  if (p.layoutSizingVertical && !deferV) inst.layoutSizingVertical = p.layoutSizingVertical;
+
+  const parent = await appendToParent(inst, p.parentId);
+  const parentIsAL = parent && "layoutMode" in parent && (parent as any).layoutMode !== "NONE";
+  if (deferH) {
+    if (parentIsAL) inst.layoutSizingHorizontal = "FILL";
+    else hints.push("layoutSizingHorizontal 'FILL' ignored — parent is not an auto-layout frame.");
+  }
+  if (deferV) {
+    if (parentIsAL) inst.layoutSizingVertical = "FILL";
+    else hints.push("layoutSizingVertical 'FILL' ignored — parent is not an auto-layout frame.");
+  }
+
+  const result: any = { id: inst.id };
+  if (hints.length > 0) result.warning = hints.join(" ");
+  return result;
 }
 
 async function instanceGetFigma(params: any) {
@@ -329,6 +441,7 @@ async function instanceGetFigma(params: any) {
   const main = await inst.getMainComponentAsync();
   return {
     mainComponentId: main?.id,
+    componentProperties: inst.componentProperties,
     overrides: overrides.map((o: any) => ({ id: o.id, fields: o.overriddenFields })),
   };
 }
@@ -337,7 +450,48 @@ async function instanceUpdateSingle(p: any) {
   const node = await figma.getNodeByIdAsync(p.id);
   if (!node) throw new Error(`Node not found: ${p.id}`);
   if (node.type !== "INSTANCE") throw new Error(`Node ${p.id} is ${node.type}, not an INSTANCE`);
-  (node as InstanceNode).setProperties(p.properties);
+  const inst = node as InstanceNode;
+  // Resolve partial property keys: "Label" → "Label#2:33"
+  // Agents often don't know the full key suffix — match by prefix.
+  const defs = inst.componentProperties;
+  const resolvedProps: Record<string, any> = {};
+  for (const [key, value] of Object.entries(p.properties)) {
+    if (defs[key]) {
+      resolvedProps[key] = value;
+    } else {
+      const match = Object.keys(defs).find(k => k.startsWith(key + "#"));
+      resolvedProps[match ?? key] = value;
+    }
+  }
+  inst.setProperties(resolvedProps);
+  return {};
+}
+
+async function instanceSwapSingle(p: any) {
+  const node = await figma.getNodeByIdAsync(p.id);
+  if (!node) throw new Error(`Node not found: ${p.id}`);
+  if (node.type !== "INSTANCE") throw new Error(`Node ${p.id} is ${node.type}, not an INSTANCE`);
+  let comp: any = await figma.getNodeByIdAsync(p.componentId);
+  if (!comp) throw new Error(`Component not found: ${p.componentId}`);
+  if (comp.type === "COMPONENT_SET") comp = comp.defaultVariant || comp.children?.[0];
+  if (comp.type !== "COMPONENT") throw new Error(`Node ${p.componentId} is ${comp.type}, not a COMPONENT`);
+  (node as InstanceNode).swapComponent(comp as ComponentNode);
+  return {};
+}
+
+async function instanceDetachSingle(p: any) {
+  const node = await figma.getNodeByIdAsync(p.id);
+  if (!node) throw new Error(`Node not found: ${p.id}`);
+  if (node.type !== "INSTANCE") throw new Error(`Node ${p.id} is ${node.type}, not an INSTANCE`);
+  const frame = (node as InstanceNode).detachInstance();
+  return { id: frame.id };
+}
+
+async function instanceResetOverridesSingle(p: any) {
+  const node = await figma.getNodeByIdAsync(p.id);
+  if (!node) throw new Error(`Node not found: ${p.id}`);
+  if (node.type !== "INSTANCE") throw new Error(`Node ${p.id} is ${node.type}, not an INSTANCE`);
+  (node as any).removeOverrides();
   return {};
 }
 
@@ -348,11 +502,15 @@ export const figmaHandlers: Record<string, (params: any) => Promise<any>> = {
     create: createComponentDispatch,
     get: getComponentFigma,
     list: listComponentsFigma,
-    update: (p) => batchHandler(p, addComponentPropertySingle),
+    update: (p) => batchHandler(p, updateComponentPropertySingle),
+    delete: (p) => batchHandler(p, deleteComponentSingle),
   }),
   instances: createDispatcher({
     create: (p) => batchHandler(p, instanceCreateSingle),
     get: instanceGetFigma,
     update: (p) => batchHandler(p, instanceUpdateSingle),
+    swap: (p) => batchHandler(p, instanceSwapSingle),
+    detach: (p) => batchHandler(p, instanceDetachSingle),
+    reset_overrides: (p) => batchHandler(p, instanceResetOverridesSingle),
   }),
 };

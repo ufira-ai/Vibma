@@ -1,0 +1,164 @@
+endpoint: frames
+extends: node
+domain: creation
+description: "Create and manage frames, auto-layout containers, and sections."
+description_zh: "创建和管理框架、自动布局容器和分区。"
+
+notes: |
+  // Frames are the primary container in Figma. Use auto_layout for responsive containers.
+  // Sizing: FIXED = explicit size, HUG = shrink to children, FILL = expand to fill parent.
+  // fillColor auto-binds: if a matching color variable or paint style exists, it is bound automatically.
+  // Token fields (cornerRadius, opacity, itemSpacing, padding, strokeWeight): pass number for value, string for variable name/ID.
+  // ---
+  // HUG and FILL only work inside an auto-layout parent. Use FIXED for top-level frames.
+  // minWidth/maxWidth/minHeight/maxHeight: responsive constraints for auto-layout children.
+  // clipsContent: true (default) clips children to the frame bounds. Set false for overflow-visible.
+  // Sections are top-level organizers (like artboards) — they cannot be nested inside frames.
+  // Shape primitives: rectangle, ellipse, line — for decorative/visual elements (not containers).
+  // group: wraps existing nodes into a Group. boolean_operation: UNION/SUBTRACT/INTERSECT/EXCLUDE combines shapes.
+  // SVG create: pass raw SVG markup string (e.g. "<svg>...</svg>") — Figma converts it to vector nodes.
+
+methods:
+  create:
+    tier: create
+    description: Create frame-like containers
+    example: 'frames(method:"create", type:"auto_layout", layoutMode:"VERTICAL", itemSpacing:16, padding:24)'
+    discriminant: type
+    types:
+      frame:
+        description: Static frame with fixed dimensions
+        params:
+          $mixin: frame_params
+          strokeWeight: { $expand: stroke, type: token }
+          clipsContent: { type: boolean, coerce: true, optional: true }
+      auto_layout:
+        description: Auto-layout frame that arranges children automatically
+        params:
+          $mixin: frame_params
+          layoutMode: { type: enum, values: [HORIZONTAL, VERTICAL], required: true, description: Primary axis direction }
+          clipsContent: { type: boolean, coerce: true, optional: true }
+          nodeIds: { type: "string[]", coerce: json, optional: true, description: "Existing node IDs to wrap into auto-layout" }
+      section:
+        description: Figma section (top-level organizer)
+        params:
+          name: { type: string, required: true, description: Section name }
+          parentId: { $ref: parentId }
+          x: { $ref: xPos }
+          y: { $ref: yPos }
+          width: { type: number, coerce: true, optional: true, description: "Width (default: 500)" }
+          height: { type: number, coerce: true, optional: true, description: "Height (default: 500)" }
+          fillColor: { $ref: color, optional: true, description: "Background fill color (auto-binds to matching variable/style)" }
+          fillStyleName: { type: string, optional: true, description: Paint style name for fill }
+          fillVariableName: { type: string, optional: true, description: "Color variable by name e.g. 'bg/primary'" }
+      rectangle:
+        description: Rectangle shape node
+        params:
+          name: { type: string, optional: true, description: "Layer name (default: 'Rectangle')" }
+          parentId: { $ref: parentId }
+          x: { $ref: xPos }
+          y: { $ref: yPos }
+          width: { type: number, coerce: true, optional: true, description: "Width in px (default: 100)" }
+          height: { type: number, coerce: true, optional: true, description: "Height in px (default: 100)" }
+          fillColor: { $ref: color, optional: true, description: "Fill color (auto-binds to matching variable/style)" }
+          fillStyleName: { type: string, optional: true, description: Paint style name for fill }
+          fillVariableName: { type: string, optional: true, description: "Color variable by name e.g. 'bg/primary'" }
+          strokeColor: { $ref: color, optional: true, description: "Stroke color (auto-binds to matching variable/style)" }
+          strokeVariableName: { type: string, optional: true, description: "Color variable by name for stroke" }
+          strokeWeight: { type: token, optional: true }
+          cornerRadius: { $expand: corners, type: token }
+          opacity: { type: token, optional: true }
+          layoutSizingHorizontal: { type: string, enum: [FIXED, FILL], optional: true, description: "Horizontal sizing in auto-layout parent" }
+          layoutSizingVertical: { type: string, enum: [FIXED, FILL], optional: true, description: "Vertical sizing in auto-layout parent" }
+      ellipse:
+        description: Ellipse/circle shape node
+        params:
+          name: { type: string, optional: true, description: "Layer name (default: 'Ellipse')" }
+          parentId: { $ref: parentId }
+          x: { $ref: xPos }
+          y: { $ref: yPos }
+          width: { type: number, coerce: true, optional: true, description: "Width in px (default: 100)" }
+          height: { type: number, coerce: true, optional: true, description: "Height in px (default: 100, same as width for circle)" }
+          fillColor: { $ref: color, optional: true, description: "Fill color (auto-binds to matching variable/style)" }
+          fillStyleName: { type: string, optional: true, description: Paint style name for fill }
+          fillVariableName: { type: string, optional: true, description: "Color variable by name e.g. 'bg/primary'" }
+          strokeColor: { $ref: color, optional: true, description: "Stroke color (auto-binds to matching variable/style)" }
+          strokeVariableName: { type: string, optional: true, description: "Color variable by name for stroke" }
+          strokeWeight: { type: token, optional: true }
+          opacity: { type: token, optional: true }
+          layoutSizingHorizontal: { type: string, enum: [FIXED, FILL], optional: true, description: "Horizontal sizing in auto-layout parent" }
+          layoutSizingVertical: { type: string, enum: [FIXED, FILL], optional: true, description: "Vertical sizing in auto-layout parent" }
+      line:
+        description: Line shape node
+        params:
+          name: { type: string, optional: true, description: "Layer name (default: 'Line')" }
+          parentId: { $ref: parentId }
+          x: { $ref: xPos }
+          y: { $ref: yPos }
+          length: { type: number, coerce: true, optional: true, description: "Line length in px (default: 100)" }
+          rotation: { type: number, coerce: true, optional: true, description: "Rotation in degrees (default: 0 = horizontal)" }
+          strokeColor: { $ref: color, optional: true, description: "Line color (default: black, auto-binds to matching variable/style)" }
+          strokeVariableName: { type: string, optional: true, description: "Color variable by name for stroke" }
+          strokeWeight: { type: token, optional: true, description: "Line thickness (default: 1)" }
+          opacity: { type: token, optional: true }
+          layoutSizingHorizontal: { type: string, enum: [FIXED, FILL], optional: true, description: "Horizontal sizing in auto-layout parent (defaults to FILL in vertical auto-layout)" }
+      group:
+        description: Group existing nodes together
+        params:
+          nodeIds:
+            type: string[]
+            required: true
+            description: "Node IDs to group (min 1)"
+          name: { type: string, optional: true, description: "Group name" }
+          parentId: { $ref: parentId }
+      boolean_operation:
+        description: Combine shapes with boolean operations (union, subtract, intersect, exclude)
+        params:
+          operation:
+            type: enum
+            values: [UNION, SUBTRACT, INTERSECT, EXCLUDE]
+            required: true
+            description: "Boolean operation type"
+          nodeIds:
+            type: string[]
+            required: true
+            description: "Node IDs to combine (min 2, first node is the base for SUBTRACT)"
+          name: { type: string, optional: true, description: "Result node name" }
+          parentId: { $ref: parentId }
+      svg:
+        description: Create node from SVG markup
+        params:
+          svg: { type: string, required: true, description: SVG markup string }
+          name: { type: string, optional: true, description: "Layer name (default: 'SVG')" }
+          parentId: { $ref: parentId }
+          x: { $ref: xPos }
+          y: { $ref: yPos }
+          fillStyleName: { type: string, optional: true, description: "Paint style to apply to vector fills" }
+          fillVariableName: { type: string, optional: true, description: "Color variable by name for vector fills" }
+    response:
+      type: batch
+      item: { id: { type: string } }
+
+  export:
+    tier: read
+    description: "Export a node as PNG, JPG, SVG, SVG_STRING, or PDF"
+    params:
+      nodeId:
+        type: string
+        required: true
+        description: Node ID to export
+      format:
+        type: enum
+        values: [PNG, JPG, SVG, SVG_STRING, PDF]
+        optional: true
+        description: "Export format (default: PNG). SVG_STRING returns raw SVG text."
+      scale:
+        type: number
+        coerce: true
+        optional: true
+        description: "Export scale (default: 1, only for PNG/JPG)"
+    response:
+      type: object
+      description: Binary image data returned as MCP image content (SVG_STRING returns text)
+      properties:
+        imageData: { type: string }
+        mimeType: { type: string }

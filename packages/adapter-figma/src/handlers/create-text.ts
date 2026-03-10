@@ -1,4 +1,4 @@
-import { batchHandler, appendToParent, styleNotFoundHint, suggestStyleForColor, suggestTextStyle, findVariableById } from "./helpers";
+import { batchHandler, appendToParent, coerceColor, suggestTextStyle, applyFontColorWithAutoBind } from "./helpers";
 
 // ─── Figma Handlers ──────────────────────────────────────────────
 
@@ -10,10 +10,64 @@ function getFontStyle(weight: number): string {
   return map[weight] || "Regular";
 }
 
+/** Strip a font style to lowercase letters only for fuzzy comparison. */
+function stripStyle(s: string): string {
+  return s.toLowerCase().replace(/[\s\-_]/g, "");
+}
+
+/**
+ * Resolve a font family + style to the exact Figma font name.
+ * Tries: exact → camelCase split → case-insensitive fuzzy → suggests available.
+ * Caches listAvailableFontsAsync results for the duration of the batch.
+ */
+let _fontCache: FontName[] | null = null;
+export async function resolveFontAsync(family: string, style: string): Promise<FontName> {
+  // 1. Exact match
+  try { await figma.loadFontAsync({ family, style }); return { family, style }; } catch {}
+
+  // 2. CamelCase split: "SemiBold" → "Semi Bold"
+  const normalized = style.replace(/([a-z])([A-Z])/g, "$1 $2");
+  if (normalized !== style) {
+    try { await figma.loadFontAsync({ family, style: normalized }); return { family, style: normalized }; } catch {}
+  }
+
+  // 3. Fuzzy match against available fonts
+  if (!_fontCache) _fontCache = await figma.listAvailableFontsAsync();
+  const familyFonts = _fontCache.filter(f => f.family.toLowerCase() === family.toLowerCase());
+  const stripped = stripStyle(style);
+  const match = familyFonts.find(f => stripStyle(f.style) === stripped);
+  if (match) {
+    await figma.loadFontAsync(match);
+    return match;
+  }
+
+  // 4. Case-insensitive family match (agent might say "inter" instead of "Inter")
+  if (familyFonts.length === 0) {
+    const looseFamilyFonts = _fontCache.filter(f => f.family.toLowerCase() === family.toLowerCase());
+    const looseMatch = looseFamilyFonts.find(f => stripStyle(f.style) === stripped);
+    if (looseMatch) {
+      await figma.loadFontAsync(looseMatch);
+      return looseMatch;
+    }
+  }
+
+  const available = [...new Set(familyFonts.map(f => f.style))];
+  throw new Error(`Font "${family}" style "${style}" not found. Available styles: [${available.join(", ")}]. Use fonts(method: "list") to see all fonts.`);
+}
+
+/** Clear font cache between batches. */
+export function clearFontCache() { _fontCache = null; }
+
+/** Compat wrapper for imports that use normalizeFontStyle — delegates to the sync portion. */
+export function normalizeFontStyle(style: string): string {
+  return style.replace(/([a-z])([A-Z])/g, "$1 $2");
+}
+
 interface CreateTextContext {
   textStyles: any[] | null;
   paintStyles: any[] | null;
   resolvedTextStyleMap: Map<string, any>;
+  resolvedFontMap: Map<string, FontName>;
   setCharacters: (node: TextNode, text: string) => Promise<void>;
 }
 
@@ -23,12 +77,13 @@ interface CreateTextContext {
 async function prepCreateText(params: any): Promise<CreateTextContext> {
   const items = params.items || [params];
 
-  // Collect unique font keys needed (family::style format)
-  const fontKeys = new Set<string>();
+  clearFontCache();
+
+  // Normalize fill* → fontColor* aliases early so preload checks see them
   for (const p of items) {
-    const family = p.fontFamily || "Inter";
-    const style = p.fontStyle || getFontStyle(p.fontWeight || 400);
-    fontKeys.add(`${family}::${style}`);
+    if (p.fillColor && !p.fontColor) p.fontColor = p.fillColor;
+    if (p.fillVariableName && !p.fontColorVariableName) p.fontColorVariableName = p.fillVariableName;
+    if (p.fillStyleName && !p.fontColorStyleName) p.fontColorStyleName = p.fillStyleName;
   }
 
   // Resolve text styles by name once (not per-item)
@@ -41,14 +96,23 @@ async function prepCreateText(params: any): Promise<CreateTextContext> {
     textStyles = await figma.getLocalTextStylesAsync();
   }
 
-  // Resolve paint styles for fontColorStyleName once
+  // Preload paint styles if any item uses fontColorStyleName
   const hasFontColorStyle = items.some((p: any) => p.fontColorStyleName);
   let paintStyles: any[] | null = null;
   if (hasFontColorStyle) {
     paintStyles = await figma.getLocalPaintStylesAsync();
   }
 
-  // Resolve text style IDs and collect their fonts for preloading
+  // Collect font requirements from items and text styles
+  const fontRequests: Array<{ family: string; style: string }> = [];
+  for (const p of items) {
+    fontRequests.push({
+      family: p.fontFamily || "Inter",
+      style: p.fontStyle || getFontStyle(p.fontWeight || 400),
+    });
+  }
+
+  // Resolve text style IDs and collect their fonts
   const resolvedTextStyleMap = new Map<string, any>();
   for (const p of items) {
     let sid = p.textStyleId;
@@ -65,21 +129,24 @@ async function prepCreateText(params: any): Promise<CreateTextContext> {
       if (s?.type === "TEXT") {
         resolvedTextStyleMap.set(sid, s);
         const fn = (s as TextStyle).fontName;
-        if (fn) fontKeys.add(`${fn.family}::${fn.style}`);
+        if (fn) fontRequests.push({ family: fn.family, style: fn.style });
       }
     }
   }
 
-  // Preload all fonts in parallel
-  await Promise.all(
-    [...fontKeys].map(key => {
-      const [family, style] = key.split("::");
-      return figma.loadFontAsync({ family, style });
-    })
-  );
+  // Resolve all fonts with fuzzy matching (dedup by key)
+  const resolvedFontMap = new Map<string, FontName>();
+  const seen = new Set<string>();
+  for (const { family, style } of fontRequests) {
+    const key = `${family}::${style}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    const resolved = await resolveFontAsync(family, style);
+    resolvedFontMap.set(key, resolved);
+  }
 
   const { setCharacters } = await import("../utils/figma-helpers");
-  return { textStyles, paintStyles, resolvedTextStyleMap, setCharacters };
+  return { textStyles, paintStyles, resolvedTextStyleMap, resolvedFontMap, setCharacters };
 }
 
 /**
@@ -90,7 +157,7 @@ async function createTextSingle(p: any, ctx: CreateTextContext) {
   const {
     x = 0, y = 0, text = "Text", fontSize = 14, fontWeight = 400,
     fontFamily = "Inter", fontStyle,
-    fontColor, fontColorVariableId, fontColorStyleName, name = "",
+    fontColor: rawFontColor, fontColorVariableId, fontColorVariableName, fontColorStyleName, name = "",
     parentId, textStyleId, textStyleName,
     textAlignHorizontal, textAlignVertical,
     layoutSizingHorizontal, layoutSizingVertical, textAutoResize,
@@ -101,8 +168,10 @@ async function createTextSingle(p: any, ctx: CreateTextContext) {
   textNode.y = y;
   textNode.name = name || text;
 
-  const style = fontStyle || getFontStyle(fontWeight);
-  textNode.fontName = { family: fontFamily, style };
+  const fontColor = rawFontColor ? coerceColor(rawFontColor) : undefined;
+  const requestedStyle = fontStyle || getFontStyle(fontWeight);
+  const resolvedFont = ctx.resolvedFontMap.get(`${fontFamily}::${requestedStyle}`) ?? { family: fontFamily, style: requestedStyle };
+  textNode.fontName = resolvedFont;
   textNode.fontSize = parseInt(String(fontSize));
 
   await ctx.setCharacters(textNode, text);
@@ -110,41 +179,17 @@ async function createTextSingle(p: any, ctx: CreateTextContext) {
   if (textAlignHorizontal) textNode.textAlignHorizontal = textAlignHorizontal;
   if (textAlignVertical) textNode.textAlignVertical = textAlignVertical;
 
-  // Font color: variableId > styleName > direct color > default black
+  // Font color: shared helper handles variableName > variableId > styleName > color (with auto-bind)
   const hints: string[] = [];
-  let colorTokenized = false;
-  if (fontColorVariableId) {
-    const v = await findVariableById(fontColorVariableId);
-    if (v) {
-      const fc = fontColor || { r: 0, g: 0, b: 0, a: 1 };
-      textNode.fills = [{ type: "SOLID", color: { r: fc.r ?? 0, g: fc.g ?? 0, b: fc.b ?? 0 }, opacity: fc.a ?? 1 }];
-      const bound = figma.variables.setBoundVariableForPaint(textNode.fills[0] as SolidPaint, "color", v);
-      textNode.fills = [bound];
-      colorTokenized = true;
-    } else {
-      hints.push(`fontColorVariableId '${fontColorVariableId}' not found.`);
-    }
-  } else if (fontColorStyleName && ctx.paintStyles) {
-    const exact = ctx.paintStyles.find((s: any) => s.name === fontColorStyleName);
-    const match = exact || ctx.paintStyles.find((s: any) => s.name.toLowerCase().includes(fontColorStyleName.toLowerCase()));
-    if (match) {
-      try {
-        await (textNode as any).setFillStyleIdAsync(match.id);
-        colorTokenized = true;
-      } catch (e: any) {
-        hints.push(`fontColorStyleName '${fontColorStyleName}' matched '${match.name}' but failed to apply: ${e.message}`);
-      }
-    } else {
-      hints.push(styleNotFoundHint("fontColorStyleName", fontColorStyleName, ctx.paintStyles!.map((s: any) => s.name)));
-    }
-  }
-  if (!colorTokenized) {
-    const fc = fontColor || { r: 0, g: 0, b: 0, a: 1 };
-    textNode.fills = [{ type: "SOLID", color: { r: fc.r ?? 0, g: fc.g ?? 0, b: fc.b ?? 0 }, opacity: fc.a ?? 1 }];
-    if (fontColor) {
-      const suggestion = await suggestStyleForColor(fontColor, "fontColorStyleName");
-      if (suggestion) hints.push(suggestion);
-    }
+  const colorTokenized = await applyFontColorWithAutoBind(
+    textNode,
+    { fontColorVariableId, fontColorVariableName, fontColorStyleName, fontColor },
+    hints,
+    ctx.paintStyles,
+  );
+  if (!colorTokenized && !fontColor && !fontColorVariableId && !fontColorVariableName && !fontColorStyleName) {
+    // Default black for text with no color specified
+    textNode.fills = [{ type: "SOLID", color: { r: 0, g: 0, b: 0 }, opacity: 1 }];
   }
 
   // Text style: by name > by ID (fonts already preloaded)
@@ -187,10 +232,14 @@ async function createTextSingle(p: any, ctx: CreateTextContext) {
   }
 
   if (layoutSizingHorizontal) {
-    try { textNode.layoutSizingHorizontal = layoutSizingHorizontal; } catch {}
+    const parentIsAL = textNode.parent && "layoutMode" in textNode.parent && (textNode.parent as any).layoutMode !== "NONE";
+    if (parentIsAL || layoutSizingHorizontal !== "FILL") { textNode.layoutSizingHorizontal = layoutSizingHorizontal; }
+    else { hints.push(`layoutSizingHorizontal '${layoutSizingHorizontal}' ignored — text node is not inside an auto-layout frame.`); }
   }
   if (layoutSizingVertical) {
-    try { textNode.layoutSizingVertical = layoutSizingVertical; } catch {}
+    const parentIsAL = textNode.parent && "layoutMode" in textNode.parent && (textNode.parent as any).layoutMode !== "NONE";
+    if (parentIsAL || layoutSizingVertical !== "FILL") { textNode.layoutSizingVertical = layoutSizingVertical; }
+    else { hints.push(`layoutSizingVertical '${layoutSizingVertical}' ignored — text node is not inside an auto-layout frame.`); }
   }
 
   const result: any = { id: textNode.id };
