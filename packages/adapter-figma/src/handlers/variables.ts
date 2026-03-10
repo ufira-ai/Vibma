@@ -150,6 +150,14 @@ async function createVariableSingle(p: any) {
     try { variable.scopes = p.scopes; }
     catch (e: any) { hints.push(`in set_scopes: ${e.message}`); }
   }
+  // Check for name collisions across collections — hint to use prefixed names
+  const allVars = await figma.variables.getLocalVariablesAsync();
+  const dupes = allVars.filter(v => v.name === p.name && v.variableCollectionId !== collection.id);
+  if (dupes.length > 0) {
+    const collections = await figma.variables.getLocalVariableCollectionsAsync();
+    const colNames = dupes.map(v => collections.find(c => c.id === v.variableCollectionId)?.name || "?");
+    hints.push(`Name "${p.name}" also exists in collection(s): [${colNames.join(", ")}]. Use "${collection.name}/${p.name}" to disambiguate when referencing this variable.`);
+  }
   const result: any = {};
   if (hints.length > 0) result.warning = hints.join(" ");
   return result;

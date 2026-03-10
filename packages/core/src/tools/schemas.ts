@@ -45,16 +45,19 @@ function parseHex(hex: string): { r: number; g: number; b: number; a?: number } 
   return { r, g, b };
 }
 
-/** RGBA color — accepts {r,g,b,a?} object (0-1) or hex string (#RGB, #RRGGBB, #RRGGBBAA) */
+/** RGBA color — accepts {r,g,b,a?} object (0-1), hex string (#RGB, #RRGGBB, #RRGGBBAA), or style/variable name string */
 export const colorRgba = z.preprocess((v) => {
   if (typeof v === "string") return parseHex(v) ?? v;
   return v;
-}, z.object({
-  r: z.coerce.number().min(0).max(1),
-  g: z.coerce.number().min(0).max(1),
-  b: z.coerce.number().min(0).max(1),
-  a: z.coerce.number().min(0).max(1).optional(),
-})).describe('Hex "#FF0000" or {r,g,b,a?} with values 0-1.');
+}, z.union([
+  z.object({
+    r: z.coerce.number().min(0).max(1),
+    g: z.coerce.number().min(0).max(1),
+    b: z.coerce.number().min(0).max(1),
+    a: z.coerce.number().min(0).max(1).optional(),
+  }),
+  z.string(), // Non-hex strings pass through for handler-level style/variable resolution
+])).describe('Hex "#FF0000", {r,g,b,a?} 0-1, or style/variable name.');
 
 /** Variable value — color (hex or RGBA), number, boolean, string, or alias */
 export const variableValue = z.preprocess((v) => {

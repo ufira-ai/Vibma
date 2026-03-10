@@ -60,6 +60,20 @@ export async function setupFrameNode(
   await applyFillWithAutoBind(node, p, hints);
   await applyStrokeWithAutoBind(node, p, hints);
 
+  // Effect style
+  if (p.effectStyleName) {
+    const styles = await figma.getLocalEffectStylesAsync();
+    const exact = styles.find(s => s.name === p.effectStyleName);
+    const match = exact || styles.find(s => s.name.toLowerCase().includes(p.effectStyleName.toLowerCase()));
+    if (match) {
+      await (node as any).setEffectStyleIdAsync(match.id);
+    } else {
+      const names = styles.map(s => s.name).slice(0, 20);
+      const suffix = styles.length > 20 ? `, … and ${styles.length - 20} more` : "";
+      hints.push(`effectStyleName '${p.effectStyleName}' not found. Available: [${names.join(", ")}${suffix}]`);
+    }
+  }
+
   // Min/max dimensions
   if (p.minWidth !== undefined) (node as any).minWidth = p.minWidth;
   if (p.maxWidth !== undefined) (node as any).maxWidth = p.maxWidth;

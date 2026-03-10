@@ -356,8 +356,30 @@ export async function applyFillWithAutoBind(
 
   // 4. Direct color — auto-bind if matching variable/style exists
   if (p.fillColor) {
-    node.fills = [solidPaint(p.fillColor)];
-    const match = await suggestStyleForColor(p.fillColor, "fillStyleName", "ALL_FILLS");
+    const color = coerceColor(p.fillColor);
+    if (!color) {
+      // Not a valid color — maybe the user passed a style/variable name by mistake
+      // Try resolving as style name first, then variable name
+      const styles = await figma.getLocalPaintStylesAsync();
+      const exact = styles.find(s => s.name === p.fillColor);
+      const match = exact || styles.find(s => s.name.toLowerCase() === String(p.fillColor).toLowerCase());
+      if (match) {
+        try { await node.setFillStyleIdAsync(match.id); hints.push(`fillColor '${p.fillColor}' resolved as paint style. Use fillStyleName instead for clarity.`); return true; }
+        catch (e: any) { hints.push(`fillColor '${p.fillColor}' matched style but failed: ${e.message}`); return false; }
+      }
+      const v = await findColorVariableByName(String(p.fillColor));
+      if (v) {
+        node.fills = [solidPaint({ r: 0, g: 0, b: 0 })];
+        const bound = figma.variables.setBoundVariableForPaint(node.fills[0] as SolidPaint, "color", v);
+        node.fills = [bound];
+        hints.push(`fillColor '${p.fillColor}' resolved as color variable. Use fillVariableName instead for clarity.`);
+        return true;
+      }
+      hints.push(`fillColor '${p.fillColor}' is not a valid color (hex or {r,g,b}), paint style, or color variable.`);
+      return false;
+    }
+    node.fills = [solidPaint(color)];
+    const match = await suggestStyleForColor(color, "fillStyleName", "ALL_FILLS");
     if (match.variable) {
       // Auto-bind to matching variable
       const bound = figma.variables.setBoundVariableForPaint(node.fills[0] as SolidPaint, "color", match.variable);
@@ -422,16 +444,38 @@ export async function applyStrokeWithAutoBind(
       hints.push(styleNotFoundHint("strokeStyleName", p.strokeStyleName, available));
     }
   } else if (p.strokeColor) {
-    node.strokes = [solidPaint(p.strokeColor)];
-    const match = await suggestStyleForColor(p.strokeColor, "strokeStyleName", "STROKE_COLOR");
-    if (match.variable) {
-      const bound = figma.variables.setBoundVariableForPaint(node.strokes[0] as SolidPaint, "color", match.variable);
-      node.strokes = [bound];
-      hints.push(match.hint);
-    } else if (match.paintStyleId) {
-      try { await node.setStrokeStyleIdAsync(match.paintStyleId); hints.push(match.hint); } catch {}
+    const color = coerceColor(p.strokeColor);
+    if (!color) {
+      // Not a valid color — try resolving as style/variable name
+      const styles = await figma.getLocalPaintStylesAsync();
+      const exact = styles.find(s => s.name === p.strokeColor);
+      const match = exact || styles.find(s => s.name.toLowerCase() === String(p.strokeColor).toLowerCase());
+      if (match) {
+        try { await node.setStrokeStyleIdAsync(match.id); hints.push(`strokeColor '${p.strokeColor}' resolved as paint style. Use strokeStyleName instead for clarity.`); }
+        catch (e: any) { hints.push(`strokeColor '${p.strokeColor}' matched style but failed: ${e.message}`); }
+      } else {
+        const v = await findColorVariableByName(String(p.strokeColor));
+        if (v) {
+          node.strokes = [solidPaint({ r: 0, g: 0, b: 0 })];
+          const bound = figma.variables.setBoundVariableForPaint(node.strokes[0] as SolidPaint, "color", v);
+          node.strokes = [bound];
+          hints.push(`strokeColor '${p.strokeColor}' resolved as color variable. Use strokeVariableName instead for clarity.`);
+        } else {
+          hints.push(`strokeColor '${p.strokeColor}' is not a valid color (hex or {r,g,b}), paint style, or color variable.`);
+        }
+      }
     } else {
-      hints.push(match.hint);
+      node.strokes = [solidPaint(color)];
+      const match = await suggestStyleForColor(color, "strokeStyleName", "STROKE_COLOR");
+      if (match.variable) {
+        const bound = figma.variables.setBoundVariableForPaint(node.strokes[0] as SolidPaint, "color", match.variable);
+        node.strokes = [bound];
+        hints.push(match.hint);
+      } else if (match.paintStyleId) {
+        try { await node.setStrokeStyleIdAsync(match.paintStyleId); hints.push(match.hint); } catch {}
+      } else {
+        hints.push(match.hint);
+      }
     }
   }
   const swFields: Record<string, number | string | undefined> = {};
@@ -495,9 +539,29 @@ export async function applyFontColorWithAutoBind(
 
   // Direct color with auto-bind
   if (p.fontColor) {
-    const fc = p.fontColor;
-    textNode.fills = [makeSolid(fc)];
-    const match = await suggestStyleForColor(fc, "fontColorStyleName", "TEXT_FILL");
+    const color = coerceColor(p.fontColor);
+    if (!color) {
+      // Not a valid color — try resolving as style/variable name
+      const styles = paintStyles || await figma.getLocalPaintStylesAsync();
+      const exact = styles.find((s: any) => s.name === p.fontColor);
+      const match = exact || styles.find((s: any) => s.name.toLowerCase() === String(p.fontColor).toLowerCase());
+      if (match) {
+        try { await textNode.setFillStyleIdAsync(match.id); hints.push(`fontColor '${p.fontColor}' resolved as paint style. Use fontColorStyleName instead for clarity.`); return true; }
+        catch (e: any) { hints.push(`fontColor '${p.fontColor}' matched style but failed: ${e.message}`); return false; }
+      }
+      const v = await findColorVariableByName(String(p.fontColor));
+      if (v) {
+        textNode.fills = [makeSolid({ r: 0, g: 0, b: 0 })];
+        const bound = figma.variables.setBoundVariableForPaint(textNode.fills[0] as SolidPaint, "color", v);
+        textNode.fills = [bound];
+        hints.push(`fontColor '${p.fontColor}' resolved as color variable. Use fontColorVariableName instead for clarity.`);
+        return true;
+      }
+      hints.push(`fontColor '${p.fontColor}' is not a valid color (hex or {r,g,b}), paint style, or color variable.`);
+      return false;
+    }
+    textNode.fills = [makeSolid(color)];
+    const match = await suggestStyleForColor(color, "fontColorStyleName", "TEXT_FILL");
     if (match.variable) {
       const bound = figma.variables.setBoundVariableForPaint(textNode.fills[0] as SolidPaint, "color", match.variable);
       textNode.fills = [bound];

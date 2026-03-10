@@ -18,6 +18,7 @@ frame_params:
   strokeVariableName: { type: string, optional: true, description: "Color variable by name for stroke" }
   strokeWeight: { type: token, optional: true, description: "Stroke weight (default: 1)" }
   cornerRadius: { $expand: corners, type: token }
+  effectStyleName: { type: string, optional: true, description: "Effect style name (e.g. 'Shadow/Card') for shadows, blurs" }
   layoutMode: { type: enum, values: [NONE, HORIZONTAL, VERTICAL], optional: true, description: "Layout direction (default: NONE)" }
   layoutWrap: { type: enum, values: [NO_WRAP, WRAP], optional: true }
   padding: { $expand: padding, type: token }

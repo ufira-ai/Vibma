@@ -114,7 +114,7 @@ async function fromNodeSingle(p: any) {
   const hints: string[] = [];
   const exposedProperties: Record<string, string> = {};
 
-  if (p.exposeText) {
+  if (p.exposeText !== false) {
     const textNodes = findTextNodes(comp, true);
     // Sort by vertical then horizontal position for consistent role assignment
     const sorted = [...textNodes].sort((a, b) => a.y - b.y || a.x - b.x);
