@@ -38,11 +38,6 @@ import ParameterTable from "../../../../components/ParameterTable.astro";
 //     "wcag-line-height" — line height below 1.5x font size
 // maxDepth limits how deep the tree traversal goes (default: 10). maxFindings caps total findings (default: 50).
 // fix: auto-converts frames to auto-layout. Use after lint.check identifies "no-autolayout" issues.
-interface LintResult {
-  nodeId: string; nodeName: string;
-  categories: { rule: string; count: number; fix: string; nodes: { id: string; name: string; detail?: string }[] }[];
-  warning?: string;
-}
 ```
 
 </details>
@@ -57,7 +52,7 @@ Run design linter on a node tree
 
 **Response**
 
-<ParameterTable schema={{"type":"object","properties":{"nodeId":{"type":"string"},"nodeName":{"type":"string"},"categories":{"type":"array"},"warning":{"type":"string"}},"required":["nodeId","nodeName"]}} fieldLabel="Field" hideRequired />
+<ParameterTable schema={{"type":"object","properties":{"nodeId":{"type":"string"},"nodeName":{"type":"string"},"categories":{"type":"array","items":{"type":"object","properties":{"rule":{"type":"string"},"count":{"type":"number"},"fix":{"type":"string"},"nodes":{"type":"array","items":{"type":"object","properties":{"id":{"type":"string"},"name":{"type":"string"},"detail":{"type":"string"}},"required":["id","name"]}}},"required":["rule","count","fix","nodes"]}},"warning":{"type":"string"}},"required":["nodeId","nodeName","categories"]}} fieldLabel="Field" hideRequired />
 
 ## fix
 

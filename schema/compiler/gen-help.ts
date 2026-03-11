@@ -11,14 +11,22 @@ import type { RawPrompt } from "./gen-prompts";
 
 // ─── Formatters ──────────────────────────────────────────────────
 
-function paramLine(name: string, param: RawParam): string {
+function paramLines(name: string, param: RawParam, indent = 4): string[] {
   let type = param.tsType ?? param.type ?? "string";
   if (param.values) type = param.values.join(" | ");
   if (param.coerce === "hex_or_rgba" || type === "color") type = "Color";
   if (type === "token") type = "string";
   const req = param.required === true ? "required" : "optional";
   const desc = param.description ? ` — ${param.description}` : "";
-  return `    ${name} (${type}, ${req})${desc}`;
+  const lines: string[] = [];
+  lines.push(`${" ".repeat(indent)}${name} (${type}, ${req})${desc}`);
+  // Recurse into items.properties for array-of-object params
+  if (param.items && typeof param.items === "object" && "properties" in param.items && param.items.properties) {
+    for (const [subName, subParam] of Object.entries(param.items.properties)) {
+      lines.push(...paramLines(subName, subParam as RawParam, indent + 2));
+    }
+  }
+  return lines;
 }
 
 function methodDetail(ep: ResolvedEndpoint, method: ResolvedMethod): string {
@@ -38,13 +46,13 @@ function methodDetail(ep: ResolvedEndpoint, method: ResolvedMethod): string {
       lines.push("");
       lines.push(`  ## ${typeName}${variant.description ? " — " + variant.description : ""}`);
       for (const [pName, param] of Object.entries(variant.params)) {
-        lines.push(paramLine(pName, param));
+        lines.push(...paramLines(pName, param));
       }
     }
   } else if (method.params && Object.keys(method.params).length > 0) {
     lines.push("Params:");
     for (const [pName, param] of Object.entries(method.params)) {
-      lines.push(paramLine(pName, param));
+      lines.push(...paramLines(pName, param));
     }
   } else {
     lines.push("No params.");

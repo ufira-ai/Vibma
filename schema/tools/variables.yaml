@@ -14,7 +14,6 @@ notes: |
   // scopes: restrict where variables appear in the UI. Values: "ALL_SCOPES", "TEXT_CONTENT", "WIDTH_HEIGHT", "GAP",
   //   "CORNER_RADIUS", "ALL_FILLS", "FRAME_FILL", "SHAPE_FILL", "TEXT_FILL", "STROKE_COLOR", "STROKE_FLOAT",
   //   "EFFECT_FLOAT", "EFFECT_COLOR", "OPACITY", "FONT_FAMILY", "FONT_STYLE", "FONT_WEIGHT", "FONT_SIZE", "LINE_HEIGHT", "LETTER_SPACING", "PARAGRAPH_SPACING", "PARAGRAPH_INDENT"
-  interface Variable { name: string; resolvedType: "COLOR"|"FLOAT"|"STRING"|"BOOLEAN"; collectionName: string; valuesByMode: Record<string, number | boolean | string | Color | {type: "VARIABLE_ALIAS", name: string}> }
 
 methods:
   list:
@@ -61,11 +60,17 @@ methods:
         $ref: fields
     response:
       type: object
+      tsType: Variable
       properties:
-        name: { type: string }
-        resolvedType: { type: string }
-        collectionName: { type: string }
-        valuesByMode: { type: object }
+        name: { type: string, required: true }
+        resolvedType:
+          type: enum
+          values: [COLOR, FLOAT, STRING, BOOLEAN]
+        collectionName: { type: string, required: true }
+        valuesByMode:
+          type: object
+          required: true
+          tsType: "Record<string, number | boolean | string | Color | {type: \"VARIABLE_ALIAS\", name: string}>"
 
   create:
     tier: create
@@ -76,6 +81,7 @@ methods:
         type: array
         coerce: json
         required: true
+        tsType: "VariableCreateItem[]"
         description: "Array of {collectionName, name, resolvedType, value?, modeId?, description?, scopes?}"
         items:
           type: object
@@ -98,6 +104,7 @@ methods:
         type: array
         coerce: json
         required: true
+        tsType: "VariableUpdateItem[]"
         description: "Array of {name, collectionName?, rename?, description?, scopes?, modeId?, value?}"
         items:
           type: object

@@ -23,31 +23,6 @@ notes: |
   //     gutterSize: number, count: number, sectionSize?: number, offset?: number, visible?: boolean, color?: Color }
   //   Grid: { pattern: "GRID", sectionSize: number, visible?: boolean, color?: Color }
   //   Example: { pattern: "COLUMNS", alignment: "STRETCH", gutterSize: 20, count: 12, offset: 40 }
-  //
-  interface PaintStyleItem { name: string; color: Color; colorVariableName?: string; description?: string }
-  interface TextStyleItem {
-    name: string; fontFamily: string; fontStyle?: string; fontSize: number;
-    lineHeight?: number | {value: number, unit: "PIXELS"|"PERCENT"|"AUTO"};
-    letterSpacing?: number | {value: number, unit: "PIXELS"|"PERCENT"};
-    textCase?: "ORIGINAL"|"UPPER"|"LOWER"|"TITLE"|"SMALL_CAPS"|"SMALL_CAPS_FORCED";
-    textDecoration?: "NONE"|"UNDERLINE"|"STRIKETHROUGH";
-    paragraphIndent?: number; paragraphSpacing?: number;
-    leadingTrim?: "CAP_HEIGHT"|"NONE"; description?: string;
-  }
-  interface EffectStyleItem { name: string; effects: Effect[]; description?: string }
-  interface GridStyleItem { name: string; layoutGrids: LayoutGrid[]; description?: string }
-  interface PatchStyleItem {
-    id?: string; styleName?: string; // identify by ID or name (case-insensitive)
-    name?: string; description?: string;
-    color?: Color; colorVariableName?: string;  // paint styles
-    fontFamily?: string; fontStyle?: string; fontSize?: number;
-    lineHeight?: number | {value, unit}; letterSpacing?: number | {value, unit};
-    textCase?: string; textDecoration?: string;
-    paragraphIndent?: number; paragraphSpacing?: number;
-    leadingTrim?: "CAP_HEIGHT"|"NONE";   // text styles
-    effects?: Effect[];               // effect styles
-    layoutGrids?: LayoutGrid[];       // grid styles
-  }
 
 methods:
   list:

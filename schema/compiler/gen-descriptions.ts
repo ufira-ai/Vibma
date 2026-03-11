@@ -150,6 +150,34 @@ function generateInterface(name: string, params: Record<string, RawParam>): stri
   return `  interface ${name} {\n${lines.join("\n")}\n  }`;
 }
 
+// ─── Interface stripping ──────────────────────────────────────────
+
+/** Remove hand-written interface blocks from notes when they've been auto-generated. */
+function stripInterfaces(text: string, names: Set<string>): string {
+  const lines = text.split("\n");
+  const result: string[] = [];
+  let skipping = false;
+  for (const line of lines) {
+    const match = line.match(/^\s*interface\s+(\w+)/);
+    if (match && names.has(match[1])) {
+      skipping = true;
+      continue;
+    }
+    if (skipping) {
+      // End of interface block: closing brace at same or lesser indent
+      if (line.match(/^\s*}/)) {
+        skipping = false;
+        continue;
+      }
+      continue;
+    }
+    result.push(line);
+  }
+  // Clean up trailing blank lines
+  while (result.length > 0 && result[result.length - 1].trim() === "") result.pop();
+  return result.join("\n");
+}
+
 // ─── Shared type definitions ──────────────────────────────────────
 
 const SHARED_TYPES: Record<string, string> = {
@@ -210,20 +238,51 @@ export function generateDescription(endpoint: ResolvedEndpoint): string {
   }
   sections.push(methodLines.join("\n"));
 
-  // 2. Interfaces for discriminated create types
+  // 2. Generate interfaces and collect names for dedup
+  const generatedIfaceNames = new Set<string>();
+
+  // 2a. Interfaces for discriminated create types
   for (const method of endpoint.methods) {
     if (method.discriminant && method.types) {
       const ifaces: string[] = [];
       for (const [typeName, variant] of Object.entries(method.types)) {
-        ifaces.push(generateInterface(pascalCase(typeName) + "Item", variant.params));
+        const name = pascalCase(typeName) + "Item";
+        generatedIfaceNames.add(name);
+        ifaces.push(generateInterface(name, variant.params));
       }
       sections.push(ifaces.join("\n"));
     }
   }
 
-  // 3. Notes from YAML (shared types, usage)
+  // 2b. Interfaces for items with tsType + inline properties
+  for (const method of endpoint.methods) {
+    if (method.params == null) continue;
+    const items = method.params.items;
+    if (items?.tsType && items.items && typeof items.items === "object" && "properties" in items.items && items.items.properties) {
+      const ifaceName = items.tsType.replace("[]", "");
+      if (generatedIfaceNames.has(ifaceName)) continue;
+      generatedIfaceNames.add(ifaceName);
+      sections.push(generateInterface(ifaceName, items.items.properties as Record<string, RawParam>));
+    }
+  }
+
+  // 2c. Interfaces for named response types
+  for (const method of endpoint.methods) {
+    const resp = method.response;
+    if (resp.tsType && resp.properties) {
+      if (generatedIfaceNames.has(resp.tsType)) continue;
+      generatedIfaceNames.add(resp.tsType);
+      sections.push(generateInterface(resp.tsType, resp.properties));
+    }
+  }
+
+  // 3. Notes from YAML (shared types, usage) — strip hand-written interfaces that are now generated
   if (endpoint.notes) {
-    sections.push(endpoint.notes.trim());
+    let notes = endpoint.notes.trim();
+    if (generatedIfaceNames.size > 0) {
+      notes = stripInterfaces(notes, generatedIfaceNames);
+    }
+    if (notes) sections.push(notes);
   }
 
   // 4. Auto-append shared type definitions referenced in the description
