@@ -31,11 +31,6 @@ notes: |
   //     "wcag-line-height" — line height below 1.5x font size
   // maxDepth limits how deep the tree traversal goes (default: 10). maxFindings caps total findings (default: 50).
   // fix: auto-converts frames to auto-layout. Use after lint.check identifies "no-autolayout" issues.
-  interface LintResult {
-    nodeId: string; nodeName: string;
-    categories: { rule: string; count: number; fix: string; nodes: { id: string; name: string; detail?: string }[] }[];
-    warning?: string;
-  }
 
 methods:
   check:
@@ -64,10 +59,28 @@ methods:
         description: "Max findings (default: 50)"
     response:
       type: object
+      tsType: LintResult
       properties:
         nodeId: { type: string, required: true }
         nodeName: { type: string, required: true }
-        categories: { type: array, tsType: "LintResult['categories']" }
+        categories:
+          type: array
+          required: true
+          items:
+            type: object
+            properties:
+              rule: { type: string, required: true }
+              count: { type: number, required: true }
+              fix: { type: string, required: true }
+              nodes:
+                type: array
+                required: true
+                items:
+                  type: object
+                  properties:
+                    id: { type: string, required: true }
+                    name: { type: string, required: true }
+                    detail: { type: string, optional: true }
         warning: { type: string }
       required: [nodeId, nodeName, categories]
 

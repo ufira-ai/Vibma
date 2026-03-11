@@ -22,18 +22,6 @@ import ParameterTable from "../../../../components/ParameterTable.astro";
 // Workflow: components.list → instances.create with componentId → instances.update to set properties.
 // Instances support frame-level overrides: layoutSizingHorizontal/Vertical (FIXED, FILL, HUG), opacity, width/height, min/max.
 // Use layoutSizingHorizontal: "FILL" to make instances stretch in auto-layout parents.
-interface InstanceCreateItem {
-  componentId: string;                     // component or component set ID
-  variantProperties?: Record<string, string>; // pick variant e.g. {"Style":"Secondary","Size":"Large"}
-  x?: number; y?: number; width?: number; height?: number; parentId?: string;
-  name?: string; opacity?: Token;
-  layoutSizingHorizontal?: "FIXED"|"FILL"|"HUG"; layoutSizingVertical?: "FIXED"|"FILL"|"HUG";
-  minWidth?: number; maxWidth?: number; minHeight?: number; maxHeight?: number;
-}
-interface InstanceUpdateItem {
-  id: string;                              // instance node ID
-  properties: Record<string, string | boolean>; // key→value e.g. {"Label#1:0":"Click Me"} — also accepts componentProperties as alias
-}
 ```
 
 </details>

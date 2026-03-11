@@ -13,29 +13,7 @@ notes: |
   // fontStyle vs fontWeight: fontStyle is a named variant like "Bold", "Italic", "SemiBold". When set, fontWeight is ignored.
   //   Use fonts.list to find available fontFamily + fontStyle combinations.
   // scan: finds all text nodes in a subtree. path (when includePath:true) shows the layer hierarchy e.g. "Frame > Card > Label".
-  interface TextItem {
-    text: string; name?: string;
-    x?: number; y?: number; parentId?: string;
-    fontFamily?: string; // default: Inter. Use fonts.list to find installed fonts.
-    fontStyle?: string;  // e.g. "Bold", "Italic" — overrides fontWeight
-    fontSize?: number;   // default: 14
-    fontWeight?: number; // 100-900, default: 400. Ignored when fontStyle is set.
-    fontColor?: Color;              // auto-binds to matching variable/style
-    fontColorVariableName?: string; // bind color variable by name e.g. 'text/primary'
-    fontColorStyleName?: string;   // apply paint style — overrides fontColor
-    textStyleId?: string;    // apply text style — overrides fontSize/fontWeight
-    textStyleName?: string;  // text style by name (case-insensitive)
-    textAlignHorizontal?: "LEFT" | "CENTER" | "RIGHT" | "JUSTIFIED";
-    textAlignVertical?: "TOP" | "CENTER" | "BOTTOM";
-    layoutSizingHorizontal?: "FIXED" | "HUG" | "FILL";
-    layoutSizingVertical?: "FIXED" | "HUG" | "FILL";
-    textAutoResize?: "NONE" | "WIDTH_AND_HEIGHT" | "HEIGHT" | "TRUNCATE";
-    componentPropertyName?: string; // bind to a component TEXT property by name (parent must be a component)
-  }
-  interface ScanResult {
-    nodeId: string; count: number; truncated: boolean;
-    textNodes: { id: string; name: string; characters: string; fontSize: number; fontFamily: string; fontStyle: string; path?: string; depth?: number; absoluteX?: number; absoluteY?: number; width?: number; height?: number }[];
-  }
+  // ScanResult (per-item): { nodeId, count, truncated, textNodes: [{ id, name, characters, fontSize, fontFamily, fontStyle, path?, depth?, absoluteX?, absoluteY?, width?, height? }] }
 
 methods:
   create:
@@ -49,7 +27,72 @@ methods:
         required: true
         tsType: "TextItem[]"
         description: "Array of text items to create"
-        items: { type: object }
+        items:
+          type: object
+          properties:
+            text:
+              type: string
+              required: true
+              description: "Text content"
+            name:
+              type: string
+              description: "Layer name"
+            x: { type: number }
+            y: { type: number }
+            parentId:
+              type: string
+              description: "Parent node ID. Omit to place on current page."
+            fontFamily:
+              type: string
+              description: "Font family (default: Inter). Use fonts.list to find installed fonts."
+            fontStyle:
+              type: string
+              description: 'Font variant e.g. "Bold", "Italic" — overrides fontWeight'
+            fontSize:
+              type: number
+              description: "Font size (default: 14)"
+            fontWeight:
+              type: number
+              description: "100-900 (default: 400). Ignored when fontStyle is set."
+            fontColor:
+              type: color
+              description: "Text color (auto-binds to matching variable/style)"
+            fontColorVariableName:
+              type: string
+              description: "Bind color variable by name e.g. 'text/primary'"
+            fontColorStyleName:
+              type: string
+              description: "Apply paint style — overrides fontColor"
+            textStyleId:
+              type: string
+              description: "Apply text style by ID — overrides fontSize/fontWeight"
+            textStyleName:
+              type: string
+              description: "Text style by name (case-insensitive)"
+            textAlignHorizontal:
+              type: enum
+              values: [LEFT, CENTER, RIGHT, JUSTIFIED]
+              optional: true
+            textAlignVertical:
+              type: enum
+              values: [TOP, CENTER, BOTTOM]
+              optional: true
+            layoutSizingHorizontal:
+              type: enum
+              values: [FIXED, HUG, FILL]
+              optional: true
+            layoutSizingVertical:
+              type: enum
+              values: [FIXED, HUG, FILL]
+              optional: true
+            textAutoResize:
+              type: enum
+              values: [NONE, WIDTH_AND_HEIGHT, HEIGHT, TRUNCATE]
+              optional: true
+              description: "NONE (fixed box), WIDTH_AND_HEIGHT (grow both), HEIGHT (fixed width, auto height), TRUNCATE (fixed + ellipsis)"
+            componentPropertyName:
+              type: string
+              description: "Bind to a component TEXT property by name (parent must be a component)"
       depth: { $ref: depth }
     response:
       type: batch

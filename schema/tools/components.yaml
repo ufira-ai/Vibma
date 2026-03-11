@@ -16,25 +16,6 @@ notes: |
   // Property keys include a unique suffix like "Label#1:0" — use components.get to find exact keys.
   // ComponentItem accepts the same params as FrameItem (layout, fill, stroke, sizing, min/max).
   // A component IS a frame — create it directly with all layout properties, then add children.
-  interface ComponentItem {
-    name: string; x?: number; y?: number; width?: number; height?: number; parentId?: string;
-    opacity?: string; // token
-    fillColor?: Color; fillStyleName?: string; fillVariableName?: string;
-    strokeColor?: Color; strokeStyleName?: string; strokeVariableName?: string;
-    strokeWeight?: string; cornerRadius?: string; // token: number or variable name
-    layoutMode?: "NONE"|"HORIZONTAL"|"VERTICAL"; layoutWrap?: "NO_WRAP"|"WRAP";
-    padding?: string; paddingTop?: string; paddingRight?: string; paddingBottom?: string; paddingLeft?: string; // token
-    primaryAxisAlignItems?: "MIN"|"MAX"|"CENTER"|"SPACE_BETWEEN";
-    counterAxisAlignItems?: "MIN"|"MAX"|"CENTER"|"BASELINE";
-    layoutSizingHorizontal?: "FIXED"|"HUG"|"FILL"; layoutSizingVertical?: "FIXED"|"HUG"|"FILL";
-    itemSpacing?: string; counterAxisSpacing?: string; // token
-    minWidth?: number; maxWidth?: number; minHeight?: number; maxHeight?: number;
-    properties?: ComponentPropertyDef[]; // define properties at creation time
-  }
-  interface ComponentPropertyDef { propertyName: string; type: "BOOLEAN"|"TEXT"|"INSTANCE_SWAP"; defaultValue: string | boolean; preferredValues?: {type: "COMPONENT"|"COMPONENT_SET", key: string}[] }
-  interface FromNodeItem { nodeId: string; exposeText?: boolean } // default exposeText: true — auto-expose text as editable properties
-  interface VariantSetItem { componentIds: string[]; name?: string; variantPropertyName?: string } // min 2 components
-  interface UpdatePropertyItem { id: string; propertyName: string; action?: "add"|"edit"|"delete"|"rename_variant"; type?: "BOOLEAN"|"TEXT"|"INSTANCE_SWAP"|"VARIANT"; defaultValue?: string | boolean; name?: string; preferredValues?: {type: "COMPONENT"|"COMPONENT_SET", key: string}[] }
   // action: "add" (default) adds property, "edit" renames/changes default, "delete" removes property
   // action: "rename_variant" renames a variant option (defaultValue=current name, name=new name)
   // For VARIANT properties: "edit" with defaultValue reorders children to set the default variant

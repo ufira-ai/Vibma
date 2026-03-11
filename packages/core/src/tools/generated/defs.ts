@@ -505,7 +505,7 @@ export const tools: ToolDef[] = [
   },
   {
     name: "lint",
-    description: "/** Run design quality and accessibility checks. Use method \"help\" for detailed parameter docs. */\n  check     (nodeId?, rules?, maxDepth?, maxFindings?) → { nodeId, nodeName, categories: LintResult['categories'], warning? }  // Run design linter on a node tree\n  fix       (items: { nodeId: string; layoutMode?: \"VERTICAL\" | \"HORIZONTAL\"; itemSpacing?: number }[], depth?) → { results: (\"ok\" | {error})[] }  // Auto-fix frames to auto-layout\n// Lint runs automated design quality and accessibility checks on a node tree.\n// Rules: \"all\" (default), \"wcag\" (accessibility only), or specific rule names. Use help(topic:\"check\") for full rule list.",
+    description: "/** Run design quality and accessibility checks. Use method \"help\" for detailed parameter docs. */\n  check     (nodeId?, rules?, maxDepth?, maxFindings?) → { nodeId, nodeName, categories, warning? }  // Run design linter on a node tree\n  fix       (items: { nodeId: string; layoutMode?: \"VERTICAL\" | \"HORIZONTAL\"; itemSpacing?: number }[], depth?) → { results: (\"ok\" | {error})[] }  // Auto-fix frames to auto-layout\n// Lint runs automated design quality and accessibility checks on a node tree.\n// Rules: \"all\" (default), \"wcag\" (accessibility only), or specific rule names. Use help(topic:\"check\") for full rule list.",
     schema: (caps) => filterMethodsByTier({    method: z.enum(["check", "fix", "help"]),
     nodeId: z.string().optional().describe("Node ID to lint. If omitted: 1 selected node → lints that node, 2+ selected → lints entire page, 0 selected → error. Pass a page or frame ID explicitly for reliable targeting."),
     rules: flexJson(z.array(z.string())).optional().describe("Rules to run. Default: [\"all\"]. Use [\"wcag\"] for accessibility only."),
@@ -664,6 +664,32 @@ export const tools: ToolDef[] = [
     validate: (params: any) => {
       const m = params.method;
       if (!params.items) return;
+      if (m === "create") {
+        const itemSchema = z.object({
+          text: z.string().describe("Text content"),
+          name: z.string().optional().describe("Layer name"),
+          x: z.number().optional(),
+          y: z.number().optional(),
+          parentId: z.string().optional().describe("Parent node ID. Omit to place on current page."),
+          fontFamily: z.string().optional().describe("Font family (default: Inter). Use fonts.list to find installed fonts."),
+          fontStyle: z.string().optional().describe("Font variant e.g. \"Bold\", \"Italic\" — overrides fontWeight"),
+          fontSize: z.number().optional().describe("Font size (default: 14)"),
+          fontWeight: z.number().optional().describe("100-900 (default: 400). Ignored when fontStyle is set."),
+          fontColor: S.colorRgba.optional().describe("Text color (auto-binds to matching variable/style)"),
+          fontColorVariableName: z.string().optional().describe("Bind color variable by name e.g. 'text/primary'"),
+          fontColorStyleName: z.string().optional().describe("Apply paint style — overrides fontColor"),
+          textStyleId: z.string().optional().describe("Apply text style by ID — overrides fontSize/fontWeight"),
+          textStyleName: z.string().optional().describe("Text style by name (case-insensitive)"),
+          textAlignHorizontal: z.enum(["LEFT", "CENTER", "RIGHT", "JUSTIFIED"]).optional(),
+          textAlignVertical: z.enum(["TOP", "CENTER", "BOTTOM"]).optional(),
+          layoutSizingHorizontal: z.enum(["FIXED", "HUG", "FILL"]).optional(),
+          layoutSizingVertical: z.enum(["FIXED", "HUG", "FILL"]).optional(),
+          textAutoResize: z.enum(["NONE", "WIDTH_AND_HEIGHT", "HEIGHT", "TRUNCATE"]).optional().describe("NONE (fixed box), WIDTH_AND_HEIGHT (grow both), HEIGHT (fixed width, auto height), TRUNCATE (fixed + ellipsis)"),
+          componentPropertyName: z.string().optional().describe("Bind to a component TEXT property by name (parent must be a component)"),
+        });
+        try { params.items = z.array(itemSchema).parse(params.items); }
+        catch (e) { if (e instanceof z.ZodError) { throw new Error(e.issues.map(i => { const path = i.path.join("."); const shape = itemSchema instanceof z.ZodObject ? (itemSchema as any).shape : null; const desc = shape?.[i.path[1]]?.description; return path + ": " + i.message + (desc ? " (expected: " + desc + ")" : ""); }).join("; ")); } throw e; }
+      }
       if (m === "set_content") {
         const itemSchema = z.object({
           nodeId: z.string().describe("Text node ID"),
@@ -745,7 +771,7 @@ export const tools: ToolDef[] = [
   },
   {
     name: "variables",
-    description: "/** CRUD for design variables (COLOR, FLOAT, STRING, BOOLEAN). Use method \"help\" for detailed parameter docs. */\n  list      (type: COLOR|FLOAT|STRING|BOOLEAN, collectionName?, fields?, offset?, limit?) → { totalCount, items }  // List variables with optional filters\n  get       (name, collectionName?, fields?) → { name?, resolvedType?, collectionName?, valuesByMode? }  // Get variable detail by name\n  create    (items: { collectionName: string; name: string; resolvedType: \"COLOR\" | \"FLOAT\" | \"STRING\" | \"BOOLEAN\"; value?: number | boolean | string | Color | {type: \"VARIABLE_ALIAS\", name: string}; modeId?: string; description?: string; scopes?: string[] }[]) → { results: \"ok\"[] }  // Create variables\n  update    (items: { name: string; collectionName?: string; rename?: string; description?: string; scopes?: string[]; modeId?: string; value?: number | boolean | string | Color | {type: \"VARIABLE_ALIAS\", name: string} }[]) → { results: (\"ok\" | {error})[] }  // Update variable metadata and/or set values per mode\n  delete    (name?, collectionName?, items?: { name: string; collectionName?: string }[]) → { results: \"ok\"[] }  // Delete variables\n// Variables are design tokens — reusable values (colors, numbers, strings, booleans) that can be bound to node properties.\n// Variables are identified by name (unique within a collection). No IDs needed — use name to get/update/delete.\n// Workflow: create a variable_collection first → then create variables inside it → bind to nodes via frames/text update PatchItem.bindings.\n// Shared types:\n// Color: hex \"#FF0000\" or {r: 0-1, g: 0-1, b: 0-1, a?: 0-1}",
+    description: "/** CRUD for design variables (COLOR, FLOAT, STRING, BOOLEAN). Use method \"help\" for detailed parameter docs. */\n  list      (type: COLOR|FLOAT|STRING|BOOLEAN, collectionName?, fields?, offset?, limit?) → { totalCount, items }  // List variables with optional filters\n  get       (name, collectionName?, fields?) → { name?, resolvedType?, collectionName?, valuesByMode?: Record<string, number | boolean | string | Color | {type: \"VARIABLE_ALIAS\", name: string}> }  // Get variable detail by name\n  create    (items: VariableCreateItem[]) → { results: \"ok\"[] }  // Create variables\n  update    (items: VariableUpdateItem[]) → { results: (\"ok\" | {error})[] }  // Update variable metadata and/or set values per mode\n  delete    (name?, collectionName?, items?: { name: string; collectionName?: string }[]) → { results: \"ok\"[] }  // Delete variables\n// Variables are design tokens — reusable values (colors, numbers, strings, booleans) that can be bound to node properties.\n// Variables are identified by name (unique within a collection). No IDs needed — use name to get/update/delete.\n// Workflow: create a variable_collection first → then create variables inside it → bind to nodes via frames/text update PatchItem.bindings.\n// Shared types:\n// Color: hex \"#FF0000\" or {r: 0-1, g: 0-1, b: 0-1, a?: 0-1}",
     schema: (caps) => filterMethodsByTier({    method: z.enum(["list", "get", "create", "update", "delete", "help"]),
     type: z.enum(["COLOR", "FLOAT", "STRING", "BOOLEAN"]).optional().describe("Filter by variable type"),
     collectionName: z.string().optional().describe("Filter by collection name"),

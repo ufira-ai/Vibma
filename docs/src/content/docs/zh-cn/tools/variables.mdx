@@ -21,7 +21,6 @@ import ParameterTable from "../../../../components/ParameterTable.astro";
 // scopes: restrict where variables appear in the UI. Values: "ALL_SCOPES", "TEXT_CONTENT", "WIDTH_HEIGHT", "GAP",
 //   "CORNER_RADIUS", "ALL_FILLS", "FRAME_FILL", "SHAPE_FILL", "TEXT_FILL", "STROKE_COLOR", "STROKE_FLOAT",
 //   "EFFECT_FLOAT", "EFFECT_COLOR", "OPACITY", "FONT_FAMILY", "FONT_STYLE", "FONT_WEIGHT", "FONT_SIZE", "LINE_HEIGHT", "LETTER_SPACING", "PARAGRAPH_SPACING", "PARAGRAPH_INDENT"
-interface Variable { name: string; resolvedType: "COLOR"|"FLOAT"|"STRING"|"BOOLEAN"; collectionName: string; valuesByMode: Record<string, number | boolean | string | Color | {type: "VARIABLE_ALIAS", name: string}> }
 ```
 
 </details>
@@ -46,7 +45,7 @@ Get variable detail by name
 
 **Response**
 
-<ParameterTable schema={{"type":"object","properties":{"name":{"type":"string"},"resolvedType":{"type":"string"},"collectionName":{"type":"string"},"valuesByMode":{"type":"object"}}}} fieldLabel="Field" hideRequired />
+<ParameterTable schema={{"type":"object","properties":{"name":{"type":"string"},"resolvedType":{"type":"string","enum":["COLOR","FLOAT","STRING","BOOLEAN"]},"collectionName":{"type":"string"},"valuesByMode":{"type":"object"}},"required":["name","collectionName","valuesByMode"]}} fieldLabel="Field" hideRequired />
 
 ## create
 

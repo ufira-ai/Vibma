@@ -25,6 +25,8 @@ export interface RawResponse {
   required?: string[];
   example?: unknown;
   item?: Record<string, RawParam> | RawParam;
+  /** Name the response interface for auto-generation in descriptions */
+  tsType?: string;
 }
 
 export interface RawMethodDef {
