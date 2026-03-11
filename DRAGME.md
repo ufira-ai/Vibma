@@ -78,7 +78,7 @@ Or run from source (no build step, good for development):
   "mcpServers": {
     "Vibma": {
       "command": "npx",
-      "args": ["tsx", "/absolute/path/to/vibma/src/mcp.ts", "--edit"]
+      "args": ["tsx", "/absolute/path/to/vibma/packages/core/src/mcp.ts", "--edit"]
     }
   }
 }

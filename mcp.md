@@ -1,5 +1,10 @@
 # MCP Tool Design Guidelines
 
+> **Deprecated.** This content has moved to package-level AGENTS.md files:
+> - `schema/AGENTS.md` — compiler pipeline, YAML authoring, description quality
+> - `packages/core/AGENTS.md` — endpoint contract, access tiers, response types
+> - `packages/adapter-figma/AGENTS.md` — batch handler, response design, agent guidance, command dispatch
+
 Patterns and principles distilled from building the Vibma MCP server (36 tools across 10 domains).
 
 ## When to Use an Endpoint vs Standalone Tool

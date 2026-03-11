@@ -72,7 +72,7 @@ Figma 插件只能连接到端口 3055、3056、3057 或 3058。这是 Figma 平
   "mcpServers": {
     "Vibma": {
       "command": "npx",
-      "args": ["tsx", "/absolute/path/to/vibma/src/mcp.ts", "--edit"]
+      "args": ["tsx", "/absolute/path/to/vibma/packages/core/src/mcp.ts", "--edit"]
     }
   }
 }

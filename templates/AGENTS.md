@@ -28,7 +28,7 @@ Prefer running the Vibma MCP server from the built artifact:
 
 If developing Vibma itself, source mode is acceptable:
 
-- `npx tsx /absolute/path/to/vibma/src/mcp.ts --edit`
+- `npx tsx /absolute/path/to/vibma/packages/core/src/mcp.ts --edit`
 
 Access tiers:
 - Omit flags for read-only
