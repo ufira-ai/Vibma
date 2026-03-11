@@ -128,6 +128,7 @@ const FIX_INSTRUCTIONS: Record<string, string> = {
   "empty-container": 'These frames have no children — likely leftover. Delete with frames(method:"delete", items:[{id}]) or add content.',
   "stale-text-name": 'These text node names don\'t match their content. Use frames(method:"update", items:[{id, name:"..."}]) to sync, or leave if the name is intentional.',
   "no-text-property": 'Use components(method:"update", items:[{id, propertyName:"TextLabel", action:"add", type:"TEXT", defaultValue:"..."}]) to expose the text as an editable property on the component.',
+  "overlapping-children": 'Children are stacked at the same position — likely missing x/y. Either: (1) convert to auto-layout with frames(method:"update", items:[{id, layout:{layoutMode:"VERTICAL"}}]) so children flow automatically, or (2) reposition each child with frames(method:"update", items:[{id:"<childId>", x:<value>, y:<value>}]).',
   // -- WCAG fix instructions --
   "wcag-contrast": 'Adjust text color or background to meet AA contrast (4.5:1 normal text, 3:1 large text). Use frames(method:"update") with fill or text.fontColor to change colors.',
   "wcag-contrast-enhanced": 'Adjust to meet AAA contrast (7:1 normal text, 4.5:1 large text). Use frames(method:"update") with fill or text.fontColor.',
@@ -167,6 +168,38 @@ async function walkNode(node: BaseNode, depth: number, issues: Issue[], ctx: Lin
         const direction = detectLayoutDirection(node as FrameNode);
         issues.push({ rule: "no-autolayout", nodeId: node.id, nodeName: node.name, extra: { suggestedDirection: direction } });
         if (issues.length >= ctx.maxFindings) return;
+      }
+    }
+  }
+
+  // -- Rule: overlapping-children --
+  if (ctx.runAll || ctx.ruleSet.has("overlapping-children")) {
+    if (isFrame(node) && node.layoutMode === "NONE" && "children" in node) {
+      const children = (node as any).children as SceneNode[];
+      if (children.length >= 2) {
+        const clusters: Map<string, SceneNode[]> = new Map();
+        for (const child of children) {
+          if (!("x" in child) || !("y" in child)) continue;
+          const key = `${Math.round((child as any).x)},${Math.round((child as any).y)}`;
+          if (!clusters.has(key)) clusters.set(key, []);
+          clusters.get(key)!.push(child);
+        }
+        for (const [pos, group] of clusters) {
+          if (group.length < 2) continue;
+          const [xStr, yStr] = pos.split(",");
+          issues.push({
+            rule: "overlapping-children",
+            nodeId: node.id,
+            nodeName: node.name,
+            extra: {
+              position: { x: Number(xStr), y: Number(yStr) },
+              count: group.length,
+              childIds: group.map(c => c.id),
+              childNames: group.map(c => c.name),
+            },
+          });
+          if (issues.length >= ctx.maxFindings) return;
+        }
       }
     }
   }

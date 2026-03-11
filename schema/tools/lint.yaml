@@ -20,6 +20,7 @@ notes: |
   //     "empty-container" — empty frames/groups (likely leftover, should be deleted)
   //     "stale-text-name" — text node name doesn't match its content
   //     "no-text-property" — component text not exposed as editable property
+  //     "overlapping-children" — multiple children at the same position in a non-auto-layout frame (agent likely forgot x/y)
   //   Accessibility (WCAG) rules:
   //     "wcag-contrast" — text contrast ratio below 4.5:1 (WCAG AA)
   //     "wcag-contrast-enhanced" — text contrast ratio below 7:1 (WCAG AAA)
