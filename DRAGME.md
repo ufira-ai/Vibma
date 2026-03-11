@@ -113,6 +113,26 @@ If using a non-default port, add `--port=`:
 }
 ```
 
+### Remote or non-localhost relay
+
+By default the MCP server connects to `localhost`. If the relay is running on a different host (e.g. Docker, a VM, or a remote machine), set `VIBMA_SERVER`:
+
+```json
+{
+  "mcpServers": {
+    "Vibma": {
+      "command": "node",
+      "args": ["/absolute/path/to/vibma/dist/mcp.js", "--edit"],
+      "env": { "VIBMA_SERVER": "host.docker.internal" }
+    }
+  }
+}
+```
+
+The `--server=<host>` CLI arg also works and takes priority over the env var.
+
+Local addresses (`localhost`, `127.0.0.1`, `host.docker.internal`, `0.0.0.0`, `*.local`) use `ws://` and `http://`. All other addresses use `wss://` and `https://`.
+
 ## 5. Connect
 
 1. In the Figma plugin, set the channel name to `vibma` (or any name you like)
