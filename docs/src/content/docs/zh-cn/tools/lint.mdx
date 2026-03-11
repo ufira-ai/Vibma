@@ -28,6 +28,7 @@ import ParameterTable from "../../../../components/ParameterTable.astro";
 //     "stale-text-name" — text node name doesn't match its content
 //     "no-text-property" — component text not exposed as editable property
 //     "overlapping-children" — multiple children at the same position in a non-auto-layout frame (agent likely forgot x/y)
+//     "unbounded-hug" — auto-layout frame with HUG on both axes (breaks responsiveness, text won't wrap; use FILL/FIXED width + HUG height)
 //   Accessibility (WCAG) rules:
 //     "wcag-contrast" — text contrast ratio below 4.5:1 (WCAG AA)
 //     "wcag-contrast-enhanced" — text contrast ratio below 7:1 (WCAG AAA)

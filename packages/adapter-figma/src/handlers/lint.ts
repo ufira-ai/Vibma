@@ -129,6 +129,7 @@ const FIX_INSTRUCTIONS: Record<string, string> = {
   "stale-text-name": 'These text node names don\'t match their content. Use frames(method:"update", items:[{id, name:"..."}]) to sync, or leave if the name is intentional.',
   "no-text-property": 'Use components(method:"update", items:[{id, propertyName:"TextLabel", action:"add", type:"TEXT", defaultValue:"..."}]) to expose the text as an editable property on the component.',
   "overlapping-children": 'Children are stacked at the same position — likely missing x/y. Either: (1) convert to auto-layout with frames(method:"update", items:[{id, layout:{layoutMode:"VERTICAL"}}]) so children flow automatically, or (2) reposition each child with frames(method:"update", items:[{id:"<childId>", x:<value>, y:<value>}]).',
+  "unbounded-hug": 'HUG on both axes breaks responsive behavior — the frame can\'t adapt to different contexts, text won\'t wrap, and nested hug chains create unpredictable sizing cascades. Small leaf components (badges, pills, icons) are fine, but layout containers need at least one constrained axis. Best practice: FILL or FIXED width + HUG height (mirrors CSS block-level elements). Fix: frames(method:"update", items:[{id, layout:{layoutSizingHorizontal:"FILL"}}]) or items:[{id, layout:{layoutSizingHorizontal:"FIXED"}, width:320}].',
   // -- WCAG fix instructions --
   "wcag-contrast": 'Adjust text color or background to meet AA contrast (4.5:1 normal text, 3:1 large text). Use frames(method:"update") with fill or text.fontColor to change colors.',
   "wcag-contrast-enhanced": 'Adjust to meet AAA contrast (7:1 normal text, 4.5:1 large text). Use frames(method:"update") with fill or text.fontColor.',
@@ -334,6 +335,17 @@ async function walkNode(node: BaseNode, depth: number, issues: Issue[], ctx: Lin
         }
       }
       if (issues.length >= ctx.maxFindings) return;
+    }
+  }
+
+  // -- Rule: unbounded-hug --
+  if (ctx.runAll || ctx.ruleSet.has("unbounded-hug")) {
+    if (isFrame(node) && node.layoutMode !== "NONE" && node.parent?.type !== "PAGE") {
+      const f = node as any;
+      if (f.layoutSizingHorizontal === "HUG" && f.layoutSizingVertical === "HUG") {
+        issues.push({ rule: "unbounded-hug", nodeId: node.id, nodeName: node.name });
+        if (issues.length >= ctx.maxFindings) return;
+      }
     }
   }
 
