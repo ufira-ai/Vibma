@@ -80,12 +80,14 @@ async function patchSingleNode(item: any, textCtx: TextPropsContext | null): Pro
 
   // 5. Corner radius
   if (item.cornerRadius) {
-    await setCornerSingle({ nodeId: item.nodeId, ...item.cornerRadius });
+    const r = await setCornerSingle({ nodeId: item.nodeId, ...item.cornerRadius });
+    if (r.warning) result.warning = appendWarning(result.warning, r.warning);
   }
 
   // 6. Opacity
   if (item.opacity !== undefined) {
-    await setOpacitySingle({ nodeId: item.nodeId, opacity: item.opacity });
+    const r = await setOpacitySingle({ nodeId: item.nodeId, opacity: item.opacity });
+    if (r.warning) result.warning = appendWarning(result.warning, r.warning);
   }
 
   // 7. Effects

@@ -155,7 +155,8 @@ export async function setCornerSingle(p: any) {
   }
 
   const result: any = {};
-  if (hints.length > 0) result.warning = hints.join(" ");
+  const unique = [...new Set(hints)];
+  if (unique.length > 0) result.warning = unique.join(" ");
   return result;
 }
 

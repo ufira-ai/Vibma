@@ -124,9 +124,9 @@ const FIX_INSTRUCTIONS: Record<string, string> = {
   "hardcoded-token": 'Bind to a FLOAT variable instead of using hardcoded numbers. For cornerRadius: frames(method:"update", items:[{id, cornerRadius:{radius:"Radii/Medium"}}]). For padding/itemSpacing: items:[{id, layout:{paddingTop:"Spacing/Medium", itemSpacing:"Spacing/Small"}}]. For strokeWeight: items:[{id, stroke:{weight:"Border/Thick"}}]. For opacity: items:[{id, opacity:"Opacity/Subtle"}]. Pass a variable name string instead of a number. If no FLOAT variable exists, create one with variables(method:"create") first.',
   "no-text-style": 'Apply a text style: frames(method:"update", items:[{id, text:{textStyleName:"..."}}]). If no text styles exist, create one with styles(method:"create", type:"text") first.',
   "fixed-in-autolayout": 'Use frames(method:"update", items:[{id, layout:{layoutSizingHorizontal:"FILL"}}]) or "HUG" instead of FIXED. FILL stretches to fill the parent, HUG shrinks to fit content.',
-  "default-name": 'Use frames(method:"update", items:[{id, properties:{name:"descriptive name"}}]) to rename.',
+  "default-name": 'Use frames(method:"update", items:[{id, name:"descriptive name"}]) to rename.',
   "empty-container": 'These frames have no children — likely leftover. Delete with frames(method:"delete", items:[{id}]) or add content.',
-  "stale-text-name": 'These text node names don\'t match their content. Use frames(method:"update", items:[{id, properties:{name:"..."}}]) to sync, or leave if the name is intentional.',
+  "stale-text-name": 'These text node names don\'t match their content. Use frames(method:"update", items:[{id, name:"..."}]) to sync, or leave if the name is intentional.',
   "no-text-property": 'Use components(method:"update", items:[{id, propertyName:"TextLabel", action:"add", type:"TEXT", defaultValue:"..."}]) to expose the text as an editable property on the component.',
   // -- WCAG fix instructions --
   "wcag-contrast": 'Adjust text color or background to meet AA contrast (4.5:1 normal text, 3:1 large text). Use frames(method:"update") with fill or text.fontColor to change colors.',
