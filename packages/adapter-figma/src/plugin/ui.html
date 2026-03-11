@@ -177,7 +177,7 @@
       /* Form */
       .form-row {
         display: grid;
-        grid-template-columns: 76px 1fr;
+        grid-template-columns: 1fr 76px 1fr;
         gap: 8px;
         align-items: end;
       }
@@ -392,9 +392,13 @@
         <div id="connection-info" class="banner-secondary"></div>
       </div>
 
-      <!-- Port + Channel -->
+      <!-- Host + Port + Channel -->
       <div class="form-row">
         <div class="form-group">
+          <label id="label-host"></label>
+          <input type="text" id="host" value="localhost" placeholder="localhost" />
+        </div>
+        <div class="form-group" style="max-width: 76px;">
           <label id="label-port"></label>
           <select id="port">
             <option value="3055" selected>3055</option>
@@ -454,6 +458,7 @@
           tagline: "Vibe Design meets Figma — AI-powered MCP bridge",
           btnConnect: "Connect",
           btnDisconnect: "Disconnect",
+          labelHost: "Host",
           labelPort: "Port",
           labelChannel: "Channel",
           statusDisconnected: "Not connected to Vibma relay",
@@ -498,6 +503,7 @@
 
       function applyLocale() {
         connectButton.textContent = state.connected ? t("btnDisconnect") : t("btnConnect");
+        document.getElementById("label-host").textContent = t("labelHost");
         document.getElementById("label-port").textContent = t("labelPort");
         document.getElementById("label-channel").textContent = t("labelChannel");
         document.getElementById("warning-box").innerHTML =
@@ -531,6 +537,7 @@
       document.getElementById("version-badge").textContent = `v${VIBMA_VERSION}`;
 
       // UI Elements
+      const hostInput = document.getElementById("host");
       const portInput = document.getElementById("port");
       const channelInput = document.getElementById("channel-name");
       const connectButton = document.getElementById("btn-connect");
@@ -545,6 +552,12 @@
       const progressMessage = document.getElementById("progress-message");
       const progressStatus = document.getElementById("progress-status");
       const progressPercentage = document.getElementById("progress-percentage");
+
+      // Match isLocal logic from MCP server (packages/core/src/mcp.ts)
+      function isLocalHost(host) {
+        return /^(localhost|127\.0\.0\.1|host\.docker\.internal|0\.0\.0\.0)(:|$)/.test(host)
+          || host.endsWith(".local");
+      }
 
       function buildBannerInfo(isConnected) {
         if (!isConnected) {
@@ -619,6 +632,7 @@
 
         connectButton.textContent = isConnected ? t("btnDisconnect") : t("btnConnect");
         connectButton.className = isConnected ? "secondary" : "";
+        hostInput.disabled = isConnected;
         portInput.disabled = isConnected;
         channelInput.disabled = isConnected;
       }
@@ -632,7 +646,9 @@
           }
 
           state.serverPort = port;
-          const wsUrl = `ws://localhost:${port}`;
+          const host = hostInput.value.trim() || "localhost";
+          const wsProto = isLocalHost(host) ? "ws" : "wss";
+          const wsUrl = isLocalHost(host) ? `${wsProto}://${host}:${port}` : `${wsProto}://${host}`;
 
           state.socket = new WebSocket(wsUrl);
 
@@ -881,7 +897,10 @@
         updateConnectionStatus(false, t("statusResetting"));
 
         try {
-          await fetch(`http://localhost:${port}/channels/${encodeURIComponent(channel)}`, { method: "DELETE" });
+          const host = hostInput.value.trim() || "localhost";
+          const httpProto = isLocalHost(host) ? "http" : "https";
+          const baseUrl = isLocalHost(host) ? `${httpProto}://${host}:${port}` : `${httpProto}://${host}`;
+          await fetch(`${baseUrl}/channels/${encodeURIComponent(channel)}`, { method: "DELETE" });
         } catch (e) {
           console.warn("Could not reach relay for reset:", e);
         }
