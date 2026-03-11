@@ -173,9 +173,10 @@ async function combineSingle(p: any) {
   const set = figma.combineAsVariants(comps, parent as any);
   if (p.name) set.name = p.name;
 
-  // Reset combineAsVariants' default layout so setupFrameNode applies cleanly
+  // Reset combineAsVariants' defaults so setupFrameNode applies cleanly
   set.layoutMode = "NONE";
   set.fills = [];
+  set.cornerRadius = 0;
 
   const { hints } = await setupFrameNode(set as any, p);
 

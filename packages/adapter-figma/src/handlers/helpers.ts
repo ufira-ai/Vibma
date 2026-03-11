@@ -700,7 +700,13 @@ export async function applyTokens(
     }
   }
   if (hardcoded.length > 0) {
-    hints.push({ type: "suggest", message: `Hardcoded ${hardcoded.join(", ")}. Use an existing FLOAT variable or create one with variables(method:"create"), then pass the variable name string instead of a number.` });
+    // Group related fields for compact messages
+    const paddingFields = hardcoded.filter(f => f.startsWith("padding"));
+    const others = hardcoded.filter(f => !f.startsWith("padding"));
+    const groups: string[] = [];
+    if (paddingFields.length > 0) groups.push(paddingFields.length >= 3 ? "padding" : paddingFields.join(", "));
+    groups.push(...others);
+    hints.push({ type: "suggest", message: `Hardcoded ${groups.join(", ")}. Use an existing FLOAT variable or create one with variables(method:"create"), then pass the variable name string instead of a number.` });
   }
 }
 

@@ -25,7 +25,7 @@ notes: |
   }
   interface InstanceUpdateItem {
     id: string;                              // instance node ID
-    properties: Record<string, string | boolean>; // key→value e.g. {"Label#1:0":"Click Me"}
+    properties: Record<string, string | boolean>; // key→value e.g. {"Label#1:0":"Click Me"} — also accepts componentProperties as alias
   }
 
 methods:
