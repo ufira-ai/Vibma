@@ -52,7 +52,7 @@ After relay restart: plugin auto-reconnects, but the user must restart the MCP s
 
 1. Make code changes
 2. `npm run build` (plugin auto-reloads in Figma)
-3. **Ask the user** to restart the MCP server connection in their MCP client (e.g. `/mcp` in Claude Code) — you cannot do this yourself, it requires user action
+3. **If changes touch `packages/core`**: ask the user to restart the MCP server connection in their MCP client (e.g. `/mcp` in Claude Code) — you cannot do this yourself, it requires user action. Plugin-only changes (`packages/adapter-figma`) take effect immediately after build.
 4. `connection(method: "create")` → `connection(method: "get")` to verify chain
 5. Test the tools you changed
 
