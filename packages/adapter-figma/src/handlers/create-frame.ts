@@ -1,4 +1,4 @@
-import { batchHandler, appendToParent, checkOverlappingSiblings, applyFillWithAutoBind, applyStrokeWithAutoBind, applyCornerRadius, applyTokens } from "./helpers";
+import { batchHandler, appendToParent, checkOverlappingSiblings, applyFillWithAutoBind, applyStrokeWithAutoBind, applyCornerRadius, applyTokens, type Hint } from "./helpers";
 import { looksInteractive } from "@ufira/vibma/utils/wcag";
 
 /**
@@ -9,7 +9,7 @@ import { looksInteractive } from "@ufira/vibma/utils/wcag";
 export async function setupFrameNode(
   node: FrameNode | ComponentNode,
   p: any,
-): Promise<{ parent: BaseNode | null; hints: string[] }> {
+): Promise<{ parent: BaseNode | null; hints: Hint[] }> {
   // Expand padding shorthand → per-edge (token values preserved)
   if (p.padding !== undefined) {
     p.paddingTop ??= p.padding;
@@ -25,7 +25,7 @@ export async function setupFrameNode(
     parentId,
   } = p;
 
-  const hints: string[] = [];
+  const hints: Hint[] = [];
 
   // Corner radius
   await applyCornerRadius(node, p, hints);
@@ -70,7 +70,7 @@ export async function setupFrameNode(
     } else {
       const names = styles.map(s => s.name).slice(0, 20);
       const suffix = styles.length > 20 ? `, … and ${styles.length - 20} more` : "";
-      hints.push(`effectStyleName '${p.effectStyleName}' not found. Available: [${names.join(", ")}${suffix}]`);
+      hints.push({ type: "error", message: `effectStyleName '${p.effectStyleName}' not found. Available: [${names.join(", ")}${suffix}]` });
     }
   }
 
@@ -86,15 +86,15 @@ export async function setupFrameNode(
   if (parent) {
     if (deferH) {
       if (parentIsAL) { node.layoutSizingHorizontal = "FILL"; }
-      else { hints.push("layoutSizingHorizontal 'FILL' ignored — parent is not an auto-layout frame. Add layoutMode to parent first."); }
+      else { hints.push({ type: "warn", message: "layoutSizingHorizontal 'FILL' ignored — parent is not an auto-layout frame. Add layoutMode to parent first." }); }
     }
     if (deferV) {
       if (parentIsAL) { node.layoutSizingVertical = "FILL"; }
-      else { hints.push("layoutSizingVertical 'FILL' ignored — parent is not an auto-layout frame. Add layoutMode to parent first."); }
+      else { hints.push({ type: "warn", message: "layoutSizingVertical 'FILL' ignored — parent is not an auto-layout frame. Add layoutMode to parent first." }); }
     }
     if (!deferH && !deferV && parentIsAL) {
       if (layoutSizingHorizontal === "FIXED" && layoutSizingVertical === "FIXED" && layoutMode === "NONE") {
-        hints.push("Child has FIXED sizing inside auto-layout parent. Consider layoutSizingHorizontal/Vertical: 'FILL' or 'HUG' for responsive layout.");
+        hints.push({ type: "warn", message: "Child has FIXED sizing inside auto-layout parent. Consider layoutSizingHorizontal/Vertical: 'FILL' or 'HUG' for responsive layout." });
       }
     }
   }
@@ -104,12 +104,12 @@ export async function setupFrameNode(
 
   // Unbounded HUG: both axes HUG breaks responsiveness
   if (layoutMode !== "NONE" && node.layoutSizingHorizontal === "HUG" && node.layoutSizingVertical === "HUG") {
-    hints.push("HUG on both axes — content grows unboundedly and text won't wrap. Use FILL or FIXED width with HUG height for responsive layout.");
+    hints.push({ type: "warn", message: "HUG on both axes — content grows unboundedly and text won't wrap. Use FILL or FIXED width with HUG height for responsive layout." });
   }
 
   // WCAG 2.5.8: target size recommendation for interactive elements
   if (looksInteractive(node) && (node.width < 24 || node.height < 24)) {
-    hints.push("WCAG: Min 24x24px for touch targets.");
+    hints.push({ type: "suggest", message: "WCAG: Min 24x24px for touch targets." });
   }
 
   return { parent, hints };
@@ -128,7 +128,7 @@ async function createSingleFrame(p: any) {
   const { hints } = await setupFrameNode(frame, p);
 
   const result: any = { id: frame.id };
-  if (hints.length > 0) result.warning = hints.join(" ");
+  if (hints.length > 0) result.hints = hints;
   return result;
 }
 
@@ -187,7 +187,7 @@ async function createSingleAutoLayout(p: any) {
   for (const node of nodes) frame.appendChild(node);
 
   // Apply all frame properties (layout, fill, stroke, etc.)
-  const hints: string[] = [];
+  const hints: Hint[] = [];
   await applyTokens(frame, { opacity: p.opacity }, hints);
 
   frame.layoutMode = p.layoutMode || "VERTICAL";
@@ -212,7 +212,7 @@ async function createSingleAutoLayout(p: any) {
   await applyStrokeWithAutoBind(frame, p, hints);
 
   const result: any = { id: frame.id };
-  if (hints.length > 0) result.warning = hints.join(" ");
+  if (hints.length > 0) result.hints = hints;
   return result;
 }
 

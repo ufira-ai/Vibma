@@ -1,4 +1,4 @@
-import { batchHandler, coerceColor, suggestStyleForColor, suggestTextStyle } from "./helpers";
+import { batchHandler, coerceColor, suggestStyleForColor, suggestTextStyle, type Hint } from "./helpers";
 
 // ─── Figma Handlers ──────────────────────────────────────────────
 
@@ -146,19 +146,19 @@ export async function setTextPropertiesSingle(p: any, ctx: TextPropsContext) {
   if (p.textAlignVertical) node.textAlignVertical = p.textAlignVertical;
   if (p.textAutoResize) node.textAutoResize = p.textAutoResize;
   // Warnings
-  const warnings: string[] = [];
+  const warnings: Hint[] = [];
   if (p.layoutSizingHorizontal) {
     const parentIsAL = node.parent && "layoutMode" in node.parent && (node.parent as any).layoutMode !== "NONE";
     if (parentIsAL || p.layoutSizingHorizontal !== "FILL") { node.layoutSizingHorizontal = p.layoutSizingHorizontal; }
-    else { warnings.push(`layoutSizingHorizontal '${p.layoutSizingHorizontal}' ignored — node is not inside an auto-layout frame.`); }
+    else { warnings.push({ type: "warn", message: `layoutSizingHorizontal '${p.layoutSizingHorizontal}' ignored — node is not inside an auto-layout frame.` }); }
   }
   if (p.layoutSizingVertical) {
     const parentIsAL = node.parent && "layoutMode" in node.parent && (node.parent as any).layoutMode !== "NONE";
     if (parentIsAL || p.layoutSizingVertical !== "FILL") { node.layoutSizingVertical = p.layoutSizingVertical; }
-    else { warnings.push(`layoutSizingVertical '${p.layoutSizingVertical}' ignored — node is not inside an auto-layout frame.`); }
+    else { warnings.push({ type: "warn", message: `layoutSizingVertical '${p.layoutSizingVertical}' ignored — node is not inside an auto-layout frame.` }); }
   }
   if (p.textStyleName && p.textStyleId) {
-    warnings.push("Both textStyleName and textStyleId provided — used textStyleId. Pass only one.");
+    warnings.push({ type: "warn", message: "Both textStyleName and textStyleId provided — used textStyleId. Pass only one." });
   }
   if (!resolvedStyleId && !p.textStyleName && !p.textStyleId &&
       (p.fontSize !== undefined || p.fontWeight !== undefined)) {
@@ -179,7 +179,7 @@ export async function setTextPropertiesSingle(p: any, ctx: TextPropsContext) {
   }
 
   const result: any = {};
-  if (warnings.length > 0) result.warning = warnings.join(" ");
+  if (warnings.length > 0) result.hints = warnings;
   return result;
 }
 

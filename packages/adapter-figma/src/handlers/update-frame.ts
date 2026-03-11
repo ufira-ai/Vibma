@@ -1,4 +1,4 @@
-import { batchHandler, applyTokens } from "./helpers";
+import { batchHandler, applyTokens, type Hint } from "./helpers";
 
 // ─── Figma Handlers ──────────────────────────────────────────────
 
@@ -8,7 +8,7 @@ export async function updateFrameSingle(p: any) {
   const node = await figma.getNodeByIdAsync(p.nodeId);
   if (!node) throw new Error(`Node not found: ${p.nodeId}`);
 
-  const hints: string[] = [];
+  const hints: Hint[] = [];
   const isLayoutType = LAYOUT_TYPES.includes(node.type);
   const settingLayoutMode = p.layoutMode !== undefined;
   // Auto-layout is active if already set OR being set in this call
@@ -66,7 +66,7 @@ export async function updateFrameSingle(p: any) {
   }
 
   const result: any = {};
-  if (hints.length > 0) result.warning = hints.join(" ");
+  if (hints.length > 0) result.hints = hints;
   return result;
 }
 

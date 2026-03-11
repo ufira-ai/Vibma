@@ -1,4 +1,4 @@
-import { batchHandler, appendToParent, checkOverlappingSiblings, applyTokens } from "./helpers";
+import { batchHandler, appendToParent, checkOverlappingSiblings, applyTokens, type Hint } from "./helpers";
 import { setupFrameNode } from "./create-frame";
 import { createDispatcher, paginate, pickFields } from "@ufira/vibma/endpoint";
 
@@ -13,10 +13,10 @@ function findTextNodes(node: BaseNode, skipInstances = false): TextNode[] {
   return [];
 }
 
-function warnUnboundText(comp: ComponentNode, hints: string[]) {
+function warnUnboundText(comp: ComponentNode, hints: Hint[]) {
   const textNodes = findTextNodes(comp, true);
   if (textNodes.length > 0) {
-    hints.push(`Component has ${textNodes.length} unbound text node${textNodes.length > 1 ? "s" : ""}. Pass exposeText: true to auto-expose text as editable properties on instances.`);
+    hints.push({ type: "suggest", message: `Component has ${textNodes.length} unbound text node${textNodes.length > 1 ? "s" : ""}. Pass exposeText: true to auto-expose text as editable properties on instances.` });
   }
 }
 
@@ -60,12 +60,24 @@ async function createComponentSingle(p: any) {
       const options = prop.preferredValues ? { preferredValues: prop.preferredValues } : undefined;
       comp.addComponentProperty(prop.propertyName, prop.type, prop.defaultValue, options);
     }
+    // Auto-bind TEXT properties to matching text children by name
+    const textNodes = findTextNodes(comp, true);
+    const defs = comp.componentPropertyDefinitions;
+    for (const prop of p.properties) {
+      if (prop.type !== "TEXT") continue;
+      const key = Object.keys(defs).find(k => k === prop.propertyName || k.startsWith(prop.propertyName + "#"));
+      if (!key) continue;
+      const match = textNodes.find(t => t.name.toLowerCase() === prop.propertyName.toLowerCase());
+      if (match) {
+        (match as any).componentPropertyReferences = { characters: key };
+      }
+    }
   }
 
   warnUnboundText(comp, hints);
 
   const result: any = { id: comp.id };
-  if (hints.length > 0) result.warning = hints.join(" ");
+  if (hints.length > 0) result.hints = hints;
   return result;
 }
 
@@ -111,7 +123,7 @@ async function fromNodeSingle(p: any) {
   if (node.type === "INSTANCE") throw new Error(`Node "${node.name}" is an INSTANCE. Detach it first with instances(method:"detach"), or use the source component directly.`);
   const comp = figma.createComponentFromNode(node as SceneNode);
 
-  const hints: string[] = [];
+  const hints: Hint[] = [];
   const exposedProperties: Record<string, string> = {};
 
   if (p.exposeText !== false) {
@@ -143,7 +155,7 @@ async function fromNodeSingle(p: any) {
 
   const result: any = { id: comp.id };
   if (Object.keys(exposedProperties).length > 0) result.exposedProperties = exposedProperties;
-  if (hints.length > 0) result.warning = hints.join(" ");
+  if (hints.length > 0) result.hints = hints;
   return result;
 }
 
@@ -179,12 +191,12 @@ async function combineSingle(p: any) {
       try {
         set.editComponentProperty(autoKey, { name: p.variantPropertyName });
       } catch (e: any) {
-        hints.push(`Failed to rename variant property "${autoKey}" to "${p.variantPropertyName}": ${e.message}`);
+        hints.push({ type: "error", message: `Failed to rename variant property "${autoKey}" to "${p.variantPropertyName}": ${e.message}` });
       }
     } else if (variantKeys.length === 0) {
-      hints.push(`No VARIANT properties found to rename.`);
+      hints.push({ type: "error", message: `No VARIANT properties found to rename.` });
     } else {
-      hints.push(`Multiple variant properties found (${variantKeys.join(", ")}). Cannot auto-rename — use components(method:"update", action:"edit") to rename each.`);
+      hints.push({ type: "warn", message: `Multiple variant properties found (${variantKeys.join(", ")}). Cannot auto-rename — use components(method:"update", action:"edit") to rename each.` });
     }
   }
 
@@ -194,9 +206,9 @@ async function combineSingle(p: any) {
   }, 0);
   const result: any = { id: set.id };
   if (unboundCount > 0) {
-    hints.push(`${unboundCount} text node${unboundCount > 1 ? "s" : ""} across variants not exposed as properties — instances cannot edit this text via properties. Fix: components(method: "update", items: [{id: "${set.id}", propertyName: "<textNodeName>", type: "TEXT", defaultValue: "<text>"}])`);
+    hints.push({ type: "suggest", message: `${unboundCount} text node${unboundCount > 1 ? "s" : ""} across variants not exposed as properties — instances cannot edit this text via properties. Fix: components(method: "update", items: [{id: "${set.id}", propertyName: "<textNodeName>", type: "TEXT", defaultValue: "<text>"}])` });
   }
-  if (hints.length > 0) result.warning = hints.join(" ");
+  if (hints.length > 0) result.hints = hints;
   return result;
 }
 
@@ -402,7 +414,7 @@ async function instanceCreateSingle(p: any) {
     inst.resize(p.width ?? inst.width, p.height ?? inst.height);
   }
 
-  const hints: string[] = [];
+  const hints: Hint[] = [];
   await applyTokens(inst, { opacity: p.opacity }, hints);
 
   // Min/max constraints
@@ -422,15 +434,15 @@ async function instanceCreateSingle(p: any) {
   const parentIsAL = parent && "layoutMode" in parent && (parent as any).layoutMode !== "NONE";
   if (deferH) {
     if (parentIsAL) inst.layoutSizingHorizontal = "FILL";
-    else hints.push("layoutSizingHorizontal 'FILL' ignored — parent is not an auto-layout frame.");
+    else hints.push({ type: "warn", message: "layoutSizingHorizontal 'FILL' ignored — parent is not an auto-layout frame." });
   }
   if (deferV) {
     if (parentIsAL) inst.layoutSizingVertical = "FILL";
-    else hints.push("layoutSizingVertical 'FILL' ignored — parent is not an auto-layout frame.");
+    else hints.push({ type: "warn", message: "layoutSizingVertical 'FILL' ignored — parent is not an auto-layout frame." });
   }
 
   const result: any = { id: inst.id };
-  if (hints.length > 0) result.warning = hints.join(" ");
+  if (hints.length > 0) result.hints = hints;
   return result;
 }
 
@@ -452,11 +464,14 @@ async function instanceUpdateSingle(p: any) {
   if (!node) throw new Error(`Node not found: ${p.id}`);
   if (node.type !== "INSTANCE") throw new Error(`Node ${p.id} is ${node.type}, not an INSTANCE`);
   const inst = node as InstanceNode;
+  // Accept both "properties" and "componentProperties" (mirrors instances.get response shape)
+  const props = p.properties ?? p.componentProperties;
+  if (!props || typeof props !== "object") throw new Error(`Missing 'properties' — pass a key→value map, e.g. {"Label#1:0":"text"}`);
   // Resolve partial property keys: "Label" → "Label#2:33"
   // Agents often don't know the full key suffix — match by prefix.
   const defs = inst.componentProperties;
   const resolvedProps: Record<string, any> = {};
-  for (const [key, value] of Object.entries(p.properties)) {
+  for (const [key, value] of Object.entries(props)) {
     if (defs[key]) {
       resolvedProps[key] = value;
     } else {

@@ -1,6 +1,21 @@
 import { serializeNode, DEFAULT_NODE_BUDGET } from "../utils/serialize-node";
 import type { BatchResult } from "@ufira/vibma/types";
 
+// ─── Hint System ────────────────────────────────────────────────
+// Typed warning/hint objects collected by handlers and summarized by batchHandler.
+
+export type HintType = "confirm" | "error" | "suggest" | "warn";
+export interface Hint { type: HintType; message: string }
+
+/** Normalize a hint message for dedup: strip quoted strings, parens, brackets. */
+function hintKey(h: Hint): string {
+  return h.message
+    .replace(/'[^']*'/g, "'…'")
+    .replace(/"[^"]*"/g, '"…"')
+    .replace(/\([^)]*\)/g, "(…)")
+    .replace(/\[[^\]]*\]/g, "[…]");
+}
+
 // ─── Figma Handler Utilities ────────────────────────────────────
 // Shared helpers for plugin-side (Figma) handler functions.
 
@@ -57,7 +72,7 @@ export async function batchHandler<TItem, TResult>(
   if (useProgress) sendBatchProgress(commandId, 0, items.length, "started");
 
   const results: Array<TResult | "ok" | { error: string }> = [];
-  const warningSet = new Set<string>();
+  const allHints: Hint[] = [];
   for (let i = 0; i < items.length; i++) {
     try {
       let result: any = await fn(items[i]);
@@ -65,10 +80,10 @@ export async function batchHandler<TItem, TResult>(
         const snapshot = await nodeSnapshot(result.id, depth);
         if (snapshot) result = { ...result, ...snapshot };
       }
-      // Hoist warnings to batch level (deduplicated)
-      if (result?.warning) {
-        warningSet.add(result.warning);
-        delete result.warning;
+      // Collect typed hints from each item
+      if (result?.hints) {
+        allHints.push(...(result.hints as Hint[]));
+        delete result.hints;
       }
       // Replace empty objects with "ok" for readability
       if (result && typeof result === "object" && Object.keys(result).length === 0) {
@@ -86,16 +101,27 @@ export async function batchHandler<TItem, TResult>(
   if (useProgress) sendBatchProgress(commandId, items.length, items.length, "completed");
 
   const out: BatchResult<TResult> = { results };
-  if (warningSet.size > 0) {
-    out.warnings = [...warningSet];
-    // Only prompt action for actual problems, not informational auto-bind confirmations
-    const hasActionable = out.warnings.some(w =>
-      !w.startsWith("Auto-bound") && !w.startsWith("Bound ")
-    );
-    if (hasActionable) {
-      out._action = "Fix these warnings before proceeding. Each warning describes the issue and the exact tool call to resolve it.";
+
+  // Summarize hints: suppress confirmations, dedup suggest/warn, keep errors as-is
+  const warnings: string[] = [];
+  const grouped = new Map<string, { count: number; example: string }>();
+  for (const hint of allHints) {
+    if (hint.type === "confirm") continue;
+    if (hint.type === "error") {
+      warnings.push(hint.message);
+    } else {
+      // suggest / warn — deduplicate by normalized key
+      const key = hintKey(hint);
+      const entry = grouped.get(key);
+      if (entry) entry.count++;
+      else grouped.set(key, { count: 1, example: hint.message });
     }
   }
+  for (const [, { count, example }] of grouped) {
+    warnings.push(count > 1 ? `(×${count}) ${example}` : example);
+  }
+  if (warnings.length > 0) out.warnings = warnings;
+
   return out;
 }
 
@@ -117,7 +143,7 @@ export async function appendToParent(node: SceneNode, parentId?: string): Promis
 }
 
 /** Check for sibling nodes at the same position in a non-auto-layout parent. */
-export function checkOverlappingSiblings(node: SceneNode, parent: BaseNode | null, hints: string[]): void {
+export function checkOverlappingSiblings(node: SceneNode, parent: BaseNode | null, hints: Hint[]): void {
   if (!parent || !("children" in parent)) return;
   const parentIsAL = "layoutMode" in parent && (parent as any).layoutMode !== "NONE";
   if (parentIsAL) return;
@@ -128,7 +154,7 @@ export function checkOverlappingSiblings(node: SceneNode, parent: BaseNode | nul
     Math.round((s as any).x) === nx && Math.round((s as any).y) === ny
   );
   if (overlapping.length > 0) {
-    hints.push(`Overlapping sibling(s) at (${nx},${ny}): [${overlapping.map(s => s.name).join(", ")}]. Set distinct x/y or convert parent to auto-layout.`);
+    hints.push({ type: "warn", message: `Overlapping sibling(s) at (${nx},${ny}): [${overlapping.map(s => s.name).join(", ")}]. Set distinct x/y or convert parent to auto-layout.` });
   }
 }
 
@@ -226,16 +252,16 @@ export async function findColorVariableByName(name: string, collectionName?: str
  * Format a "style not found" hint that includes available style names
  * so the agent can self-correct (e.g. "Heading" → "Heading/H2").
  */
-export function styleNotFoundHint(param: string, value: string, available: string[], limit = 20): string {
-  if (available.length === 0) return `${param} '${value}' not found (no local styles of this type exist).`;
+export function styleNotFoundHint(param: string, value: string, available: string[], limit = 20): Hint {
+  if (available.length === 0) return { type: "error", message: `${param} '${value}' not found (no local styles of this type exist).` };
   const names = available.slice(0, limit);
   const suffix = available.length > limit ? `, … and ${available.length - limit} more` : "";
-  return `${param} '${value}' not found. Available: [${names.join(", ")}${suffix}]`;
+  return { type: "error", message: `${param} '${value}' not found. Available: [${names.join(", ")}${suffix}]` };
 }
 
 /** Result from color matching: includes the hint AND auto-bind data when a match is found. */
 export interface ColorMatchResult {
-  hint: string;
+  hint: Hint;
   /** Matched variable — callers should auto-bind this to the node's paint */
   variable?: any;
   /** Matched paint style ID — callers should auto-apply via setFillStyleIdAsync */
@@ -291,7 +317,7 @@ export async function suggestStyleForColor(
     const best = scopedMatch || fallbackMatch;
     if (best) {
       return {
-        hint: `Auto-bound color ${hex} → variable '${best.name}'.`,
+        hint: { type: "confirm", message: `Auto-bound color ${hex} → variable '${best.name}'.` },
         variable: best,
       };
     }
@@ -307,14 +333,14 @@ export async function suggestStyleForColor(
       if (Math.abs(sc.r - cr) < eps && Math.abs(sc.g - cg) < eps &&
           Math.abs(sc.b - cb) < eps && Math.abs(so - ca) < eps) {
         return {
-          hint: `Auto-bound color ${hex} → style '${style.name}'.`,
+          hint: { type: "confirm", message: `Auto-bound color ${hex} → style '${style.name}'.` },
           paintStyleId: style.id,
         };
       }
     }
   }
 
-  return { hint: `Hardcoded color ${hex} has no matching paint style or color variable. Create one with styles(method: "create", type: "paint") or variables(method: "create"), then use ${styleParam} for design token consistency.` };
+  return { hint: { type: "suggest", message: `Hardcoded color ${hex} has no matching paint style or color variable. Create one with styles(method: "create", type: "paint") or variables(method: "create"), then use ${styleParam} for design token consistency.` } };
 }
 
 /**
@@ -325,7 +351,7 @@ export async function suggestStyleForColor(
 export async function applyFillWithAutoBind(
   node: any,
   p: { fillVariableId?: string; fillVariableName?: string; fillStyleName?: string; fillColor?: any },
-  hints: string[],
+  hints: Hint[],
 ): Promise<boolean> {
   // 1. Explicit variable ID
   if (p.fillVariableId) {
@@ -336,7 +362,7 @@ export async function applyFillWithAutoBind(
       node.fills = [bound];
       return true;
     }
-    hints.push(`fillVariableId '${p.fillVariableId}' not found.`);
+    hints.push({ type: "error", message: `fillVariableId '${p.fillVariableId}' not found.` });
     return false;
   }
 
@@ -347,12 +373,12 @@ export async function applyFillWithAutoBind(
       node.fills = [solidPaint(p.fillColor || { r: 0, g: 0, b: 0 })];
       const bound = figma.variables.setBoundVariableForPaint(node.fills[0] as SolidPaint, "color", v);
       node.fills = [bound];
-      hints.push(`Bound fill → variable '${v.name}'.`);
+      hints.push({ type: "confirm", message: `Bound fill → variable '${v.name}'.` });
       return true;
     }
     const colorVars = await figma.variables.getLocalVariablesAsync("COLOR");
     const names = colorVars.map(v => v.name).slice(0, 20);
-    hints.push(`fillVariableName '${p.fillVariableName}' not found. Available: [${names.join(", ")}]`);
+    hints.push({ type: "error", message: `fillVariableName '${p.fillVariableName}' not found. Available: [${names.join(", ")}]` });
     return false;
   }
 
@@ -364,7 +390,7 @@ export async function applyFillWithAutoBind(
     const match = exact || styles.find(s => s.name.toLowerCase().includes(p.fillStyleName!.toLowerCase()));
     if (match) {
       try { await node.setFillStyleIdAsync(match.id); return true; }
-      catch (e: any) { hints.push(`fillStyleName '${p.fillStyleName}' matched but failed to apply: ${e.message}`); return false; }
+      catch (e: any) { hints.push({ type: "error", message: `fillStyleName '${p.fillStyleName}' matched but failed to apply: ${e.message}` }); return false; }
     }
     hints.push(styleNotFoundHint("fillStyleName", p.fillStyleName, available));
     return false;
@@ -380,18 +406,18 @@ export async function applyFillWithAutoBind(
       const exact = styles.find(s => s.name === p.fillColor);
       const match = exact || styles.find(s => s.name.toLowerCase() === String(p.fillColor).toLowerCase());
       if (match) {
-        try { await node.setFillStyleIdAsync(match.id); hints.push(`fillColor '${p.fillColor}' resolved as paint style. Use fillStyleName instead for clarity.`); return true; }
-        catch (e: any) { hints.push(`fillColor '${p.fillColor}' matched style but failed: ${e.message}`); return false; }
+        try { await node.setFillStyleIdAsync(match.id); hints.push({ type: "confirm", message: `fillColor '${p.fillColor}' resolved as paint style. Use fillStyleName instead for clarity.` }); return true; }
+        catch (e: any) { hints.push({ type: "error", message: `fillColor '${p.fillColor}' matched style but failed: ${e.message}` }); return false; }
       }
       const v = await findColorVariableByName(String(p.fillColor));
       if (v) {
         node.fills = [solidPaint({ r: 0, g: 0, b: 0 })];
         const bound = figma.variables.setBoundVariableForPaint(node.fills[0] as SolidPaint, "color", v);
         node.fills = [bound];
-        hints.push(`fillColor '${p.fillColor}' resolved as color variable. Use fillVariableName instead for clarity.`);
+        hints.push({ type: "confirm", message: `fillColor '${p.fillColor}' resolved as color variable. Use fillVariableName instead for clarity.` });
         return true;
       }
-      hints.push(`fillColor '${p.fillColor}' is not a valid color (hex or {r,g,b}), paint style, or color variable.`);
+      hints.push({ type: "error", message: `fillColor '${p.fillColor}' is not a valid color (hex or {r,g,b}), paint style, or color variable.` });
       return false;
     }
     node.fills = [solidPaint(color)];
@@ -426,7 +452,7 @@ export async function applyStrokeWithAutoBind(
   node: any,
   p: { strokeVariableId?: string; strokeVariableName?: string; strokeStyleName?: string; strokeColor?: any; strokeWeight?: number | string;
        strokeTopWeight?: number | string; strokeBottomWeight?: number | string; strokeLeftWeight?: number | string; strokeRightWeight?: number | string },
-  hints: string[],
+  hints: Hint[],
 ): Promise<void> {
   if (p.strokeVariableId) {
     const v = await findVariableById(p.strokeVariableId);
@@ -435,7 +461,7 @@ export async function applyStrokeWithAutoBind(
       const bound = figma.variables.setBoundVariableForPaint(node.strokes[0] as SolidPaint, "color", v);
       node.strokes = [bound];
     } else {
-      hints.push(`strokeVariableId '${p.strokeVariableId}' not found.`);
+      hints.push({ type: "error", message: `strokeVariableId '${p.strokeVariableId}' not found.` });
     }
   } else if (p.strokeVariableName) {
     const v = await findColorVariableByName(p.strokeVariableName);
@@ -443,10 +469,10 @@ export async function applyStrokeWithAutoBind(
       node.strokes = [solidPaint(p.strokeColor || { r: 0, g: 0, b: 0 })];
       const bound = figma.variables.setBoundVariableForPaint(node.strokes[0] as SolidPaint, "color", v);
       node.strokes = [bound];
-      hints.push(`Bound stroke → variable '${v.name}'.`);
+      hints.push({ type: "confirm", message: `Bound stroke → variable '${v.name}'.` });
     } else {
       const colorVars = await figma.variables.getLocalVariablesAsync("COLOR");
-      hints.push(`strokeVariableName '${p.strokeVariableName}' not found. Available: [${colorVars.map(v => v.name).slice(0, 20).join(", ")}]`);
+      hints.push({ type: "error", message: `strokeVariableName '${p.strokeVariableName}' not found. Available: [${colorVars.map(v => v.name).slice(0, 20).join(", ")}]` });
     }
   } else if (p.strokeStyleName) {
     const styles = await figma.getLocalPaintStylesAsync();
@@ -455,7 +481,7 @@ export async function applyStrokeWithAutoBind(
     const match = exact || styles.find(s => s.name.toLowerCase().includes(p.strokeStyleName!.toLowerCase()));
     if (match) {
       try { await node.setStrokeStyleIdAsync(match.id); }
-      catch (e: any) { hints.push(`strokeStyleName '${p.strokeStyleName}' matched but failed to apply: ${e.message}`); }
+      catch (e: any) { hints.push({ type: "error", message: `strokeStyleName '${p.strokeStyleName}' matched but failed to apply: ${e.message}` }); }
     } else {
       hints.push(styleNotFoundHint("strokeStyleName", p.strokeStyleName, available));
     }
@@ -467,17 +493,17 @@ export async function applyStrokeWithAutoBind(
       const exact = styles.find(s => s.name === p.strokeColor);
       const match = exact || styles.find(s => s.name.toLowerCase() === String(p.strokeColor).toLowerCase());
       if (match) {
-        try { await node.setStrokeStyleIdAsync(match.id); hints.push(`strokeColor '${p.strokeColor}' resolved as paint style. Use strokeStyleName instead for clarity.`); }
-        catch (e: any) { hints.push(`strokeColor '${p.strokeColor}' matched style but failed: ${e.message}`); }
+        try { await node.setStrokeStyleIdAsync(match.id); hints.push({ type: "confirm", message: `strokeColor '${p.strokeColor}' resolved as paint style. Use strokeStyleName instead for clarity.` }); }
+        catch (e: any) { hints.push({ type: "error", message: `strokeColor '${p.strokeColor}' matched style but failed: ${e.message}` }); }
       } else {
         const v = await findColorVariableByName(String(p.strokeColor));
         if (v) {
           node.strokes = [solidPaint({ r: 0, g: 0, b: 0 })];
           const bound = figma.variables.setBoundVariableForPaint(node.strokes[0] as SolidPaint, "color", v);
           node.strokes = [bound];
-          hints.push(`strokeColor '${p.strokeColor}' resolved as color variable. Use strokeVariableName instead for clarity.`);
+          hints.push({ type: "confirm", message: `strokeColor '${p.strokeColor}' resolved as color variable. Use strokeVariableName instead for clarity.` });
         } else {
-          hints.push(`strokeColor '${p.strokeColor}' is not a valid color (hex or {r,g,b}), paint style, or color variable.`);
+          hints.push({ type: "error", message: `strokeColor '${p.strokeColor}' is not a valid color (hex or {r,g,b}), paint style, or color variable.` });
         }
       }
     } else {
@@ -508,7 +534,7 @@ export async function applyStrokeWithAutoBind(
 export async function applyFontColorWithAutoBind(
   textNode: any,
   p: { fontColorVariableId?: string; fontColorVariableName?: string; fontColorStyleName?: string; fontColor?: any },
-  hints: string[],
+  hints: Hint[],
   paintStyles?: any[] | null,
 ): Promise<boolean> {
   const makeSolid = (fc: any) => ({ type: "SOLID" as const, color: { r: fc.r ?? 0, g: fc.g ?? 0, b: fc.b ?? 0 }, opacity: fc.a ?? 1 });
@@ -522,7 +548,7 @@ export async function applyFontColorWithAutoBind(
       textNode.fills = [bound];
       return true;
     }
-    hints.push(`fontColorVariableId '${p.fontColorVariableId}' not found.`);
+    hints.push({ type: "error", message: `fontColorVariableId '${p.fontColorVariableId}' not found.` });
     return false;
   }
 
@@ -533,11 +559,11 @@ export async function applyFontColorWithAutoBind(
       textNode.fills = [makeSolid(fc)];
       const bound = figma.variables.setBoundVariableForPaint(textNode.fills[0] as SolidPaint, "color", v);
       textNode.fills = [bound];
-      hints.push(`Bound font color → variable '${v.name}'.`);
+      hints.push({ type: "confirm", message: `Bound font color → variable '${v.name}'.` });
       return true;
     }
     const colorVars = await figma.variables.getLocalVariablesAsync("COLOR");
-    hints.push(`fontColorVariableName '${p.fontColorVariableName}' not found. Available: [${colorVars.map(v => v.name).slice(0, 20).join(", ")}]`);
+    hints.push({ type: "error", message: `fontColorVariableName '${p.fontColorVariableName}' not found. Available: [${colorVars.map(v => v.name).slice(0, 20).join(", ")}]` });
     return false;
   }
 
@@ -547,7 +573,7 @@ export async function applyFontColorWithAutoBind(
     const match = exact || styles.find((s: any) => s.name.toLowerCase().includes(p.fontColorStyleName!.toLowerCase()));
     if (match) {
       try { await textNode.setFillStyleIdAsync(match.id); return true; }
-      catch (e: any) { hints.push(`fontColorStyleName '${p.fontColorStyleName}' failed: ${e.message}`); return false; }
+      catch (e: any) { hints.push({ type: "error", message: `fontColorStyleName '${p.fontColorStyleName}' failed: ${e.message}` }); return false; }
     }
     hints.push(styleNotFoundHint("fontColorStyleName", p.fontColorStyleName, styles.map((s: any) => s.name)));
     return false;
@@ -562,18 +588,18 @@ export async function applyFontColorWithAutoBind(
       const exact = styles.find((s: any) => s.name === p.fontColor);
       const match = exact || styles.find((s: any) => s.name.toLowerCase() === String(p.fontColor).toLowerCase());
       if (match) {
-        try { await textNode.setFillStyleIdAsync(match.id); hints.push(`fontColor '${p.fontColor}' resolved as paint style. Use fontColorStyleName instead for clarity.`); return true; }
-        catch (e: any) { hints.push(`fontColor '${p.fontColor}' matched style but failed: ${e.message}`); return false; }
+        try { await textNode.setFillStyleIdAsync(match.id); hints.push({ type: "confirm", message: `fontColor '${p.fontColor}' resolved as paint style. Use fontColorStyleName instead for clarity.` }); return true; }
+        catch (e: any) { hints.push({ type: "error", message: `fontColor '${p.fontColor}' matched style but failed: ${e.message}` }); return false; }
       }
       const v = await findColorVariableByName(String(p.fontColor));
       if (v) {
         textNode.fills = [makeSolid({ r: 0, g: 0, b: 0 })];
         const bound = figma.variables.setBoundVariableForPaint(textNode.fills[0] as SolidPaint, "color", v);
         textNode.fills = [bound];
-        hints.push(`fontColor '${p.fontColor}' resolved as color variable. Use fontColorVariableName instead for clarity.`);
+        hints.push({ type: "confirm", message: `fontColor '${p.fontColor}' resolved as color variable. Use fontColorVariableName instead for clarity.` });
         return true;
       }
-      hints.push(`fontColor '${p.fontColor}' is not a valid color (hex or {r,g,b}), paint style, or color variable.`);
+      hints.push({ type: "error", message: `fontColor '${p.fontColor}' is not a valid color (hex or {r,g,b}), paint style, or color variable.` });
       return false;
     }
     textNode.fills = [makeSolid(color)];
@@ -616,7 +642,7 @@ function parseToken(value: string | number): { num: number } | { varName: string
  * Each field accepts number (hardcoded) or string (variable name/ID).
  * Expands shorthand → per-corner (like padding).
  */
-export async function applyCornerRadius(node: any, p: any, hints: string[]): Promise<void> {
+export async function applyCornerRadius(node: any, p: any, hints: Hint[]): Promise<void> {
   // Expand shorthand → per-corner (individual values override shorthand)
   if (p.cornerRadius !== undefined) {
     p.topLeftRadius ??= p.cornerRadius;
@@ -638,7 +664,7 @@ export async function applyCornerRadius(node: any, p: any, hints: string[]): Pro
     // Node supports cornerRadius but not per-corner — apply as single field
     const bound = await applyToken(node, "cornerRadius", p.cornerRadius, hints);
     if (!bound) {
-      hints.push(`Hardcoded cornerRadius. Use an existing FLOAT variable or create one with variables(method:"create"), then pass the variable name string instead of a number.`);
+      hints.push({ type: "suggest", message: `Hardcoded cornerRadius. Use an existing FLOAT variable or create one with variables(method:"create"), then pass the variable name string instead of a number.` });
     }
   }
 }
@@ -648,7 +674,7 @@ export async function applyCornerRadius(node: any, p: any, hints: string[]): Pro
  * Returns true if a variable was bound, false if hardcoded numeric.
  */
 export async function applyToken(
-  node: any, field: string, value: number | string, hints: string[],
+  node: any, field: string, value: number | string, hints: Hint[],
 ): Promise<boolean> {
   const parsed = parseToken(value);
   if ("varName" in parsed) {
@@ -664,7 +690,7 @@ export async function applyToken(
  * for any hardcoded values. Skips undefined values.
  */
 export async function applyTokens(
-  node: any, fields: Record<string, number | string | undefined>, hints: string[],
+  node: any, fields: Record<string, number | string | undefined>, hints: Hint[],
 ): Promise<void> {
   const hardcoded: string[] = [];
   for (const [field, value] of Object.entries(fields)) {
@@ -674,7 +700,7 @@ export async function applyTokens(
     }
   }
   if (hardcoded.length > 0) {
-    hints.push(`Hardcoded ${hardcoded.join(", ")}. Use an existing FLOAT variable or create one with variables(method:"create"), then pass the variable name string instead of a number.`);
+    hints.push({ type: "suggest", message: `Hardcoded ${hardcoded.join(", ")}. Use an existing FLOAT variable or create one with variables(method:"create"), then pass the variable name string instead of a number.` });
   }
 }
 
@@ -686,17 +712,17 @@ export async function bindNumericVariable(
   node: any,
   fields: string | string[],
   variableName: string,
-  hints: string[],
+  hints: Hint[],
 ): Promise<boolean> {
   const v = await findVariableByName(variableName);
   if (!v) {
     const floatVars = await figma.variables.getLocalVariablesAsync("FLOAT");
     const names = floatVars.map(v => v.name).slice(0, 20);
-    hints.push(`Variable '${variableName}' not found. Available FLOAT variables: [${names.join(", ")}]`);
+    hints.push({ type: "error", message: `Variable '${variableName}' not found. Available FLOAT variables: [${names.join(", ")}]` });
     return false;
   }
   if (v.resolvedType !== "FLOAT") {
-    hints.push(`Variable '${variableName}' is ${v.resolvedType}, expected FLOAT.`);
+    hints.push({ type: "error", message: `Variable '${variableName}' is ${v.resolvedType}, expected FLOAT.` });
     return false;
   }
   const fieldList = Array.isArray(fields) ? fields : [fields];
@@ -704,7 +730,7 @@ export async function bindNumericVariable(
     node.setBoundVariable(f, v);
   }
   const label = fieldList.length > 1 ? fieldList[0].replace(/^topLeftRadius$/, "cornerRadius") : fieldList[0];
-  hints.push(`Bound ${label} → variable '${v.name}'.`);
+  hints.push({ type: "confirm", message: `Bound ${label} → variable '${v.name}'.` });
   return true;
 }
 
@@ -716,12 +742,12 @@ export async function bindNumericVariable(
 export async function suggestTextStyle(
   fontSize: number,
   fontWeight: number,
-): Promise<string> {
+): Promise<Hint> {
   const styles = await figma.getLocalTextStylesAsync();
   const matching = styles.filter(s => s.fontSize === fontSize);
   if (matching.length > 0) {
     const names = matching.map(s => s.name).slice(0, 5);
-    return `Manual font (${fontSize}px / ${fontWeight}w) — text styles at same size: [${names.join(", ")}]. Use textStyleName to link to a design token.`;
+    return { type: "suggest", message: `Manual font (${fontSize}px / ${fontWeight}w) — text styles at same size: [${names.join(", ")}]. Use textStyleName to link to a design token.` };
   }
-  return `Manual font (${fontSize}px / ${fontWeight}w) has no text style. Create one with styles(method: "create", type: "text"), then use textStyleName for design token consistency.`;
+  return { type: "suggest", message: `Manual font (${fontSize}px / ${fontWeight}w) has no text style. Create one with styles(method: "create", type: "text"), then use textStyleName for design token consistency.` };
 }

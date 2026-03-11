@@ -1,4 +1,4 @@
-import { batchHandler, appendToParent, checkOverlappingSiblings, solidPaint, applyFillWithAutoBind, applyStrokeWithAutoBind, applyCornerRadius, applyTokens, findVariableById, findColorVariableByName } from "./helpers";
+import { batchHandler, appendToParent, checkOverlappingSiblings, solidPaint, applyFillWithAutoBind, applyStrokeWithAutoBind, applyCornerRadius, applyTokens, findVariableById, findColorVariableByName, type Hint } from "./helpers";
 
 /**
  * Apply auto-layout sizing to a shape node after appending to parent.
@@ -28,12 +28,12 @@ async function createSingleSection(p: any) {
   section.name = p.name || "Section";
   section.fills = [];
 
-  const hints: string[] = [];
+  const hints: Hint[] = [];
   await applyFillWithAutoBind(section, p, hints);
 
   await appendToParent(section, p.parentId);
   const result: any = { id: section.id };
-  if (hints.length > 0) result.warning = hints.join(" ");
+  if (hints.length > 0) result.hints = hints;
   return result;
 }
 
@@ -93,7 +93,7 @@ async function createSingleRectangle(p: any) {
   rect.resize(p.width ?? 100, p.height ?? 100);
   rect.name = p.name || "Rectangle";
 
-  const hints: string[] = [];
+  const hints: Hint[] = [];
   await applyTokens(rect, { opacity: p.opacity }, hints);
   await applyCornerRadius(rect, p, hints);
   await applyFillWithAutoBind(rect, p, hints);
@@ -103,7 +103,7 @@ async function createSingleRectangle(p: any) {
   await applyLayoutSizing(rect, parent, p);
 
   const result: any = { id: rect.id };
-  if (hints.length > 0) result.warning = hints.join(" ");
+  if (hints.length > 0) result.hints = hints;
   return result;
 }
 
@@ -116,7 +116,7 @@ async function createSingleEllipse(p: any) {
   ellipse.resize(p.width ?? 100, p.height ?? p.width ?? 100);
   ellipse.name = p.name || "Ellipse";
 
-  const hints: string[] = [];
+  const hints: Hint[] = [];
   await applyTokens(ellipse, { opacity: p.opacity }, hints);
   await applyFillWithAutoBind(ellipse, p, hints);
   await applyStrokeWithAutoBind(ellipse, p, hints);
@@ -125,7 +125,7 @@ async function createSingleEllipse(p: any) {
   await applyLayoutSizing(ellipse, parent, p);
 
   const result: any = { id: ellipse.id };
-  if (hints.length > 0) result.warning = hints.join(" ");
+  if (hints.length > 0) result.hints = hints;
   return result;
 }
 
@@ -140,7 +140,7 @@ async function createSingleLine(p: any) {
   if (p.rotation !== undefined) line.rotation = p.rotation;
 
   // Lines use strokes not fills — default to black if no stroke specified
-  const hints: string[] = [];
+  const hints: Hint[] = [];
   await applyTokens(line, { opacity: p.opacity }, hints);
   if (!p.strokeColor && !p.strokeVariableId && !p.strokeVariableName && !p.strokeStyleName) {
     line.strokes = [solidPaint({ r: 0, g: 0, b: 0 })];
@@ -156,7 +156,7 @@ async function createSingleLine(p: any) {
   await applyLayoutSizing(line, parent, p, { h: defaultH });
 
   const result: any = { id: line.id };
-  if (hints.length > 0) result.warning = hints.join(" ");
+  if (hints.length > 0) result.hints = hints;
   return result;
 }
 

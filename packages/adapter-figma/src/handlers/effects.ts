@@ -20,7 +20,7 @@ export async function setEffectsSingle(p: any): Promise<any> {
     }
     await (node as any).setEffectStyleIdAsync(match.id);
     result.matchedStyle = match.name;
-    if (p.effects) result.warning = "Both effectStyleName and effects provided — used effectStyleName, ignored effects. Pass only one.";
+    if (p.effects) result.hints = [{ type: "warn", message: "Both effectStyleName and effects provided — used effectStyleName, ignored effects. Pass only one." }];
   } else if (p.effects) {
     const mapped = p.effects.map((e: any) => {
       const eff: any = { type: e.type, radius: e.radius, visible: e.visible ?? true };

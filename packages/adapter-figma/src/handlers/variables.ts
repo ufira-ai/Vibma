@@ -1,4 +1,4 @@
-import { batchHandler, coerceColor, findVariableById, findVariableByName } from "./helpers";
+import { batchHandler, coerceColor, findVariableById, findVariableByName, type Hint } from "./helpers";
 import { createDispatcher, paginate, pickFields } from "@ufira/vibma/endpoint";
 
 // ─── Figma Handlers ──────────────────────────────────────────────
@@ -130,7 +130,7 @@ async function createVariableSingle(p: any) {
   if (!variable) throw new Error(`Failed to re-fetch created variable: ${p.name}`);
   if (p.description !== undefined) variable.description = p.description;
   // Set initial value BEFORE scopes — scope errors must not prevent value from being set
-  const hints: string[] = [];
+  const hints: Hint[] = [];
   if (p.value !== undefined) {
     const modeId = p.modeId ? await resolveModeId(collection, p.modeId) : collection.defaultModeId;
     let value = p.value;
@@ -148,7 +148,7 @@ async function createVariableSingle(p: any) {
   }
   if (p.scopes !== undefined) {
     try { variable.scopes = p.scopes; }
-    catch (e: any) { hints.push(`in set_scopes: ${e.message}`); }
+    catch (e: any) { hints.push({ type: "error", message: `in set_scopes: ${e.message}` }); }
   }
   // Check for name collisions across collections — hint to use prefixed names
   const allVars = await figma.variables.getLocalVariablesAsync();
@@ -156,10 +156,10 @@ async function createVariableSingle(p: any) {
   if (dupes.length > 0) {
     const collections = await figma.variables.getLocalVariableCollectionsAsync();
     const colNames = dupes.map(v => collections.find(c => c.id === v.variableCollectionId)?.name || "?");
-    hints.push(`Name "${p.name}" also exists in collection(s): [${colNames.join(", ")}]. Use "${collection.name}/${p.name}" to disambiguate when referencing this variable.`);
+    hints.push({ type: "warn", message: `Name "${p.name}" also exists in collection(s): [${colNames.join(", ")}]. Use "${collection.name}/${p.name}" to disambiguate when referencing this variable.` });
   }
   const result: any = {};
-  if (hints.length > 0) result.warning = hints.join(" ");
+  if (hints.length > 0) result.hints = hints;
   return result;
 }
 

@@ -1,4 +1,4 @@
-import { batchHandler, appendToParent, checkOverlappingSiblings, coerceColor, suggestTextStyle, applyFontColorWithAutoBind } from "./helpers";
+import { batchHandler, appendToParent, checkOverlappingSiblings, coerceColor, suggestTextStyle, applyFontColorWithAutoBind, styleNotFoundHint, type Hint } from "./helpers";
 
 // ─── Figma Handlers ──────────────────────────────────────────────
 
@@ -180,7 +180,7 @@ async function createTextSingle(p: any, ctx: CreateTextContext) {
   if (textAlignVertical) textNode.textAlignVertical = textAlignVertical;
 
   // Font color: shared helper handles variableName > variableId > styleName > color (with auto-bind)
-  const hints: string[] = [];
+  const hints: Hint[] = [];
   const colorTokenized = await applyFontColorWithAutoBind(
     textNode,
     { fontColorVariableId, fontColorVariableName, fontColorStyleName, fontColor },
@@ -208,10 +208,10 @@ async function createTextSingle(p: any, ctx: CreateTextContext) {
       try {
         await (textNode as any).setTextStyleIdAsync(cached.id);
       } catch (e: any) {
-        hints.push(`textStyleName '${textStyleName || resolvedStyleId}' matched but failed to apply: ${e.message}`);
+        hints.push({ type: "error", message: `textStyleName '${textStyleName || resolvedStyleId}' matched but failed to apply: ${e.message}` });
       }
     } else {
-      hints.push(`textStyleName '${textStyleName || resolvedStyleId}' matched style ID '${resolvedStyleId}' but the style could not be loaded. It may be from a remote library or deleted.`);
+      hints.push({ type: "error", message: `textStyleName '${textStyleName || resolvedStyleId}' matched style ID '${resolvedStyleId}' but the style could not be loaded. It may be from a remote library or deleted.` });
     }
   } else if (textStyleName) {
     hints.push(styleNotFoundHint("textStyleName", textStyleName, ctx.textStyles!.map((s: any) => s.name)));
@@ -223,7 +223,7 @@ async function createTextSingle(p: any, ctx: CreateTextContext) {
   checkOverlappingSiblings(textNode, parent, hints);
 
   if (fontSize < 12) {
-    hints.push("WCAG: Min 12px text recommended.");
+    hints.push({ type: "suggest", message: "WCAG: Min 12px text recommended." });
   }
 
   if (textAutoResize) {
@@ -235,16 +235,16 @@ async function createTextSingle(p: any, ctx: CreateTextContext) {
   if (layoutSizingHorizontal) {
     const parentIsAL = textNode.parent && "layoutMode" in textNode.parent && (textNode.parent as any).layoutMode !== "NONE";
     if (parentIsAL || layoutSizingHorizontal !== "FILL") { textNode.layoutSizingHorizontal = layoutSizingHorizontal; }
-    else { hints.push(`layoutSizingHorizontal '${layoutSizingHorizontal}' ignored — text node is not inside an auto-layout frame.`); }
+    else { hints.push({ type: "warn", message: `layoutSizingHorizontal '${layoutSizingHorizontal}' ignored — text node is not inside an auto-layout frame.` }); }
   }
   if (layoutSizingVertical) {
     const parentIsAL = textNode.parent && "layoutMode" in textNode.parent && (textNode.parent as any).layoutMode !== "NONE";
     if (parentIsAL || layoutSizingVertical !== "FILL") { textNode.layoutSizingVertical = layoutSizingVertical; }
-    else { hints.push(`layoutSizingVertical '${layoutSizingVertical}' ignored — text node is not inside an auto-layout frame.`); }
+    else { hints.push({ type: "warn", message: `layoutSizingVertical '${layoutSizingVertical}' ignored — text node is not inside an auto-layout frame.` }); }
   }
 
   const result: any = { id: textNode.id };
-  if (hints.length > 0) result.warning = hints.join(" ");
+  if (hints.length > 0) result.hints = hints;
   return result;
 }
 

@@ -1,4 +1,4 @@
-import { applyToken, applyTokens, batchHandler, coerceColor, findVariableById, findVariableByName, solidPaint, styleNotFoundHint, suggestStyleForColor } from "./helpers";
+import { applyToken, applyTokens, batchHandler, coerceColor, findVariableById, findVariableByName, solidPaint, styleNotFoundHint, suggestStyleForColor, type Hint } from "./helpers";
 
 // ─── Figma Handlers ──────────────────────────────────────────────
 
@@ -37,10 +37,10 @@ export async function setFillSingle(p: any): Promise<any> {
     if (match) {
       await (node as any).setFillStyleIdAsync(match.id);
       const result: any = { matchedStyle: match.name };
-      if (p.color) result.warning = "Both styleName and color provided — used styleName, ignored color. Pass only one.";
+      if (p.color) result.hints = [{ type: "warn", message: "Both styleName and color provided — used styleName, ignored color. Pass only one." }];
       return result;
     }
-    throw new Error(styleNotFoundHint("styleName", p.styleName, available));
+    throw new Error(styleNotFoundHint("styleName", p.styleName, available).message);
   } else if (p.color) {
     const c = coerceColor(p.color);
     if (!c) throw new Error(`Invalid fill color: ${JSON.stringify(p.color)}. Use hex "#FF0000" or {r, g, b, a?} with values 0-1.`);
@@ -49,12 +49,12 @@ export async function setFillSingle(p: any): Promise<any> {
     if (match.variable) {
       const bound = figma.variables.setBoundVariableForPaint((node as any).fills[0], "color", match.variable);
       (node as any).fills = [bound];
-      return { warning: match.hint };
+      return { hints: [match.hint] };
     }
     if (match.paintStyleId) {
-      try { await (node as any).setFillStyleIdAsync(match.paintStyleId); return { warning: match.hint }; } catch {}
+      try { await (node as any).setFillStyleIdAsync(match.paintStyleId); return { hints: [match.hint] }; } catch {}
     }
-    return { warning: match.hint };
+    return { hints: [match.hint] };
   }
   return {};
 }
@@ -78,28 +78,26 @@ export async function setStrokeSingle(p: any): Promise<any> {
     if (match) {
       await (node as any).setStrokeStyleIdAsync(match.id);
       const result: any = { matchedStyle: match.name };
-      if (p.color) result.warning = "Both styleName and color provided — used styleName, ignored color. Pass only one.";
+      const allHints: Hint[] = [];
+      if (p.color) allHints.push({ type: "warn", message: "Both styleName and color provided — used styleName, ignored color. Pass only one." });
       if (p.strokeWeight !== undefined && "strokeWeight" in node) {
-        const swHints: string[] = [];
-        await applyTokens(node, { strokeWeight: p.strokeWeight }, swHints);
-        if (swHints.length > 0) result.warning = (result.warning ? result.warning + " " : "") + swHints.join(" ");
+        await applyTokens(node, { strokeWeight: p.strokeWeight }, allHints);
       }
+      if (allHints.length > 0) result.hints = allHints;
       return result;
     }
-    throw new Error(styleNotFoundHint("styleName", p.styleName, available));
+    throw new Error(styleNotFoundHint("styleName", p.styleName, available).message);
   } else if (p.color) {
     const c = coerceColor(p.color);
     if (!c) throw new Error(`Invalid stroke color: ${JSON.stringify(p.color)}. Use hex "#FF0000" or {r, g, b, a?} with values 0-1.`);
     (node as any).strokes = [{ type: "SOLID", color: { r: c.r, g: c.g, b: c.b }, opacity: c.a }];
   }
-  const hints: string[] = [];
+  const hints: Hint[] = [];
   const swFields: Record<string, any> = {};
   for (const f of ["strokeWeight", "strokeTopWeight", "strokeBottomWeight", "strokeLeftWeight", "strokeRightWeight"]) {
     if (p[f] !== undefined && f in node) swFields[f] = p[f];
   }
   await applyTokens(node, swFields, hints);
-  const result: any = {};
-  if (hints.length > 0) result.warning = hints.join(" ");
   if (p.color && !p.styleName && !p.variableId && !p.variableName) {
     const c = coerceColor(p.color);
     if (c) {
@@ -110,9 +108,11 @@ export async function setStrokeSingle(p: any): Promise<any> {
       } else if (match.paintStyleId) {
         try { await (node as any).setStrokeStyleIdAsync(match.paintStyleId); } catch {}
       }
-      result.warning = match.hint;
+      hints.push(match.hint);
     }
   }
+  const result: any = {};
+  if (hints.length > 0) result.hints = hints;
   return result;
 }
 
@@ -121,7 +121,7 @@ export async function setCornerSingle(p: any) {
   if (!node) throw new Error(`Node not found: ${p.nodeId}`);
   if (!("cornerRadius" in node)) throw new Error(`Node does not support corner radius: ${p.nodeId}`);
 
-  const hints: string[] = [];
+  const hints: Hint[] = [];
 
   // Map input params (topLeft, topRight, etc.) to Figma fields (topLeftRadius, etc.)
   const mapping = [
@@ -149,14 +149,13 @@ export async function setCornerSingle(p: any) {
       // Node only supports single cornerRadius (e.g. non-rectangle)
       const bound = await applyToken(node, "cornerRadius", p.radius, hints);
       if (!bound) {
-        hints.push(`Hardcoded cornerRadius. Use an existing FLOAT variable or create one with variables(method:"create"), then pass the variable name string instead of a number.`);
+        hints.push({ type: "suggest", message: `Hardcoded cornerRadius. Use an existing FLOAT variable or create one with variables(method:"create"), then pass the variable name string instead of a number.` });
       }
     }
   }
 
   const result: any = {};
-  const unique = [...new Set(hints)];
-  if (unique.length > 0) result.warning = unique.join(" ");
+  if (hints.length > 0) result.hints = hints;
   return result;
 }
 
@@ -164,10 +163,10 @@ export async function setOpacitySingle(p: any) {
   const node = await figma.getNodeByIdAsync(p.nodeId);
   if (!node) throw new Error(`Node not found: ${p.nodeId}`);
   if (!("opacity" in node)) throw new Error(`Node does not support opacity`);
-  const hints: string[] = [];
+  const hints: Hint[] = [];
   await applyTokens(node, { opacity: p.opacity }, hints);
   const result: any = {};
-  if (hints.length > 0) result.warning = hints.join(" ");
+  if (hints.length > 0) result.hints = hints;
   return result;
 }
 

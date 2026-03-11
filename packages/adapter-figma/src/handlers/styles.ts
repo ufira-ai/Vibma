@@ -1,4 +1,4 @@
-import { batchHandler, coerceColor, findColorVariableByName, suggestStyleForColor } from "./helpers";
+import { batchHandler, coerceColor, findColorVariableByName, suggestStyleForColor, type Hint } from "./helpers";
 import { resolveFontAsync, clearFontCache } from "./create-text";
 import { createDispatcher, paginate, pickFields } from "@ufira/vibma/endpoint";
 import type { ListResponse } from "@ufira/vibma/endpoint";
@@ -168,9 +168,9 @@ async function createTextStyleSingle(p: any) {
 
   // WCAG recommendations for text styles
   const result: any = { id: style.id };
-  const hints: string[] = [];
+  const hints: Hint[] = [];
   if (p.fontSize < 12) {
-    hints.push("WCAG: Min 12px text recommended.");
+    hints.push({ type: "warn", message: "WCAG: Min 12px text recommended." });
   }
   if (p.lineHeight !== undefined && p.lineHeight !== "AUTO") {
     let lhPx: number | null = null;
@@ -178,10 +178,10 @@ async function createTextStyleSingle(p: any) {
     else if (p.lineHeight.unit === "PIXELS") lhPx = p.lineHeight.value;
     else if (p.lineHeight.unit === "PERCENT") lhPx = (p.lineHeight.value / 100) * p.fontSize;
     if (lhPx !== null && lhPx / p.fontSize < 1.5) {
-      hints.push(`WCAG: Line height ${Math.ceil(p.fontSize * 1.5)}px (1.5x) recommended.`);
+      hints.push({ type: "warn", message: `WCAG: Line height ${Math.ceil(p.fontSize * 1.5)}px (1.5x) recommended.` });
     }
   }
-  if (hints.length > 0) result.warning = hints.join(" ");
+  if (hints.length > 0) result.hints = hints;
 
   return result;
 }
@@ -353,27 +353,27 @@ async function patchStyleSingle(p: any) {
   }
 
   // Collect warnings
-  const hints: string[] = [];
+  const hints: Hint[] = [];
   if (ignored.length > 0) {
-    hints.push(`${ignored.join(", ")} not applicable for ${style.type} style, ignored.`);
+    hints.push({ type: "warn", message: `${ignored.join(", ")} not applicable for ${style.type} style, ignored.` });
   }
 
   // WCAG recommendations for text styles
   if (style.type === "TEXT") {
     const ts = style as TextStyle;
-    if (ts.fontSize < 12) hints.push("WCAG: Min 12px text recommended.");
+    if (ts.fontSize < 12) hints.push({ type: "warn", message: "WCAG: Min 12px text recommended." });
     const lh = ts.lineHeight as any;
     if (lh && lh.unit !== "AUTO") {
       let lhPx: number | null = null;
       if (lh.unit === "PIXELS") lhPx = lh.value;
       else if (lh.unit === "PERCENT") lhPx = (lh.value / 100) * ts.fontSize;
       if (lhPx !== null && lhPx / ts.fontSize < 1.5) {
-        hints.push(`WCAG: Line height ${Math.ceil(ts.fontSize * 1.5)}px (1.5x) recommended.`);
+        hints.push({ type: "warn", message: `WCAG: Line height ${Math.ceil(ts.fontSize * 1.5)}px (1.5x) recommended.` });
       }
     }
   }
 
-  if (hints.length > 0) return { warning: hints.join(" ") };
+  if (hints.length > 0) return { hints };
   return "ok";
 }
 

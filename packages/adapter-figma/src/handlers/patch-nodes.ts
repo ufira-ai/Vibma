@@ -1,4 +1,4 @@
-import { batchHandler, findVariableById, findVariableByName } from "./helpers";
+import { batchHandler, findVariableById, findVariableByName, type Hint } from "./helpers";
 import { setFillSingle, setStrokeSingle, setCornerSingle, setOpacitySingle } from "./fill-stroke";
 import { setEffectsSingle, setConstraintsSingle, setExportSettingsSingle, setNodePropertiesSingle } from "./effects";
 import { moveSingle, resizeSingle } from "./modify-node";
@@ -29,6 +29,12 @@ async function doResize(item: any): Promise<void> {
 
 async function patchSingleNode(item: any, textCtx: TextPropsContext | null): Promise<any> {
   const result: any = {};
+  const hints: Hint[] = [];
+
+  /** Collect hints from a sub-handler result */
+  function collectHints(r: any) {
+    if (r?.hints) hints.push(...(r.hints as Hint[]));
+  }
 
   // 0. Simple scalar properties
   const simpleUpdates = SIMPLE_PROPS.filter(k => item[k] !== undefined);
@@ -37,7 +43,7 @@ async function patchSingleNode(item: any, textCtx: TextPropsContext | null): Pro
     if (!node) throw new Error(`Node not found: ${item.nodeId}`);
     for (const key of simpleUpdates) {
       if (key in node) (node as any)[key] = item[key];
-      else result.warning = appendWarning(result.warning, `Property '${key}' not supported on ${node.type}`);
+      else hints.push({ type: "error", message: `Property '${key}' not supported on ${node.type}` });
     }
   }
 
@@ -57,7 +63,7 @@ async function patchSingleNode(item: any, textCtx: TextPropsContext | null): Pro
   if (item.fill) {
     const r = await setFillSingle({ nodeId: item.nodeId, ...item.fill });
     if (r.matchedStyle) result.matchedFillStyle = r.matchedStyle;
-    if (r.warning) result.warning = appendWarning(result.warning, r.warning);
+    collectHints(r);
   }
 
   // 4. Stroke
@@ -75,19 +81,19 @@ async function patchSingleNode(item: any, textCtx: TextPropsContext | null): Pro
       strokeRightWeight: item.stroke.strokeRightWeight,
     });
     if (r.matchedStyle) result.matchedStrokeStyle = r.matchedStyle;
-    if (r.warning) result.warning = appendWarning(result.warning, r.warning);
+    collectHints(r);
   }
 
   // 5. Corner radius
   if (item.cornerRadius) {
     const r = await setCornerSingle({ nodeId: item.nodeId, ...item.cornerRadius });
-    if (r.warning) result.warning = appendWarning(result.warning, r.warning);
+    collectHints(r);
   }
 
   // 6. Opacity
   if (item.opacity !== undefined) {
     const r = await setOpacitySingle({ nodeId: item.nodeId, opacity: item.opacity });
-    if (r.warning) result.warning = appendWarning(result.warning, r.warning);
+    collectHints(r);
   }
 
   // 7. Effects
@@ -98,7 +104,7 @@ async function patchSingleNode(item: any, textCtx: TextPropsContext | null): Pro
       effectStyleName: item.effects.styleName,
     });
     if (r.matchedStyle) result.matchedEffectStyle = r.matchedStyle;
-    if (r.warning) result.warning = appendWarning(result.warning, r.warning);
+    collectHints(r);
   }
 
   // 8. Constraints
@@ -114,7 +120,7 @@ async function patchSingleNode(item: any, textCtx: TextPropsContext | null): Pro
   // 10. Layout
   if (item.layout) {
     const r = await updateFrameSingle({ nodeId: item.nodeId, ...item.layout });
-    if (r.warning) result.warning = appendWarning(result.warning, r.warning);
+    collectHints(r);
   }
 
   // 10b. Deferred resize — after layout so sizing mode (FIXED/HUG/FILL) is set first
@@ -125,7 +131,7 @@ async function patchSingleNode(item: any, textCtx: TextPropsContext | null): Pro
   // 11. Text
   if (item.text && textCtx) {
     const r = await setTextPropertiesSingle({ nodeId: item.nodeId, ...item.text }, textCtx);
-    if (r.warning) result.warning = appendWarning(result.warning, r.warning);
+    collectHints(r);
   }
 
   // 12. Variable bindings
@@ -136,7 +142,7 @@ async function patchSingleNode(item: any, textCtx: TextPropsContext | null): Pro
       const variable = b.variableName
         ? await findVariableByName(b.variableName)
         : await findVariableById(b.variableId);
-      if (!variable) { result.warning = appendWarning(result.warning, `Variable not found: ${b.variableName || b.variableId}`); continue; }
+      if (!variable) { hints.push({ type: "error", message: `Variable not found: ${b.variableName || b.variableId}` }); continue; }
       const paintMatch = b.field.match(/^(fills|strokes)\/(\d+)\/color$/);
       if (paintMatch) {
         const prop = paintMatch[1];
@@ -152,7 +158,7 @@ async function patchSingleNode(item: any, textCtx: TextPropsContext | null): Pro
       } else if ("setBoundVariable" in node) {
         (node as any).setBoundVariable(b.field, variable);
       } else {
-        result.warning = appendWarning(result.warning, `Node does not support variable binding for field: ${b.field}`);
+        hints.push({ type: "error", message: `Node does not support variable binding for field: ${b.field}` });
       }
     }
   }
@@ -162,7 +168,7 @@ async function patchSingleNode(item: any, textCtx: TextPropsContext | null): Pro
     const node = await figma.getNodeByIdAsync(item.nodeId);
     if (!node) throw new Error(`Node not found: ${item.nodeId}`);
     if (!("setExplicitVariableModeForCollection" in node)) {
-      result.warning = appendWarning(result.warning, `Node ${item.nodeId} does not support explicit variable modes.`);
+      hints.push({ type: "error", message: `Node ${item.nodeId} does not support explicit variable modes.` });
     } else {
       const allCollections = await figma.variables.getLocalVariableCollectionsAsync();
       const em = item.explicitMode;
@@ -197,11 +203,8 @@ async function patchSingleNode(item: any, textCtx: TextPropsContext | null): Pro
     await setNodePropertiesSingle({ nodeId: item.nodeId, properties: item.properties });
   }
 
+  if (hints.length > 0) result.hints = hints;
   return result;
-}
-
-function appendWarning(existing: string | undefined, addition: string): string {
-  return existing ? `${existing} ${addition}` : addition;
 }
 
 async function patchNodesBatch(params: any) {
