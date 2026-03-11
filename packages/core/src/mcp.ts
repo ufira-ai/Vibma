@@ -85,9 +85,11 @@ let versionWarning: string | null = null;
 const args = process.argv.slice(2);
 const serverArg = args.find((a) => a.startsWith("--server="));
 const portArg = args.find((a) => a.startsWith("--port="));
-const serverUrl = serverArg ? serverArg.split("=")[1] : "localhost";
+const serverUrl = serverArg ? serverArg.split("=")[1] : (process.env.VIBMA_SERVER || "localhost");
 if (portArg) activePort = parseInt(portArg.split("=")[1]);
-const WS_URL = serverUrl === "localhost" ? `ws://${serverUrl}` : `wss://${serverUrl}`;
+const isLocal = /^(localhost|127\.0\.0\.1|host\.docker\.internal|0\.0\.0\.0)(:|$)/.test(serverUrl)
+  || serverUrl.endsWith(".local");
+const WS_URL = isLocal ? `ws://${serverUrl}` : `wss://${serverUrl}`;
 
 // Access-tier flags: read is always on, --create / --edit opt-in
 const caps = {
@@ -104,7 +106,7 @@ function connectToFigma(port: number = activePort) {
     return;
   }
 
-  const wsUrl = serverUrl === "localhost" ? `${WS_URL}:${port}` : WS_URL;
+  const wsUrl = isLocal ? `${WS_URL}:${port}` : WS_URL;
   logger.info(`Connecting to Figma socket server at ${wsUrl}...`);
   ws = new WebSocket(wsUrl);
 
@@ -327,8 +329,8 @@ server.registerTool(
       }
 
       if (method === "list") {
-        const url = serverUrl === "localhost"
-          ? `http://localhost:${activePort}/channels`
+        const url = isLocal
+          ? `http://${serverUrl}:${activePort}/channels`
           : `https://${serverUrl}/channels`;
         const response = await fetch(url);
         if (!response.ok) return { content: [{ type: "text", text: `Relay returned ${response.status}: ${await response.text()}` }] };
@@ -338,8 +340,8 @@ server.registerTool(
 
       if (method === "delete") {
         const targetChannel = params.channel || currentChannel || "vibma";
-        const url = serverUrl === "localhost"
-          ? `http://localhost:${activePort}/channels/${encodeURIComponent(targetChannel)}`
+        const url = isLocal
+          ? `http://${serverUrl}:${activePort}/channels/${encodeURIComponent(targetChannel)}`
           : `https://${serverUrl}/channels/${encodeURIComponent(targetChannel)}`;
         const res = await fetch(url, { method: "DELETE" });
         const body = await res.json() as { ok: boolean; message: string };
