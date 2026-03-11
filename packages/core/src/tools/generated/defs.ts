@@ -472,7 +472,8 @@ export const tools: ToolDef[] = [
       if (m === "update") {
         const itemSchema = z.object({
           id: z.string().describe("Instance node ID"),
-          properties: z.record(z.string(), z.unknown()).describe("Property key→value map"),
+          properties: z.record(z.string(), z.unknown()).optional().describe("Property key→value map"),
+          componentProperties: z.record(z.string(), z.unknown()).optional().describe("Alias for properties (matches instances.get response shape)"),
         });
         try { params.items = z.array(itemSchema).parse(params.items); }
         catch (e) { if (e instanceof z.ZodError) { throw new Error(e.issues.map(i => { const path = i.path.join("."); const shape = itemSchema instanceof z.ZodObject ? (itemSchema as any).shape : null; const desc = shape?.[i.path[1]]?.description; return path + ": " + i.message + (desc ? " (expected: " + desc + ")" : ""); }).join("; ")); } throw e; }

@@ -94,7 +94,8 @@ methods:
           type: object
           properties:
             id: { type: string, required: true, description: "Instance node ID" }
-            properties: { type: object, coerce: json, required: true, description: "Property key→value map" }
+            properties: { type: object, coerce: json, optional: true, description: "Property key→value map" }
+            componentProperties: { type: object, coerce: json, optional: true, description: "Alias for properties (matches instances.get response shape)" }
     response:
       type: batch_mixed
 

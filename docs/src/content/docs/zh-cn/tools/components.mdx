@@ -17,6 +17,9 @@ import ParameterTable from "../../../../components/ParameterTable.astro";
 // A component set (variant set) groups related components as variants (e.g. Button/Primary, Button/Secondary).
 // Property types: BOOLEAN (toggle visibility), TEXT (editable text), INSTANCE_SWAP (swap child instance), VARIANT (variant picker).
 // exposeText: when creating from_node, text children become editable TEXT properties on the component.
+// Auto-bind: TEXT properties auto-bind to text children with matching names (case-insensitive).
+// Example: properties:[{propertyName:"Label", type:"TEXT", defaultValue:"Click"}] binds to a child text node named "Label".
+// text.create also accepts componentPropertyName to bind on creation: text(method:"create", items:[{parentId, text:"Click", componentPropertyName:"Label"}]).
 // Property keys include a unique suffix like "Label#1:0" — use components.get to find exact keys.
 // ComponentItem accepts the same params as FrameItem (layout, fill, stroke, sizing, min/max).
 // A component IS a frame — create it directly with all layout properties, then add children.

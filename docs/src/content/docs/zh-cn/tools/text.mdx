@@ -106,6 +106,7 @@ interface TextItem {
   layoutSizingHorizontal?: "FIXED" | "HUG" | "FILL";
   layoutSizingVertical?: "FIXED" | "HUG" | "FILL";
   textAutoResize?: "NONE" | "WIDTH_AND_HEIGHT" | "HEIGHT" | "TRUNCATE";
+  componentPropertyName?: string; // bind to a component TEXT property by name (parent must be a component)
 }
 interface ScanResult {
   nodeId: string; count: number; truncated: boolean;

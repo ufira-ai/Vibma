@@ -32,7 +32,7 @@ interface InstanceCreateItem {
 }
 interface InstanceUpdateItem {
   id: string;                              // instance node ID
-  properties: Record<string, string | boolean>; // key→value e.g. {"Label#1:0":"Click Me"}
+  properties: Record<string, string | boolean>; // key→value e.g. {"Label#1:0":"Click Me"} — also accepts componentProperties as alias
 }
 ```
 
@@ -68,7 +68,7 @@ Create component instances
 
 Set instance properties
 
-<ParameterTable schema={{"type":"object","properties":{"items":{"description":"Array of {id, properties: {\"Label#1:0\":\"text\"}}","type":"array","items":{"type":"object","properties":{"id":{"description":"Instance node ID","type":"string"},"properties":{"description":"Property key→value map","type":"object"}},"required":["id","properties"]}}},"required":["items"]}} />
+<ParameterTable schema={{"type":"object","properties":{"items":{"description":"Array of {id, properties: {\"Label#1:0\":\"text\"}}","type":"array","items":{"type":"object","properties":{"id":{"description":"Instance node ID","type":"string"},"properties":{"description":"Property key→value map","type":"object"},"componentProperties":{"description":"Alias for properties (matches instances.get response shape)","type":"object"}},"required":["id"]}}},"required":["items"]}} />
 
 **Response**
 
