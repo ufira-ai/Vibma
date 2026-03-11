@@ -138,6 +138,7 @@ export const allFigmaHandlers: Record<string, (params: any) => Promise<any>> = {
   "components.get": componentsHandlers.components,
   "components.create": componentsHandlers.components,
   "components.update": componentsHandlers.components,
+  "components.delete": componentsHandlers.components,
 
   // ─── instances endpoint ───
   "instances.get": componentsHandlers.instances,
