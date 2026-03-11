@@ -205,6 +205,15 @@ async function walkNode(node: BaseNode, depth: number, issues: Issue[], ctx: Lin
     }
   }
 
+  // -- Rule: unbounded-hug --
+  if (ctx.runAll || ctx.ruleSet.has("unbounded-hug")) {
+    if (isFrame(node) && node.layoutMode !== "NONE" &&
+        node.layoutSizingHorizontal === "HUG" && node.layoutSizingVertical === "HUG") {
+      issues.push({ rule: "unbounded-hug", nodeId: node.id, nodeName: node.name });
+      if (issues.length >= ctx.maxFindings) return;
+    }
+  }
+
   // -- Rule: shape-instead-of-frame --
   if (ctx.runAll || ctx.ruleSet.has("shape-instead-of-frame")) {
     if (isShape(node) && node.parent && "children" in node.parent) {
@@ -335,17 +344,6 @@ async function walkNode(node: BaseNode, depth: number, issues: Issue[], ctx: Lin
         }
       }
       if (issues.length >= ctx.maxFindings) return;
-    }
-  }
-
-  // -- Rule: unbounded-hug --
-  if (ctx.runAll || ctx.ruleSet.has("unbounded-hug")) {
-    if (isFrame(node) && node.layoutMode !== "NONE" && node.parent?.type !== "PAGE") {
-      const f = node as any;
-      if (f.layoutSizingHorizontal === "HUG" && f.layoutSizingVertical === "HUG") {
-        issues.push({ rule: "unbounded-hug", nodeId: node.id, nodeName: node.name });
-        if (issues.length >= ctx.maxFindings) return;
-      }
     }
   }
 

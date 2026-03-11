@@ -1,4 +1,4 @@
-import { batchHandler, appendToParent, applyFillWithAutoBind, applyStrokeWithAutoBind, applyCornerRadius, applyTokens } from "./helpers";
+import { batchHandler, appendToParent, checkOverlappingSiblings, applyFillWithAutoBind, applyStrokeWithAutoBind, applyCornerRadius, applyTokens } from "./helpers";
 import { looksInteractive } from "@ufira/vibma/utils/wcag";
 
 /**
@@ -97,6 +97,14 @@ export async function setupFrameNode(
         hints.push("Child has FIXED sizing inside auto-layout parent. Consider layoutSizingHorizontal/Vertical: 'FILL' or 'HUG' for responsive layout.");
       }
     }
+  }
+
+  // Overlapping children: detect sibling at same position in non-auto-layout parent
+  checkOverlappingSiblings(node, parent, hints);
+
+  // Unbounded HUG: both axes HUG breaks responsiveness
+  if (layoutMode !== "NONE" && node.layoutSizingHorizontal === "HUG" && node.layoutSizingVertical === "HUG") {
+    hints.push("HUG on both axes — content grows unboundedly and text won't wrap. Use FILL or FIXED width with HUG height for responsive layout.");
   }
 
   // WCAG 2.5.8: target size recommendation for interactive elements

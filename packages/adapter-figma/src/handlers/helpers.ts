@@ -116,6 +116,22 @@ export async function appendToParent(node: SceneNode, parentId?: string): Promis
   return null;
 }
 
+/** Check for sibling nodes at the same position in a non-auto-layout parent. */
+export function checkOverlappingSiblings(node: SceneNode, parent: BaseNode | null, hints: string[]): void {
+  if (!parent || !("children" in parent)) return;
+  const parentIsAL = "layoutMode" in parent && (parent as any).layoutMode !== "NONE";
+  if (parentIsAL) return;
+  const siblings = (parent as any).children as SceneNode[];
+  const nx = Math.round(node.x), ny = Math.round(node.y);
+  const overlapping = siblings.filter(s =>
+    s.id !== node.id && "x" in s && "y" in s &&
+    Math.round((s as any).x) === nx && Math.round((s as any).y) === ny
+  );
+  if (overlapping.length > 0) {
+    hints.push(`Overlapping sibling(s) at (${nx},${ny}): [${overlapping.map(s => s.name).join(", ")}]. Set distinct x/y or convert parent to auto-layout.`);
+  }
+}
+
 /**
  * Coerce a color value: hex string → {r,g,b,a} object (0-1).
  * Passes through objects unchanged. Returns null if not a valid hex string.

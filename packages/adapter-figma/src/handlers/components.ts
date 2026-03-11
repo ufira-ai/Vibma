@@ -1,4 +1,4 @@
-import { batchHandler, appendToParent, applyTokens } from "./helpers";
+import { batchHandler, appendToParent, checkOverlappingSiblings, applyTokens } from "./helpers";
 import { setupFrameNode } from "./create-frame";
 import { createDispatcher, paginate, pickFields } from "@ufira/vibma/endpoint";
 
@@ -418,6 +418,7 @@ async function instanceCreateSingle(p: any) {
   if (p.layoutSizingVertical && !deferV) inst.layoutSizingVertical = p.layoutSizingVertical;
 
   const parent = await appendToParent(inst, p.parentId);
+  checkOverlappingSiblings(inst, parent, hints);
   const parentIsAL = parent && "layoutMode" in parent && (parent as any).layoutMode !== "NONE";
   if (deferH) {
     if (parentIsAL) inst.layoutSizingHorizontal = "FILL";

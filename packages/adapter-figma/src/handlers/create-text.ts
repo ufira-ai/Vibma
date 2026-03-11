@@ -1,4 +1,4 @@
-import { batchHandler, appendToParent, coerceColor, suggestTextStyle, applyFontColorWithAutoBind } from "./helpers";
+import { batchHandler, appendToParent, checkOverlappingSiblings, coerceColor, suggestTextStyle, applyFontColorWithAutoBind } from "./helpers";
 
 // ─── Figma Handlers ──────────────────────────────────────────────
 
@@ -219,7 +219,8 @@ async function createTextSingle(p: any, ctx: CreateTextContext) {
     hints.push(await suggestTextStyle(fontSize, fontWeight));
   }
 
-  await appendToParent(textNode, parentId);
+  const parent = await appendToParent(textNode, parentId);
+  checkOverlappingSiblings(textNode, parent, hints);
 
   if (fontSize < 12) {
     hints.push("WCAG: Min 12px text recommended.");

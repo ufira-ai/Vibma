@@ -1,4 +1,4 @@
-import { batchHandler, appendToParent, solidPaint, applyFillWithAutoBind, applyStrokeWithAutoBind, applyCornerRadius, applyTokens, findVariableById, findColorVariableByName } from "./helpers";
+import { batchHandler, appendToParent, checkOverlappingSiblings, solidPaint, applyFillWithAutoBind, applyStrokeWithAutoBind, applyCornerRadius, applyTokens, findVariableById, findColorVariableByName } from "./helpers";
 
 /**
  * Apply auto-layout sizing to a shape node after appending to parent.
@@ -99,6 +99,7 @@ async function createSingleRectangle(p: any) {
   await applyFillWithAutoBind(rect, p, hints);
   await applyStrokeWithAutoBind(rect, p, hints);
   const parent = await appendToParent(rect, p.parentId);
+  checkOverlappingSiblings(rect, parent, hints);
   await applyLayoutSizing(rect, parent, p);
 
   const result: any = { id: rect.id };
@@ -120,6 +121,7 @@ async function createSingleEllipse(p: any) {
   await applyFillWithAutoBind(ellipse, p, hints);
   await applyStrokeWithAutoBind(ellipse, p, hints);
   const parent = await appendToParent(ellipse, p.parentId);
+  checkOverlappingSiblings(ellipse, parent, hints);
   await applyLayoutSizing(ellipse, parent, p);
 
   const result: any = { id: ellipse.id };
@@ -147,6 +149,7 @@ async function createSingleLine(p: any) {
   await applyStrokeWithAutoBind(line, p, hints);
 
   const parent = await appendToParent(line, p.parentId);
+  checkOverlappingSiblings(line, parent, hints);
   // Lines in vertical auto-layout default to FILL width (divider pattern)
   const parentMode = parent && "layoutMode" in parent ? (parent as any).layoutMode : null;
   const defaultH = parentMode === "VERTICAL" ? "FILL" : undefined;
