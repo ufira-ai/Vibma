@@ -129,6 +129,7 @@ const FIX_INSTRUCTIONS: Record<string, string> = {
   "stale-text-name": 'These text node names don\'t match their content. Use frames(method:"update", items:[{id, name:"..."}]) to sync, or leave if the name is intentional.',
   "no-text-property": 'Use components(method:"update", items:[{id, propertyName:"TextLabel", action:"add", type:"TEXT", defaultValue:"..."}]) to expose the text as an editable property on the component.',
   "overlapping-children": 'Children are stacked at the same position — likely missing x/y. Either: (1) convert to auto-layout with frames(method:"update", items:[{id, layout:{layoutMode:"VERTICAL"}}]) so children flow automatically, or (2) reposition each child with frames(method:"update", items:[{id:"<childId>", x:<value>, y:<value>}]).',
+  "hug-cross-axis": 'Child has HUG on the cross-axis of a constrained parent — it won\'t fill the available space. Text won\'t wrap and elements look undersized. Fix: set the cross-axis sizing to FILL. For a vertical container: frames(method:"update", items:[{id, layoutSizingHorizontal:"FILL"}]). For a horizontal container: frames(method:"update", items:[{id, layoutSizingVertical:"FILL"}]).',
   "unbounded-hug": 'HUG on both axes breaks responsive behavior — content grows unboundedly, text won\'t wrap, and nested hug chains create unpredictable sizing cascades. For frames: FILL or FIXED width + HUG height (mirrors CSS block-level elements). For text nodes: use FILL width + HUG height so text wraps within its parent, or set textAutoResize:"HEIGHT" for fixed-width wrapping. Fix frames: frames(method:"update", items:[{id, layout:{layoutSizingHorizontal:"FILL"}}]). Fix text: text(method:"update", items:[{id, layoutSizingHorizontal:"FILL", layoutSizingVertical:"HUG"}]) or items:[{id, textAutoResize:"HEIGHT"}].',
   // -- WCAG fix instructions --
   "wcag-contrast": 'Adjust text color or background to meet AA contrast (4.5:1 normal text, 3:1 large text). Use frames(method:"update") with fill or text.fontColor to change colors.',
@@ -219,6 +220,30 @@ async function walkNode(node: BaseNode, depth: number, issues: Issue[], ctx: Lin
       if (th === "HUG" && tv === "HUG") {
         issues.push({ rule: "unbounded-hug", nodeId: node.id, nodeName: node.name, extra: { nodeType: "TEXT" } });
         if (issues.length >= ctx.maxFindings) return;
+      }
+    }
+  }
+
+  // -- Rule: hug-cross-axis --
+  // Child has HUG on the cross-axis of a constrained parent — won't fill available space
+  if (ctx.runAll || ctx.ruleSet.has("hug-cross-axis")) {
+    if (node.parent && "layoutMode" in node.parent && "layoutSizingHorizontal" in node) {
+      const parent = node.parent as any;
+      if (parent.layoutMode !== "NONE") {
+        const isHorizontal = parent.layoutMode === "HORIZONTAL";
+        // Cross-axis: vertical layout → check horizontal sizing; horizontal layout → check vertical sizing
+        const parentCross = isHorizontal ? parent.layoutSizingVertical : parent.layoutSizingHorizontal;
+        const childCross = isHorizontal ? (node as any).layoutSizingVertical : (node as any).layoutSizingHorizontal;
+        if ((parentCross === "FIXED" || parentCross === "FILL") && childCross === "HUG") {
+          const crossAxis = isHorizontal ? "vertical" : "horizontal";
+          issues.push({
+            rule: "hug-cross-axis",
+            nodeId: node.id,
+            nodeName: node.name,
+            extra: { crossAxis, parentSizing: parentCross, parentId: parent.id, parentName: parent.name },
+          });
+          if (issues.length >= ctx.maxFindings) return;
+        }
       }
     }
   }

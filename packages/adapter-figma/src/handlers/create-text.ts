@@ -271,6 +271,18 @@ async function createTextSingle(p: any, ctx: CreateTextContext) {
     }
   }
 
+  // HUG on cross-axis of constrained parent — text won't fill available space
+  if (textNode.parent && "layoutMode" in textNode.parent && (textNode.parent as any).layoutMode !== "NONE") {
+    const parentAL = textNode.parent as any;
+    const isHorizontal = parentAL.layoutMode === "HORIZONTAL";
+    const parentCross = isHorizontal ? parentAL.layoutSizingVertical : parentAL.layoutSizingHorizontal;
+    const childCross = isHorizontal ? textNode.layoutSizingVertical : textNode.layoutSizingHorizontal;
+    if ((parentCross === "FIXED" || parentCross === "FILL") && childCross === "HUG") {
+      const crossProp = isHorizontal ? "layoutSizingVertical" : "layoutSizingHorizontal";
+      hints.push({ type: "warn", message: `Text has HUG on cross-axis of constrained parent — won't fill available space and text won't wrap. Use ${crossProp}:"FILL".` });
+    }
+  }
+
   const result: any = { id: textNode.id };
   if (hints.length > 0) result.hints = hints;
   return result;

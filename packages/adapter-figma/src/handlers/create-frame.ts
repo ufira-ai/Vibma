@@ -107,6 +107,18 @@ export async function setupFrameNode(
     hints.push({ type: "warn", message: "HUG on both axes — content grows unboundedly and text won't wrap. Use FILL or FIXED width with HUG height for responsive layout." });
   }
 
+  // HUG on cross-axis of constrained parent — child won't fill available space
+  if (parent && "layoutMode" in parent && (parent as any).layoutMode !== "NONE") {
+    const parentAL = parent as any;
+    const isHorizontal = parentAL.layoutMode === "HORIZONTAL";
+    const parentCross = isHorizontal ? parentAL.layoutSizingVertical : parentAL.layoutSizingHorizontal;
+    const childCross = isHorizontal ? node.layoutSizingVertical : node.layoutSizingHorizontal;
+    if ((parentCross === "FIXED" || parentCross === "FILL") && childCross === "HUG") {
+      const crossProp = isHorizontal ? "layoutSizingVertical" : "layoutSizingHorizontal";
+      hints.push({ type: "warn", message: `HUG on cross-axis of constrained parent — won't fill available space. Use ${crossProp}:"FILL".` });
+    }
+  }
+
   // WCAG 2.5.8: target size recommendation for interactive elements
   if (looksInteractive(node) && (node.width < 24 || node.height < 24)) {
     hints.push({ type: "suggest", message: "WCAG: Min 24x24px for touch targets." });

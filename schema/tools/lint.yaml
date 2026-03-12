@@ -21,6 +21,7 @@ notes: |
   //     "stale-text-name" — text node name doesn't match its content
   //     "no-text-property" — component text not exposed as editable property
   //     "overlapping-children" — multiple children at the same position in a non-auto-layout frame (agent likely forgot x/y)
+  //     "hug-cross-axis" — child has HUG on the cross-axis of a constrained parent (won't fill available space; use FILL)
   //     "unbounded-hug" — frame or text node with HUG on both axes (breaks responsiveness, text won't wrap; use FILL/FIXED width + HUG height)
   //   Accessibility (WCAG) rules:
   //     "wcag-contrast" — text contrast ratio below 4.5:1 (WCAG AA)
