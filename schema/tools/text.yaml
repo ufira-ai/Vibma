@@ -65,10 +65,10 @@ methods:
               description: "Apply paint style — overrides fontColor"
             textStyleId:
               type: string
-              description: "Apply text style by ID — overrides fontSize/fontWeight"
+              description: "Text style ID or name (case-insensitive) — overrides fontSize/fontWeight"
             textStyleName:
               type: string
-              description: "Text style by name (case-insensitive)"
+              description: "Alias for textStyleId — accepts name (case-insensitive)"
             textAlignHorizontal:
               type: enum
               values: [LEFT, CENTER, RIGHT, JUSTIFIED]

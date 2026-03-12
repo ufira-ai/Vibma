@@ -5,8 +5,8 @@ description_zh: "管理设计变量（颜色、数值、字符串、布尔）。
 
 notes: |
   // Variables are design tokens — reusable values (colors, numbers, strings, booleans) that can be bound to node properties.
-  // Variables are identified by name (unique within a collection). No IDs needed — use name to get/update/delete.
-  // IMPORTANT: collectionName is the collection's display name (e.g. "Colors"), NOT an ID. Use the name you gave the collection when creating it.
+  // Variables are identified by name (unique within a collection). Use name to get/update/delete.
+  // All ID params (collectionId, modeId) accept both IDs and display names. Use whichever you have.
   // Workflow: create a variable_collection first → then create variables inside it → bind to nodes via frames/text update PatchItem.bindings.
   // ---
   // Each variable has values per mode (e.g. Light/Dark). Use modeId when setting values for a specific mode.
@@ -26,10 +26,10 @@ methods:
         values: [COLOR, FLOAT, STRING, BOOLEAN]
         optional: true
         description: "Filter by variable type"
-      collectionName:
+      collectionId:
         type: string
         optional: true
-        description: "Filter by collection name"
+        description: "Filter by collection (ID or name)"
       fields:
         $ref: fields
       offset:
@@ -43,7 +43,7 @@ methods:
         properties:
           name: { type: string, required: true }
           resolvedType: { type: string, required: true }
-          collectionName: { type: string, required: true }
+          collectionId: { type: string, required: true }
 
   get:
     tier: read
@@ -53,10 +53,10 @@ methods:
         type: string
         required: true
         description: "Variable name (unique within collection)"
-      collectionName:
+      collectionId:
         type: string
         optional: true
-        description: "Collection name (required if same variable name exists in multiple collections)"
+        description: "Collection ID or name (required if same variable name exists in multiple collections)"
       fields:
         $ref: fields
     response:
@@ -67,7 +67,7 @@ methods:
         resolvedType:
           type: enum
           values: [COLOR, FLOAT, STRING, BOOLEAN]
-        collectionName: { type: string, required: true }
+        collectionId: { type: string, required: true }
         valuesByMode:
           type: object
           required: true
@@ -76,22 +76,22 @@ methods:
   create:
     tier: create
     description: Create variables
-    example: 'variables(method:"create", items:[{collectionName:"Colors", name:"bg/primary", resolvedType:"COLOR", value:"#1A1A2E"}])'
+    example: 'variables(method:"create", items:[{collectionId:"Colors", name:"bg/primary", resolvedType:"COLOR", value:"#1A1A2E"}])'
     params:
       items:
         type: array
         coerce: json
         required: true
         tsType: "VariableCreateItem[]"
-        description: "Array of {collectionName, name, resolvedType, value?, modeId?, description?, scopes?}"
+        description: "Array of {collectionId, name, resolvedType, value?, modeId?, description?, scopes?}"
         items:
           type: object
           properties:
-            collectionName: { type: string, required: true, description: "Collection display name (e.g. \"Colors\"), NOT an ID" }
+            collectionId: { type: string, required: true, description: "Collection ID or name (e.g. \"Colors\")" }
             name: { type: string, required: true, description: "Variable name" }
             resolvedType: { type: enum, values: [COLOR, FLOAT, STRING, BOOLEAN], required: true, description: "Variable type" }
             value: { type: variable_value, optional: true, description: "Initial value (uses default mode unless modeId specified)" }
-            modeId: { type: string, optional: true, description: "Mode ID for initial value (default: collection's default mode)" }
+            modeId: { type: string, optional: true, description: "Mode ID or name (e.g. \"Dark\"). Default: collection's default mode" }
             description: { type: string, optional: true, description: "Variable description" }
             scopes: { type: "string[]", coerce: json, optional: true, description: 'UI scopes e.g. ["ALL_SCOPES"]' }
     response:
@@ -106,16 +106,16 @@ methods:
         coerce: json
         required: true
         tsType: "VariableUpdateItem[]"
-        description: "Array of {name, collectionName?, rename?, description?, scopes?, modeId?, value?}"
+        description: "Array of {name, collectionId?, rename?, description?, scopes?, modeId?, value?}"
         items:
           type: object
           properties:
             name: { type: string, required: true, description: "Variable name" }
-            collectionName: { type: string, optional: true, description: "Collection name (required if same variable name exists in multiple collections)" }
+            collectionId: { type: string, optional: true, description: "Collection ID or name (required if ambiguous)" }
             rename: { type: string, optional: true, description: "Rename the variable" }
             description: { type: string, optional: true, description: "Set description" }
             scopes: { type: "string[]", coerce: json, optional: true, description: 'UI scopes e.g. ["ALL_SCOPES"] or ["WIDTH_HEIGHT","CORNER_RADIUS"]' }
-            modeId: { type: string, optional: true, description: "Mode ID (required when setting value)" }
+            modeId: { type: string, optional: true, description: "Mode ID or name (e.g. \"Dark\"). Required when setting value" }
             value: { type: variable_value, optional: true }
     response:
       type: batch_mixed
@@ -128,19 +128,19 @@ methods:
         type: string
         optional: true
         description: Variable name
-      collectionName:
+      collectionId:
         type: string
         optional: true
-        description: "Collection name (required if same variable name exists in multiple collections)"
+        description: "Collection ID or name (required if ambiguous)"
       items:
         type: array
         coerce: json
         optional: true
-        description: "Batch: [{name, collectionName?}, ...]"
+        description: "Batch: [{name, collectionId?}, ...]"
         items:
           type: object
           properties:
             name: { type: string, required: true }
-            collectionName: { type: string, optional: true, description: "Collection name for disambiguation" }
+            collectionId: { type: string, optional: true, description: "Collection ID or name" }
     response:
       type: batch_ok

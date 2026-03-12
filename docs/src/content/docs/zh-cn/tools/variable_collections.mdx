@@ -17,7 +17,7 @@ import ParameterTable from "../../../../components/ParameterTable.astro";
 // Workflow: create collection → add_mode for extra modes → create variables in the collection.
 // Deleting a collection cascades — all variables inside it are also deleted.
 // The default mode always exists and cannot be removed. Use add_mode/remove_mode for additional modes.
-// Collection IDs look like "VariableCollectionId:0:1". Mode IDs look like "0:0" or "1:0".
+// All ID params (id, collectionId, modeId) accept both IDs and display names. Use whichever you have.
 ```
 
 </details>
@@ -38,7 +38,7 @@ List variable collections
 
 Get collection detail
 
-<ParameterTable schema={{"type":"object","properties":{"id":{"description":"Collection ID","type":"string"},"fields":{"description":"Property whitelist. Identity fields (id, name, type) always included. Omit for stubs on list, full on get. Pass [\"*\"] for all.","type":"array","items":{"type":"string"}}},"required":["id"]}} />
+<ParameterTable schema={{"type":"object","properties":{"id":{"description":"Collection ID or name","type":"string"},"fields":{"description":"Property whitelist. Identity fields (id, name, type) always included. Omit for stubs on list, full on get. Pass [\"*\"] for all.","type":"array","items":{"type":"string"}}},"required":["id"]}} />
 
 **Response**
 
@@ -62,7 +62,7 @@ Create variable collections
 
 Rename collections
 
-<ParameterTable schema={{"type":"object","properties":{"items":{"description":"Array of {id, name}","type":"array","items":{"type":"object","properties":{"id":{"description":"Collection ID","type":"string"},"name":{"description":"New name","type":"string"}},"required":["id","name"]}}},"required":["items"]}} />
+<ParameterTable schema={{"type":"object","properties":{"items":{"description":"Array of {id, name}","type":"array","items":{"type":"object","properties":{"id":{"description":"Collection ID or name","type":"string"},"name":{"description":"New name","type":"string"}},"required":["id","name"]}}},"required":["items"]}} />
 
 **Response**
 
@@ -74,7 +74,7 @@ Rename collections
 
 Delete collections
 
-<ParameterTable schema={{"type":"object","properties":{"id":{"description":"Single collection ID","type":"string"},"items":{"description":"Batch: [{id}, ...]","type":"array","items":{"type":"object","properties":{"id":{"type":"string"}},"required":["id"]}}}}} />
+<ParameterTable schema={{"type":"object","properties":{"id":{"description":"Collection ID or name","type":"string"},"items":{"description":"Batch: [{id}, ...]","type":"array","items":{"type":"object","properties":{"id":{"type":"string"}},"required":["id"]}}}}} />
 
 **Response**
 
@@ -86,7 +86,7 @@ Delete collections
 
 Add a mode to a collection
 
-<ParameterTable schema={{"type":"object","properties":{"items":{"description":"Array of {collectionId, name}","type":"array","items":{"type":"object","properties":{"collectionId":{"description":"Collection ID","type":"string"},"name":{"description":"Mode name","type":"string"}},"required":["collectionId","name"]}}},"required":["items"]}} />
+<ParameterTable schema={{"type":"object","properties":{"items":{"description":"Array of {collectionId, name}","type":"array","items":{"type":"object","properties":{"collectionId":{"description":"Collection ID or name","type":"string"},"name":{"description":"Mode name","type":"string"}},"required":["collectionId","name"]}}},"required":["items"]}} />
 
 **Response**
 
@@ -98,7 +98,7 @@ Add a mode to a collection
 
 Rename a mode
 
-<ParameterTable schema={{"type":"object","properties":{"items":{"description":"Array of {collectionId, modeId, name}","type":"array","items":{"type":"object","properties":{"collectionId":{"description":"Collection ID","type":"string"},"modeId":{"description":"Mode ID","type":"string"},"name":{"description":"New name","type":"string"}},"required":["collectionId","modeId","name"]}}},"required":["items"]}} />
+<ParameterTable schema={{"type":"object","properties":{"items":{"description":"Array of {collectionId, modeId, name}","type":"array","items":{"type":"object","properties":{"collectionId":{"description":"Collection ID or name","type":"string"},"modeId":{"description":"Mode ID or name (e.g. \"Dark\")","type":"string"},"name":{"description":"New name","type":"string"}},"required":["collectionId","modeId","name"]}}},"required":["items"]}} />
 
 **Response**
 
@@ -110,7 +110,7 @@ Rename a mode
 
 Remove a mode from a collection
 
-<ParameterTable schema={{"type":"object","properties":{"items":{"description":"Array of {collectionId, modeId}","type":"array","items":{"type":"object","properties":{"collectionId":{"description":"Collection ID","type":"string"},"modeId":{"description":"Mode ID","type":"string"}},"required":["collectionId","modeId"]}}},"required":["items"]}} />
+<ParameterTable schema={{"type":"object","properties":{"items":{"description":"Array of {collectionId, modeId}","type":"array","items":{"type":"object","properties":{"collectionId":{"description":"Collection ID or name","type":"string"},"modeId":{"description":"Mode ID or name (e.g. \"Dark\")","type":"string"}},"required":["collectionId","modeId"]}}},"required":["items"]}} />
 
 **Response**
 

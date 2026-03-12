@@ -6,7 +6,7 @@ description_zh: "管理本地颜色、文字、效果和网格样式。"
 notes: |
   // Styles are named, reusable design properties that can be applied to nodes. Four types:
   //   paint: a named color (applied to fills/strokes), text: typography settings, effect: shadows/blurs, grid: layout grids.
-  // Style names are case-sensitive for creation but case-insensitive for lookup in update (by ID or name).
+  // All ID params accept both IDs and display names (case-insensitive). Use whichever you have.
   // ---
   // leadingTrim: "CAP_HEIGHT" trims line-height to cap height (tighter text boxes), "NONE" is default.
   // fontStyle: font variant name like "Bold", "Italic", "Bold Italic". Use fonts.list to find available styles.
@@ -56,7 +56,7 @@ methods:
       id:
         type: string
         required: true
-        description: "Style ID"
+        description: "Style ID or name"
       fields:
         $ref: fields
     response:
@@ -128,8 +128,7 @@ methods:
         items:
           type: object
           properties:
-            id: { type: string, optional: true, description: "Style ID (or name for backward compat)" }
-            styleName: { type: string, optional: true, description: "Identify style by name (case-insensitive). Preferred over id for readability." }
+            id: { type: string, required: true, description: "Style ID or name" }
             name: { type: string, optional: true, description: Rename the style }
             description: { type: string, optional: true, description: "Style description" }
             color: { $ref: color, optional: true, description: "New color (paint styles)" }
@@ -157,20 +156,15 @@ methods:
       id:
         type: string
         optional: true
-        description: Style ID or name
-      styleName:
-        type: string
-        optional: true
-        description: Style name (alternative to id)
+        description: "Style ID or name"
       items:
         type: array
         coerce: json
         optional: true
-        description: "Batch: [{id} or {styleName}, ...]"
+        description: "Batch: [{id}, ...]"
         items:
           type: object
           properties:
-            id: { type: string, optional: true }
-            styleName: { type: string, optional: true, description: "Style name (alternative to id)" }
+            id: { type: string, required: true, description: "Style ID or name" }
     response:
       type: batch_ok

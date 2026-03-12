@@ -104,8 +104,8 @@ async function getStyleByIdFigma(params: any) {
 }
 
 async function removeStyleSingle(p: any) {
-  const identifier = p.id || p.styleName;
-  if (!identifier) throw new Error("Each item requires 'id' or 'styleName'.");
+  const identifier = p.id || p.styleName; // styleName kept for backward compat
+  if (!identifier) throw new Error("Each item requires 'id' (accepts ID or name).");
   const style = await resolveAnyStyle(identifier);
   style.remove();
   return "ok";
@@ -284,8 +284,8 @@ const GRID_FIELDS = ["layoutGrids"];
 const TYPE_FIELDS: Record<string, string[]> = { PAINT: PAINT_FIELDS, TEXT: TEXT_FIELDS, EFFECT: EFFECT_FIELDS, GRID: GRID_FIELDS };
 
 async function patchStyleSingle(p: any) {
-  const identifier = p.id || p.styleName;
-  if (!identifier) throw new Error("Each item requires 'id' or 'styleName' to identify the style to update.");
+  const identifier = p.id || p.styleName; // styleName kept for backward compat
+  if (!identifier) throw new Error("Each item requires 'id' (accepts ID or name).");
   const style = await resolveAnyStyle(identifier);
   if (p.name !== undefined) style.name = p.name;
   if (p.description !== undefined) style.description = p.description;

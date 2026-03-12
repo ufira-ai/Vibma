@@ -627,16 +627,15 @@ export const tools: ToolDef[] = [
   },
   {
     name: "styles",
-    description: "/** CRUD for local paint, text, effect, and grid styles. Use method \"help\" for detailed parameter docs. */\n  list      (type: paint|text|effect|grid, fields?, offset?, limit?) → { totalCount, items }  // List local styles with optional type filter\n  get       (id, fields?) → { id?, name?, type? }  // Get full style detail by ID\n  create    (type: paint|text|effect|grid, items: (PaintItem | TextItem | EffectItem | GridItem)[]) → { results: {id}[] }  // Create local styles\n  update    (type: paint|text|effect|grid, items: PatchStyleItem[], depth?) → { results: (\"ok\" | {error})[] }  // Update styles by ID or name\n  delete    (id?, styleName?, items?: { id?: string; styleName?: string }[]) → { results: \"ok\"[] }  // Delete styles\n// Styles are named, reusable design properties that can be applied to nodes. Four types:\n//   paint: a named color (applied to fills/strokes), text: typography settings, effect: shadows/blurs, grid: layout grids.\n// Style names are case-sensitive for creation but case-insensitive for lookup in update (by ID or name).",
+    description: "/** CRUD for local paint, text, effect, and grid styles. Use method \"help\" for detailed parameter docs. */\n  list      (type: paint|text|effect|grid, fields?, offset?, limit?) → { totalCount, items }  // List local styles with optional type filter\n  get       (id, fields?) → { id?, name?, type? }  // Get full style detail by ID\n  create    (type: paint|text|effect|grid, items: (PaintItem | TextItem | EffectItem | GridItem)[]) → { results: {id}[] }  // Create local styles\n  update    (type: paint|text|effect|grid, items: PatchStyleItem[], depth?) → { results: (\"ok\" | {error})[] }  // Update styles by ID or name\n  delete    (id?, items?: { id: string }[]) → { results: \"ok\"[] }  // Delete styles\n// Styles are named, reusable design properties that can be applied to nodes. Four types:\n//   paint: a named color (applied to fills/strokes), text: typography settings, effect: shadows/blurs, grid: layout grids.\n// All ID params accept both IDs and display names (case-insensitive). Use whichever you have.",
     schema: (caps) => filterMethodsByTier({    method: z.enum(["list", "get", "create", "update", "delete", "help"]),
     type: z.enum(["paint", "text", "effect", "grid"]).optional().describe("Filter by style type"),
     fields: flexJson(z.array(z.string())).optional().describe("Property whitelist. Identity fields (id, name, type) always included. Omit for stubs on list, full on get. Pass [\"*\"] for all."),
     offset: z.coerce.number().optional().default(0).describe("Skip N items for pagination (default 0)"),
     limit: z.coerce.number().optional().default(100).describe("Max items per page (default 100)"),
-    id: z.string().optional().describe("Style ID"),
+    id: z.string().optional().describe("Style ID or name"),
     items: flexJson(z.array(z.record(z.string(), z.unknown()))).optional().describe("Batch items array"),
     depth: z.coerce.number().optional().describe("Response detail: omit for id+name only. 0=properties + child stubs. N=recurse N levels. -1=unlimited."),
-    styleName: z.string().optional().describe("Style name (alternative to id)"),
     topic: z.string().optional().describe("Help topic — method name for endpoint help, e.g. \"create\""),
     }, caps, {"list":"read","get":"read","create":"create","update":"edit","delete":"edit","help":"read"}),
     tier: "read" as const,
@@ -687,8 +686,7 @@ export const tools: ToolDef[] = [
       }
       if (m === "update") {
         const itemSchema = z.object({
-          id: z.string().optional().describe("Style ID (or name for backward compat)"),
-          styleName: z.string().optional().describe("Identify style by name (case-insensitive). Preferred over id for readability."),
+          id: z.string().describe("Style ID or name"),
           name: z.string().optional().describe("Rename the style"),
           description: z.string().optional().describe("Style description"),
           color: S.colorRgba.optional().describe("New color (paint styles)"),
@@ -711,8 +709,7 @@ export const tools: ToolDef[] = [
       }
       if (m === "delete") {
         const itemSchema = z.object({
-          id: z.string().optional(),
-          styleName: z.string().optional().describe("Style name (alternative to id)"),
+          id: z.string().describe("Style ID or name"),
         }).passthrough();
         try { params.items = z.array(itemSchema).parse(params.items); }
         catch (e) { if (e instanceof z.ZodError) { throw new Error(e.issues.map(i => { const path = i.path.join("."); const shape = itemSchema instanceof z.ZodObject ? (itemSchema as any).shape : null; const desc = shape?.[i.path[1]]?.description; return path + ": " + i.message + (desc ? " (expected: " + desc + ")" : ""); }).join("; ")); } throw e; }
@@ -755,8 +752,8 @@ export const tools: ToolDef[] = [
           fontColor: S.colorRgba.optional().describe("Text color (auto-binds to matching variable/style)"),
           fontColorVariableName: z.string().optional().describe("Bind color variable by name e.g. 'text/primary'"),
           fontColorStyleName: z.string().optional().describe("Apply paint style — overrides fontColor"),
-          textStyleId: z.string().optional().describe("Apply text style by ID — overrides fontSize/fontWeight"),
-          textStyleName: z.string().optional().describe("Text style by name (case-insensitive)"),
+          textStyleId: z.string().optional().describe("Text style ID or name (case-insensitive) — overrides fontSize/fontWeight"),
+          textStyleName: z.string().optional().describe("Alias for textStyleId — accepts name (case-insensitive)"),
           textAlignHorizontal: z.enum(["LEFT", "CENTER", "RIGHT", "JUSTIFIED"]).optional(),
           textAlignVertical: z.enum(["TOP", "CENTER", "BOTTOM"]).optional(),
           layoutSizingHorizontal: z.enum(["FIXED", "HUG", "FILL"]).optional(),
@@ -785,7 +782,7 @@ export const tools: ToolDef[] = [
     fields: flexJson(z.array(z.string())).optional().describe("Property whitelist. Identity fields (id, name, type) always included. Omit for stubs on list, full on get. Pass [\"*\"] for all."),
     offset: z.coerce.number().optional().default(0).describe("Skip N items for pagination (default 0)"),
     limit: z.coerce.number().optional().default(100).describe("Max items per page (default 100)"),
-    id: z.string().optional().describe("Collection ID"),
+    id: z.string().optional().describe("Collection ID or name"),
     items: flexJson(z.array(z.record(z.string(), z.unknown()))).optional().describe("Array of {name}"),
     topic: z.string().optional().describe("Help topic — method name for endpoint help, e.g. \"create\""),
     }, caps, {"list":"read","get":"read","create":"create","update":"edit","delete":"edit","add_mode":"create","rename_mode":"edit","remove_mode":"edit","help":"read"}),
@@ -805,7 +802,7 @@ export const tools: ToolDef[] = [
       }
       if (m === "update") {
         const itemSchema = z.object({
-          id: z.string().describe("Collection ID"),
+          id: z.string().describe("Collection ID or name"),
           name: z.string().describe("New name"),
         }).passthrough();
         try { params.items = z.array(itemSchema).parse(params.items); }
@@ -820,7 +817,7 @@ export const tools: ToolDef[] = [
       }
       if (m === "add_mode") {
         const itemSchema = z.object({
-          collectionId: z.string().describe("Collection ID"),
+          collectionId: z.string().describe("Collection ID or name"),
           name: z.string().describe("Mode name"),
         }).passthrough();
         try { params.items = z.array(itemSchema).parse(params.items); }
@@ -828,8 +825,8 @@ export const tools: ToolDef[] = [
       }
       if (m === "rename_mode") {
         const itemSchema = z.object({
-          collectionId: z.string().describe("Collection ID"),
-          modeId: z.string().describe("Mode ID"),
+          collectionId: z.string().describe("Collection ID or name"),
+          modeId: z.string().describe("Mode ID or name (e.g. \"Dark\")"),
           name: z.string().describe("New name"),
         }).passthrough();
         try { params.items = z.array(itemSchema).parse(params.items); }
@@ -837,8 +834,8 @@ export const tools: ToolDef[] = [
       }
       if (m === "remove_mode") {
         const itemSchema = z.object({
-          collectionId: z.string().describe("Collection ID"),
-          modeId: z.string().describe("Mode ID"),
+          collectionId: z.string().describe("Collection ID or name"),
+          modeId: z.string().describe("Mode ID or name (e.g. \"Dark\")"),
         }).passthrough();
         try { params.items = z.array(itemSchema).parse(params.items); }
         catch (e) { if (e instanceof z.ZodError) { throw new Error(e.issues.map(i => { const path = i.path.join("."); const shape = itemSchema instanceof z.ZodObject ? (itemSchema as any).shape : null; const desc = shape?.[i.path[1]]?.description; return path + ": " + i.message + (desc ? " (expected: " + desc + ")" : ""); }).join("; ")); } throw e; }
@@ -848,15 +845,15 @@ export const tools: ToolDef[] = [
   },
   {
     name: "variables",
-    description: "/** CRUD for design variables (COLOR, FLOAT, STRING, BOOLEAN). Use method \"help\" for detailed parameter docs. */\n  list      (type: COLOR|FLOAT|STRING|BOOLEAN, collectionName?, fields?, offset?, limit?) → { totalCount, items }  // List variables with optional filters\n  get       (name, collectionName?, fields?) → { name?, resolvedType?, collectionName?, valuesByMode?: Record<string, number | boolean | string | Color | {type: \"VARIABLE_ALIAS\", name: string}> }  // Get variable detail by name\n  create    (items: VariableCreateItem[]) → { results: \"ok\"[] }  // Create variables\n  update    (items: VariableUpdateItem[]) → { results: (\"ok\" | {error})[] }  // Update variable metadata and/or set values per mode\n  delete    (name?, collectionName?, items?: { name: string; collectionName?: string }[]) → { results: \"ok\"[] }  // Delete variables\n// Variables are design tokens — reusable values (colors, numbers, strings, booleans) that can be bound to node properties.\n// Variables are identified by name (unique within a collection). No IDs needed — use name to get/update/delete.\n// IMPORTANT: collectionName is the collection's display name (e.g. \"Colors\"), NOT an ID. Use the name you gave the collection when creating it.\n// Workflow: create a variable_collection first → then create variables inside it → bind to nodes via frames/text update PatchItem.bindings.\n// Shared types:\n// Color: hex \"#FF0000\" or {r: 0-1, g: 0-1, b: 0-1, a?: 0-1}",
+    description: "/** CRUD for design variables (COLOR, FLOAT, STRING, BOOLEAN). Use method \"help\" for detailed parameter docs. */\n  list      (type: COLOR|FLOAT|STRING|BOOLEAN, collectionId?, fields?, offset?, limit?) → { totalCount, items }  // List variables with optional filters\n  get       (name, collectionId?, fields?) → { name?, resolvedType?, collectionId?, valuesByMode?: Record<string, number | boolean | string | Color | {type: \"VARIABLE_ALIAS\", name: string}> }  // Get variable detail by name\n  create    (items: VariableCreateItem[]) → { results: \"ok\"[] }  // Create variables\n  update    (items: VariableUpdateItem[]) → { results: (\"ok\" | {error})[] }  // Update variable metadata and/or set values per mode\n  delete    (name?, collectionId?, items?: { name: string; collectionId?: string }[]) → { results: \"ok\"[] }  // Delete variables\n// Variables are design tokens — reusable values (colors, numbers, strings, booleans) that can be bound to node properties.\n// Variables are identified by name (unique within a collection). Use name to get/update/delete.\n// All ID params (collectionId, modeId) accept both IDs and display names. Use whichever you have.\n// Workflow: create a variable_collection first → then create variables inside it → bind to nodes via frames/text update PatchItem.bindings.\n// Shared types:\n// Color: hex \"#FF0000\" or {r: 0-1, g: 0-1, b: 0-1, a?: 0-1}",
     schema: (caps) => filterMethodsByTier({    method: z.enum(["list", "get", "create", "update", "delete", "help"]),
     type: z.enum(["COLOR", "FLOAT", "STRING", "BOOLEAN"]).optional().describe("Filter by variable type"),
-    collectionName: z.string().optional().describe("Filter by collection name"),
+    collectionId: z.string().optional().describe("Filter by collection (ID or name)"),
     fields: flexJson(z.array(z.string())).optional().describe("Property whitelist. Identity fields (id, name, type) always included. Omit for stubs on list, full on get. Pass [\"*\"] for all."),
     offset: z.coerce.number().optional().default(0).describe("Skip N items for pagination (default 0)"),
     limit: z.coerce.number().optional().default(100).describe("Max items per page (default 100)"),
     name: z.string().optional().describe("Variable name (unique within collection)"),
-    items: flexJson(z.array(z.record(z.string(), z.unknown()))).optional().describe("Array of {collectionName, name, resolvedType, value?, modeId?, description?, scopes?}"),
+    items: flexJson(z.array(z.record(z.string(), z.unknown()))).optional().describe("Array of {collectionId, name, resolvedType, value?, modeId?, description?, scopes?}"),
     topic: z.string().optional().describe("Help topic — method name for endpoint help, e.g. \"create\""),
     }, caps, {"list":"read","get":"read","create":"create","update":"edit","delete":"edit","help":"read"}),
     tier: "read" as const,
@@ -868,11 +865,11 @@ export const tools: ToolDef[] = [
       if (!params.items) return;
       if (m === "create") {
         const itemSchema = z.object({
-          collectionName: z.string().describe("Collection display name (e.g. \"Colors\"), NOT an ID"),
+          collectionId: z.string().describe("Collection ID or name (e.g. \"Colors\")"),
           name: z.string().describe("Variable name"),
           resolvedType: z.enum(["COLOR", "FLOAT", "STRING", "BOOLEAN"]).describe("Variable type"),
           value: S.variableValue.optional().describe("Initial value (uses default mode unless modeId specified)"),
-          modeId: z.string().optional().describe("Mode ID for initial value (default: collection's default mode)"),
+          modeId: z.string().optional().describe("Mode ID or name (e.g. \"Dark\"). Default: collection's default mode"),
           description: z.string().optional().describe("Variable description"),
           scopes: flexJson(z.array(z.string())).optional().describe("UI scopes e.g. [\"ALL_SCOPES\"]"),
         }).passthrough();
@@ -882,11 +879,11 @@ export const tools: ToolDef[] = [
       if (m === "update") {
         const itemSchema = z.object({
           name: z.string().describe("Variable name"),
-          collectionName: z.string().optional().describe("Collection name (required if same variable name exists in multiple collections)"),
+          collectionId: z.string().optional().describe("Collection ID or name (required if ambiguous)"),
           rename: z.string().optional().describe("Rename the variable"),
           description: z.string().optional().describe("Set description"),
           scopes: flexJson(z.array(z.string())).optional().describe("UI scopes e.g. [\"ALL_SCOPES\"] or [\"WIDTH_HEIGHT\",\"CORNER_RADIUS\"]"),
-          modeId: z.string().optional().describe("Mode ID (required when setting value)"),
+          modeId: z.string().optional().describe("Mode ID or name (e.g. \"Dark\"). Required when setting value"),
           value: S.variableValue.optional(),
         }).passthrough();
         try { params.items = z.array(itemSchema).parse(params.items); }
@@ -895,7 +892,7 @@ export const tools: ToolDef[] = [
       if (m === "delete") {
         const itemSchema = z.object({
           name: z.string(),
-          collectionName: z.string().optional().describe("Collection name for disambiguation"),
+          collectionId: z.string().optional().describe("Collection ID or name"),
         }).passthrough();
         try { params.items = z.array(itemSchema).parse(params.items); }
         catch (e) { if (e instanceof z.ZodError) { throw new Error(e.issues.map(i => { const path = i.path.join("."); const shape = itemSchema instanceof z.ZodObject ? (itemSchema as any).shape : null; const desc = shape?.[i.path[1]]?.description; return path + ": " + i.message + (desc ? " (expected: " + desc + ")" : ""); }).join("; ")); } throw e; }

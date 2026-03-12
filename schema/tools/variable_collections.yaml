@@ -10,7 +10,7 @@ notes: |
   // Workflow: create collection → add_mode for extra modes → create variables in the collection.
   // Deleting a collection cascades — all variables inside it are also deleted.
   // The default mode always exists and cannot be removed. Use add_mode/remove_mode for additional modes.
-  // Collection IDs look like "VariableCollectionId:0:1". Mode IDs look like "0:0" or "1:0".
+  // All ID params (id, collectionId, modeId) accept both IDs and display names. Use whichever you have.
 
 methods:
   list:
@@ -38,7 +38,7 @@ methods:
       id:
         type: string
         required: true
-        description: "Collection ID"
+        description: "Collection ID or name"
       fields:
         $ref: fields
     response:
@@ -87,7 +87,7 @@ methods:
         items:
           type: object
           properties:
-            id: { type: string, required: true, description: "Collection ID" }
+            id: { type: string, required: true, description: "Collection ID or name" }
             name: { type: string, required: true, description: "New name" }
     response:
       type: batch_mixed
@@ -99,7 +99,7 @@ methods:
       id:
         type: string
         optional: true
-        description: Single collection ID
+        description: "Collection ID or name"
       items:
         type: array
         coerce: json
@@ -124,7 +124,7 @@ methods:
         items:
           type: object
           properties:
-            collectionId: { type: string, required: true, description: "Collection ID" }
+            collectionId: { type: string, required: true, description: "Collection ID or name" }
             name: { type: string, required: true, description: "Mode name" }
     response:
       type: batch
@@ -142,8 +142,8 @@ methods:
         items:
           type: object
           properties:
-            collectionId: { type: string, required: true, description: "Collection ID" }
-            modeId: { type: string, required: true, description: "Mode ID" }
+            collectionId: { type: string, required: true, description: "Collection ID or name" }
+            modeId: { type: string, required: true, description: "Mode ID or name (e.g. \"Dark\")" }
             name: { type: string, required: true, description: "New name" }
     response:
       type: batch_mixed
@@ -160,7 +160,7 @@ methods:
         items:
           type: object
           properties:
-            collectionId: { type: string, required: true, description: "Collection ID" }
-            modeId: { type: string, required: true, description: "Mode ID" }
+            collectionId: { type: string, required: true, description: "Collection ID or name" }
+            modeId: { type: string, required: true, description: "Mode ID or name (e.g. \"Dark\")" }
     response:
       type: batch_ok

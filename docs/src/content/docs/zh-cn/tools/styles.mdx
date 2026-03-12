@@ -13,7 +13,7 @@ import ParameterTable from "../../../../components/ParameterTable.astro";
 ```ts
 // Styles are named, reusable design properties that can be applied to nodes. Four types:
 //   paint: a named color (applied to fills/strokes), text: typography settings, effect: shadows/blurs, grid: layout grids.
-// Style names are case-sensitive for creation but case-insensitive for lookup in update (by ID or name).
+// All ID params accept both IDs and display names (case-insensitive). Use whichever you have.
 // ---
 // leadingTrim: "CAP_HEIGHT" trims line-height to cap height (tighter text boxes), "NONE" is default.
 // fontStyle: font variant name like "Bold", "Italic", "Bold Italic". Use fonts.list to find available styles.
@@ -50,7 +50,7 @@ List local styles with optional type filter
 
 Get full style detail by ID
 
-<ParameterTable schema={{"type":"object","properties":{"id":{"description":"Style ID","type":"string"},"fields":{"description":"Property whitelist. Identity fields (id, name, type) always included. Omit for stubs on list, full on get. Pass [\"*\"] for all.","type":"array","items":{"type":"string"}}},"required":["id"]}} />
+<ParameterTable schema={{"type":"object","properties":{"id":{"description":"Style ID or name","type":"string"},"fields":{"description":"Property whitelist. Identity fields (id, name, type) always included. Omit for stubs on list, full on get. Pass [\"*\"] for all.","type":"array","items":{"type":"string"}}},"required":["id"]}} />
 
 **Response**
 
@@ -101,7 +101,7 @@ Grid/layout grid style
 
 Update styles by ID or name
 
-<ParameterTable schema={{"type":"object","properties":{"type":{"description":"Style type hint for strict validation (optional, auto-detected)","type":"string","enum":["paint","text","effect","grid"]},"items":{"description":"Array of {id, ...fields} to update","type":"array","items":{"type":"object","properties":{"id":{"description":"Style ID (or name for backward compat)","type":"string"},"styleName":{"description":"Identify style by name (case-insensitive). Preferred over id for readability.","type":"string"},"name":{"description":"Rename the style","type":"string"},"description":{"description":"Style description","type":"string"},"color":{"description":"New color (paint styles)","type":"string"},"colorVariableName":{"description":"Bind to a COLOR variable by name (paint styles)","type":"string"},"fontFamily":{"type":"string"},"fontStyle":{"type":"string"},"fontSize":{"type":"number"},"lineHeight":{"type":"any","description":"number | {value, unit: \"PIXELS\"|\"PERCENT\"|\"AUTO\"}"},"letterSpacing":{"type":"any","description":"number | {value, unit: \"PIXELS\"|\"PERCENT\"}"},"textCase":{"type":"string","enum":["ORIGINAL","UPPER","LOWER","TITLE","SMALL_CAPS","SMALL_CAPS_FORCED"]},"textDecoration":{"type":"string","enum":["NONE","UNDERLINE","STRIKETHROUGH"]},"paragraphIndent":{"description":"Paragraph indent (px)","type":"number"},"paragraphSpacing":{"description":"Paragraph spacing (px)","type":"number"},"leadingTrim":{"type":"string","enum":["CAP_HEIGHT","NONE"]},"effects":{"description":"Array of Effect objects","type":"array"},"layoutGrids":{"description":"Array of LayoutGrid objects (grid styles)","type":"array"}}}},"depth":{"description":"Response detail: omit for id+name only. 0=properties + child stubs. N=recurse N levels. -1=unlimited.","type":"number"}},"required":["items"]}} />
+<ParameterTable schema={{"type":"object","properties":{"type":{"description":"Style type hint for strict validation (optional, auto-detected)","type":"string","enum":["paint","text","effect","grid"]},"items":{"description":"Array of {id, ...fields} to update","type":"array","items":{"type":"object","properties":{"id":{"description":"Style ID or name","type":"string"},"name":{"description":"Rename the style","type":"string"},"description":{"description":"Style description","type":"string"},"color":{"description":"New color (paint styles)","type":"string"},"colorVariableName":{"description":"Bind to a COLOR variable by name (paint styles)","type":"string"},"fontFamily":{"type":"string"},"fontStyle":{"type":"string"},"fontSize":{"type":"number"},"lineHeight":{"type":"any","description":"number | {value, unit: \"PIXELS\"|\"PERCENT\"|\"AUTO\"}"},"letterSpacing":{"type":"any","description":"number | {value, unit: \"PIXELS\"|\"PERCENT\"}"},"textCase":{"type":"string","enum":["ORIGINAL","UPPER","LOWER","TITLE","SMALL_CAPS","SMALL_CAPS_FORCED"]},"textDecoration":{"type":"string","enum":["NONE","UNDERLINE","STRIKETHROUGH"]},"paragraphIndent":{"description":"Paragraph indent (px)","type":"number"},"paragraphSpacing":{"description":"Paragraph spacing (px)","type":"number"},"leadingTrim":{"type":"string","enum":["CAP_HEIGHT","NONE"]},"effects":{"description":"Array of Effect objects","type":"array"},"layoutGrids":{"description":"Array of LayoutGrid objects (grid styles)","type":"array"}},"required":["id"]}},"depth":{"description":"Response detail: omit for id+name only. 0=properties + child stubs. N=recurse N levels. -1=unlimited.","type":"number"}},"required":["items"]}} />
 
 **Response**
 
@@ -113,7 +113,7 @@ Update styles by ID or name
 
 Delete styles
 
-<ParameterTable schema={{"type":"object","properties":{"id":{"description":"Style ID or name","type":"string"},"styleName":{"description":"Style name (alternative to id)","type":"string"},"items":{"description":"Batch: [{id} or {styleName}, ...]","type":"array","items":{"type":"object","properties":{"id":{"type":"string"},"styleName":{"description":"Style name (alternative to id)","type":"string"}}}}}}} />
+<ParameterTable schema={{"type":"object","properties":{"id":{"description":"Style ID or name","type":"string"},"items":{"description":"Batch: [{id}, ...]","type":"array","items":{"type":"object","properties":{"id":{"description":"Style ID or name","type":"string"}},"required":["id"]}}}}} />
 
 **Response**
 

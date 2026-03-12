@@ -3,26 +3,23 @@ import { createDispatcher, paginate, pickFields } from "@ufira/vibma/endpoint";
 
 // ─── Figma Handlers ──────────────────────────────────────────────
 
-/** Resolve a variable collection by ID with scan fallback.
- *  Direct lookup can fail for recently-created collections. */
-async function findCollectionById(id: string): Promise<any> {
-  const direct = await figma.variables.getVariableCollectionByIdAsync(id);
+/** Resolve a variable collection by ID or name.
+ *  Tries ID first (fast path), then falls back to name match (case-insensitive). */
+async function findCollection(idOrName: string | undefined): Promise<any> {
+  if (!idOrName) return null;
+  // Try direct ID lookup first
+  const direct = await figma.variables.getVariableCollectionByIdAsync(idOrName);
   if (direct) return direct;
+  // Fallback: scan all collections by ID, then by name
   const all = await figma.variables.getLocalVariableCollectionsAsync();
-  return all.find(c => c.id === id) || null;
-}
-
-/** Resolve a variable collection by name. */
-async function findCollectionByName(name: string | undefined): Promise<any> {
-  if (!name) return null;
-  const all = await figma.variables.getLocalVariableCollectionsAsync();
-  return all.find(c => c.name === name) ||
-         all.find(c => c.name.toLowerCase() === name.toLowerCase()) || null;
+  return all.find(c => c.id === idOrName) ||
+         all.find(c => c.name === idOrName) ||
+         all.find(c => c.name.toLowerCase() === idOrName.toLowerCase()) || null;
 }
 
 /** Get collection name by ID (cached per call via inline lookup). */
 async function getCollectionName(collectionId: string): Promise<string> {
-  const c = await findCollectionById(collectionId);
+  const c = await findCollection(collectionId);
   return c?.name ?? collectionId;
 }
 
@@ -43,9 +40,10 @@ async function serializeCollection(c: any): Promise<Record<string, any>> {
 }
 
 async function serializeVariable(v: any): Promise<Record<string, any>> {
+  const col = await findCollection(v.variableCollectionId);
   return {
     name: v.name, resolvedType: v.resolvedType,
-    collectionName: await getCollectionName(v.variableCollectionId),
+    collectionId: col?.name ?? v.variableCollectionId,
     valuesByMode: v.valuesByMode, description: v.description, scopes: v.scopes,
   };
 }
@@ -58,7 +56,7 @@ async function createCollectionSingle(p: any) {
 }
 
 async function getCollectionFigma(params: any) {
-  const c = await findCollectionById(params.id);
+  const c = await findCollection(params.id);
   if (!c) throw new Error(`Collection not found: ${params.id}`);
   return await serializeCollection(c);
 }
@@ -76,30 +74,32 @@ async function listCollectionsFigma(params: any) {
 }
 
 async function deleteCollectionSingle(p: any) {
-  const c = await findCollectionById(p.id);
+  const c = await findCollection(p.id);
   if (!c) throw new Error(`Collection not found: ${p.id}`);
   c.remove();
   return {};
 }
 
 async function addModeSingle(p: any): Promise<{ modeId: string }> {
-  const c = await findCollectionById(p.collectionId);
+  const c = await findCollection(p.collectionId);
   if (!c) throw new Error(`Collection not found: ${p.collectionId}`);
   const modeId = c.addMode(p.name);
   return { modeId };
 }
 
 async function renameModeSingle(p: any): Promise<Record<string, never>> {
-  const c = await findCollectionById(p.collectionId);
+  const c = await findCollection(p.collectionId);
   if (!c) throw new Error(`Collection not found: ${p.collectionId}`);
-  c.renameMode(p.modeId, p.name);
+  const modeId = await resolveModeId(c, p.modeId);
+  c.renameMode(modeId, p.name);
   return {};
 }
 
 async function removeModeSingle(p: any): Promise<Record<string, never>> {
-  const c = await findCollectionById(p.collectionId);
+  const c = await findCollection(p.collectionId);
   if (!c) throw new Error(`Collection not found: ${p.collectionId}`);
-  c.removeMode(p.modeId);
+  const modeId = await resolveModeId(c, p.modeId);
+  c.removeMode(modeId);
   return {};
 }
 
@@ -122,10 +122,8 @@ async function resolveModeId(collection: any, modeIdOrName: string): Promise<str
 // -- variables handlers --
 
 async function createVariableSingle(p: any) {
-  const collection = p.collectionId
-    ? await findCollectionById(p.collectionId)
-    : await findCollectionByName(p.collectionName);
-  if (!collection) throw new Error(`Collection not found: ${p.collectionName || p.collectionId}. Pass collectionName (the collection's display name).`);
+  const collection = await findCollection(p.collectionId);
+  if (!collection) throw new Error(`Collection not found: ${p.collectionId}. Pass the collection's ID or display name.`);
   const created = figma.variables.createVariable(p.name, collection, p.resolvedType);
   const id = created.id;
   // Re-fetch to ensure Figma has committed the variable before mutating
@@ -167,7 +165,13 @@ async function createVariableSingle(p: any) {
 }
 
 async function getVariableFigma(params: any) {
-  const v = await findVariableByName(params.name, params.collectionName);
+  // collectionId accepts both IDs and names — resolve to name for findVariableByName
+  let collectionName: string | undefined;
+  if (params.collectionId) {
+    const col = await findCollection(params.collectionId);
+    collectionName = col?.name;
+  }
+  const v = await findVariableByName(params.name, collectionName);
   if (!v) throw new Error(`Variable not found: ${params.name}`);
   return serializeVariable(v);
 }
@@ -176,8 +180,8 @@ async function listVariablesFigma(params: any) {
   let variables = params?.type
     ? await figma.variables.getLocalVariablesAsync(params.type)
     : await figma.variables.getLocalVariablesAsync();
-  if (params?.collectionName) {
-    const col = await findCollectionByName(params.collectionName);
+  if (params?.collectionId) {
+    const col = await findCollection(params.collectionId);
     if (col) variables = variables.filter((v: any) => v.variableCollectionId === col.id);
     else variables = [];
   }
@@ -192,7 +196,12 @@ async function listVariablesFigma(params: any) {
 }
 
 async function updateVariableSingle(p: any) {
-  const variable = await findVariableByName(p.name, p.collectionName);
+  let collectionName: string | undefined;
+  if (p.collectionId) {
+    const col = await findCollection(p.collectionId);
+    collectionName = col?.name;
+  }
+  const variable = await findVariableByName(p.name, collectionName);
   if (!variable) throw new Error(`Variable not found: ${p.name}`);
   // Metadata updates
   if (p.rename !== undefined) variable.name = p.rename;
@@ -201,7 +210,7 @@ async function updateVariableSingle(p: any) {
   // Value update — falls back to collection's default modeId when omitted
   // modeId accepts both IDs ("2:3") and names ("Dark") for agent convenience
   if (p.value !== undefined) {
-    const collection = await findCollectionById(variable.variableCollectionId);
+    const collection = await findCollection(variable.variableCollectionId);
     if (!collection) throw new Error(`Collection not found for variable: ${p.name}`);
     const modeId = p.modeId ? await resolveModeId(collection, p.modeId) : collection.defaultModeId;
     let value = p.value;
@@ -221,14 +230,19 @@ async function updateVariableSingle(p: any) {
 }
 
 async function deleteVariableSingle(p: any) {
-  const variable = await findVariableByName(p.name, p.collectionName);
+  let collectionName: string | undefined;
+  if (p.collectionId) {
+    const col = await findCollection(p.collectionId);
+    collectionName = col?.name;
+  }
+  const variable = await findVariableByName(p.name, collectionName);
   if (!variable) throw new Error(`Variable not found: ${p.name}`);
   variable.remove();
   return {};
 }
 
 async function renameCollectionSingle(p: any) {
-  const c = await findCollectionById(p.id);
+  const c = await findCollection(p.id);
   if (!c) throw new Error(`Collection not found: ${p.id}`);
   if (p.name !== undefined) c.name = p.name;
   return {};
@@ -269,7 +283,7 @@ async function setExplicitModeSingle(p: any) {
   const node = await figma.getNodeByIdAsync(p.nodeId);
   if (!node) throw new Error(`Node not found: ${p.nodeId}`);
   if (!("setExplicitVariableModeForCollection" in node)) throw new Error(`Node ${p.nodeId} (${node.type}) does not support explicit variable modes. Use a FRAME, COMPONENT, or COMPONENT_SET.`);
-  const collection = await findCollectionById(p.collectionId);
+  const collection = await findCollection(p.collectionId);
   if (!collection) throw new Error(`Collection not found: ${p.collectionId}`);
   try {
     (node as any).setExplicitVariableModeForCollection(collection, p.modeId);
