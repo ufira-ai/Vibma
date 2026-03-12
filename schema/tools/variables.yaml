@@ -6,6 +6,7 @@ description_zh: "管理设计变量（颜色、数值、字符串、布尔）。
 notes: |
   // Variables are design tokens — reusable values (colors, numbers, strings, booleans) that can be bound to node properties.
   // Variables are identified by name (unique within a collection). No IDs needed — use name to get/update/delete.
+  // IMPORTANT: collectionName is the collection's display name (e.g. "Colors"), NOT an ID. Use the name you gave the collection when creating it.
   // Workflow: create a variable_collection first → then create variables inside it → bind to nodes via frames/text update PatchItem.bindings.
   // ---
   // Each variable has values per mode (e.g. Light/Dark). Use modeId when setting values for a specific mode.
@@ -86,7 +87,7 @@ methods:
         items:
           type: object
           properties:
-            collectionName: { type: string, required: true, description: "Variable collection name" }
+            collectionName: { type: string, required: true, description: "Collection display name (e.g. \"Colors\"), NOT an ID" }
             name: { type: string, required: true, description: "Variable name" }
             resolvedType: { type: enum, values: [COLOR, FLOAT, STRING, BOOLEAN], required: true, description: "Variable type" }
             value: { type: variable_value, optional: true, description: "Initial value (uses default mode unless modeId specified)" }
