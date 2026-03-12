@@ -460,14 +460,8 @@ async function instanceGetFigma(params: any) {
   };
 }
 
-async function instanceUpdateSingle(p: any) {
-  const node = await figma.getNodeByIdAsync(p.id);
-  if (!node) throw new Error(`Node not found: ${p.id}`);
-  if (node.type !== "INSTANCE") throw new Error(`Node ${p.id} is ${node.type}, not an INSTANCE`);
-  const inst = node as InstanceNode;
-  // Accept both "properties" and "componentProperties" (mirrors instances.get response shape)
-  const props = p.properties ?? p.componentProperties;
-  if (!props || typeof props !== "object") throw new Error(`Missing 'properties' — pass a key→value map, e.g. {"Label#1:0":"text"}`);
+/** Update component properties on an instance (key→value map). Exported for combined handler. */
+export async function instanceUpdateComponentProps(inst: InstanceNode, props: Record<string, any>): Promise<void> {
   // Resolve partial property keys: "Label" → "Label#2:33"
   // Agents often don't know the full key suffix — match by prefix.
   const defs = inst.componentProperties;
@@ -481,6 +475,17 @@ async function instanceUpdateSingle(p: any) {
     }
   }
   inst.setProperties(resolvedProps);
+}
+
+async function instanceUpdateSingle(p: any) {
+  const node = await figma.getNodeByIdAsync(p.id);
+  if (!node) throw new Error(`Node not found: ${p.id}`);
+  if (node.type !== "INSTANCE") throw new Error(`Node ${p.id} is ${node.type}, not an INSTANCE`);
+  const inst = node as InstanceNode;
+  // Accept both "properties" and "componentProperties" (mirrors instances.get response shape)
+  const props = p.properties ?? p.componentProperties;
+  if (!props || typeof props !== "object") throw new Error(`Missing 'properties' — pass a key→value map, e.g. {"Label#1:0":"text"}`);
+  await instanceUpdateComponentProps(inst, props);
   return {};
 }
 
@@ -510,6 +515,88 @@ async function instanceResetOverridesSingle(p: any) {
   if (node.type !== "INSTANCE") throw new Error(`Node ${p.id} is ${node.type}, not an INSTANCE`);
   (node as any).removeOverrides();
   return {};
+}
+
+// ─── Combined Instance Update (visual + component properties) ────
+
+import { patchSingleNode, hasAny, TEXT_KEYS } from "./patch-nodes";
+import { prepSetTextProperties } from "./text";
+
+const VISUAL_KEYS = [
+  "fillColor", "fillStyleName", "fillVariableName", "clearFill",
+  "strokeColor", "strokeStyleName", "strokeVariableName", "strokeWeight",
+  "strokeTopWeight", "strokeBottomWeight", "strokeLeftWeight", "strokeRightWeight",
+  "cornerRadius", "topLeftRadius", "topRightRadius", "bottomRightRadius", "bottomLeftRadius",
+  "effects", "effectStyleName", "opacity",
+  "layoutMode", "layoutWrap", "padding", "paddingTop", "paddingRight", "paddingBottom", "paddingLeft",
+  "primaryAxisAlignItems", "counterAxisAlignItems", "layoutSizingHorizontal", "layoutSizingVertical",
+  "itemSpacing", "counterAxisSpacing",
+  "fontSize", "fontFamily", "fontStyle", "fontWeight", "fontColor", "fontColorVariableName",
+  "fontColorStyleName", "textStyleId", "textStyleName", "textAlignHorizontal", "textAlignVertical", "textAutoResize",
+  "name", "visible", "locked", "rotation", "blendMode", "layoutPositioning",
+  "x", "y", "width", "height", "minWidth", "maxWidth", "minHeight", "maxHeight",
+  "constraints", "bindings", "explicitMode", "exportSettings",
+];
+
+/**
+ * Combined instances.update handler: supports visual PatchItem params AND component properties.
+ * Falls through to the component property dispatcher if no visual keys are present.
+ */
+export async function instanceUpdateCombined(p: any): Promise<any> {
+  const items = p.items || [p];
+  const anyVisual = items.some((item: any) => VISUAL_KEYS.some(k => item[k] !== undefined));
+
+  if (!anyVisual) {
+    // Pure component property update — use the existing dispatcher
+    return batchHandler(p, instanceUpdateSingle);
+  }
+
+  // Prep text context if needed
+  let textCtx: any = null;
+  const textItems = items.filter((item: any) => hasAny(item, TEXT_KEYS));
+  if (textItems.length > 0) {
+    const syntheticItems = textItems.map((item: any) => ({
+      nodeId: item.id,
+      fontSize: item.fontSize,
+      fontFamily: item.fontFamily,
+      fontStyle: item.fontStyle,
+      fontWeight: item.fontWeight,
+      fontColor: item.fontColor,
+      textStyleId: item.textStyleId,
+      textStyleName: item.textStyleName,
+    }));
+    textCtx = await prepSetTextProperties({ items: syntheticItems });
+  }
+
+  return batchHandler(p, async (item: any) => {
+    const result: any = {};
+    const hints: Hint[] = [];
+
+    // 1. Visual PatchItem update
+    const hasVisual = VISUAL_KEYS.some(k => item[k] !== undefined);
+    if (hasVisual) {
+      // Strip component property keys — "properties" means escape hatch in PatchItem
+      // but component properties in instances. Don't let patchSingleNode misinterpret them.
+      const { properties: _cp, componentProperties: _ccp, ...visualItem } = item;
+      const patchItem = { ...visualItem, nodeId: item.nodeId ?? item.id };
+      const r = await patchSingleNode(patchItem, textCtx);
+      if (r.hints) hints.push(...r.hints);
+      Object.assign(result, r);
+      delete result.hints;
+    }
+
+    // 2. Component property update
+    const props = item.properties ?? item.componentProperties;
+    if (props && typeof props === "object") {
+      const node = await figma.getNodeByIdAsync(item.id);
+      if (!node) throw new Error(`Node not found: ${item.id}`);
+      if (node.type !== "INSTANCE") throw new Error(`Node ${item.id} is ${node.type}, not an INSTANCE`);
+      await instanceUpdateComponentProps(node as InstanceNode, props);
+    }
+
+    if (hints.length > 0) result.hints = hints;
+    return result;
+  });
 }
 
 // ─── Handler Exports ─────────────────────────────────────────────

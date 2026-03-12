@@ -11,6 +11,41 @@ import ParameterTable from "../../../../components/ParameterTable.astro";
 <summary>Type reference</summary>
 
 ```ts
+// depth: omit → id+name stubs | 0 → props + child stubs | N → recurse N | -1 → full tree
+// fields: whitelist e.g. ["fills","opacity"] — id, name, type always included. Pass ["*"] for all.
+// layoutSizingHorizontal/Vertical: FIXED | HUG | FILL — how the node sizes within auto-layout.
+// Colors: fillVariableName/strokeVariableName bind by name — preferred over raw color values.
+// ---
+// visible: false hides the node. Omitted from response when true (the default).
+// locked: true prevents editing in Figma UI. Omitted when false (the default).
+// rotation: degrees (0-360). Omitted when 0.
+// blendMode: layer blend mode. Omitted when PASS_THROUGH (the default).
+// layoutPositioning: ABSOLUTE = floating inside auto-layout parent. Omitted when AUTO (the default).
+// minWidth/maxWidth/minHeight/maxHeight: responsive constraints for auto-layout children.
+// constraints: position behavior in non-auto-layout parents. Ignored inside auto-layout frames.
+// bindings: bind design variables to node properties. field uses slash path e.g. "fills/0/color", "opacity", "width".
+// explicitMode: pin a variable mode on this node. Use { collectionName, modeName } (preferred) or { collectionId, modeId }.
+// properties: escape hatch — set any Figma node property directly. Use only when no dedicated field exists.
+interface Node {
+  id: string; name: string; type: string;
+  visible?: boolean;       // omitted when true
+  locked?: boolean;        // omitted when false
+  opacity?: number;        // omitted when 1
+  rotation?: number;       // omitted when 0
+  blendMode?: string;      // omitted when PASS_THROUGH
+  layoutPositioning?: "AUTO" | "ABSOLUTE";
+  layoutSizingHorizontal?: "FIXED" | "HUG" | "FILL";
+  layoutSizingVertical?: "FIXED" | "HUG" | "FILL";
+  minWidth?: number; maxWidth?: number; minHeight?: number; maxHeight?: number;
+  absoluteBoundingBox: { x: number; y: number; width: number; height: number };
+  fills?: Paint[];         // solid: {type: "SOLID", color: {r, g, b, a}}
+  strokes?: Paint[];
+  effects?: Effect[];      // DROP_SHADOW | INNER_SHADOW | LAYER_BLUR | BACKGROUND_BLUR
+  children?: NodeStub[];   // stubs: {id, name, type} — use depth to expand
+}
+// PatchItem uses flat params matching create shape — no nested sub-objects.
+// Fill/stroke/corner/layout/text params are identical to frames.create and text.create.
+// Unknown keys produce a warning, preventing silent failures.
 // Components are reusable design elements. Instances stay linked to the component and inherit changes.
 // Workflow: create component (with properties) → add children → create instances via instances.create.
 // ---
@@ -30,7 +65,31 @@ import ParameterTable from "../../../../components/ParameterTable.astro";
 
 </details>
 
-5 methods available.
+7 methods available.
+
+## clone
+
+**create** | *inherited*
+
+Duplicate nodes
+
+<ParameterTable schema={{"type":"object","properties":{"id":{"description":"Node ID","type":"string"},"parentId":{"description":"Parent node ID. Omit to place on current page.","type":"string"},"x":{"description":"X position (default: 0)","type":"number"},"y":{"description":"Y position (default: 0)","type":"number"},"depth":{"description":"Response detail: omit for id+name only. 0=properties + child stubs. N=recurse N levels. -1=unlimited.","type":"number"}},"required":["id"]}} />
+
+**Response**
+
+<ParameterTable schema={{"type":"object","properties":{"results":{"type":"array","description":"One entry per input item","items":{"type":"object","properties":{"id":{"type":"string"}}}}}}} fieldLabel="Field" hideRequired />
+
+## reparent
+
+**edit** | *inherited*
+
+Move nodes into a new parent
+
+<ParameterTable schema={{"type":"object","properties":{"items":{"description":"Array of {id, parentId, index?}","type":"array","items":{"type":"object","properties":{"id":{"type":"string"},"parentId":{"type":"string"},"index":{"type":"number"}},"required":["id","parentId"]}}},"required":["items"]}} />
+
+**Response**
+
+<ParameterTable schema={{"type":"object","properties":{"results":{"type":"array","description":"Array of \"ok\" per item","items":{"type":"string"}}}}} fieldLabel="Field" hideRequired />
 
 ## list
 

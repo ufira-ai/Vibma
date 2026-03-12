@@ -36,44 +36,9 @@ notes: |
     effects?: Effect[];      // DROP_SHADOW | INNER_SHADOW | LAYER_BLUR | BACKGROUND_BLUR
     children?: NodeStub[];   // stubs: {id, name, type} — use depth to expand
   }
-  interface PatchItem {
-    id: string;
-    name?: string; // rename node
-    visible?: boolean; // show/hide (default true)
-    locked?: boolean; // lock/unlock (default false)
-    rotation?: number; // degrees (0-360)
-    blendMode?: "PASS_THROUGH" | "NORMAL" | "DARKEN" | "MULTIPLY" | "LINEAR_BURN" | "COLOR_BURN" | "LIGHTEN" | "SCREEN" | "LINEAR_DODGE" | "COLOR_DODGE" | "OVERLAY" | "SOFT_LIGHT" | "HARD_LIGHT" | "DIFFERENCE" | "EXCLUSION" | "HUE" | "SATURATION" | "COLOR" | "LUMINOSITY";
-    layoutPositioning?: "AUTO" | "ABSOLUTE"; // ABSOLUTE = floating inside auto-layout parent
-    x?: number; y?: number; width?: number; height?: number;
-    minWidth?: number; maxWidth?: number; // responsive auto-layout constraints
-    minHeight?: number; maxHeight?: number;
-    opacity?: number | string; // number (0-1) or variable name
-    fill?: { color?: Color; styleName?: string; variableName?: string; clear?: boolean };
-    stroke?: { color?: Color; weight?: number | string; styleName?: string; variableName?: string; strokeTopWeight?: number | string; strokeBottomWeight?: number | string; strokeLeftWeight?: number | string; strokeRightWeight?: number | string };
-    cornerRadius?: { radius?: number | string; topLeft?: number | string; topRight?: number | string; bottomRight?: number | string; bottomLeft?: number | string };
-    effects?: { effects?: Effect[]; styleName?: string };
-    layout?: {
-      layoutMode?: "NONE" | "HORIZONTAL" | "VERTICAL";
-      paddingTop?: number | string; paddingRight?: number | string; paddingBottom?: number | string; paddingLeft?: number | string;
-      primaryAxisAlignItems?: "MIN" | "MAX" | "CENTER" | "SPACE_BETWEEN";
-      counterAxisAlignItems?: "MIN" | "MAX" | "CENTER" | "BASELINE";
-      layoutSizingHorizontal?: "FIXED" | "HUG" | "FILL";
-      layoutSizingVertical?: "FIXED" | "HUG" | "FILL";
-      itemSpacing?: number | string; counterAxisSpacing?: number | string;
-      layoutWrap?: "NO_WRAP" | "WRAP";
-    };
-    text?: {
-      fontSize?: number; fontWeight?: number; fontColor?: Color;
-      textStyleId?: string; textStyleName?: string;
-      textAlignHorizontal?: "LEFT" | "CENTER" | "RIGHT" | "JUSTIFIED";
-      textAlignVertical?: "TOP" | "CENTER" | "BOTTOM";
-      textAutoResize?: "NONE" | "WIDTH_AND_HEIGHT" | "HEIGHT" | "TRUNCATE";
-    };
-    constraints?: { horizontal: "MIN" | "CENTER" | "MAX" | "STRETCH" | "SCALE"; vertical: "MIN" | "CENTER" | "MAX" | "STRETCH" | "SCALE" };
-    bindings?: { field: string; variableName: string }[]; // bind variables by name. field e.g. "fills/0/color", "opacity"
-    explicitMode?: { collectionName: string; modeName: string } | { collectionId: string; modeId: string }; // pin variable mode — prefer names
-    properties?: Record<string, unknown>; // direct Figma API props (escape hatch)
-  }
+  // PatchItem uses flat params matching create shape — no nested sub-objects.
+  // Fill/stroke/corner/layout/text params are identical to frames.create and text.create.
+  // Unknown keys produce a warning, preventing silent failures.
 
 methods:
   get:
@@ -156,6 +121,31 @@ methods:
         description: "Array of {id, ...properties} to patch"
         items:
           type: object
+          properties:
+            $mixin: [geometry_params, blend_params, auto_layout_params, sizing_params, text_params]
+            # --- identity ---
+            id: { type: string, required: true }
+            # --- scene node (SceneNodeMixin) ---
+            name: { type: string, optional: true, description: "Rename node" }
+            visible: { type: boolean, optional: true, description: "Show/hide (default true)" }
+            locked: { type: boolean, optional: true, description: "Lock/unlock (default false)" }
+            rotation: { type: number, optional: true, description: "Degrees (0-360)" }
+            blendMode: { type: enum, values: [PASS_THROUGH, NORMAL, DARKEN, MULTIPLY, LINEAR_BURN, COLOR_BURN, LIGHTEN, SCREEN, LINEAR_DODGE, COLOR_DODGE, OVERLAY, SOFT_LIGHT, HARD_LIGHT, DIFFERENCE, EXCLUSION, HUE, SATURATION, COLOR, LUMINOSITY], optional: true }
+            layoutPositioning: { type: enum, values: [AUTO, ABSOLUTE], optional: true, description: "ABSOLUTE = floating inside auto-layout parent" }
+            # --- geometry ---
+            x: { type: number, optional: true }
+            y: { type: number, optional: true }
+            width: { type: number, optional: true }
+            height: { type: number, optional: true }
+            clearFill: { type: boolean, optional: true, description: "Remove all fills" }
+            strokeWeight: { $expand: stroke, type: token }
+            effects: { type: array, optional: true, description: "Effect array (DROP_SHADOW, INNER_SHADOW, LAYER_BLUR, BACKGROUND_BLUR)", items: { type: object } }
+            # --- advanced ---
+            constraints: { type: object, optional: true, properties: { horizontal: { type: enum, values: [MIN, CENTER, MAX, STRETCH, SCALE] }, vertical: { type: enum, values: [MIN, CENTER, MAX, STRETCH, SCALE] } } }
+            bindings: { type: array, optional: true, description: "Bind variables by name. field e.g. 'fills/0/color', 'opacity'", items: { type: object, properties: { field: { type: string, required: true }, variableName: { type: string }, variableId: { type: string } } } }
+            explicitMode: { type: object, optional: true, description: "Pin variable mode — use { collectionName, modeName } (preferred) or { collectionId, modeId }" }
+            exportSettings: { type: array, optional: true, description: "Export settings", items: { type: object } }
+            properties: { type: object, optional: true, description: "Direct Figma API props (escape hatch)" }
     response:
       type: batch_mixed
 

@@ -1,0 +1,10 @@
+# Sizing within auto-layout parents — mirrors Figma's LayoutMixin sizing subset
+# Include via $mixin: sizing_params
+
+sizing_params:
+  layoutSizingHorizontal: { type: enum, values: [FIXED, HUG, FILL], optional: true }
+  layoutSizingVertical: { type: enum, values: [FIXED, HUG, FILL], optional: true }
+  minWidth: { type: number, coerce: true, optional: true, description: "Min width for responsive auto-layout" }
+  maxWidth: { type: number, coerce: true, optional: true, description: "Max width for responsive auto-layout" }
+  minHeight: { type: number, coerce: true, optional: true, description: "Min height for responsive auto-layout" }
+  maxHeight: { type: number, coerce: true, optional: true, description: "Max height for responsive auto-layout" }

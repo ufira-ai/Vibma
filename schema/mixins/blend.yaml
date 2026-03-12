@@ -1,0 +1,6 @@
+# Opacity + effects params — mirrors Figma's BlendMixin
+# Include via $mixin: blend_params
+
+blend_params:
+  opacity: { type: token, optional: true, description: "Opacity (0-1) or variable name" }
+  effectStyleName: { type: string, optional: true, description: "Effect style name (e.g. 'Shadow/Card') for shadows, blurs" }

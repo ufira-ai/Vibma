@@ -1,4 +1,5 @@
 endpoint: components
+extends: node
 domain: design-system
 description: "Create and manage reusable components and variant sets."
 description_zh: "创建和管理可复用组件和变体集。"
