@@ -37,6 +37,7 @@ export const commandMap: Record<string, Record<string, string>> = {
   "text": {"get":"text.get","list":"text.list","update":"text.update","delete":"text.delete","clone":"text.clone","reparent":"text.reparent","create":"text.create","set_content":"text.set_content","scan":"text.scan"},
   "variable_collections": {"list":"variable_collections.list","get":"variable_collections.get","create":"variable_collections.create","update":"variable_collections.update","delete":"variable_collections.delete","add_mode":"variable_collections.add_mode","rename_mode":"variable_collections.rename_mode","remove_mode":"variable_collections.remove_mode"},
   "variables": {"list":"variables.list","get":"variables.get","create":"variables.create","update":"variables.update","delete":"variables.delete"},
+  "version_history": {"save":"version_history.save"},
 };
 
 /** Methods handled inline (local WS state, not sent to Figma) */
@@ -899,5 +900,22 @@ export const tools: ToolDef[] = [
       }
     },
     commandMap: {"list":"variables.list","get":"variables.get","create":"variables.create","update":"variables.update","delete":"variables.delete"},
+  },
+  {
+    name: "version_history",
+    description: "/** Save named versions to the Figma file's version history. Use method \"help\" for detailed parameter docs. */\n  save      (title, description?) → { id }  // Save a named version to the file's version history\n// Version history lets you create named snapshots of a Figma file.\n// Use this after completing design tasks to create an audit trail of changes.\n// Equivalent to Figma's File → Save to Version History (Cmd+Opt+S).",
+    schema: (caps) => filterMethodsByTier({    method: z.enum(["save", "help"]),
+    title: z.string().optional().describe("Version title (e.g., \"Added hero sections with website copy\")"),
+    description: z.string().optional().describe("Optional longer description of what changed"),
+    topic: z.string().optional().describe("Help topic — method name for endpoint help, e.g. \"create\""),
+    }, caps, {"save":"edit","help":"read"}),
+    tier: "read" as const,
+    validate: (params: any) => {
+      const m = params.method;
+      if (m === "save") {
+        if (params.title === undefined) throw new Error("save requires \"title\"");
+      }
+    },
+    commandMap: {"save":"version_history.save"},
   }
 ];
