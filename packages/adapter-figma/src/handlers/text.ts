@@ -157,6 +157,14 @@ export async function setTextPropertiesSingle(p: any, ctx: TextPropsContext) {
     if (parentIsAL || p.layoutSizingVertical !== "FILL") { node.layoutSizingVertical = p.layoutSizingVertical; }
     else { warnings.push({ type: "warn", message: `layoutSizingVertical '${p.layoutSizingVertical}' ignored — node is not inside an auto-layout frame.` }); }
   }
+  // Text with HUG on both axes won't wrap — warn after sizing updates
+  if ((p.layoutSizingHorizontal || p.layoutSizingVertical) &&
+      node.layoutSizingHorizontal === "HUG" && node.layoutSizingVertical === "HUG") {
+    const parentIsAL = node.parent && "layoutMode" in node.parent && (node.parent as any).layoutMode !== "NONE";
+    if (parentIsAL) {
+      warnings.push({ type: "warn", message: "Text with HUG on both axes won't wrap. Use layoutSizingHorizontal:\"FILL\" + layoutSizingVertical:\"HUG\" so text fills parent width and wraps, or set textAutoResize:\"HEIGHT\" for fixed-width wrapping." });
+    }
+  }
   if (p.textStyleName && p.textStyleId) {
     warnings.push({ type: "warn", message: "Both textStyleName and textStyleId provided — used textStyleId. Pass only one." });
   }

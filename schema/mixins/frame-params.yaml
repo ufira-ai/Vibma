@@ -1,6 +1,13 @@
-# Shared frame-like params — reused by frame, auto_layout, component, variant_set
+# Aggregate frame-like params — reused by frame, auto_layout, component, variant_set create types.
 # Include via $mixin: frame_params in any type's params block.
 # Explicit params in the type override mixin params with the same name.
+#
+# Sub-mixins available for granular composition (e.g. PatchItem, instances):
+#   geometry_params    — fill, stroke, corner (geometry.yaml)
+#   blend_params       — opacity, effects (blend.yaml)
+#   auto_layout_params — layout direction, padding, spacing (auto-layout.yaml)
+#   sizing_params      — layoutSizing, min/max constraints (sizing.yaml)
+#   text_params        — typography (text.yaml)
 
 frame_params:
   name: { type: string, optional: true, description: "Node name" }

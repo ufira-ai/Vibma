@@ -148,7 +148,7 @@ export async function setCornerSingle(p: any) {
     } else {
       // Node only supports single cornerRadius (e.g. non-rectangle)
       const bound = await applyToken(node, "cornerRadius", p.radius, hints);
-      if (!bound) {
+      if (!bound && p.radius !== 0) {
         hints.push({ type: "suggest", message: `Hardcoded cornerRadius. Use an existing FLOAT variable or create one with variables(method:"create"), then pass the variable name string instead of a number.` });
       }
     }

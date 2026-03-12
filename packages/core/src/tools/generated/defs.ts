@@ -25,12 +25,12 @@ function filterMethodsByTier(
  * For discriminated methods (create with type), the value is a sub-map: type → command.
  */
 export const commandMap: Record<string, Record<string, string>> = {
-  "components": {"list":"components.list","get":"components.get","create":"components.create","update":"components.update","delete":"components.delete"},
+  "components": {"clone":"components.clone","reparent":"components.reparent","list":"components.list","get":"components.get","create":"components.create","update":"components.update","delete":"components.delete"},
   "connection": {"create":"connection.create","get":"connection.get","list":"connection.list","delete":"connection.delete"},
   "document": {"get":"document.get","list":"document.list","set":"document.set","create":"document.create","update":"document.update"},
   "fonts": {"list":"fonts.list"},
   "frames": {"get":"frames.get","list":"frames.list","update":"frames.update","delete":"frames.delete","clone":"frames.clone","reparent":"frames.reparent","create":"frames.create","export":"frames.export"},
-  "instances": {"get":"instances.get","create":"instances.create","update":"instances.update","swap":"instances.swap","detach":"instances.detach","reset_overrides":"instances.reset_overrides"},
+  "instances": {"list":"instances.list","delete":"instances.delete","clone":"instances.clone","reparent":"instances.reparent","get":"instances.get","create":"instances.create","update":"instances.update","swap":"instances.swap","detach":"instances.detach","reset_overrides":"instances.reset_overrides"},
   "lint": {"check":"lint.check","fix":"lint.fix"},
   "selection": {"get":"selection.get","update":"selection.update"},
   "styles": {"list":"styles.list","get":"styles.get","create":"styles.create","update":"styles.update","delete":"styles.delete"},
@@ -47,19 +47,22 @@ export const inlineMethods: Record<string, Record<string, boolean>> = {
 export const tools: ToolDef[] = [
   {
     name: "components",
-    description: "/** Create and manage reusable components and variant sets. Use method \"help\" for detailed parameter docs. */\n  list      (name?, setsOnly?, fields?, offset?, limit?) → { totalCount, items }  // List components and component sets\n  get       (id, fields?) → { id?, name?, type?, propertyDefinitions? }  // Get component or component set detail\n  create    (type: component|from_node|variant_set, items: (ComponentItem | FromNodeItem | VariantSetItem)[]) → { results: {id}[] }  // Create components\n  update    (items: UpdatePropertyItem[], depth?) → { results: (\"ok\" | {error})[] }  // Add, edit, or delete component properties\n  delete    (id) → { results: {id}[] }  // Delete components or component sets\n// Components are reusable design elements. Instances stay linked to the component and inherit changes.\n// Workflow: create component (with properties) → add children → create instances via instances.create.",
-    schema: (caps) => filterMethodsByTier({    method: z.enum(["list", "get", "create", "update", "delete", "help"]),
+    description: "/** Create and manage reusable components and variant sets. Use method \"help\" for detailed parameter docs. */\n  clone     (id, parentId?, x?, y?, depth?) → { results: {id}[] }  // Duplicate nodes\n  reparent  (items: { id: string; parentId: string; index?: number }[]) → { results: \"ok\"[] }  // Move nodes into a new parent\n  list      (name?, setsOnly?, fields?, offset?, limit?) → { totalCount, items }  // List components and component sets\n  get       (id, fields?) → { id?, name?, type?, propertyDefinitions? }  // Get component or component set detail\n  create    (type: component|from_node|variant_set, items: (ComponentItem | FromNodeItem | VariantSetItem)[]) → { results: {id}[] }  // Create components\n  update    (items: UpdatePropertyItem[], depth?) → { results: (\"ok\" | {error})[] }  // Add, edit, or delete component properties\n  delete    (id) → { results: {id}[] }  // Delete components or component sets\n// depth: omit → id+name stubs | 0 → props + child stubs | N → recurse N | -1 → full tree\n// fields: whitelist e.g. [\"fills\",\"opacity\"] — id, name, type always included. Pass [\"*\"] for all.\n// layoutSizingHorizontal/Vertical: FIXED | HUG | FILL — how the node sizes within auto-layout.\n// Colors: fillVariableName/strokeVariableName bind by name — preferred over raw color values.",
+    schema: (caps) => filterMethodsByTier({    method: z.enum(["clone", "reparent", "list", "get", "create", "update", "delete", "help"]),
+    id: z.string().optional().describe("Node ID"),
+    parentId: z.string().optional().describe("Parent node ID. Omit to place on current page."),
+    x: z.coerce.number().optional().describe("X position (default: 0)"),
+    y: z.coerce.number().optional().describe("Y position (default: 0)"),
+    depth: z.coerce.number().optional().describe("Response detail: omit for id+name only. 0=properties + child stubs. N=recurse N levels. -1=unlimited."),
+    items: flexJson(z.array(z.record(z.string(), z.unknown()))).optional().describe("Array of {id, parentId, index?}"),
     name: z.string().optional().describe("Filter by name (case-insensitive substring)"),
     setsOnly: flexBool(z.boolean()).optional().describe("If true, return only COMPONENT_SET nodes"),
     fields: flexJson(z.array(z.string())).optional().describe("Property whitelist. Identity fields (id, name, type) always included. Omit for stubs on list, full on get. Pass [\"*\"] for all."),
     offset: z.coerce.number().optional().default(0).describe("Skip N items for pagination (default 0)"),
     limit: z.coerce.number().optional().default(100).describe("Max items per page (default 100)"),
-    id: z.string().optional().describe("Component or component set ID"),
     type: z.enum(["component", "from_node", "variant_set"]).optional().describe("Discriminant for create method"),
-    items: flexJson(z.array(z.record(z.string(), z.unknown()))).optional().describe("Batch items array"),
-    depth: z.coerce.number().optional().describe("Response detail: omit for id+name only. 0=properties + child stubs. N=recurse N levels. -1=unlimited."),
     topic: z.string().optional().describe("Help topic — method name for endpoint help, e.g. \"create\""),
-    }, caps, {"list":"read","get":"read","create":"create","update":"edit","delete":"edit","help":"read"}),
+    }, caps, {"clone":"create","reparent":"edit","list":"read","get":"read","create":"create","update":"edit","delete":"edit","help":"read"}),
     tier: "read" as const,
     validate: (params: any) => {
       const m = params.method;
@@ -111,11 +114,11 @@ export const tools: ToolDef[] = [
             minHeight: z.coerce.number().optional().describe("Min height for responsive auto-layout"),
             maxHeight: z.coerce.number().optional().describe("Max height for responsive auto-layout"),
             properties: flexJson(z.array(z.record(z.string(), z.unknown()))).optional().describe("Component properties to define at creation: [{propertyName, type, defaultValue}]"),
-          }),
+          }).passthrough(),
           "from_node": z.object({
             nodeId: z.string().describe("Node ID to convert"),
             exposeText: flexBool(z.boolean()).optional().describe("Auto-expose text as editable properties (default: true)"),
-          }),
+          }).passthrough(),
           "variant_set": z.object({
             name: z.string().optional().describe("Node name"),
             parentId: z.string().optional().describe("Parent node ID. Omit to place on current page."),
@@ -156,7 +159,7 @@ export const tools: ToolDef[] = [
             maxHeight: z.coerce.number().optional().describe("Max height for responsive auto-layout"),
             componentIds: flexJson(z.array(z.string())).describe("Component IDs to combine (min 2)"),
             variantPropertyName: z.string().optional().describe("Rename the auto-generated variant property (default: 'Property 1')"),
-          }),
+          }).passthrough(),
         };
         const s = params.type && schemas[params.type];
         if (s) {
@@ -173,12 +176,12 @@ export const tools: ToolDef[] = [
           defaultValue: S.stringOrBoolean.optional().describe("Default value (required for add)"),
           name: z.string().optional().describe("New name (for edit action)"),
           preferredValues: flexJson(z.array(z.record(z.string(), z.unknown()))).optional().describe("Preferred values for INSTANCE_SWAP"),
-        });
+        }).passthrough();
         try { params.items = z.array(itemSchema).parse(params.items); }
         catch (e) { if (e instanceof z.ZodError) { throw new Error(e.issues.map(i => { const path = i.path.join("."); const shape = itemSchema instanceof z.ZodObject ? (itemSchema as any).shape : null; const desc = shape?.[i.path[1]]?.description; return path + ": " + i.message + (desc ? " (expected: " + desc + ")" : ""); }).join("; ")); } throw e; }
       }
     },
-    commandMap: {"list":"components.list","get":"components.get","create":"components.create","update":"components.update","delete":"components.delete"},
+    commandMap: {"clone":"components.clone","reparent":"components.reparent","list":"components.list","get":"components.get","create":"components.create","update":"components.update","delete":"components.delete"},
   },
   {
     name: "connection",
@@ -296,7 +299,7 @@ export const tools: ToolDef[] = [
             minHeight: z.coerce.number().optional().describe("Min height for responsive auto-layout"),
             maxHeight: z.coerce.number().optional().describe("Max height for responsive auto-layout"),
             clipsContent: flexBool(z.boolean()).optional(),
-          }),
+          }).passthrough(),
           "auto_layout": z.object({
             name: z.string().optional().describe("Node name"),
             parentId: z.string().optional().describe("Parent node ID. Omit to place on current page."),
@@ -337,7 +340,7 @@ export const tools: ToolDef[] = [
             maxHeight: z.coerce.number().optional().describe("Max height for responsive auto-layout"),
             clipsContent: flexBool(z.boolean()).optional(),
             nodeIds: flexJson(z.array(z.string())).optional().describe("Existing node IDs to wrap into auto-layout"),
-          }),
+          }).passthrough(),
           "section": z.object({
             name: z.string().describe("Section name"),
             parentId: z.string().optional().describe("Parent node ID. Omit to place on current page."),
@@ -348,7 +351,7 @@ export const tools: ToolDef[] = [
             fillColor: S.colorRgba.optional().describe("Background fill color (auto-binds to matching variable/style)"),
             fillStyleName: z.string().optional().describe("Paint style name for fill"),
             fillVariableName: z.string().optional().describe("Color variable by name e.g. 'bg/primary'"),
-          }),
+          }).passthrough(),
           "rectangle": z.object({
             name: z.string().optional().describe("Layer name (default: 'Rectangle')"),
             parentId: z.string().optional().describe("Parent node ID. Omit to place on current page."),
@@ -370,7 +373,7 @@ export const tools: ToolDef[] = [
             opacity: S.token.optional(),
             layoutSizingHorizontal: z.string().optional().describe("Horizontal sizing in auto-layout parent"),
             layoutSizingVertical: z.string().optional().describe("Vertical sizing in auto-layout parent"),
-          }),
+          }).passthrough(),
           "ellipse": z.object({
             name: z.string().optional().describe("Layer name (default: 'Ellipse')"),
             parentId: z.string().optional().describe("Parent node ID. Omit to place on current page."),
@@ -387,7 +390,7 @@ export const tools: ToolDef[] = [
             opacity: S.token.optional(),
             layoutSizingHorizontal: z.string().optional().describe("Horizontal sizing in auto-layout parent"),
             layoutSizingVertical: z.string().optional().describe("Vertical sizing in auto-layout parent"),
-          }),
+          }).passthrough(),
           "line": z.object({
             name: z.string().optional().describe("Layer name (default: 'Line')"),
             parentId: z.string().optional().describe("Parent node ID. Omit to place on current page."),
@@ -400,18 +403,18 @@ export const tools: ToolDef[] = [
             strokeWeight: S.token.optional().describe("Line thickness (default: 1)"),
             opacity: S.token.optional(),
             layoutSizingHorizontal: z.string().optional().describe("Horizontal sizing in auto-layout parent (defaults to FILL in vertical auto-layout)"),
-          }),
+          }).passthrough(),
           "group": z.object({
             nodeIds: z.array(z.string()).describe("Node IDs to group (min 1)"),
             name: z.string().optional().describe("Group name"),
             parentId: z.string().optional().describe("Parent node ID. Omit to place on current page."),
-          }),
+          }).passthrough(),
           "boolean_operation": z.object({
             operation: z.enum(["UNION", "SUBTRACT", "INTERSECT", "EXCLUDE"]).describe("Boolean operation type"),
             nodeIds: z.array(z.string()).describe("Node IDs to combine (min 2, first node is the base for SUBTRACT)"),
             name: z.string().optional().describe("Result node name"),
             parentId: z.string().optional().describe("Parent node ID. Omit to place on current page."),
-          }),
+          }).passthrough(),
           "svg": z.object({
             svg: z.string().describe("SVG markup string"),
             name: z.string().optional().describe("Layer name (default: 'SVG')"),
@@ -420,7 +423,7 @@ export const tools: ToolDef[] = [
             y: z.coerce.number().optional().describe("Y position (default: 0)"),
             fillStyleName: z.string().optional().describe("Paint style to apply to vector fills"),
             fillVariableName: z.string().optional().describe("Color variable by name for vector fills"),
-          }),
+          }).passthrough(),
         };
         const s = params.type && schemas[params.type];
         if (s) {
@@ -433,14 +436,21 @@ export const tools: ToolDef[] = [
   },
   {
     name: "instances",
-    description: "/** Create and manage component instances. Use method \"help\" for detailed parameter docs. */\n  get       (id, fields?) → { mainComponentId?, componentProperties?, overrides? }  // Get instance properties, overrides, and main component\n  create    (items: InstanceCreateItem[], depth?) → { results: {id}[] }  // Create component instances\n  update    (items: InstanceUpdateItem[]) → { results: (\"ok\" | {error})[] }  // Set instance properties\n  swap      (items: { id: string; componentId: string }[]) → { results: (\"ok\" | {error})[] }  // Swap instance component (preserves overrides)\n  detach    (items: { id: string }[]) → { results: {id}[] }  // Detach instances from their component (converts to frame)\n  reset_overrides(items: { id: string }[]) → { results: (\"ok\" | {error})[] }  // Reset all overrides on instances to match their main component\n// Instances are linked copies of components. Changes to the component propagate to all instances.\n// Overrides: instance-level changes (text, fills, visibility) that differ from the component. Shown in overrides array.\n// variantProperties: when creating from a component set, pick which variant e.g. {\"Style\":\"Secondary\",\"Size\":\"Large\"}.",
-    schema: (caps) => filterMethodsByTier({    method: z.enum(["get", "create", "update", "swap", "detach", "reset_overrides", "help"]),
-    id: z.string().optional().describe("Instance node ID"),
+    description: "/** Create and manage component instances. Use method \"help\" for detailed parameter docs. */\n  list      (query?, types?, parentId?, fields?, offset?, limit?) → { totalCount, returned?, offset?, limit?, results }  // Search for nodes\n  delete    (id?, items?: { id?: string }[]) → { results: \"ok\"[] }  // Delete nodes\n  clone     (id, parentId?, x?, y?, depth?) → { results: {id}[] }  // Duplicate nodes\n  reparent  (items: { id: string; parentId: string; index?: number }[]) → { results: \"ok\"[] }  // Move nodes into a new parent\n  get       (id, fields?) → { mainComponentId?, componentProperties?, overrides? }  // Get instance properties, overrides, and main component\n  create    (items: InstanceCreateItem[], depth?) → { results: {id}[] }  // Create component instances\n  update    (items: InstanceUpdateItem[]) → { results: (\"ok\" | {error})[] }  // Set instance properties\n  swap      (items: { id: string; componentId: string }[]) → { results: (\"ok\" | {error})[] }  // Swap instance component (preserves overrides)\n  detach    (items: { id: string }[]) → { results: {id}[] }  // Detach instances from their component (converts to frame)\n  reset_overrides(items: { id: string }[]) → { results: (\"ok\" | {error})[] }  // Reset all overrides on instances to match their main component\n// depth: omit → id+name stubs | 0 → props + child stubs | N → recurse N | -1 → full tree\n// fields: whitelist e.g. [\"fills\",\"opacity\"] — id, name, type always included. Pass [\"*\"] for all.\n// layoutSizingHorizontal/Vertical: FIXED | HUG | FILL — how the node sizes within auto-layout.\n// Colors: fillVariableName/strokeVariableName bind by name — preferred over raw color values.",
+    schema: (caps) => filterMethodsByTier({    method: z.enum(["list", "delete", "clone", "reparent", "get", "create", "update", "swap", "detach", "reset_overrides", "help"]),
+    query: z.string().optional().describe("Name search query (case-insensitive substring match)"),
+    types: flexJson(z.array(z.string())).optional().describe("Filter by node types (e.g. [\"FRAME\", \"TEXT\"])"),
+    parentId: z.string().optional().describe("Search only within this subtree"),
     fields: flexJson(z.array(z.string())).optional().describe("Property whitelist. Identity fields (id, name, type) always included. Omit for stubs on list, full on get. Pass [\"*\"] for all."),
-    items: flexJson(z.array(z.record(z.string(), z.unknown()))).optional().describe("Array of {componentId, variantProperties?, x?, y?, parentId?, layoutSizingHorizontal?, ...}"),
+    offset: z.coerce.number().optional().default(0).describe("Skip N items for pagination (default 0)"),
+    limit: z.coerce.number().optional().default(100).describe("Max items per page (default 100)"),
+    id: z.string().optional().describe("Single node ID"),
+    items: flexJson(z.array(z.record(z.string(), z.unknown()))).optional().describe("Batch: [{id}, ...]"),
+    x: z.coerce.number().optional().describe("X position (default: 0)"),
+    y: z.coerce.number().optional().describe("Y position (default: 0)"),
     depth: z.coerce.number().optional().describe("Response detail: omit for id+name only. 0=properties + child stubs. N=recurse N levels. -1=unlimited."),
     topic: z.string().optional().describe("Help topic — method name for endpoint help, e.g. \"create\""),
-    }, caps, {"get":"read","create":"create","update":"edit","swap":"edit","detach":"edit","reset_overrides":"edit","help":"read"}),
+    }, caps, {"list":"read","delete":"edit","clone":"create","reparent":"edit","get":"read","create":"create","update":"edit","swap":"edit","detach":"edit","reset_overrides":"edit","help":"read"}),
     tier: "read" as const,
     validate: (params: any) => {
       const m = params.method;
@@ -450,6 +460,14 @@ export const tools: ToolDef[] = [
       if (!params.items) return;
       if (m === "create") {
         const itemSchema = z.object({
+          opacity: S.token.optional().describe("Opacity (0-1) or variable name"),
+          effectStyleName: z.string().optional().describe("Effect style name (e.g. 'Shadow/Card') for shadows, blurs"),
+          layoutSizingHorizontal: z.enum(["FIXED", "HUG", "FILL"]).optional(),
+          layoutSizingVertical: z.enum(["FIXED", "HUG", "FILL"]).optional(),
+          minWidth: z.coerce.number().optional().describe("Min width for responsive auto-layout"),
+          maxWidth: z.coerce.number().optional().describe("Max width for responsive auto-layout"),
+          minHeight: z.coerce.number().optional().describe("Min height for responsive auto-layout"),
+          maxHeight: z.coerce.number().optional().describe("Max height for responsive auto-layout"),
           componentId: z.string().describe("Component or component set ID"),
           variantProperties: z.record(z.string(), z.unknown()).optional().describe("Pick variant e.g. {\"Style\":\"Secondary\"}"),
           name: z.string().optional().describe("Instance layer name"),
@@ -458,23 +476,82 @@ export const tools: ToolDef[] = [
           width: z.coerce.number().optional().describe("Override width (resize)"),
           height: z.coerce.number().optional().describe("Override height (resize)"),
           parentId: z.string().optional().describe("Parent node ID. Omit to place on current page."),
-          opacity: S.token.optional(),
-          layoutSizingHorizontal: z.enum(["FIXED", "FILL", "HUG"]).optional().describe("Horizontal sizing in auto-layout parent"),
-          layoutSizingVertical: z.enum(["FIXED", "FILL", "HUG"]).optional().describe("Vertical sizing in auto-layout parent"),
-          minWidth: z.coerce.number().optional().describe("Min width constraint"),
-          maxWidth: z.coerce.number().optional().describe("Max width constraint"),
-          minHeight: z.coerce.number().optional().describe("Min height constraint"),
-          maxHeight: z.coerce.number().optional().describe("Max height constraint"),
-        });
+        }).passthrough();
         try { params.items = z.array(itemSchema).parse(params.items); }
         catch (e) { if (e instanceof z.ZodError) { throw new Error(e.issues.map(i => { const path = i.path.join("."); const shape = itemSchema instanceof z.ZodObject ? (itemSchema as any).shape : null; const desc = shape?.[i.path[1]]?.description; return path + ": " + i.message + (desc ? " (expected: " + desc + ")" : ""); }).join("; ")); } throw e; }
       }
       if (m === "update") {
         const itemSchema = z.object({
+          fillColor: S.colorRgba.optional().describe("Fill color (auto-binds to matching variable/style)"),
+          fillStyleName: z.string().optional().describe("Paint style name for fill"),
+          fillVariableName: z.string().optional().describe("Color variable by name e.g. 'bg/primary'"),
+          strokeColor: S.colorRgba.optional().describe("Stroke color (auto-binds to matching variable/style)"),
+          strokeStyleName: z.string().optional().describe("Paint style name for stroke"),
+          strokeVariableName: z.string().optional().describe("Color variable by name for stroke"),
+          strokeWeight: S.token.optional().describe("All sides (number) or variable name (string). Per-side: strokeTopWeight, strokeBottomWeight, strokeLeftWeight, strokeRightWeight."),
+          strokeTopWeight: S.token.optional(),
+          strokeBottomWeight: S.token.optional(),
+          strokeLeftWeight: S.token.optional(),
+          strokeRightWeight: S.token.optional(),
+          cornerRadius: S.token.optional().describe("All corners (number) or variable name (string). Per-corner: topLeftRadius, topRightRadius, bottomRightRadius, bottomLeftRadius."),
+          topLeftRadius: S.token.optional(),
+          topRightRadius: S.token.optional(),
+          bottomRightRadius: S.token.optional(),
+          bottomLeftRadius: S.token.optional(),
+          opacity: S.token.optional().describe("Opacity (0-1) or variable name"),
+          effectStyleName: z.string().optional().describe("Effect style name (e.g. 'Shadow/Card') for shadows, blurs"),
+          layoutMode: z.enum(["NONE", "HORIZONTAL", "VERTICAL"]).optional().describe("Layout direction (default: NONE)"),
+          layoutWrap: z.enum(["NO_WRAP", "WRAP"]).optional(),
+          padding: S.token.optional().describe("All edges (number) or variable name (string). Per-edge: paddingTop, paddingRight, paddingBottom, paddingLeft."),
+          paddingTop: S.token.optional(),
+          paddingRight: S.token.optional(),
+          paddingBottom: S.token.optional(),
+          paddingLeft: S.token.optional(),
+          primaryAxisAlignItems: z.enum(["MIN", "MAX", "CENTER", "SPACE_BETWEEN"]).optional(),
+          counterAxisAlignItems: z.enum(["MIN", "MAX", "CENTER", "BASELINE"]).optional(),
+          itemSpacing: S.token.optional().describe("Spacing between children (default: 0)"),
+          counterAxisSpacing: S.token.optional().describe("Gap between wrapped rows (requires layoutWrap: WRAP)"),
+          layoutSizingHorizontal: z.enum(["FIXED", "HUG", "FILL"]).optional(),
+          layoutSizingVertical: z.enum(["FIXED", "HUG", "FILL"]).optional(),
+          minWidth: z.coerce.number().optional().describe("Min width for responsive auto-layout"),
+          maxWidth: z.coerce.number().optional().describe("Max width for responsive auto-layout"),
+          minHeight: z.coerce.number().optional().describe("Min height for responsive auto-layout"),
+          maxHeight: z.coerce.number().optional().describe("Max height for responsive auto-layout"),
+          fontSize: z.number().optional().describe("Font size"),
+          fontFamily: z.string().optional().describe("Font family"),
+          fontStyle: z.string().optional().describe("Font variant e.g. \"Bold\", \"Italic\" — overrides fontWeight"),
+          fontWeight: z.number().optional().describe("100-900. Ignored when fontStyle is set."),
+          fontColor: S.colorRgba.optional().describe("Text color (auto-binds to matching variable/style)"),
+          fontColorVariableName: z.string().optional().describe("Bind color variable by name e.g. 'text/primary'"),
+          fontColorStyleName: z.string().optional().describe("Apply paint style — overrides fontColor"),
+          textStyleId: z.string().optional().describe("Apply text style by ID — overrides fontSize/fontWeight"),
+          textStyleName: z.string().optional().describe("Text style by name (case-insensitive)"),
+          textAlignHorizontal: z.enum(["LEFT", "CENTER", "RIGHT", "JUSTIFIED"]).optional(),
+          textAlignVertical: z.enum(["TOP", "CENTER", "BOTTOM"]).optional(),
+          textAutoResize: z.enum(["NONE", "WIDTH_AND_HEIGHT", "HEIGHT", "TRUNCATE"]).optional(),
           id: z.string().describe("Instance node ID"),
-          properties: z.record(z.string(), z.unknown()).optional().describe("Property key→value map"),
+          properties: z.record(z.string(), z.unknown()).optional().describe("Component property key→value map"),
           componentProperties: z.record(z.string(), z.unknown()).optional().describe("Alias for properties (matches instances.get response shape)"),
-        });
+          name: z.string().optional().describe("Rename node"),
+          visible: z.boolean().optional().describe("Show/hide (default true)"),
+          locked: z.boolean().optional().describe("Lock/unlock (default false)"),
+          rotation: z.number().optional().describe("Degrees (0-360)"),
+          blendMode: z.enum(["PASS_THROUGH", "NORMAL", "DARKEN", "MULTIPLY", "LINEAR_BURN", "COLOR_BURN", "LIGHTEN", "SCREEN", "LINEAR_DODGE", "COLOR_DODGE", "OVERLAY", "SOFT_LIGHT", "HARD_LIGHT", "DIFFERENCE", "EXCLUSION", "HUE", "SATURATION", "COLOR", "LUMINOSITY"]).optional(),
+          layoutPositioning: z.enum(["AUTO", "ABSOLUTE"]).optional().describe("ABSOLUTE = floating inside auto-layout parent"),
+          x: z.number().optional(),
+          y: z.number().optional(),
+          width: z.number().optional(),
+          height: z.number().optional(),
+          clearFill: z.boolean().optional().describe("Remove all fills"),
+          effects: z.array(z.record(z.string(), z.unknown())).optional().describe("Effect array (DROP_SHADOW, INNER_SHADOW, LAYER_BLUR, BACKGROUND_BLUR)"),
+          constraints: z.object({
+            horizontal: z.enum(["MIN", "CENTER", "MAX", "STRETCH", "SCALE"]),
+            vertical: z.enum(["MIN", "CENTER", "MAX", "STRETCH", "SCALE"]),
+          }).optional(),
+          bindings: z.array(z.record(z.string(), z.unknown())).optional().describe("Bind variables by name. field e.g. 'fills/0/color', 'opacity'"),
+          explicitMode: z.record(z.string(), z.unknown()).optional().describe("Pin variable mode — use { collectionName, modeName } (preferred) or { collectionId, modeId }"),
+          exportSettings: z.array(z.record(z.string(), z.unknown())).optional().describe("Export settings"),
+        }).passthrough();
         try { params.items = z.array(itemSchema).parse(params.items); }
         catch (e) { if (e instanceof z.ZodError) { throw new Error(e.issues.map(i => { const path = i.path.join("."); const shape = itemSchema instanceof z.ZodObject ? (itemSchema as any).shape : null; const desc = shape?.[i.path[1]]?.description; return path + ": " + i.message + (desc ? " (expected: " + desc + ")" : ""); }).join("; ")); } throw e; }
       }
@@ -482,26 +559,26 @@ export const tools: ToolDef[] = [
         const itemSchema = z.object({
           id: z.string().describe("Instance node ID"),
           componentId: z.string().describe("New component or component set ID"),
-        });
+        }).passthrough();
         try { params.items = z.array(itemSchema).parse(params.items); }
         catch (e) { if (e instanceof z.ZodError) { throw new Error(e.issues.map(i => { const path = i.path.join("."); const shape = itemSchema instanceof z.ZodObject ? (itemSchema as any).shape : null; const desc = shape?.[i.path[1]]?.description; return path + ": " + i.message + (desc ? " (expected: " + desc + ")" : ""); }).join("; ")); } throw e; }
       }
       if (m === "detach") {
         const itemSchema = z.object({
           id: z.string().describe("Instance node ID"),
-        });
+        }).passthrough();
         try { params.items = z.array(itemSchema).parse(params.items); }
         catch (e) { if (e instanceof z.ZodError) { throw new Error(e.issues.map(i => { const path = i.path.join("."); const shape = itemSchema instanceof z.ZodObject ? (itemSchema as any).shape : null; const desc = shape?.[i.path[1]]?.description; return path + ": " + i.message + (desc ? " (expected: " + desc + ")" : ""); }).join("; ")); } throw e; }
       }
       if (m === "reset_overrides") {
         const itemSchema = z.object({
           id: z.string().describe("Instance node ID"),
-        });
+        }).passthrough();
         try { params.items = z.array(itemSchema).parse(params.items); }
         catch (e) { if (e instanceof z.ZodError) { throw new Error(e.issues.map(i => { const path = i.path.join("."); const shape = itemSchema instanceof z.ZodObject ? (itemSchema as any).shape : null; const desc = shape?.[i.path[1]]?.description; return path + ": " + i.message + (desc ? " (expected: " + desc + ")" : ""); }).join("; ")); } throw e; }
       }
     },
-    commandMap: {"get":"instances.get","create":"instances.create","update":"instances.update","swap":"instances.swap","detach":"instances.detach","reset_overrides":"instances.reset_overrides"},
+    commandMap: {"list":"instances.list","delete":"instances.delete","clone":"instances.clone","reparent":"instances.reparent","get":"instances.get","create":"instances.create","update":"instances.update","swap":"instances.swap","detach":"instances.detach","reset_overrides":"instances.reset_overrides"},
   },
   {
     name: "lint",
@@ -524,7 +601,7 @@ export const tools: ToolDef[] = [
           nodeId: z.string().describe("Frame node ID"),
           layoutMode: z.enum(["VERTICAL", "HORIZONTAL"]).optional().describe("Direction (default: auto-detected)"),
           itemSpacing: z.coerce.number().optional().describe("Spacing between children"),
-        });
+        }).passthrough();
         try { params.items = z.array(itemSchema).parse(params.items); }
         catch (e) { if (e instanceof z.ZodError) { throw new Error(e.issues.map(i => { const path = i.path.join("."); const shape = itemSchema instanceof z.ZodObject ? (itemSchema as any).shape : null; const desc = shape?.[i.path[1]]?.description; return path + ": " + i.message + (desc ? " (expected: " + desc + ")" : ""); }).join("; ")); } throw e; }
       }
@@ -576,7 +653,7 @@ export const tools: ToolDef[] = [
             color: S.colorRgba.describe("Color value"),
             colorVariableName: z.string().optional().describe("Bind to a COLOR variable by name (style tracks the variable)"),
             description: z.string().optional().describe("Style description"),
-          }),
+          }).passthrough(),
           "text": z.object({
             name: z.string().describe("Style name"),
             fontFamily: z.string().describe("Font family"),
@@ -590,17 +667,17 @@ export const tools: ToolDef[] = [
             paragraphSpacing: z.coerce.number().optional().describe("Paragraph spacing (px)"),
             leadingTrim: z.enum(["CAP_HEIGHT", "NONE"]).optional().describe("Leading trim mode"),
             description: z.string().optional().describe("Style description"),
-          }),
+          }).passthrough(),
           "effect": z.object({
             name: z.string().describe("Style name"),
             effects: flexJson(z.array(z.record(z.string(), z.unknown()))).describe("Array of Effect objects"),
             description: z.string().optional().describe("Style description"),
-          }),
+          }).passthrough(),
           "grid": z.object({
             name: z.string().describe("Style name"),
             layoutGrids: flexJson(z.array(z.record(z.string(), z.unknown()))).describe("Array of LayoutGrid objects"),
             description: z.string().optional().describe("Style description"),
-          }),
+          }).passthrough(),
         };
         const s = params.type && schemas[params.type];
         if (s) {
@@ -628,7 +705,7 @@ export const tools: ToolDef[] = [
           leadingTrim: z.enum(["CAP_HEIGHT", "NONE"]).optional(),
           effects: flexJson(z.array(z.record(z.string(), z.unknown()))).optional().describe("Array of Effect objects"),
           layoutGrids: flexJson(z.array(z.record(z.string(), z.unknown()))).optional().describe("Array of LayoutGrid objects (grid styles)"),
-        });
+        }).passthrough();
         try { params.items = z.array(itemSchema).parse(params.items); }
         catch (e) { if (e instanceof z.ZodError) { throw new Error(e.issues.map(i => { const path = i.path.join("."); const shape = itemSchema instanceof z.ZodObject ? (itemSchema as any).shape : null; const desc = shape?.[i.path[1]]?.description; return path + ": " + i.message + (desc ? " (expected: " + desc + ")" : ""); }).join("; ")); } throw e; }
       }
@@ -636,7 +713,7 @@ export const tools: ToolDef[] = [
         const itemSchema = z.object({
           id: z.string().optional(),
           styleName: z.string().optional().describe("Style name (alternative to id)"),
-        });
+        }).passthrough();
         try { params.items = z.array(itemSchema).parse(params.items); }
         catch (e) { if (e instanceof z.ZodError) { throw new Error(e.issues.map(i => { const path = i.path.join("."); const shape = itemSchema instanceof z.ZodObject ? (itemSchema as any).shape : null; const desc = shape?.[i.path[1]]?.description; return path + ": " + i.message + (desc ? " (expected: " + desc + ")" : ""); }).join("; ")); } throw e; }
       }
@@ -686,7 +763,7 @@ export const tools: ToolDef[] = [
           layoutSizingVertical: z.enum(["FIXED", "HUG", "FILL"]).optional(),
           textAutoResize: z.enum(["NONE", "WIDTH_AND_HEIGHT", "HEIGHT", "TRUNCATE"]).optional().describe("NONE (fixed box), WIDTH_AND_HEIGHT (grow both), HEIGHT (fixed width, auto height), TRUNCATE (fixed + ellipsis)"),
           componentPropertyName: z.string().optional().describe("Bind to a component TEXT property by name (parent must be a component)"),
-        });
+        }).passthrough();
         try { params.items = z.array(itemSchema).parse(params.items); }
         catch (e) { if (e instanceof z.ZodError) { throw new Error(e.issues.map(i => { const path = i.path.join("."); const shape = itemSchema instanceof z.ZodObject ? (itemSchema as any).shape : null; const desc = shape?.[i.path[1]]?.description; return path + ": " + i.message + (desc ? " (expected: " + desc + ")" : ""); }).join("; ")); } throw e; }
       }
@@ -694,7 +771,7 @@ export const tools: ToolDef[] = [
         const itemSchema = z.object({
           nodeId: z.string().describe("Text node ID"),
           text: z.string().describe("New text content"),
-        });
+        }).passthrough();
         try { params.items = z.array(itemSchema).parse(params.items); }
         catch (e) { if (e instanceof z.ZodError) { throw new Error(e.issues.map(i => { const path = i.path.join("."); const shape = itemSchema instanceof z.ZodObject ? (itemSchema as any).shape : null; const desc = shape?.[i.path[1]]?.description; return path + ": " + i.message + (desc ? " (expected: " + desc + ")" : ""); }).join("; ")); } throw e; }
       }
@@ -722,7 +799,7 @@ export const tools: ToolDef[] = [
       if (m === "create") {
         const itemSchema = z.object({
           name: z.string().describe("Collection name"),
-        });
+        }).passthrough();
         try { params.items = z.array(itemSchema).parse(params.items); }
         catch (e) { if (e instanceof z.ZodError) { throw new Error(e.issues.map(i => { const path = i.path.join("."); const shape = itemSchema instanceof z.ZodObject ? (itemSchema as any).shape : null; const desc = shape?.[i.path[1]]?.description; return path + ": " + i.message + (desc ? " (expected: " + desc + ")" : ""); }).join("; ")); } throw e; }
       }
@@ -730,14 +807,14 @@ export const tools: ToolDef[] = [
         const itemSchema = z.object({
           id: z.string().describe("Collection ID"),
           name: z.string().describe("New name"),
-        });
+        }).passthrough();
         try { params.items = z.array(itemSchema).parse(params.items); }
         catch (e) { if (e instanceof z.ZodError) { throw new Error(e.issues.map(i => { const path = i.path.join("."); const shape = itemSchema instanceof z.ZodObject ? (itemSchema as any).shape : null; const desc = shape?.[i.path[1]]?.description; return path + ": " + i.message + (desc ? " (expected: " + desc + ")" : ""); }).join("; ")); } throw e; }
       }
       if (m === "delete") {
         const itemSchema = z.object({
           id: z.string(),
-        });
+        }).passthrough();
         try { params.items = z.array(itemSchema).parse(params.items); }
         catch (e) { if (e instanceof z.ZodError) { throw new Error(e.issues.map(i => { const path = i.path.join("."); const shape = itemSchema instanceof z.ZodObject ? (itemSchema as any).shape : null; const desc = shape?.[i.path[1]]?.description; return path + ": " + i.message + (desc ? " (expected: " + desc + ")" : ""); }).join("; ")); } throw e; }
       }
@@ -745,7 +822,7 @@ export const tools: ToolDef[] = [
         const itemSchema = z.object({
           collectionId: z.string().describe("Collection ID"),
           name: z.string().describe("Mode name"),
-        });
+        }).passthrough();
         try { params.items = z.array(itemSchema).parse(params.items); }
         catch (e) { if (e instanceof z.ZodError) { throw new Error(e.issues.map(i => { const path = i.path.join("."); const shape = itemSchema instanceof z.ZodObject ? (itemSchema as any).shape : null; const desc = shape?.[i.path[1]]?.description; return path + ": " + i.message + (desc ? " (expected: " + desc + ")" : ""); }).join("; ")); } throw e; }
       }
@@ -754,7 +831,7 @@ export const tools: ToolDef[] = [
           collectionId: z.string().describe("Collection ID"),
           modeId: z.string().describe("Mode ID"),
           name: z.string().describe("New name"),
-        });
+        }).passthrough();
         try { params.items = z.array(itemSchema).parse(params.items); }
         catch (e) { if (e instanceof z.ZodError) { throw new Error(e.issues.map(i => { const path = i.path.join("."); const shape = itemSchema instanceof z.ZodObject ? (itemSchema as any).shape : null; const desc = shape?.[i.path[1]]?.description; return path + ": " + i.message + (desc ? " (expected: " + desc + ")" : ""); }).join("; ")); } throw e; }
       }
@@ -762,7 +839,7 @@ export const tools: ToolDef[] = [
         const itemSchema = z.object({
           collectionId: z.string().describe("Collection ID"),
           modeId: z.string().describe("Mode ID"),
-        });
+        }).passthrough();
         try { params.items = z.array(itemSchema).parse(params.items); }
         catch (e) { if (e instanceof z.ZodError) { throw new Error(e.issues.map(i => { const path = i.path.join("."); const shape = itemSchema instanceof z.ZodObject ? (itemSchema as any).shape : null; const desc = shape?.[i.path[1]]?.description; return path + ": " + i.message + (desc ? " (expected: " + desc + ")" : ""); }).join("; ")); } throw e; }
       }
@@ -798,7 +875,7 @@ export const tools: ToolDef[] = [
           modeId: z.string().optional().describe("Mode ID for initial value (default: collection's default mode)"),
           description: z.string().optional().describe("Variable description"),
           scopes: flexJson(z.array(z.string())).optional().describe("UI scopes e.g. [\"ALL_SCOPES\"]"),
-        });
+        }).passthrough();
         try { params.items = z.array(itemSchema).parse(params.items); }
         catch (e) { if (e instanceof z.ZodError) { throw new Error(e.issues.map(i => { const path = i.path.join("."); const shape = itemSchema instanceof z.ZodObject ? (itemSchema as any).shape : null; const desc = shape?.[i.path[1]]?.description; return path + ": " + i.message + (desc ? " (expected: " + desc + ")" : ""); }).join("; ")); } throw e; }
       }
@@ -811,7 +888,7 @@ export const tools: ToolDef[] = [
           scopes: flexJson(z.array(z.string())).optional().describe("UI scopes e.g. [\"ALL_SCOPES\"] or [\"WIDTH_HEIGHT\",\"CORNER_RADIUS\"]"),
           modeId: z.string().optional().describe("Mode ID (required when setting value)"),
           value: S.variableValue.optional(),
-        });
+        }).passthrough();
         try { params.items = z.array(itemSchema).parse(params.items); }
         catch (e) { if (e instanceof z.ZodError) { throw new Error(e.issues.map(i => { const path = i.path.join("."); const shape = itemSchema instanceof z.ZodObject ? (itemSchema as any).shape : null; const desc = shape?.[i.path[1]]?.description; return path + ": " + i.message + (desc ? " (expected: " + desc + ")" : ""); }).join("; ")); } throw e; }
       }
@@ -819,7 +896,7 @@ export const tools: ToolDef[] = [
         const itemSchema = z.object({
           name: z.string(),
           collectionName: z.string().optional().describe("Collection name for disambiguation"),
-        });
+        }).passthrough();
         try { params.items = z.array(itemSchema).parse(params.items); }
         catch (e) { if (e instanceof z.ZodError) { throw new Error(e.issues.map(i => { const path = i.path.join("."); const shape = itemSchema instanceof z.ZodObject ? (itemSchema as any).shape : null; const desc = shape?.[i.path[1]]?.description; return path + ": " + i.message + (desc ? " (expected: " + desc + ")" : ""); }).join("; ")); } throw e; }
       }

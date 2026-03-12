@@ -6,10 +6,53 @@ import { updateFrameSingle } from "./update-frame";
 import { prepSetTextProperties, setTextPropertiesSingle } from "./text";
 import type { TextPropsContext } from "./text";
 
-// ─── Figma Handlers ──────────────────────────────────────────────
+// ─── Known key sets (flat params matching create shape) ─────────
 
-const SIMPLE_PROPS = ["name", "visible", "locked", "rotation", "blendMode", "layoutPositioning",
-  "minWidth", "maxWidth", "minHeight", "maxHeight"] as const;
+const SIMPLE_PROPS = ["name", "visible", "locked", "rotation", "blendMode", "layoutPositioning"] as const;
+
+const FILL_KEYS = ["fillColor", "fillStyleName", "fillVariableName", "clearFill"] as const;
+
+const STROKE_KEYS = ["strokeColor", "strokeStyleName", "strokeVariableName", "strokeWeight",
+  "strokeTopWeight", "strokeBottomWeight", "strokeLeftWeight", "strokeRightWeight"] as const;
+
+const CORNER_KEYS = ["cornerRadius", "topLeftRadius", "topRightRadius",
+  "bottomRightRadius", "bottomLeftRadius"] as const;
+
+const EFFECT_KEYS = ["effects", "effectStyleName"] as const;
+
+const LAYOUT_KEYS = ["layoutMode", "layoutWrap", "padding",
+  "paddingTop", "paddingRight", "paddingBottom", "paddingLeft",
+  "primaryAxisAlignItems", "counterAxisAlignItems",
+  "layoutSizingHorizontal", "layoutSizingVertical",
+  "itemSpacing", "counterAxisSpacing"] as const;
+
+export const TEXT_KEYS = ["fontSize", "fontFamily", "fontStyle", "fontWeight",
+  "fontColor", "fontColorVariableName", "fontColorStyleName",
+  "textStyleId", "textStyleName",
+  "textAlignHorizontal", "textAlignVertical", "textAutoResize"] as const;
+
+const ALL_KNOWN = new Set<string>([
+  "nodeId", "id",
+  ...SIMPLE_PROPS,
+  "x", "y", "width", "height",
+  "minWidth", "maxWidth", "minHeight", "maxHeight",
+  "opacity",
+  ...FILL_KEYS,
+  ...STROKE_KEYS,
+  ...CORNER_KEYS,
+  ...EFFECT_KEYS,
+  ...LAYOUT_KEYS,
+  ...TEXT_KEYS,
+  "constraints", "bindings", "explicitMode", "exportSettings", "properties",
+  // Instance component property keys (allowed when called from combined instance handler)
+  "componentProperties",
+]);
+
+export function hasAny(item: any, keys: readonly string[]): boolean {
+  return keys.some(k => item[k] !== undefined);
+}
+
+// ─── Figma Handlers ──────────────────────────────────────────────
 
 async function doResize(item: any): Promise<void> {
   let w = item.width;
@@ -27,7 +70,7 @@ async function doResize(item: any): Promise<void> {
   await resizeSingle({ nodeId: item.nodeId, width: w, height: h });
 }
 
-async function patchSingleNode(item: any, textCtx: TextPropsContext | null): Promise<any> {
+export async function patchSingleNode(item: any, textCtx: TextPropsContext | null): Promise<any> {
   const result: any = {};
   const hints: Hint[] = [];
 
@@ -36,105 +79,161 @@ async function patchSingleNode(item: any, textCtx: TextPropsContext | null): Pro
     if (r?.hints) hints.push(...(r.hints as Hint[]));
   }
 
-  // 0. Simple scalar properties
+  // 0. Warn on unrecognized keys
+  const unknownKeys = Object.keys(item).filter(k => !ALL_KNOWN.has(k));
+  if (unknownKeys.length > 0) {
+    hints.push({ type: "warn", message: `Unknown properties ignored: ${unknownKeys.join(", ")}` });
+  }
+
+  // 1. Simple scalar properties
   const simpleUpdates = SIMPLE_PROPS.filter(k => item[k] !== undefined);
-  if (simpleUpdates.length > 0) {
+  const sizeConstraints = (["minWidth", "maxWidth", "minHeight", "maxHeight"] as const).filter(k => item[k] !== undefined);
+  if (simpleUpdates.length > 0 || sizeConstraints.length > 0) {
     const node = await figma.getNodeByIdAsync(item.nodeId);
     if (!node) throw new Error(`Node not found: ${item.nodeId}`);
-    for (const key of simpleUpdates) {
+    for (const key of [...simpleUpdates, ...sizeConstraints]) {
       if (key in node) (node as any)[key] = item[key];
       else hints.push({ type: "error", message: `Property '${key}' not supported on ${node.type}` });
     }
   }
 
-  // 1. Geometry: move
+  // 2. Geometry: move
   if (item.x !== undefined || item.y !== undefined) {
     await moveSingle({ nodeId: item.nodeId, x: item.x, y: item.y });
   }
 
-  // 2. Geometry: resize — deferred to after layout (step 10b) when layout is also being patched,
-  //    because auto-layout sizing mode must be set before width/height will stick.
+  // 3. Padding shorthand expansion (before layout detection)
+  if (item.padding !== undefined) {
+    item.paddingTop ??= item.padding;
+    item.paddingRight ??= item.padding;
+    item.paddingBottom ??= item.padding;
+    item.paddingLeft ??= item.padding;
+  }
+
+  // 4. Detect layout and resize deferral
+  const hasLayout = hasAny(item, LAYOUT_KEYS);
   const needsResize = item.width !== undefined || item.height !== undefined;
-  if (needsResize && !item.layout) {
+  if (needsResize && !hasLayout) {
     await doResize(item);
   }
 
-  // 3. Fill
-  if (item.fill) {
-    const r = await setFillSingle({ nodeId: item.nodeId, ...item.fill });
+  // 5. Fill (flat: fillColor, fillStyleName, fillVariableName, clearFill)
+  if (hasAny(item, FILL_KEYS)) {
+    const r = await setFillSingle({
+      nodeId: item.nodeId,
+      color: item.fillColor,
+      styleName: item.fillStyleName,
+      variableName: item.fillVariableName,
+      clear: item.clearFill,
+    });
     if (r.matchedStyle) result.matchedFillStyle = r.matchedStyle;
     collectHints(r);
   }
 
-  // 4. Stroke
-  if (item.stroke) {
+  // 6. Stroke (flat: strokeColor, strokeStyleName, strokeVariableName, strokeWeight, strokeTopWeight, ...)
+  if (hasAny(item, STROKE_KEYS)) {
     const r = await setStrokeSingle({
       nodeId: item.nodeId,
-      color: item.stroke.color,
-      strokeWeight: item.stroke.weight,
-      styleName: item.stroke.styleName,
-      variableName: item.stroke.variableName,
-      variableId: item.stroke.variableId,
-      strokeTopWeight: item.stroke.strokeTopWeight,
-      strokeBottomWeight: item.stroke.strokeBottomWeight,
-      strokeLeftWeight: item.stroke.strokeLeftWeight,
-      strokeRightWeight: item.stroke.strokeRightWeight,
+      color: item.strokeColor,
+      strokeWeight: item.strokeWeight,
+      styleName: item.strokeStyleName,
+      variableName: item.strokeVariableName,
+      strokeTopWeight: item.strokeTopWeight,
+      strokeBottomWeight: item.strokeBottomWeight,
+      strokeLeftWeight: item.strokeLeftWeight,
+      strokeRightWeight: item.strokeRightWeight,
     });
     if (r.matchedStyle) result.matchedStrokeStyle = r.matchedStyle;
     collectHints(r);
   }
 
-  // 5. Corner radius
-  if (item.cornerRadius) {
-    const r = await setCornerSingle({ nodeId: item.nodeId, ...item.cornerRadius });
+  // 7. Corner radius (flat: cornerRadius, topLeftRadius, topRightRadius, bottomRightRadius, bottomLeftRadius)
+  if (hasAny(item, CORNER_KEYS)) {
+    const r = await setCornerSingle({
+      nodeId: item.nodeId,
+      radius: item.cornerRadius,
+      topLeft: item.topLeftRadius,
+      topRight: item.topRightRadius,
+      bottomRight: item.bottomRightRadius,
+      bottomLeft: item.bottomLeftRadius,
+    });
     collectHints(r);
   }
 
-  // 6. Opacity
+  // 8. Opacity
   if (item.opacity !== undefined) {
     const r = await setOpacitySingle({ nodeId: item.nodeId, opacity: item.opacity });
     collectHints(r);
   }
 
-  // 7. Effects
-  if (item.effects) {
+  // 9. Effects (flat: effects, effectStyleName)
+  if (hasAny(item, EFFECT_KEYS)) {
     const r = await setEffectsSingle({
       nodeId: item.nodeId,
-      effects: item.effects.effects,
-      effectStyleName: item.effects.styleName,
+      effects: item.effects,
+      effectStyleName: item.effectStyleName,
     });
     if (r.matchedStyle) result.matchedEffectStyle = r.matchedStyle;
     collectHints(r);
   }
 
-  // 8. Constraints
+  // 10. Constraints
   if (item.constraints) {
     await setConstraintsSingle({ nodeId: item.nodeId, ...item.constraints });
   }
 
-  // 9. Export settings
+  // 11. Export settings
   if (item.exportSettings) {
     await setExportSettingsSingle({ nodeId: item.nodeId, settings: item.exportSettings });
   }
 
-  // 10. Layout
-  if (item.layout) {
-    const r = await updateFrameSingle({ nodeId: item.nodeId, ...item.layout });
+  // 12. Layout (flat: layoutMode, layoutWrap, paddingTop, ..., layoutSizingHorizontal, itemSpacing, ...)
+  if (hasLayout) {
+    const r = await updateFrameSingle({
+      nodeId: item.nodeId,
+      layoutMode: item.layoutMode,
+      layoutWrap: item.layoutWrap,
+      paddingTop: item.paddingTop,
+      paddingRight: item.paddingRight,
+      paddingBottom: item.paddingBottom,
+      paddingLeft: item.paddingLeft,
+      primaryAxisAlignItems: item.primaryAxisAlignItems,
+      counterAxisAlignItems: item.counterAxisAlignItems,
+      layoutSizingHorizontal: item.layoutSizingHorizontal,
+      layoutSizingVertical: item.layoutSizingVertical,
+      itemSpacing: item.itemSpacing,
+      counterAxisSpacing: item.counterAxisSpacing,
+    });
     collectHints(r);
   }
 
-  // 10b. Deferred resize — after layout so sizing mode (FIXED/HUG/FILL) is set first
-  if (needsResize && item.layout) {
+  // 12b. Deferred resize — after layout so sizing mode (FIXED/HUG/FILL) is set first
+  if (needsResize && hasLayout) {
     await doResize(item);
   }
 
-  // 11. Text
-  if (item.text && textCtx) {
-    const r = await setTextPropertiesSingle({ nodeId: item.nodeId, ...item.text }, textCtx);
+  // 13. Text (flat: fontSize, fontFamily, fontStyle, fontWeight, fontColor, ...)
+  const hasText = hasAny(item, TEXT_KEYS);
+  if (hasText && textCtx) {
+    const r = await setTextPropertiesSingle({
+      nodeId: item.nodeId,
+      fontSize: item.fontSize,
+      fontFamily: item.fontFamily,
+      fontStyle: item.fontStyle,
+      fontWeight: item.fontWeight,
+      fontColor: item.fontColor,
+      fontColorVariableName: item.fontColorVariableName,
+      fontColorStyleName: item.fontColorStyleName,
+      textStyleId: item.textStyleId,
+      textStyleName: item.textStyleName,
+      textAlignHorizontal: item.textAlignHorizontal,
+      textAlignVertical: item.textAlignVertical,
+      textAutoResize: item.textAutoResize,
+    }, textCtx);
     collectHints(r);
   }
 
-  // 12. Variable bindings
+  // 14. Variable bindings
   if (item.bindings) {
     const node = await figma.getNodeByIdAsync(item.nodeId);
     if (!node) throw new Error(`Node not found: ${item.nodeId}`);
@@ -163,7 +262,7 @@ async function patchSingleNode(item: any, textCtx: TextPropsContext | null): Pro
     }
   }
 
-  // 13. Explicit variable mode — accepts name-based ({ collectionName, modeName }) or ID-based ({ collectionId, modeId })
+  // 15. Explicit variable mode — accepts name-based ({ collectionName, modeName }) or ID-based ({ collectionId, modeId })
   if (item.explicitMode) {
     const node = await figma.getNodeByIdAsync(item.nodeId);
     if (!node) throw new Error(`Node not found: ${item.nodeId}`);
@@ -198,7 +297,7 @@ async function patchSingleNode(item: any, textCtx: TextPropsContext | null): Pro
     }
   }
 
-  // 14. Properties escape hatch (last)
+  // 16. Properties escape hatch (last)
   if (item.properties) {
     await setNodePropertiesSingle({ nodeId: item.nodeId, properties: item.properties });
   }
@@ -210,13 +309,19 @@ async function patchSingleNode(item: any, textCtx: TextPropsContext | null): Pro
 async function patchNodesBatch(params: any) {
   const items = params.items || [params];
 
-  // Phase 1: Prep text context if any items have text sub-object
+  // Phase 1: Prep text context if any items have text params
   let textCtx: TextPropsContext | null = null;
-  const textItems = items.filter((item: any) => item.text);
+  const textItems = items.filter((item: any) => hasAny(item, TEXT_KEYS));
   if (textItems.length > 0) {
     const syntheticItems = textItems.map((item: any) => ({
       nodeId: item.nodeId,
-      ...item.text,
+      fontSize: item.fontSize,
+      fontFamily: item.fontFamily,
+      fontStyle: item.fontStyle,
+      fontWeight: item.fontWeight,
+      fontColor: item.fontColor,
+      textStyleId: item.textStyleId,
+      textStyleName: item.textStyleName,
     }));
     textCtx = await prepSetTextProperties({ items: syntheticItems });
   }

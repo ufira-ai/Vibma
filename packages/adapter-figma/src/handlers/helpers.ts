@@ -663,7 +663,7 @@ export async function applyCornerRadius(node: any, p: any, hints: Hint[]): Promi
   } else if (p.cornerRadius !== undefined && "cornerRadius" in node) {
     // Node supports cornerRadius but not per-corner — apply as single field
     const bound = await applyToken(node, "cornerRadius", p.cornerRadius, hints);
-    if (!bound) {
+    if (!bound && p.cornerRadius !== 0) {
       hints.push({ type: "suggest", message: `Hardcoded cornerRadius. Use an existing FLOAT variable or create one with variables(method:"create"), then pass the variable name string instead of a number.` });
     }
   }
@@ -696,7 +696,7 @@ export async function applyTokens(
   for (const [field, value] of Object.entries(fields)) {
     if (value !== undefined) {
       const bound = await applyToken(node, field, value, hints);
-      if (!bound) hardcoded.push(field);
+      if (!bound && value !== 0) hardcoded.push(field);
     }
   }
   if (hardcoded.length > 0) {

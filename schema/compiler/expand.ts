@@ -68,7 +68,7 @@ function expandParam(name: string, param: RawParam): Record<string, RawParam> | 
   return result;
 }
 
-/** Process all params in a method, expanding $expand directives */
+/** Process all params in a block, expanding $expand directives */
 function expandMethodParams(params: Record<string, RawParam>): Record<string, RawParam> {
   const result: Record<string, RawParam> = {};
   for (const [name, param] of Object.entries(params)) {
@@ -76,7 +76,15 @@ function expandMethodParams(params: Record<string, RawParam>): Record<string, Ra
     if (expanded) {
       Object.assign(result, expanded);
     } else {
-      result[name] = param;
+      // Recurse into items.properties for nested $expand support
+      if (param.items && typeof param.items === "object" && "properties" in param.items && param.items.properties) {
+        result[name] = {
+          ...param,
+          items: { ...param.items, properties: expandMethodParams(param.items.properties as Record<string, RawParam>) },
+        };
+      } else {
+        result[name] = param;
+      }
     }
   }
   return result;

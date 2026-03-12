@@ -8,6 +8,7 @@ import { figmaHandlers as createFrameHandlers } from "./create-frame";
 import { figmaHandlers as createTextHandlers } from "./create-text";
 import { figmaHandlers as modifyNodeHandlers } from "./modify-node";
 import { figmaHandlers as patchNodesHandlers } from "./patch-nodes";
+import { instanceUpdateCombined } from "./components";
 import { figmaHandlers as fillStrokeHandlers } from "./fill-stroke";
 import { figmaHandlers as updateFrameHandlers } from "./update-frame";
 import { figmaHandlers as effectsHandlers } from "./effects";
@@ -133,20 +134,49 @@ export const allFigmaHandlers: Record<string, (params: any) => Promise<any>> = {
   "styles.update": stylesHandlers.styles,
   "styles.delete": stylesHandlers.styles,
 
-  // ─── components endpoint ───
+  // ─── components endpoint — own methods ───
   "components.list": componentsHandlers.components,
   "components.get": componentsHandlers.components,
   "components.create": componentsHandlers.components,
   "components.update": componentsHandlers.components,
   "components.delete": componentsHandlers.components,
 
-  // ─── instances endpoint ───
+  // components endpoint — inherited node base methods
+  "components.clone": (p: any) => modifyNodeHandlers.clone_node({
+    ...p,
+    items: p.items ?? [{ nodeId: p.id, parentId: p.parentId, x: p.x, y: p.y }],
+  }),
+  "components.reparent": (p: any) => modifyNodeHandlers.insert_child({
+    ...p,
+    items: (p.items || []).map((i: any) => ({ childId: i.id, parentId: i.parentId, index: i.index })),
+  }),
+
+  // ─── instances endpoint — own methods ───
   "instances.get": componentsHandlers.instances,
   "instances.create": componentsHandlers.instances,
-  "instances.update": componentsHandlers.instances,
   "instances.swap": componentsHandlers.instances,
   "instances.detach": componentsHandlers.instances,
   "instances.reset_overrides": componentsHandlers.instances,
+
+  // instances.update — combined: visual PatchItem params + component properties
+  "instances.update": instanceUpdateCombined,
+
+  // instances endpoint — inherited node base methods
+  "instances.list": (p: any) => nodeInfoHandlers.search_nodes({ ...p, scopeNodeId: p.parentId, type: "INSTANCE" }),
+  "instances.delete": (p: any) => {
+    const items = p.items
+      ? p.items.map((i: any) => ({ ...i, nodeId: i.nodeId ?? i.id }))
+      : p.id ? [{ nodeId: p.id }] : [];
+    return modifyNodeHandlers.delete_node({ ...p, items });
+  },
+  "instances.clone": (p: any) => modifyNodeHandlers.clone_node({
+    ...p,
+    items: p.items ?? [{ nodeId: p.id, parentId: p.parentId, x: p.x, y: p.y }],
+  }),
+  "instances.reparent": (p: any) => modifyNodeHandlers.insert_child({
+    ...p,
+    items: (p.items || []).map((i: any) => ({ childId: i.id, parentId: i.parentId, index: i.index })),
+  }),
 
   // ─── variable_collections endpoint ───
   "variable_collections.list": variablesHandlers.variable_collections,

@@ -11,6 +11,41 @@ import ParameterTable from "../../../../components/ParameterTable.astro";
 <summary>Type reference</summary>
 
 ```ts
+// depth: omit → id+name stubs | 0 → props + child stubs | N → recurse N | -1 → full tree
+// fields: whitelist e.g. ["fills","opacity"] — id, name, type always included. Pass ["*"] for all.
+// layoutSizingHorizontal/Vertical: FIXED | HUG | FILL — how the node sizes within auto-layout.
+// Colors: fillVariableName/strokeVariableName bind by name — preferred over raw color values.
+// ---
+// visible: false hides the node. Omitted from response when true (the default).
+// locked: true prevents editing in Figma UI. Omitted when false (the default).
+// rotation: degrees (0-360). Omitted when 0.
+// blendMode: layer blend mode. Omitted when PASS_THROUGH (the default).
+// layoutPositioning: ABSOLUTE = floating inside auto-layout parent. Omitted when AUTO (the default).
+// minWidth/maxWidth/minHeight/maxHeight: responsive constraints for auto-layout children.
+// constraints: position behavior in non-auto-layout parents. Ignored inside auto-layout frames.
+// bindings: bind design variables to node properties. field uses slash path e.g. "fills/0/color", "opacity", "width".
+// explicitMode: pin a variable mode on this node. Use { collectionName, modeName } (preferred) or { collectionId, modeId }.
+// properties: escape hatch — set any Figma node property directly. Use only when no dedicated field exists.
+interface Node {
+  id: string; name: string; type: string;
+  visible?: boolean;       // omitted when true
+  locked?: boolean;        // omitted when false
+  opacity?: number;        // omitted when 1
+  rotation?: number;       // omitted when 0
+  blendMode?: string;      // omitted when PASS_THROUGH
+  layoutPositioning?: "AUTO" | "ABSOLUTE";
+  layoutSizingHorizontal?: "FIXED" | "HUG" | "FILL";
+  layoutSizingVertical?: "FIXED" | "HUG" | "FILL";
+  minWidth?: number; maxWidth?: number; minHeight?: number; maxHeight?: number;
+  absoluteBoundingBox: { x: number; y: number; width: number; height: number };
+  fills?: Paint[];         // solid: {type: "SOLID", color: {r, g, b, a}}
+  strokes?: Paint[];
+  effects?: Effect[];      // DROP_SHADOW | INNER_SHADOW | LAYER_BLUR | BACKGROUND_BLUR
+  children?: NodeStub[];   // stubs: {id, name, type} — use depth to expand
+}
+// PatchItem uses flat params matching create shape — no nested sub-objects.
+// Fill/stroke/corner/layout/text params are identical to frames.create and text.create.
+// Unknown keys produce a warning, preventing silent failures.
 // Instances are linked copies of components. Changes to the component propagate to all instances.
 // Overrides: instance-level changes (text, fills, visibility) that differ from the component. Shown in overrides array.
 // variantProperties: when creating from a component set, pick which variant e.g. {"Style":"Secondary","Size":"Large"}.
@@ -26,7 +61,57 @@ import ParameterTable from "../../../../components/ParameterTable.astro";
 
 </details>
 
-6 methods available.
+10 methods available.
+
+## list
+
+*inherited*
+
+Search for nodes
+
+<ParameterTable schema={{"type":"object","properties":{"query":{"description":"Name search query (case-insensitive substring match)","type":"string"},"types":{"description":"Filter by node types (e.g. [\"FRAME\", \"TEXT\"])","type":"array","items":{"type":"string"}},"parentId":{"description":"Search only within this subtree","type":"string"},"fields":{"description":"Property whitelist. Identity fields (id, name, type) always included. Omit for stubs on list, full on get. Pass [\"*\"] for all.","type":"array","items":{"type":"string"}},"offset":{"description":"Skip N items for pagination (default 0) (default: 0)","type":"number"},"limit":{"description":"Max items per page (default 100) (default: 100)","type":"number"}}}} />
+
+**Response**
+
+Paginated node search results (uses `results` not `items`)
+
+<ParameterTable schema={{"type":"object","properties":{"totalCount":{"description":"Total matching nodes","type":"number"},"returned":{"description":"Nodes in this page","type":"number"},"offset":{"type":"number"},"limit":{"type":"number"},"results":{"description":"Matching node stubs","type":"array","items":{"type":"object","properties":{"id":{"type":"string"},"name":{"type":"string"},"type":{"type":"string"},"parentId":{"type":"string"},"parentName":{"type":"string"},"bounds":{"type":"object","properties":{"x":{"type":"number"},"y":{"type":"number"},"width":{"type":"number"},"height":{"type":"number"}}}},"required":["id","name","type","parentId"]}}},"required":["totalCount","returned"]}} fieldLabel="Field" hideRequired />
+
+## delete
+
+**edit** | *inherited*
+
+Delete nodes
+
+<ParameterTable schema={{"type":"object","properties":{"id":{"description":"Single node ID","type":"string"},"items":{"description":"Batch: [{id}, ...]","type":"array","items":{"type":"object","properties":{"id":{"type":"string"}}}}}}} />
+
+**Response**
+
+<ParameterTable schema={{"type":"object","properties":{"results":{"type":"array","description":"Array of \"ok\" per item","items":{"type":"string"}}}}} fieldLabel="Field" hideRequired />
+
+## clone
+
+**create** | *inherited*
+
+Duplicate nodes
+
+<ParameterTable schema={{"type":"object","properties":{"id":{"description":"Node ID","type":"string"},"parentId":{"description":"Parent node ID. Omit to place on current page.","type":"string"},"x":{"description":"X position (default: 0)","type":"number"},"y":{"description":"Y position (default: 0)","type":"number"},"depth":{"description":"Response detail: omit for id+name only. 0=properties + child stubs. N=recurse N levels. -1=unlimited.","type":"number"}},"required":["id"]}} />
+
+**Response**
+
+<ParameterTable schema={{"type":"object","properties":{"results":{"type":"array","description":"One entry per input item","items":{"type":"object","properties":{"id":{"type":"string"}}}}}}} fieldLabel="Field" hideRequired />
+
+## reparent
+
+**edit** | *inherited*
+
+Move nodes into a new parent
+
+<ParameterTable schema={{"type":"object","properties":{"items":{"description":"Array of {id, parentId, index?}","type":"array","items":{"type":"object","properties":{"id":{"type":"string"},"parentId":{"type":"string"},"index":{"type":"number"}},"required":["id","parentId"]}}},"required":["items"]}} />
+
+**Response**
+
+<ParameterTable schema={{"type":"object","properties":{"results":{"type":"array","description":"Array of \"ok\" per item","items":{"type":"string"}}}}} fieldLabel="Field" hideRequired />
 
 ## get
 
@@ -44,7 +129,7 @@ Get instance properties, overrides, and main component
 
 Create component instances
 
-<ParameterTable schema={{"type":"object","properties":{"items":{"description":"Array of {componentId, variantProperties?, x?, y?, parentId?, layoutSizingHorizontal?, ...}","type":"array","items":{"type":"object","properties":{"componentId":{"description":"Component or component set ID","type":"string"},"variantProperties":{"description":"Pick variant e.g. {\"Style\":\"Secondary\"}","type":"object"},"name":{"description":"Instance layer name","type":"string"},"x":{"type":"number"},"y":{"type":"number"},"width":{"description":"Override width (resize)","type":"number"},"height":{"description":"Override height (resize)","type":"number"},"parentId":{"description":"Parent node ID. Omit to place on current page.","type":"string"},"opacity":{"type":"token"},"layoutSizingHorizontal":{"description":"Horizontal sizing in auto-layout parent","type":"string","enum":["FIXED","FILL","HUG"]},"layoutSizingVertical":{"description":"Vertical sizing in auto-layout parent","type":"string","enum":["FIXED","FILL","HUG"]},"minWidth":{"description":"Min width constraint","type":"number"},"maxWidth":{"description":"Max width constraint","type":"number"},"minHeight":{"description":"Min height constraint","type":"number"},"maxHeight":{"description":"Max height constraint","type":"number"}},"required":["componentId"]}},"depth":{"description":"Response detail: omit for id+name only. 0=properties + child stubs. N=recurse N levels. -1=unlimited.","type":"number"}},"required":["items"]}} />
+<ParameterTable schema={{"type":"object","properties":{"items":{"description":"Array of {componentId, variantProperties?, x?, y?, parentId?, layoutSizingHorizontal?, ...}","type":"array","items":{"type":"object","properties":{"opacity":{"description":"Opacity (0-1) or variable name","type":"token"},"effectStyleName":{"description":"Effect style name (e.g. 'Shadow/Card') for shadows, blurs","type":"string"},"layoutSizingHorizontal":{"type":"string","enum":["FIXED","HUG","FILL"]},"layoutSizingVertical":{"type":"string","enum":["FIXED","HUG","FILL"]},"minWidth":{"description":"Min width for responsive auto-layout","type":"number"},"maxWidth":{"description":"Max width for responsive auto-layout","type":"number"},"minHeight":{"description":"Min height for responsive auto-layout","type":"number"},"maxHeight":{"description":"Max height for responsive auto-layout","type":"number"},"componentId":{"description":"Component or component set ID","type":"string"},"variantProperties":{"description":"Pick variant e.g. {\"Style\":\"Secondary\"}","type":"object"},"name":{"description":"Instance layer name","type":"string"},"x":{"type":"number"},"y":{"type":"number"},"width":{"description":"Override width (resize)","type":"number"},"height":{"description":"Override height (resize)","type":"number"},"parentId":{"description":"Parent node ID. Omit to place on current page.","type":"string"}},"required":["componentId"]}},"depth":{"description":"Response detail: omit for id+name only. 0=properties + child stubs. N=recurse N levels. -1=unlimited.","type":"number"}},"required":["items"]}} />
 
 **Response**
 
@@ -56,7 +141,7 @@ Create component instances
 
 Set instance properties
 
-<ParameterTable schema={{"type":"object","properties":{"items":{"description":"Array of {id, properties: {\"Label#1:0\":\"text\"}}","type":"array","items":{"type":"object","properties":{"id":{"description":"Instance node ID","type":"string"},"properties":{"description":"Property key→value map","type":"object"},"componentProperties":{"description":"Alias for properties (matches instances.get response shape)","type":"object"}},"required":["id"]}}},"required":["items"]}} />
+<ParameterTable schema={{"type":"object","properties":{"items":{"description":"Array of {id, properties: {\"Label#1:0\":\"text\"}, fillColor?: ...}","type":"array","items":{"type":"object","properties":{"fillColor":{"description":"Fill color (auto-binds to matching variable/style)","type":"string"},"fillStyleName":{"description":"Paint style name for fill","type":"string"},"fillVariableName":{"description":"Color variable by name e.g. 'bg/primary'","type":"string"},"strokeColor":{"description":"Stroke color (auto-binds to matching variable/style)","type":"string"},"strokeStyleName":{"description":"Paint style name for stroke","type":"string"},"strokeVariableName":{"description":"Color variable by name for stroke","type":"string"},"strokeWeight":{"description":"All sides (number) or variable name (string). Per-side: strokeTopWeight, strokeBottomWeight, strokeLeftWeight, strokeRightWeight.","type":"token"},"strokeTopWeight":{"type":"token"},"strokeBottomWeight":{"type":"token"},"strokeLeftWeight":{"type":"token"},"strokeRightWeight":{"type":"token"},"cornerRadius":{"description":"All corners (number) or variable name (string). Per-corner: topLeftRadius, topRightRadius, bottomRightRadius, bottomLeftRadius.","type":"token"},"topLeftRadius":{"type":"token"},"topRightRadius":{"type":"token"},"bottomRightRadius":{"type":"token"},"bottomLeftRadius":{"type":"token"},"opacity":{"description":"Opacity (0-1) or variable name","type":"token"},"effectStyleName":{"description":"Effect style name (e.g. 'Shadow/Card') for shadows, blurs","type":"string"},"layoutMode":{"description":"Layout direction (default: NONE)","type":"string","enum":["NONE","HORIZONTAL","VERTICAL"]},"layoutWrap":{"type":"string","enum":["NO_WRAP","WRAP"]},"padding":{"description":"All edges (number) or variable name (string). Per-edge: paddingTop, paddingRight, paddingBottom, paddingLeft.","type":"token"},"paddingTop":{"type":"token"},"paddingRight":{"type":"token"},"paddingBottom":{"type":"token"},"paddingLeft":{"type":"token"},"primaryAxisAlignItems":{"type":"string","enum":["MIN","MAX","CENTER","SPACE_BETWEEN"]},"counterAxisAlignItems":{"type":"string","enum":["MIN","MAX","CENTER","BASELINE"]},"itemSpacing":{"description":"Spacing between children (default: 0)","type":"token"},"counterAxisSpacing":{"description":"Gap between wrapped rows (requires layoutWrap: WRAP)","type":"token"},"layoutSizingHorizontal":{"type":"string","enum":["FIXED","HUG","FILL"]},"layoutSizingVertical":{"type":"string","enum":["FIXED","HUG","FILL"]},"minWidth":{"description":"Min width for responsive auto-layout","type":"number"},"maxWidth":{"description":"Max width for responsive auto-layout","type":"number"},"minHeight":{"description":"Min height for responsive auto-layout","type":"number"},"maxHeight":{"description":"Max height for responsive auto-layout","type":"number"},"fontSize":{"description":"Font size","type":"number"},"fontFamily":{"description":"Font family","type":"string"},"fontStyle":{"description":"Font variant e.g. \"Bold\", \"Italic\" — overrides fontWeight","type":"string"},"fontWeight":{"description":"100-900. Ignored when fontStyle is set.","type":"number"},"fontColor":{"description":"Text color (auto-binds to matching variable/style)","type":"string"},"fontColorVariableName":{"description":"Bind color variable by name e.g. 'text/primary'","type":"string"},"fontColorStyleName":{"description":"Apply paint style — overrides fontColor","type":"string"},"textStyleId":{"description":"Apply text style by ID — overrides fontSize/fontWeight","type":"string"},"textStyleName":{"description":"Text style by name (case-insensitive)","type":"string"},"textAlignHorizontal":{"type":"string","enum":["LEFT","CENTER","RIGHT","JUSTIFIED"]},"textAlignVertical":{"type":"string","enum":["TOP","CENTER","BOTTOM"]},"textAutoResize":{"type":"string","enum":["NONE","WIDTH_AND_HEIGHT","HEIGHT","TRUNCATE"]},"id":{"description":"Instance node ID","type":"string"},"properties":{"description":"Component property key→value map","type":"object"},"componentProperties":{"description":"Alias for properties (matches instances.get response shape)","type":"object"},"name":{"description":"Rename node","type":"string"},"visible":{"description":"Show/hide (default true)","type":"boolean"},"locked":{"description":"Lock/unlock (default false)","type":"boolean"},"rotation":{"description":"Degrees (0-360)","type":"number"},"blendMode":{"type":"string","enum":["PASS_THROUGH","NORMAL","DARKEN","MULTIPLY","LINEAR_BURN","COLOR_BURN","LIGHTEN","SCREEN","LINEAR_DODGE","COLOR_DODGE","OVERLAY","SOFT_LIGHT","HARD_LIGHT","DIFFERENCE","EXCLUSION","HUE","SATURATION","COLOR","LUMINOSITY"]},"layoutPositioning":{"description":"ABSOLUTE = floating inside auto-layout parent","type":"string","enum":["AUTO","ABSOLUTE"]},"x":{"type":"number"},"y":{"type":"number"},"width":{"type":"number"},"height":{"type":"number"},"clearFill":{"description":"Remove all fills","type":"boolean"},"effects":{"description":"Effect array (DROP_SHADOW, INNER_SHADOW, LAYER_BLUR, BACKGROUND_BLUR)","type":"array","items":{"type":"object"}},"constraints":{"type":"object","properties":{"horizontal":{"type":"string","enum":["MIN","CENTER","MAX","STRETCH","SCALE"]},"vertical":{"type":"string","enum":["MIN","CENTER","MAX","STRETCH","SCALE"]}}},"bindings":{"description":"Bind variables by name. field e.g. 'fills/0/color', 'opacity'","type":"array","items":{"type":"object","properties":{"field":{"type":"string"},"variableName":{"type":"string"},"variableId":{"type":"string"}},"required":["field"]}},"explicitMode":{"description":"Pin variable mode — use { collectionName, modeName } (preferred) or { collectionId, modeId }","type":"object"},"exportSettings":{"description":"Export settings","type":"array","items":{"type":"object"}}},"required":["id"]}}},"required":["items"]}} />
 
 **Response**
 

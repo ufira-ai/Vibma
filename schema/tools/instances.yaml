@@ -1,4 +1,5 @@
 endpoint: instances
+extends: node
 domain: design-system
 description: "Create and manage component instances."
 description_zh: "创建和管理组件实例。"
@@ -48,6 +49,7 @@ methods:
         items:
           type: object
           properties:
+            $mixin: [blend_params, sizing_params]
             componentId: { type: string, required: true, description: "Component or component set ID" }
             variantProperties: { type: object, coerce: json, optional: true, description: 'Pick variant e.g. {"Style":"Secondary"}' }
             name: { type: string, optional: true, description: "Instance layer name" }
@@ -56,13 +58,6 @@ methods:
             width: { type: number, coerce: true, optional: true, description: "Override width (resize)" }
             height: { type: number, coerce: true, optional: true, description: "Override height (resize)" }
             parentId: { $ref: parentId }
-            opacity: { type: token, optional: true }
-            layoutSizingHorizontal: { type: enum, values: [FIXED, FILL, HUG], optional: true, description: "Horizontal sizing in auto-layout parent" }
-            layoutSizingVertical: { type: enum, values: [FIXED, FILL, HUG], optional: true, description: "Vertical sizing in auto-layout parent" }
-            minWidth: { type: number, coerce: true, optional: true, description: "Min width constraint" }
-            maxWidth: { type: number, coerce: true, optional: true, description: "Max width constraint" }
-            minHeight: { type: number, coerce: true, optional: true, description: "Min height constraint" }
-            maxHeight: { type: number, coerce: true, optional: true, description: "Max height constraint" }
       depth: { $ref: depth }
     response:
       type: batch
@@ -77,13 +72,32 @@ methods:
         coerce: json
         required: true
         tsType: "InstanceUpdateItem[]"
-        description: 'Array of {id, properties: {"Label#1:0":"text"}}'
+        description: 'Array of {id, properties: {"Label#1:0":"text"}, fillColor?: ...}'
         items:
           type: object
           properties:
+            $mixin: [geometry_params, blend_params, auto_layout_params, sizing_params, text_params]
             id: { type: string, required: true, description: "Instance node ID" }
-            properties: { type: object, coerce: json, optional: true, description: "Property key→value map" }
+            properties: { type: object, coerce: json, optional: true, description: "Component property key→value map" }
             componentProperties: { type: object, coerce: json, optional: true, description: "Alias for properties (matches instances.get response shape)" }
+            # --- visual overrides (same as node.update PatchItem) ---
+            name: { type: string, optional: true, description: "Rename node" }
+            visible: { type: boolean, optional: true, description: "Show/hide (default true)" }
+            locked: { type: boolean, optional: true, description: "Lock/unlock (default false)" }
+            rotation: { type: number, optional: true, description: "Degrees (0-360)" }
+            blendMode: { type: enum, values: [PASS_THROUGH, NORMAL, DARKEN, MULTIPLY, LINEAR_BURN, COLOR_BURN, LIGHTEN, SCREEN, LINEAR_DODGE, COLOR_DODGE, OVERLAY, SOFT_LIGHT, HARD_LIGHT, DIFFERENCE, EXCLUSION, HUE, SATURATION, COLOR, LUMINOSITY], optional: true }
+            layoutPositioning: { type: enum, values: [AUTO, ABSOLUTE], optional: true, description: "ABSOLUTE = floating inside auto-layout parent" }
+            x: { type: number, optional: true }
+            y: { type: number, optional: true }
+            width: { type: number, optional: true }
+            height: { type: number, optional: true }
+            clearFill: { type: boolean, optional: true, description: "Remove all fills" }
+            strokeWeight: { $expand: stroke, type: token }
+            effects: { type: array, optional: true, description: "Effect array (DROP_SHADOW, INNER_SHADOW, LAYER_BLUR, BACKGROUND_BLUR)", items: { type: object } }
+            constraints: { type: object, optional: true, properties: { horizontal: { type: enum, values: [MIN, CENTER, MAX, STRETCH, SCALE] }, vertical: { type: enum, values: [MIN, CENTER, MAX, STRETCH, SCALE] } } }
+            bindings: { type: array, optional: true, description: "Bind variables by name. field e.g. 'fills/0/color', 'opacity'", items: { type: object, properties: { field: { type: string, required: true }, variableName: { type: string }, variableId: { type: string } } } }
+            explicitMode: { type: object, optional: true, description: "Pin variable mode — use { collectionName, modeName } (preferred) or { collectionId, modeId }" }
+            exportSettings: { type: array, optional: true, description: "Export settings", items: { type: object } }
     response:
       type: batch_mixed
 

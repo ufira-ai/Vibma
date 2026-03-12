@@ -181,7 +181,7 @@ function generateItemZodObject(properties: Record<string, RawParam>, indent: num
     const zodCode = paramToZod(name, param, indent + 2).trim();
     lines.push(`${pad}  ${name}: ${zodCode},`);
   }
-  return `z.object({\n${lines.join("\n")}\n${pad}})`;
+  return `z.object({\n${lines.join("\n")}\n${pad}}).passthrough()`;
 }
 
 /** Collect top-level required params for a method (excluding items/method). */

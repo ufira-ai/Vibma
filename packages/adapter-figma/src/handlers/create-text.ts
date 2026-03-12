@@ -263,6 +263,14 @@ async function createTextSingle(p: any, ctx: CreateTextContext) {
     else { hints.push({ type: "warn", message: `layoutSizingVertical '${layoutSizingVertical}' ignored — text node is not inside an auto-layout frame.` }); }
   }
 
+  // Text with HUG on both axes won't wrap — warn and recommend FILL width
+  if (textNode.layoutSizingHorizontal === "HUG" && textNode.layoutSizingVertical === "HUG") {
+    const parentIsAL = textNode.parent && "layoutMode" in textNode.parent && (textNode.parent as any).layoutMode !== "NONE";
+    if (parentIsAL) {
+      hints.push({ type: "warn", message: "Text with HUG on both axes won't wrap. Use layoutSizingHorizontal:\"FILL\" + layoutSizingVertical:\"HUG\" so text fills parent width and wraps, or set textAutoResize:\"HEIGHT\" for fixed-width wrapping." });
+    }
+  }
+
   const result: any = { id: textNode.id };
   if (hints.length > 0) result.hints = hints;
   return result;
