@@ -9,7 +9,7 @@ notes: |
   // Overrides: instance-level changes (text, fills, visibility) that differ from the component. Shown in overrides array.
   // variantProperties: when creating from a component set, pick which variant e.g. {"Style":"Secondary","Size":"Large"}.
   // ---
-  // Property keys include a unique suffix like "Label#1:0" — use instances.get or components.get to find exact keys.
+  // Property keys include a unique suffix like "Label#1:0". Call instances.get(id) or components.get(id) to discover exact keys before update.
   // swap: change which component an instance points to while preserving compatible overrides.
   // detach: permanently converts an instance to a regular frame, breaking the component link.
   // reset_overrides: reverts all instance overrides to match the main component.
@@ -28,6 +28,8 @@ methods:
         description: "Instance node ID"
       fields:
         $ref: fields
+      depth:
+        $ref: depth
     response:
       type: object
       properties:
@@ -66,6 +68,7 @@ methods:
   update:
     tier: edit
     description: Set instance properties
+    example: 'instances(method:"update", items:[{id:"1:23", properties:{"Label#4:0":"Submit"}, fillColor:"#3B82F6", layoutSizingHorizontal:"FILL"}])'
     params:
       items:
         type: array
@@ -92,10 +95,10 @@ methods:
             width: { type: number, optional: true }
             height: { type: number, optional: true }
             clearFill: { type: boolean, optional: true, description: "Remove all fills" }
-            strokeWeight: { $expand: stroke, type: token }
+            # strokeWeight expanded via geometry_params mixin ($expand: stroke)
             effects: { type: array, optional: true, description: "Effect array (DROP_SHADOW, INNER_SHADOW, LAYER_BLUR, BACKGROUND_BLUR)", items: { type: object } }
             constraints: { type: object, optional: true, properties: { horizontal: { type: enum, values: [MIN, CENTER, MAX, STRETCH, SCALE] }, vertical: { type: enum, values: [MIN, CENTER, MAX, STRETCH, SCALE] } } }
-            bindings: { type: array, optional: true, description: "Bind variables by name. field e.g. 'fills/0/color', 'opacity'", items: { type: object, properties: { field: { type: string, required: true }, variableName: { type: string }, variableId: { type: string } } } }
+            bindings: { type: array, optional: true, description: "Bind variables to properties. field path examples: 'fills/0/color', 'strokes/0/color', 'opacity', 'width', 'cornerRadius', 'itemSpacing'.", items: { type: object, properties: { field: { type: string, required: true }, variableName: { type: string }, variableId: { type: string } } } }
             explicitMode: { type: object, optional: true, description: "Pin variable mode — use { collectionName, modeName } (preferred) or { collectionId, modeId }" }
             exportSettings: { type: array, optional: true, description: "Export settings", items: { type: object } }
     response:

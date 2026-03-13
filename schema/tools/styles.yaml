@@ -62,9 +62,15 @@ methods:
     response:
       type: object
       properties:
-        id: { type: string }
-        name: { type: string }
-        type: { type: string }
+        id: { type: string, required: true }
+        name: { type: string, required: true }
+        type: { type: string, required: true, description: "PAINT | TEXT | EFFECT | GRID" }
+        paints: { type: array, description: "Paint fills (PAINT styles)" }
+        fontFamily: { type: string, description: "Font family (TEXT styles)" }
+        fontSize: { type: number, description: "Font size (TEXT styles)" }
+        effects: { type: array, description: "Effects array (EFFECT styles)" }
+        layoutGrids: { type: array, description: "Layout grids (GRID styles)" }
+      required: [id, name, type]
 
   create:
     tier: create
@@ -113,6 +119,7 @@ methods:
   update:
     tier: edit
     description: Update styles by ID or name
+    example: 'styles(method:"update", items:[{id:"Surface/Primary", color:"#F5F5F5"}])'
     params:
       type:
         type: enum
@@ -145,7 +152,6 @@ methods:
             leadingTrim: { type: enum, values: [CAP_HEIGHT, NONE], optional: true }
             effects: { type: array, coerce: json, optional: true, description: "Array of Effect objects" }
             layoutGrids: { type: array, coerce: json, optional: true, description: "Array of LayoutGrid objects (grid styles)" }
-      depth: { $ref: depth }
     response:
       type: batch_mixed
 

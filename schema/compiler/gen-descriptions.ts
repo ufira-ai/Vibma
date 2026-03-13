@@ -75,7 +75,7 @@ function dslParam(name: string, param: RawParam): string {
 
   // Show type for enums (discriminants), typed arrays with tsType, and complex objects
   if (param.values) {
-    return `${name}: ${param.values.join("|")}`;
+    return `${name}${opt}: ${param.values.join("|")}`;
   }
   if (param.tsType) {
     return `${name}${opt}: ${param.tsType}`;
@@ -90,7 +90,14 @@ function dslParam(name: string, param: RawParam): string {
 /** Compact response for method DSL */
 function dslResponse(response: RawResponse): string {
   if (response.type === "string") return "string";
-  if (response.type === "batch") return "{ results: {id}[] }";
+  if (response.type === "batch") {
+    // Use explicit item keys if provided, otherwise fall back to {id}
+    if (response.item && typeof response.item === "object" && !("type" in response.item)) {
+      const keys = Object.keys(response.item as Record<string, RawParam>).join(", ");
+      return `{ results: {${keys}}[] }`;
+    }
+    return "{ results: {id}[] }";
+  }
   if (response.type === "batch_ok") return '{ results: "ok"[] }';
   if (response.type === "batch_mixed") return '{ results: ("ok" | {error})[] }';
   if (response.type === "paginated") return "{ totalCount, items }";

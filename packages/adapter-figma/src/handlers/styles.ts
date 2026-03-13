@@ -2,6 +2,10 @@ import { batchHandler, coerceColor, findColorVariableByName, suggestStyleForColo
 import { resolveFontAsync, clearFontCache } from "./create-text";
 import { createDispatcher, paginate, pickFields } from "@ufira/vibma/endpoint";
 import type { ListResponse } from "@ufira/vibma/endpoint";
+import {
+  stylesCreatePaint, stylesCreateText, stylesCreateEffect, stylesCreateGrid,
+  stylesUpdate, stylesDelete,
+} from "@ufira/vibma/guards";
 
 // ─── TypeScript Types ────────────────────────────────────────────
 
@@ -51,20 +55,52 @@ function serializeStyle(style: BaseStyle): Record<string, any> {
   const r: any = { id: style.id, name: style.name, type: style.type };
   if (style.description) r.description = style.description;
   if (style.type === "PAINT") {
-    r.paints = (style as PaintStyle).paints.map((p: any) => {
-      const paint = { ...p };
-      if (paint.color) paint.color = rgbaToHex(paint.color);
+    const ps = style as PaintStyle;
+    r.paints = ps.paints.map((p: any) => {
+      const paint: any = { type: p.type };
+      if (p.visible !== undefined) paint.visible = p.visible;
+      if (p.opacity !== undefined) paint.opacity = p.opacity;
+      if (p.blendMode) paint.blendMode = p.blendMode;
+      if (p.color) paint.color = rgbaToHex({ ...p.color, a: p.opacity ?? 1 });
       return paint;
     });
+    // Expose bound variable name on the paint style
+    const bv = (ps as any).boundVariables;
+    if (bv) {
+      for (const [, val] of Object.entries(bv)) {
+        if (Array.isArray(val)) {
+          for (const v of val) {
+            if (v?.id) {
+              try {
+                const resolved = figma.variables.getVariableById(v.id);
+                if (resolved) r.colorVariableName = resolved.name;
+              } catch {}
+            }
+          }
+        }
+      }
+    }
   } else if (style.type === "TEXT") {
     const ts = style as TextStyle;
-    r.fontSize = ts.fontSize; r.fontName = ts.fontName;
+    if (ts.fontName) {
+      r.fontFamily = (ts.fontName as FontName).family;
+      r.fontStyle = (ts.fontName as FontName).style;
+    }
+    r.fontSize = ts.fontSize;
     r.letterSpacing = ts.letterSpacing; r.lineHeight = ts.lineHeight;
     r.textCase = ts.textCase; r.textDecoration = ts.textDecoration;
     r.paragraphIndent = ts.paragraphIndent; r.paragraphSpacing = ts.paragraphSpacing;
     if ("leadingTrim" in ts) r.leadingTrim = (ts as any).leadingTrim;
   } else if (style.type === "EFFECT") {
-    r.effects = (style as EffectStyle).effects;
+    r.effects = (style as EffectStyle).effects.map((e: any) => {
+      const eff: any = { type: e.type, visible: e.visible };
+      if (e.radius !== undefined) eff.radius = e.radius;
+      if (e.color) eff.color = rgbaToHex(e.color);
+      if (e.offset) eff.offset = e.offset;
+      if (e.spread !== undefined) eff.spread = e.spread;
+      if (e.blendMode) eff.blendMode = e.blendMode;
+      return eff;
+    });
   } else if (style.type === "GRID") {
     r.layoutGrids = (style as GridStyle).layoutGrids;
   }
@@ -98,8 +134,7 @@ async function listStylesFigma(params: StyleParams & { method: "list" }): Promis
 }
 
 async function getStyleByIdFigma(params: any) {
-  const style = await figma.getStyleByIdAsync(ensureStyleId(params.id));
-  if (!style) throw new Error(`Style not found: ${params.id}`);
+  const style = await resolveAnyStyle(params.id);
   return serializeStyle(style);
 }
 
@@ -395,7 +430,7 @@ async function createTextStyleBatch(params: any) {
     p._resolvedFontStyle = resolved.get(key);
   }
 
-  return batchHandler(params, createTextStyleSingle);
+  return batchHandler(params, createTextStyleSingle, { keys: stylesCreateText, help: 'styles(method: "help", topic: "create")' });
 }
 
 async function patchStylesBatch(params: any) {
@@ -420,7 +455,7 @@ async function patchStylesBatch(params: any) {
     } catch { /* skip -- will error in batchHandler */ }
   }
 
-  return batchHandler(params, patchStyleSingle);
+  return batchHandler(params, patchStyleSingle, { keys: stylesUpdate, help: 'styles(method: "help", topic: "update")' });
 }
 
 // ─── Figma Dispatcher ────────────────────────────────────────────
@@ -429,16 +464,16 @@ export const figmaHandlers: Record<string, (params: any) => Promise<any>> = {
   styles: createDispatcher({
     create: (p: StyleParams & { method: "create" }) => {
       switch (p.type) {
-        case "paint":  return batchHandler(p, createPaintStyleSingle);
+        case "paint":  return batchHandler(p, createPaintStyleSingle, { keys: stylesCreatePaint, help: 'styles(method: "help", topic: "create")' });
         case "text":   return createTextStyleBatch(p);
-        case "effect": return batchHandler(p, createEffectStyleSingle);
-        case "grid":   return batchHandler(p, createGridStyleSingle);
+        case "effect": return batchHandler(p, createEffectStyleSingle, { keys: stylesCreateEffect, help: 'styles(method: "help", topic: "create")' });
+        case "grid":   return batchHandler(p, createGridStyleSingle, { keys: stylesCreateGrid, help: 'styles(method: "help", topic: "create")' });
         default: throw new Error(`create requires type: "paint", "text", "effect", or "grid"`);
       }
     },
     get:    (p: StyleParams & { method: "get" })    => getStyleByIdFigma(p),
     list:   (p: StyleParams & { method: "list" })   => listStylesFigma(p),
     update: (p: StyleParams & { method: "update" }) => patchStylesBatch(p),
-    delete: (p: StyleParams & { method: "delete" }) => batchHandler(p, removeStyleSingle),
+    delete: (p: StyleParams & { method: "delete" }) => batchHandler(p, removeStyleSingle, { keys: stylesDelete, help: 'styles(method: "help", topic: "delete")' }),
   }),
 };

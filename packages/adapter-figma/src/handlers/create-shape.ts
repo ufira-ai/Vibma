@@ -1,4 +1,4 @@
-import { batchHandler, appendToParent, checkOverlappingSiblings, solidPaint, applyFillWithAutoBind, applyStrokeWithAutoBind, applyCornerRadius, applyTokens, findVariableById, findColorVariableByName, rejectUnknownParams, type Hint } from "./helpers";
+import { batchHandler, appendToParent, checkOverlappingSiblings, solidPaint, applyFillWithAutoBind, applyStrokeWithAutoBind, applyCornerRadius, applyTokens, findVariableById, findColorVariableByName, type Hint } from "./helpers";
 import {
   framesCreateSection, framesCreateSvg, framesCreateRectangle,
   framesCreateEllipse, framesCreateLine, framesCreateGroup,
@@ -30,7 +30,6 @@ const LINE_KEYS = new Set([...framesCreateLine, "strokeVariableId", "strokeStyle
 // ─── Figma Handlers ──────────────────────────────────────────────
 
 async function createSingleSection(p: any) {
-  rejectUnknownParams(p, framesCreateSection, 'frames(method: "help", topic: "create")');
   const section = figma.createSection();
   section.x = p.x ?? 0;
   section.y = p.y ?? 0;
@@ -48,7 +47,6 @@ async function createSingleSection(p: any) {
 }
 
 async function createSingleSvg(p: any) {
-  rejectUnknownParams(p, SVG_KEYS, 'frames(method: "help", topic: "create")');
   const node = figma.createNodeFromSvg(p.svg);
   node.x = p.x ?? 0;
   node.y = p.y ?? 0;
@@ -98,7 +96,6 @@ async function createSingleSvg(p: any) {
 // ─── Rectangle ──────────────────────────────────────────────────
 
 async function createSingleRectangle(p: any) {
-  rejectUnknownParams(p, framesCreateRectangle, 'frames(method: "help", topic: "create")');
   const rect = figma.createRectangle();
   rect.x = p.x ?? 0;
   rect.y = p.y ?? 0;
@@ -122,7 +119,6 @@ async function createSingleRectangle(p: any) {
 // ─── Ellipse ────────────────────────────────────────────────────
 
 async function createSingleEllipse(p: any) {
-  rejectUnknownParams(p, framesCreateEllipse, 'frames(method: "help", topic: "create")');
   const ellipse = figma.createEllipse();
   ellipse.x = p.x ?? 0;
   ellipse.y = p.y ?? 0;
@@ -145,7 +141,6 @@ async function createSingleEllipse(p: any) {
 // ─── Line ───────────────────────────────────────────────────────
 
 async function createSingleLine(p: any) {
-  rejectUnknownParams(p, LINE_KEYS, 'frames(method: "help", topic: "create")');
   const line = figma.createLine();
   line.x = p.x ?? 0;
   line.y = p.y ?? 0;
@@ -156,7 +151,7 @@ async function createSingleLine(p: any) {
   // Lines use strokes not fills — default to black if no stroke specified
   const hints: Hint[] = [];
   await applyTokens(line, { opacity: p.opacity }, hints);
-  if (!p.strokeColor && !p.strokeVariableId && !p.strokeVariableName && !p.strokeStyleName) {
+  if (!p.strokes && !p.strokeColor && !p.strokeVariableId && !p.strokeVariableName && !p.strokeStyleName) {
     line.strokes = [solidPaint({ r: 0, g: 0, b: 0 })];
   }
   // applyStrokeWithAutoBind handles both stroke color and strokeWeight tokens
@@ -177,7 +172,6 @@ async function createSingleLine(p: any) {
 // ─── Group ──────────────────────────────────────────────────────
 
 async function createSingleGroup(p: any) {
-  rejectUnknownParams(p, framesCreateGroup, 'frames(method: "help", topic: "create")');
   if (!p.nodeIds?.length) throw new Error("nodeIds required (at least 1 node)");
 
   const nodes: SceneNode[] = [];
@@ -201,7 +195,6 @@ async function createSingleGroup(p: any) {
 // ─── Boolean Operation ─────────────────────────────────────────
 
 async function createSingleBooleanOperation(p: any) {
-  rejectUnknownParams(p, framesCreateBooleanOperation, 'frames(method: "help", topic: "create")');
   if (!p.nodeIds?.length || p.nodeIds.length < 2) throw new Error("nodeIds required (at least 2 nodes)");
 
   const nodes: SceneNode[] = [];
@@ -233,11 +226,11 @@ async function createSingleBooleanOperation(p: any) {
 }
 
 export const figmaHandlers: Record<string, (params: any) => Promise<any>> = {
-  create_section: (p) => batchHandler(p, createSingleSection),
-  create_node_from_svg: (p) => batchHandler(p, createSingleSvg),
-  create_rectangle: (p) => batchHandler(p, createSingleRectangle),
-  create_ellipse: (p) => batchHandler(p, createSingleEllipse),
-  create_line: (p) => batchHandler(p, createSingleLine),
-  create_group: (p) => batchHandler(p, createSingleGroup),
-  create_boolean_operation: (p) => batchHandler(p, createSingleBooleanOperation),
+  create_section: (p) => batchHandler(p, createSingleSection, { keys: framesCreateSection, help: 'frames(method: "help", topic: "create")' }),
+  create_node_from_svg: (p) => batchHandler(p, createSingleSvg, { keys: SVG_KEYS, help: 'frames(method: "help", topic: "create")' }),
+  create_rectangle: (p) => batchHandler(p, createSingleRectangle, { keys: framesCreateRectangle, help: 'frames(method: "help", topic: "create")' }),
+  create_ellipse: (p) => batchHandler(p, createSingleEllipse, { keys: framesCreateEllipse, help: 'frames(method: "help", topic: "create")' }),
+  create_line: (p) => batchHandler(p, createSingleLine, { keys: LINE_KEYS, help: 'frames(method: "help", topic: "create")' }),
+  create_group: (p) => batchHandler(p, createSingleGroup, { keys: framesCreateGroup, help: 'frames(method: "help", topic: "create")' }),
+  create_boolean_operation: (p) => batchHandler(p, createSingleBooleanOperation, { keys: framesCreateBooleanOperation, help: 'frames(method: "help", topic: "create")' }),
 };

@@ -29,6 +29,7 @@ async function getCurrentPage() {
 }
 
 async function setCurrentPage(params: any) {
+  if (!params?.pageId && !params?.pageName) throw new Error("Missing required param: provide pageId or pageName");
   let page: any;
   if (params.pageId) {
     page = await figma.getNodeByIdAsync(params.pageId);

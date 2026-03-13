@@ -122,12 +122,21 @@ function generateSchema(endpoint: ResolvedEndpoint): string {
             type: "array",
             coerce: "json",
             optional: true,
-            description: "Batch items array",
+            description: `Array of items to ${method.name}. Shape depends on method — use help for details.`,
           },
           methods: [method.name],
         });
       }
     }
+  }
+
+  // When items is shared across multiple methods, use a generic description
+  const itemsEntry = allParams.get("items");
+  if (itemsEntry && itemsEntry.methods.length > 1) {
+    itemsEntry.param = {
+      ...itemsEntry.param,
+      description: `Array of {id, ...properties} to ${itemsEntry.methods.join("/")}`,
+    };
   }
 
   // Emit all params (all optional since they vary by method)
