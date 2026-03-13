@@ -1,6 +1,7 @@
 endpoint: version_history
 domain: document
 description: "Save named versions to the Figma file's version history."
+description_zh: "保存命名版本到 Figma 文件的版本历史。"
 
 notes: |
   // Version history lets you create named snapshots of a Figma file.
