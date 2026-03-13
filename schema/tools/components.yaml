@@ -26,10 +26,10 @@ methods:
     tier: read
     description: List components and component sets
     params:
-      name:
+      query:
         type: string
         optional: true
-        description: "Filter by name (case-insensitive substring)"
+        description: "Name search query (case-insensitive substring match)"
       setsOnly:
         type: boolean
         coerce: true
@@ -49,6 +49,9 @@ methods:
           id: { type: string, required: true }
           name: { type: string, required: true }
           type: { type: string, required: true }
+          pageId: { type: string, optional: true, description: "Page ID the component lives on" }
+          pageName: { type: string, optional: true, description: "Page name the component lives on" }
+          variantCount: { type: number, optional: true, description: "Number of variants (COMPONENT_SET only)" }
 
   get:
     tier: read
@@ -140,4 +143,4 @@ methods:
         required: true
         description: "Component or component set ID"
     response:
-      type: batch
+      type: batch_ok

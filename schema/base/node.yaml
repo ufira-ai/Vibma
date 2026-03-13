@@ -8,6 +8,8 @@ notes: |
   // fields: whitelist e.g. ["fills","opacity"] — id, name, type always included. Pass ["*"] for all.
   // layoutSizingHorizontal/Vertical: FIXED | HUG | FILL — how the node sizes within auto-layout.
   // Colors: fillVariableName/strokeVariableName bind by name — preferred over raw color values.
+  // Note: node-based endpoints (frames, text, instances) use `results` as the list key.
+  //   Standalone endpoints (components, styles, variables, variable_collections) use `items`.
   // ---
   // visible: false hides the node. Omitted from response when true (the default).
   // locked: true prevents editing in Figma UI. Omitted when false (the default).

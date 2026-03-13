@@ -1,4 +1,5 @@
 import { batchHandler, coerceColor, findVariableById, findVariableByName, type Hint } from "./helpers";
+import { rgbaToHex } from "@ufira/vibma/utils/color";
 import { createDispatcher, paginate, pickFields } from "@ufira/vibma/endpoint";
 import {
   variablesCreate, variablesUpdate, variablesDelete,
@@ -46,10 +47,28 @@ async function serializeCollection(c: any): Promise<Record<string, any>> {
 
 async function serializeVariable(v: any): Promise<Record<string, any>> {
   const col = await findCollection(v.variableCollectionId);
+  // Resolve mode IDs to names so valuesByMode keys are human-readable (e.g. "Light"/"Dark")
+  const modeMap = new Map<string, string>(
+    (col?.modes ?? []).map((m: any) => [m.modeId, m.name])
+  );
+  const valuesByMode: Record<string, any> = {};
+  for (const [modeId, rawValue] of Object.entries(v.valuesByMode as Record<string, any>)) {
+    let value = rawValue;
+    // Resolve alias IDs to names
+    if (value && typeof value === "object" && value.type === "VARIABLE_ALIAS" && value.id) {
+      const aliasVar = await findVariableById(value.id);
+      value = { type: "VARIABLE_ALIAS", name: aliasVar?.name ?? value.id };
+    }
+    // Coerce COLOR {r,g,b,a} to hex
+    if (value && typeof value === "object" && !value.type && "r" in value) {
+      value = rgbaToHex(value);
+    }
+    valuesByMode[modeMap.get(modeId) ?? modeId] = value;
+  }
   return {
     name: v.name, resolvedType: v.resolvedType,
     collectionId: col?.name ?? v.variableCollectionId,
-    valuesByMode: v.valuesByMode, description: v.description, scopes: v.scopes,
+    valuesByMode, description: v.description, scopes: v.scopes,
   };
 }
 
@@ -164,7 +183,7 @@ async function createVariableSingle(p: any) {
     const colNames = dupes.map(v => collections.find(c => c.id === v.variableCollectionId)?.name || "?");
     hints.push({ type: "warn", message: `Name "${p.name}" also exists in collection(s): [${colNames.join(", ")}]. Use "${collection.name}/${p.name}" to disambiguate when referencing this variable.` });
   }
-  const result: any = {};
+  const result: any = { name: variable.name };
   if (hints.length > 0) result.hints = hints;
   return result;
 }
@@ -195,7 +214,7 @@ async function listVariablesFigma(params: any) {
   const items: any[] = [];
   for (const v of paged.items) {
     const full = await serializeVariable(v);
-    items.push(!fields?.length ? pickFields(full, []) : pickFields(full, fields));
+    items.push(!fields?.length ? pickFields(full, ["resolvedType", "collectionId", "scopes"]) : pickFields(full, fields));
   }
   return { ...paged, items };
 }

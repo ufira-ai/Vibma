@@ -24,9 +24,9 @@ async function getNodeInfo(params: any) {
   const depth = params.depth;
   const fields = params.fields;
 
-  // Build fields whitelist (always include identity keys)
+  // Build fields whitelist (always include identity keys). "*" means all fields.
   const keep = fields?.length
-    ? new Set<string>([...fields, "id", "name", "type", "children"])
+    ? (fields.includes("*") ? null : new Set<string>([...fields, "id", "name", "type", "children"]))
     : null;
 
   // Shared budget across all requested nodes -- sequential to keep counter deterministic
@@ -108,9 +108,10 @@ async function searchNodes(params: any) {
 
 async function exportNodeAsImage(params: any) {
   const { customBase64Encode } = await import("../utils/base64");
-  const { nodeId, scale = 1 } = params || {};
+  const nodeId = params?.id ?? params?.nodeId;
+  const scale = params?.scale ?? 1;
   const format = params.format || "PNG";
-  if (!nodeId) throw new Error("Missing nodeId");
+  if (!nodeId) throw new Error("Missing id");
 
   const node = await figma.getNodeByIdAsync(nodeId);
   if (!node) throw new Error(`Node not found: ${nodeId}`);

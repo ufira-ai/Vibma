@@ -187,7 +187,7 @@ export async function batchHandler<TItem, TResult>(
  * Append a node to a parent (by ID) or the current page.
  * Returns the parent node if parentId was given, null otherwise.
  */
-export async function appendToParent(node: SceneNode, parentId?: string): Promise<BaseNode | null> {
+export async function appendToParent(node: SceneNode, parentId?: string): Promise<BaseNode> {
   if (parentId) {
     const parent = await figma.getNodeByIdAsync(parentId);
     if (!parent) throw new Error(`Parent not found: ${parentId}`);
@@ -197,7 +197,7 @@ export async function appendToParent(node: SceneNode, parentId?: string): Promis
     return parent;
   }
   figma.currentPage.appendChild(node);
-  return null;
+  return figma.currentPage;
 }
 
 /** Check for sibling nodes at the same position in a non-auto-layout parent. */
@@ -268,6 +268,7 @@ async function resolveVariable(
   name: string,
   typeFilter?: VariableResolvedDataType,
   collectionName?: string,
+  scopeContext?: string,
 ): Promise<Variable | null> {
   const all = typeFilter
     ? await figma.variables.getLocalVariablesAsync(typeFilter)
@@ -280,7 +281,7 @@ async function resolveVariable(
   // Fallback: try parsing "CollectionName/VarName" when no exact match
   if (matches.length === 0 && !collectionName && name.includes("/")) {
     const slashIdx = name.indexOf("/");
-    return resolveVariable(name.substring(slashIdx + 1), typeFilter, name.substring(0, slashIdx));
+    return resolveVariable(name.substring(slashIdx + 1), typeFilter, name.substring(0, slashIdx), scopeContext);
   }
   if (matches.length === 0) return null;
   if (collectionName) {
@@ -290,6 +291,20 @@ async function resolveVariable(
     if (!col) return null;
     return matches.find(v => v.variableCollectionId === col.id) || null;
   }
+  if (matches.length > 1 && scopeContext) {
+    // Disambiguate by scope: prefer variable whose scope matches the binding context
+    const scoped = matches.filter(v => {
+      const scopes: string[] = (v as any).scopes || [];
+      return scopes.includes(scopeContext);
+    });
+    if (scoped.length === 1) return scoped[0];
+    // Also try ALL_SCOPES as fallback
+    const allScope = matches.filter(v => {
+      const scopes: string[] = (v as any).scopes || [];
+      return scopes.length === 0 || scopes.includes("ALL_SCOPES");
+    });
+    if (allScope.length === 1) return allScope[0];
+  }
   if (matches.length > 1) {
     const collections = await figma.variables.getLocalVariableCollectionsAsync();
     const colNames = matches.map(v => collections.find(c => c.id === v.variableCollectionId)?.name || "?");
@@ -298,8 +313,8 @@ async function resolveVariable(
   return matches[0];
 }
 
-export async function findVariableByName(name: string, collectionName?: string): Promise<Variable | null> {
-  return resolveVariable(name, undefined, collectionName);
+export async function findVariableByName(name: string, collectionName?: string, scopeContext?: string): Promise<Variable | null> {
+  return resolveVariable(name, undefined, collectionName, scopeContext);
 }
 
 export async function findColorVariableByName(name: string, collectionName?: string): Promise<Variable | null> {
@@ -349,9 +364,8 @@ export async function suggestStyleForColor(
     const collections = await figma.variables.getLocalVariableCollectionsAsync();
     const defaultModes = new Map(collections.map(c => [c.id, c.defaultModeId]));
 
-    // Collect all matching variables, then pick the best by scope
-    let scopedMatch: any = null;
-    let fallbackMatch: any = null;
+    // Auto-bind requires explicit scope match — ALL_SCOPES is not enough
+    let best: any = null;
 
     for (const v of colorVars) {
       const modeId = defaultModes.get(v.variableCollectionId);
@@ -361,18 +375,11 @@ export async function suggestStyleForColor(
       if (!colorMatches(val as any)) continue;
 
       const scopes: string[] = (v as any).scopes || [];
-      const isAllScopes = scopes.length === 0 || scopes.includes("ALL_SCOPES");
-
-      if (bindingContext && !isAllScopes && scopes.includes(bindingContext)) {
-        // Exact scope match — best pick
-        scopedMatch = v;
+      if (bindingContext && scopes.includes(bindingContext)) {
+        best = v;
         break;
-      } else if (!fallbackMatch) {
-        fallbackMatch = v;
       }
     }
-
-    const best = scopedMatch || fallbackMatch;
     if (best) {
       return {
         hint: { type: "confirm", message: `Auto-bound color ${hex} → variable '${best.name}'.` },
@@ -398,7 +405,8 @@ export async function suggestStyleForColor(
     }
   }
 
-  return { hint: { type: "suggest", message: `Hardcoded color ${hex} has no matching paint style or color variable. Create one with styles(method: "create", type: "paint") or variables(method: "create"), then use ${styleParam} for design token consistency.` } };
+  const scopeHint = bindingContext ? ` with scopes: [${bindingContext}]` : "";
+  return { hint: { type: "suggest", message: `Hardcoded color ${hex} has no matching color variable${scopeHint} or paint style. Create one with variables(method: "create"${scopeHint}) or styles(method: "create", type: "paint"), then use ${styleParam} for design token consistency.` } };
 }
 
 /**
@@ -744,37 +752,103 @@ export async function applyCornerRadius(node: any, p: any, hints: Hint[]): Promi
     // Node supports cornerRadius but not per-corner — apply as single field
     const bound = await applyToken(node, "cornerRadius", p.cornerRadius, hints);
     if (!bound && p.cornerRadius !== 0) {
-      hints.push({ type: "suggest", message: `Hardcoded cornerRadius. Use an existing FLOAT variable or create one with variables(method:"create"), then pass the variable name string instead of a number.` });
+      hints.push({ type: "suggest", message: `Hardcoded cornerRadius. Use an existing FLOAT variable with scopes: [CORNER_RADIUS] or create one with variables(method:"create"), then pass the variable name string instead of a number.` });
     }
   }
 }
 
+// ─── FLOAT token scope mapping ──────────────────────────────────
+// Maps node property names to Figma variable scopes for auto-bind matching.
+const FIELD_TO_SCOPE: Record<string, string> = {
+  cornerRadius: "CORNER_RADIUS",
+  topLeftRadius: "CORNER_RADIUS",
+  topRightRadius: "CORNER_RADIUS",
+  bottomRightRadius: "CORNER_RADIUS",
+  bottomLeftRadius: "CORNER_RADIUS",
+  itemSpacing: "GAP",
+  counterAxisSpacing: "GAP",
+  paddingTop: "GAP",
+  paddingRight: "GAP",
+  paddingBottom: "GAP",
+  paddingLeft: "GAP",
+  strokeWeight: "STROKE_FLOAT",
+  strokeTopWeight: "STROKE_FLOAT",
+  strokeBottomWeight: "STROKE_FLOAT",
+  strokeLeftWeight: "STROKE_FLOAT",
+  strokeRightWeight: "STROKE_FLOAT",
+  opacity: "OPACITY",
+};
+
+async function getFloatVarsWithModes(): Promise<{ vars: any[]; defaultModes: Map<string, string> }> {
+  const vars = await figma.variables.getLocalVariablesAsync("FLOAT");
+  const collections = await figma.variables.getLocalVariableCollectionsAsync();
+  const defaultModes = new Map(collections.map(c => [c.id, c.defaultModeId]));
+  return { vars, defaultModes };
+}
+
+/**
+ * Match a numeric value against existing FLOAT variables by value and scope.
+ * Uses Figma variable scopes (CORNER_RADIUS, GAP, etc.) — no collection name assumptions.
+ * Returns the matched variable or null.
+ */
+async function matchFloatVariable(
+  numericValue: number, field: string,
+): Promise<any | null> {
+  if (numericValue === 0) return null; // 0 is too common to match
+  const scope = FIELD_TO_SCOPE[field];
+  if (!scope) return null; // No scope mapping — can't auto-bind
+  const { vars, defaultModes } = await getFloatVarsWithModes();
+  if (vars.length === 0) return null;
+
+  for (const v of vars) {
+    const modeId = defaultModes.get(v.variableCollectionId);
+    if (!modeId) continue;
+    const val = v.valuesByMode[modeId];
+    // Skip aliases and non-numeric values
+    if (typeof val !== "number") continue;
+    if (val !== numericValue) continue;
+
+    const scopes: string[] = (v as any).scopes || [];
+
+    // Auto-bind requires explicit scope match — ALL_SCOPES is not enough
+    if (scope && scopes.includes(scope)) {
+      return v;
+    }
+  }
+
+  return null;
+}
+
 /**
  * Apply a token value (number or variable name string) to a node property.
+ * Numbers are auto-bound to matching FLOAT variables (by value + scope).
+ * Strings are bound as variable names.
  * Returns true if a variable was bound, false if hardcoded numeric.
  */
 export async function applyToken(
   node: any, field: string, value: number | string, hints: Hint[],
 ): Promise<boolean> {
+  // Coerce numeric strings to plain numbers — variable names are never purely numeric
+  if (typeof value === "string") {
+    const n = Number(value);
+    if (!isNaN(n) && value.trim() !== "") {
+      value = n;
+    }
+  }
   if (typeof value === "number") {
+    // Auto-bind: match numeric value against existing FLOAT variables by scope
+    const matched = await matchFloatVariable(value, field);
+    if (matched) {
+      node.setBoundVariable(field, matched);
+      hints.push({ type: "confirm", message: `Auto-bound ${field} ${value} → variable '${matched.name}'.` });
+      return true;
+    }
     node[field] = value;
     return false;
   }
-  // String: try variable binding first (even for numeric strings like "4")
-  const n = Number(value);
-  if (!isNaN(n) && value.trim() !== "") {
-    // Numeric string — silently try variable, fall back to number
-    const v = await findVariableByName(value);
-    if (v && v.resolvedType === "FLOAT") {
-      node.setBoundVariable(field, v);
-      hints.push({ type: "confirm", message: `Bound ${field} → variable '${v.name}'.` });
-      return true;
-    }
-    node[field] = n;
-    return false;
-  }
-  // Non-numeric string — bind as variable name (errors if not found)
-  await bindNumericVariable(node, field, value, hints);
+  // Non-numeric string — bind as variable name, using scope to disambiguate
+  const scope = FIELD_TO_SCOPE[field];
+  await bindNumericVariable(node, field, value, hints, scope);
   return true;
 }
 
@@ -789,17 +863,20 @@ export async function applyTokens(
   for (const [field, value] of Object.entries(fields)) {
     if (value !== undefined) {
       const bound = await applyToken(node, field, value, hints);
-      if (!bound && value !== 0) hardcoded.push(field);
+      if (!bound && Number(value) !== 0) hardcoded.push(field);
     }
   }
   if (hardcoded.length > 0) {
-    // Group related fields for compact messages
+    // Group related fields for compact messages, include required scopes
     const paddingFields = hardcoded.filter(f => f.startsWith("padding"));
     const others = hardcoded.filter(f => !f.startsWith("padding"));
     const groups: string[] = [];
     if (paddingFields.length > 0) groups.push(paddingFields.length >= 3 ? "padding" : paddingFields.join(", "));
     groups.push(...others);
-    hints.push({ type: "suggest", message: `Hardcoded ${groups.join(", ")}. Use an existing FLOAT variable or create one with variables(method:"create"), then pass the variable name string instead of a number.` });
+    // Collect unique scopes needed for auto-bind
+    const neededScopes = new Set(hardcoded.map(f => FIELD_TO_SCOPE[f]).filter(Boolean));
+    const scopeHint = neededScopes.size > 0 ? ` with scopes: [${[...neededScopes].join(", ")}]` : "";
+    hints.push({ type: "suggest", message: `Hardcoded ${groups.join(", ")}. Use an existing FLOAT variable${scopeHint} or create one with variables(method:"create"), then pass the variable name string instead of a number.` });
   }
 }
 
@@ -812,8 +889,9 @@ export async function bindNumericVariable(
   fields: string | string[],
   variableName: string,
   hints: Hint[],
+  scopeContext?: string,
 ): Promise<boolean> {
-  const v = await findVariableByName(variableName);
+  const v = await findVariableByName(variableName, undefined, scopeContext);
   if (!v) {
     const floatVars = await figma.variables.getLocalVariablesAsync("FLOAT");
     const names = floatVars.map(v => v.name).slice(0, 20);

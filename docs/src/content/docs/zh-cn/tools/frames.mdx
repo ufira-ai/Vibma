@@ -1,11 +1,11 @@
 ---
 title: "Frames"
-description: "创建和管理框架、自动布局容器和分区。"
+description: "创建和管理框架、形状、自动布局容器、分区和 SVG 节点。"
 ---
 
 import ParameterTable from "../../../../components/ParameterTable.astro";
 
-创建和管理框架、自动布局容器和分区。
+创建和管理框架、形状、自动布局容器、分区和 SVG 节点。
 
 <details>
 <summary>Type reference</summary>
@@ -15,6 +15,8 @@ import ParameterTable from "../../../../components/ParameterTable.astro";
 // fields: whitelist e.g. ["fills","opacity"] — id, name, type always included. Pass ["*"] for all.
 // layoutSizingHorizontal/Vertical: FIXED | HUG | FILL — how the node sizes within auto-layout.
 // Colors: fillVariableName/strokeVariableName bind by name — preferred over raw color values.
+// Note: node-based endpoints (frames, text, instances) use `results` as the list key.
+//   Standalone endpoints (components, styles, variables, variable_collections) use `items`.
 // ---
 // visible: false hides the node. Omitted from response when true (the default).
 // locked: true prevents editing in Figma UI. Omitted when false (the default).
@@ -217,7 +219,7 @@ Create node from SVG markup
 
 Export a node as PNG, JPG, SVG, SVG_STRING, or PDF
 
-<ParameterTable schema={{"type":"object","properties":{"nodeId":{"description":"Node ID to export","type":"string"},"format":{"description":"Export format (default: PNG). SVG_STRING returns raw SVG text.","type":"string","enum":["PNG","JPG","SVG","SVG_STRING","PDF"]},"scale":{"description":"Export scale (default: 1, only for PNG/JPG)","type":"number"}},"required":["nodeId"]}} />
+<ParameterTable schema={{"type":"object","properties":{"id":{"description":"Node ID to export","type":"string"},"format":{"description":"Export format (default: PNG). SVG_STRING returns raw SVG text.","type":"string","enum":["PNG","JPG","SVG","SVG_STRING","PDF"]},"scale":{"description":"Export scale (default: 1, only for PNG/JPG)","type":"number"}},"required":["id"]}} />
 
 **Response**
 

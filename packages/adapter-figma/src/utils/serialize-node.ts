@@ -1,6 +1,18 @@
 import { rgbaToHex } from "@ufira/vibma/utils/color";
 
 /**
+ * Return a variable name that's safe to pass back to findVariableByName.
+ * Prefixes with "CollectionName/" when the name exists in multiple collections.
+ */
+async function disambiguatedVarName(v: Variable): Promise<string> {
+  const all = await figma.variables.getLocalVariablesAsync(v.resolvedType);
+  const dupes = all.filter(other => other.name === v.name && other.id !== v.id);
+  if (dupes.length === 0) return v.name;
+  const col = await figma.variables.getVariableCollectionByIdAsync(v.variableCollectionId);
+  return col ? `${col.name}/${v.name}` : v.name;
+}
+
+/**
  * Serialize a Figma plugin node to a plain object using only the plugin API.
  * This replaces the exportAsync({ format: "JSON_REST_V1" }) + filterFigmaNode
  * approach, which returned REST API IDs that could differ from plugin node.id.
@@ -88,6 +100,11 @@ export async function serializeNode(
     }
   }
 
+  // ── Clips content ────────────────────────────────────────────
+  if ("clipsContent" in node) {
+    out.clipsContent = (node as any).clipsContent;
+  }
+
   // ── Text content ──────────────────────────────────────────────
   if ("characters" in node) {
     out.characters = (node as any).characters;
@@ -135,6 +152,7 @@ export async function serializeNode(
       else if (lh.unit !== "AUTO") style.lineHeight = lh;
     }
     if (Object.keys(style).length > 0) out.style = style;
+    if (t.textAutoResize) out.textAutoResize = t.textAutoResize;
   }
 
   // ── Effects ───────────────────────────────────────────────────
@@ -227,6 +245,45 @@ export async function serializeNode(
     if (n.maxHeight != null && n.maxHeight < Infinity) out.maxHeight = n.maxHeight;
   }
 
+  // ── Applied styles ──────────────────────────────────────────
+  // Resolve style IDs to names so agents can reference them
+  if ("fillStyleId" in node) {
+    const id = (node as any).fillStyleId;
+    if (id && id !== "" && id !== figma.mixed) {
+      try {
+        const s = await figma.getStyleByIdAsync(id);
+        if (s) out.fillStyleName = s.name;
+      } catch {}
+    }
+  }
+  if ("strokeStyleId" in node) {
+    const id = (node as any).strokeStyleId;
+    if (id && id !== "") {
+      try {
+        const s = await figma.getStyleByIdAsync(id);
+        if (s) out.strokeStyleName = s.name;
+      } catch {}
+    }
+  }
+  if ("effectStyleId" in node) {
+    const id = (node as any).effectStyleId;
+    if (id && id !== "") {
+      try {
+        const s = await figma.getStyleByIdAsync(id);
+        if (s) out.effectStyleName = s.name;
+      } catch {}
+    }
+  }
+  if ("textStyleId" in node) {
+    const id = (node as any).textStyleId;
+    if (id && id !== "" && id !== figma.mixed) {
+      try {
+        const s = await figma.getStyleByIdAsync(id);
+        if (s) out.textStyleName = s.name;
+      } catch {}
+    }
+  }
+
   // ── Variable bindings ────────────────────────────────────────
   if ("boundVariables" in node) {
     const bv = (node as any).boundVariables;
@@ -237,14 +294,22 @@ export async function serializeNode(
           for (const v of val) {
             if (!v?.id) continue;
             const resolved = await figma.variables.getVariableByIdAsync(v.id);
-            if (resolved) bindings[field] = resolved.name;
+            if (resolved) bindings[field] = await disambiguatedVarName(resolved);
           }
         } else if (val && typeof val === "object" && (val as any).id) {
           const resolved = await figma.variables.getVariableByIdAsync((val as any).id);
-          if (resolved) bindings[field] = resolved.name;
+          if (resolved) bindings[field] = await disambiguatedVarName(resolved);
         }
       }
       if (Object.keys(bindings).length > 0) out.boundVariables = bindings;
+    }
+  }
+
+  // ── Explicit variable modes ──────────────────────────────────
+  if ("explicitVariableModes" in node) {
+    const modes = (node as any).explicitVariableModes;
+    if (modes && typeof modes === "object" && Object.keys(modes).length > 0) {
+      out.explicitVariableModes = modes;
     }
   }
 

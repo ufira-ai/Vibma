@@ -9,6 +9,7 @@ import { readFileSync } from "fs";
 import { join, basename } from "path";
 import { fileURLToPath } from "url";
 import { registerAllTools } from "./tools/mcp-registry";
+import { resolveEndpointHelp } from "./tools/generated/help";
 
 // Read version — works with both tsx (source) and node (compiled dist/)
 let VIBMA_VERSION = "0.0.0";
@@ -319,6 +320,11 @@ server.registerTool(
   async (params: any) => {
     const method = params.method;
     try {
+      if (method === "help") {
+        const text = resolveEndpointHelp("connection", params.topic) ?? "No help available for connection";
+        return { content: [{ type: "text", text }] };
+      }
+
       if (method === "create") {
         const channel = params.channel || "vibma";
         await joinChannel(channel);

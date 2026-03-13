@@ -15,6 +15,8 @@ import ParameterTable from "../../../../components/ParameterTable.astro";
 // fields: whitelist e.g. ["fills","opacity"] — id, name, type always included. Pass ["*"] for all.
 // layoutSizingHorizontal/Vertical: FIXED | HUG | FILL — how the node sizes within auto-layout.
 // Colors: fillVariableName/strokeVariableName bind by name — preferred over raw color values.
+// Note: node-based endpoints (frames, text, instances) use `results` as the list key.
+//   Standalone endpoints (components, styles, variables, variable_collections) use `items`.
 // ---
 // visible: false hides the node. Omitted from response when true (the default).
 // locked: true prevents editing in Figma UI. Omitted when false (the default).
@@ -95,11 +97,11 @@ Move nodes into a new parent
 
 List components and component sets
 
-<ParameterTable schema={{"type":"object","properties":{"name":{"description":"Filter by name (case-insensitive substring)","type":"string"},"setsOnly":{"description":"If true, return only COMPONENT_SET nodes","type":"boolean"},"fields":{"description":"Property whitelist. Identity fields (id, name, type) always included. Omit for stubs on list, full on get. Pass [\"*\"] for all.","type":"array","items":{"type":"string"}},"offset":{"description":"Skip N items for pagination (default 0) (default: 0)","type":"number"},"limit":{"description":"Max items per page (default 100) (default: 100)","type":"number"}}}} />
+<ParameterTable schema={{"type":"object","properties":{"query":{"description":"Name search query (case-insensitive substring match)","type":"string"},"setsOnly":{"description":"If true, return only COMPONENT_SET nodes","type":"boolean"},"fields":{"description":"Property whitelist. Identity fields (id, name, type) always included. Omit for stubs on list, full on get. Pass [\"*\"] for all.","type":"array","items":{"type":"string"}},"offset":{"description":"Skip N items for pagination (default 0) (default: 0)","type":"number"},"limit":{"description":"Max items per page (default 100) (default: 100)","type":"number"}}}} />
 
 **Response**
 
-<ParameterTable schema={{"type":"object","properties":{"totalCount":{"type":"number","description":"Total matching items"},"returned":{"type":"number","description":"Items in this page"},"offset":{"type":"number"},"limit":{"type":"number"},"items":{"type":"array","items":{"type":"object","properties":{"id":{"type":"string"},"name":{"type":"string"},"type":{"type":"string"}}}}},"required":["totalCount","items"]}} fieldLabel="Field" hideRequired />
+<ParameterTable schema={{"type":"object","properties":{"totalCount":{"type":"number","description":"Total matching items"},"returned":{"type":"number","description":"Items in this page"},"offset":{"type":"number"},"limit":{"type":"number"},"items":{"type":"array","items":{"type":"object","properties":{"id":{"type":"string"},"name":{"type":"string"},"type":{"type":"string"},"pageId":{"description":"Page ID the component lives on","type":"string"},"pageName":{"description":"Page name the component lives on","type":"string"},"variantCount":{"description":"Number of variants (COMPONENT_SET only)","type":"number"}}}}},"required":["totalCount","items"]}} fieldLabel="Field" hideRequired />
 
 ## get
 
@@ -166,4 +168,4 @@ Delete components or component sets
 
 **Response**
 
-<ParameterTable schema={{"type":"object","properties":{"results":{"type":"array","description":"One entry per input item","items":{"type":"object","properties":{}}}}}} fieldLabel="Field" hideRequired />
+<ParameterTable schema={{"type":"object","properties":{"results":{"type":"array","description":"Array of \"ok\" per item","items":{"type":"string"}}}}} fieldLabel="Field" hideRequired />

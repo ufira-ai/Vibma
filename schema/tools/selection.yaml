@@ -7,7 +7,7 @@ notes: |
   // Selection is the set of nodes currently highlighted in the Figma canvas.
   // get returns the current selection. Without depth, returns stubs ({id, name, type}). With depth=0, returns full properties.
   // _truncated: true when the response was cut short due to node budget limits. Use depth=0 or specific fields to reduce payload.
-  // update sets the selection AND scrolls the viewport to show the selected nodes.
+  // set replaces the entire selection AND scrolls the viewport to show the selected nodes.
 
 methods:
   get:
@@ -38,7 +38,7 @@ methods:
         selection:
           - { id: "1:2", name: Button, type: COMPONENT }
 
-  update:
+  set:
     tier: read
     description: Set selection to nodes and scroll viewport to show them
     params:

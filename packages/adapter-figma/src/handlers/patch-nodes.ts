@@ -189,8 +189,10 @@ export async function patchSingleNode(item: any, textCtx: TextPropsContext | nul
   }
 
   // 13. Text (flat: fontSize, fontFamily, fontStyle, fontWeight, fills, ...)
+  // Guard: only dispatch to text handler if the node is actually a TEXT node.
+  // TEXT_KEYS overlap with general node keys (e.g. fills) — key presence alone is not enough.
   const hasText = hasAny(item, TEXT_KEYS);
-  if (hasText && textCtx) {
+  if (hasText && textCtx && textCtx.nodeMap.has(item.nodeId)) {
     const r = await setTextPropertiesSingle({
       nodeId: item.nodeId,
       fontSize: item.fontSize,

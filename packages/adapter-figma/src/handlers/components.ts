@@ -245,8 +245,9 @@ async function listComponentsFigma(params: any) {
   const setsOnly = params?.setsOnly;
   const types = setsOnly ? ["COMPONENT_SET"] : ["COMPONENT", "COMPONENT_SET"];
   let components = figma.root.findAllWithCriteria({ types: types as any });
-  if (params?.name) {
-    const f = params.name.toLowerCase();
+  const nameFilter = params?.query ?? params?.name;
+  if (nameFilter) {
+    const f = nameFilter.toLowerCase();
     components = components.filter((c: any) => c.name.toLowerCase().includes(f));
   }
   const paged = paginate(components, params.offset, params.limit);
