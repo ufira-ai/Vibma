@@ -21,6 +21,7 @@ import { generateDescription } from "./gen-descriptions";
 import { generateDocs } from "./gen-docs";
 import { generatePromptsTs, generatePromptsDocs, loadPrompts } from "./gen-prompts";
 import { generateHelpTs } from "./gen-help";
+import { generateGuards } from "./gen-guards";
 import { expandAll } from "./expand";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -28,7 +29,7 @@ const ROOT = join(__dirname, "../..");
 
 // ─── Parse ──────────────────────────────────────────────────────
 console.log("Parsing YAML schemas...\n");
-const { bases, endpoints: rawEndpoints } = parseAll();
+const { bases, endpoints: rawEndpoints, mixins } = parseAll();
 console.log(`  Bases: ${[...bases.keys()].join(", ")}`);
 console.log(`  Endpoints: ${rawEndpoints.map(e => e.endpoint).join(", ")}`);
 
@@ -69,6 +70,12 @@ const helpCode = generateHelpTs(resolved, helpTopics);
 const helpPath = join(outDir, "help.ts");
 writeFileSync(helpPath, helpCode);
 console.log(`Written: ${helpPath}`);
+
+// ─── Generate Param Guards ───────────────────────────────────────
+const guardsCode = generateGuards(resolved, mixins);
+const guardsPath = join(outDir, "guards.ts");
+writeFileSync(guardsPath, guardsCode);
+console.log(`Written: ${guardsPath}`);
 
 // ─── Generate Response Types ────────────────────────────────────
 const responseCode = generateResponseTypes(resolved);

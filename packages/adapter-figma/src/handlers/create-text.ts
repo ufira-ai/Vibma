@@ -1,4 +1,5 @@
-import { batchHandler, appendToParent, checkOverlappingSiblings, coerceColor, suggestTextStyle, applyFontColorWithAutoBind, styleNotFoundHint, type Hint } from "./helpers";
+import { batchHandler, appendToParent, checkOverlappingSiblings, coerceColor, suggestTextStyle, applyFontColorWithAutoBind, styleNotFoundHint, rejectUnknownParams, type Hint } from "./helpers";
+import { textCreate } from "@ufira/vibma/guards";
 
 // ─── Figma Handlers ──────────────────────────────────────────────
 
@@ -63,6 +64,14 @@ export function normalizeFontStyle(style: string): string {
   return style.replace(/([a-z])([A-Z])/g, "$1 $2");
 }
 
+// Schema keys + handler-level aliases not in YAML
+const TEXT_CREATE_KEYS = new Set([
+  ...textCreate,
+  "characters",        // alias for "text"
+  "fontColorVariableId", // accepted but not in schema
+  "fillColor", "fillVariableName", "fillStyleName", // aliases for fontColor*
+]) as ReadonlySet<string>;
+
 interface CreateTextContext {
   textStyles: any[] | null;
   paintStyles: any[] | null;
@@ -116,16 +125,18 @@ async function prepCreateText(params: any): Promise<CreateTextContext> {
   const resolvedTextStyleMap = new Map<string, any>();
   for (const p of items) {
     let sid = p.textStyleId;
+    let foundStyle: any = null;
     if (!sid && p.textStyleName && textStyles) {
       const exact = textStyles.find((s: any) => s.name === p.textStyleName);
-      if (exact) sid = exact.id;
+      if (exact) { sid = exact.id; foundStyle = exact; }
       else {
         const fuzzy = textStyles.find((s: any) => s.name.toLowerCase().includes(p.textStyleName.toLowerCase()));
-        if (fuzzy) sid = fuzzy.id;
+        if (fuzzy) { sid = fuzzy.id; foundStyle = fuzzy; }
       }
     }
     if (sid && !resolvedTextStyleMap.has(sid)) {
-      const s = await figma.getStyleByIdAsync(sid);
+      // Use the style object found by name directly (avoids re-fetch failures for recently-created styles)
+      const s = foundStyle ?? await figma.getStyleByIdAsync(sid);
       if (s?.type === "TEXT") {
         resolvedTextStyleMap.set(sid, s);
         const fn = (s as TextStyle).fontName;
@@ -154,8 +165,9 @@ async function prepCreateText(params: any): Promise<CreateTextContext> {
  * batchHandler handles depth enrichment, warning hoisting, and error wrapping.
  */
 async function createTextSingle(p: any, ctx: CreateTextContext) {
+  rejectUnknownParams(p, TEXT_CREATE_KEYS, 'text(method: "help", topic: "create")');
   const {
-    x = 0, y = 0, text = "Text", fontSize = 14, fontWeight = 400,
+    x = 0, y = 0, text = p.characters ?? "Text", fontSize = 14, fontWeight = 400,
     fontFamily = "Inter", fontStyle,
     fontColor: rawFontColor, fontColorVariableId, fontColorVariableName, fontColorStyleName, name = "",
     parentId, textStyleId, textStyleName,
@@ -246,29 +258,25 @@ async function createTextSingle(p: any, ctx: CreateTextContext) {
     hints.push({ type: "suggest", message: "WCAG: Min 12px text recommended." });
   }
 
+  const parentIsAL = textNode.parent && "layoutMode" in textNode.parent && (textNode.parent as any).layoutMode !== "NONE";
+
+  // Smart defaults for text inside auto-layout: FILL width + HUG height (text wraps)
+  const effectiveH = layoutSizingHorizontal || (parentIsAL ? "FILL" : undefined);
+  const effectiveV = layoutSizingVertical || (parentIsAL ? "HUG" : undefined);
+
   if (textAutoResize) {
     textNode.textAutoResize = textAutoResize;
-  } else if (layoutSizingHorizontal === "FILL" || layoutSizingHorizontal === "FIXED") {
+  } else if (effectiveH === "FILL" || effectiveH === "FIXED") {
     textNode.textAutoResize = "HEIGHT";
   }
 
-  if (layoutSizingHorizontal) {
-    const parentIsAL = textNode.parent && "layoutMode" in textNode.parent && (textNode.parent as any).layoutMode !== "NONE";
-    if (parentIsAL || layoutSizingHorizontal !== "FILL") { textNode.layoutSizingHorizontal = layoutSizingHorizontal; }
-    else { hints.push({ type: "warn", message: `layoutSizingHorizontal '${layoutSizingHorizontal}' ignored — text node is not inside an auto-layout frame.` }); }
+  if (effectiveH) {
+    if (parentIsAL || effectiveH !== "FILL") { textNode.layoutSizingHorizontal = effectiveH; }
+    else { hints.push({ type: "warn", message: `layoutSizingHorizontal '${effectiveH}' ignored — text node is not inside an auto-layout frame.` }); }
   }
-  if (layoutSizingVertical) {
-    const parentIsAL = textNode.parent && "layoutMode" in textNode.parent && (textNode.parent as any).layoutMode !== "NONE";
-    if (parentIsAL || layoutSizingVertical !== "FILL") { textNode.layoutSizingVertical = layoutSizingVertical; }
-    else { hints.push({ type: "warn", message: `layoutSizingVertical '${layoutSizingVertical}' ignored — text node is not inside an auto-layout frame.` }); }
-  }
-
-  // Text with HUG on both axes won't wrap — warn and recommend FILL width
-  if (textNode.layoutSizingHorizontal === "HUG" && textNode.layoutSizingVertical === "HUG") {
-    const parentIsAL = textNode.parent && "layoutMode" in textNode.parent && (textNode.parent as any).layoutMode !== "NONE";
-    if (parentIsAL) {
-      hints.push({ type: "warn", message: "Text with HUG on both axes won't wrap. Use layoutSizingHorizontal:\"FILL\" + layoutSizingVertical:\"HUG\" so text fills parent width and wraps, or set textAutoResize:\"HEIGHT\" for fixed-width wrapping." });
-    }
+  if (effectiveV) {
+    if (parentIsAL || effectiveV !== "FILL") { textNode.layoutSizingVertical = effectiveV; }
+    else { hints.push({ type: "warn", message: `layoutSizingVertical '${effectiveV}' ignored — text node is not inside an auto-layout frame.` }); }
   }
 
   // HUG on cross-axis of constrained parent — text won't fill available space

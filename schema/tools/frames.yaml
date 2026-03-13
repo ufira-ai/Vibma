@@ -7,9 +7,12 @@ description_zh: "创建和管理框架、自动布局容器和分区。"
 notes: |
   // Frames are the primary container in Figma. Use auto_layout for responsive containers.
   // Sizing: FIXED = explicit size, HUG = shrink to children, FILL = expand to fill parent.
-  // fillColor auto-binds: if a matching color variable or paint style exists, it is bound automatically.
+  // Fill & stroke use FLAT params — NOT arrays: fillColor:"#3B82F6", fillVariableName:"bg/primary", strokeColor:"#000", strokeVariableName:"border/default".
+  // Do NOT pass fills:[...] or strokes:[...] arrays. fillColor auto-binds: if a matching variable/style exists, it is bound automatically.
   // Token fields (cornerRadius, opacity, itemSpacing, padding, strokeWeight): pass number for value, string for variable name/ID.
   // ---
+  // Smart defaults inside auto-layout parent: frame cross-axis defaults to FILL (not HUG), primary axis stays HUG.
+  //   Override with explicit layoutSizingHorizontal/layoutSizingVertical if needed.
   // HUG and FILL only work inside an auto-layout parent. Use FIXED for top-level frames.
   // minWidth/maxWidth/minHeight/maxHeight: responsive constraints for auto-layout children.
   // clipsContent: true (default) clips children to the frame bounds. Set false for overflow-visible.

@@ -8,6 +8,7 @@ export default defineConfig({
     'src/tools/endpoint.ts',
     'src/tools/schemas.ts',
     'src/tools/registry.ts',
+    'src/tools/generated/guards.ts',
     'src/utils/color.ts',
     'src/utils/wcag.ts',
     'src/utils/coercion.ts',

@@ -348,6 +348,76 @@ export async function suggestStyleForColor(
  * Priority: fillVariableId > fillVariableName > fillStyleName > fillColor (with auto-bind).
  * Returns hints array with auto-bind confirmations or errors.
  */
+// ─── Wrong-shape param corrections ─────────────────────────────
+// Map of commonly-misused param names → corrective message with correct schema + example.
+
+const WRONG_SHAPE_CORRECTIONS: Record<string, string> = {
+  fills: `"fills" array is not a valid param. Use flat fill params:\n` +
+    `  fillColor (Color) — e.g. "#3B82F6" or {r,g,b} (auto-binds to matching variable/style)\n` +
+    `  fillVariableName (string) — e.g. "bg/primary"\n` +
+    `  fillStyleName (string) — e.g. "Colors/Primary"\n` +
+    `Example: { name: "Card", fillColor: "#3B82F6", layoutMode: "VERTICAL", padding: 16 }\n` +
+    `Example: { name: "Card", fillVariableName: "bg/surface", layoutMode: "VERTICAL" }`,
+
+  strokes: `"strokes" array is not a valid param. Use flat stroke params:\n` +
+    `  strokeColor (Color) — e.g. "#E5E7EB" (auto-binds to matching variable/style)\n` +
+    `  strokeVariableName (string) — e.g. "border/default"\n` +
+    `  strokeStyleName (string) — e.g. "Borders/Thin"\n` +
+    `  strokeWeight (number) — thickness e.g. 1\n` +
+    `Example: { name: "Card", strokeColor: "#E5E7EB", strokeWeight: 1 }\n` +
+    `Example: { name: "Card", strokeVariableName: "border/default", strokeWeight: 1 }`,
+
+  background: `"background" is not a valid param. Use fillColor: "#hex" or fillVariableName: "bg/primary"`,
+  backgroundColor: `"backgroundColor" is not a valid param. Use fillColor: "#hex" or fillVariableName: "bg/primary"`,
+  color: `"color" is not a valid param. For fill: fillColor: "#hex" or fillVariableName: "name". For text: fontColor: "#hex" or fontColorVariableName: "name"`,
+  border: `"border" is not a valid param. Use strokeColor: "#hex", strokeWeight: 1`,
+  borderColor: `"borderColor" is not a valid param. Use strokeColor: "#hex" or strokeVariableName: "border/default"`,
+  borderWidth: `"borderWidth" is not a valid param. Use strokeWeight: 1 (number or variable name string)`,
+  borderRadius: `"borderRadius" is not a valid param. Use cornerRadius: 8 (number or variable name string). Per-corner: topLeftRadius, topRightRadius, bottomRightRadius, bottomLeftRadius`,
+  radius: `"radius" is not a valid param. Use cornerRadius: 8 (number or variable name string)`,
+  children: `"children" array is not a valid param. Create children separately then reparent, or pass parentId when creating child nodes.`,
+  font: `"font" is not a valid param. Use fontFamily: "Inter" and fontStyle: "Bold" (or fontWeight: 700)`,
+  text: `"text" is not a valid param on frames. For text nodes, use text(method: "create", items: [{text: "Hello", parentId: "<frameId>"}])`,
+  content: `"content" is not a valid param. For text nodes, use text(method: "create", items: [{text: "Hello"}])`,
+  label: `"label" is not a valid param. For text nodes, use text(method: "create", items: [{text: "Hello", parentId: "<frameId>"}])`,
+  gap: `"gap" is not a valid param. Use itemSpacing: 8 (number or variable name string) for spacing between children`,
+  spacing: `"spacing" is not a valid param. Use itemSpacing: 8 for spacing between children, or padding: 16 for inner padding`,
+  alignItems: `"alignItems" is not a valid param. Use counterAxisAlignItems: "CENTER" (MIN | MAX | CENTER | BASELINE)`,
+  justifyContent: `"justifyContent" is not a valid param. Use primaryAxisAlignItems: "CENTER" (MIN | MAX | CENTER | SPACE_BETWEEN)`,
+  direction: `"direction" is not a valid param. Use layoutMode: "HORIZONTAL" or "VERTICAL"`,
+  display: `"display" is not a valid param. Use layoutMode: "HORIZONTAL" or "VERTICAL" for auto-layout, or "NONE" for static frames`,
+};
+
+/**
+ * Reject unknown/wrong params on create handlers. For known wrong shapes, gives the
+ * correct schema definition and example payload. For truly unknown keys, lists them
+ * and points to the help command.
+ */
+export function rejectUnknownParams(p: any, knownKeys: ReadonlySet<string>, helpCmd: string): void {
+  const unknown: string[] = [];
+  const corrections: string[] = [];
+
+  for (const key of Object.keys(p)) {
+    if (knownKeys.has(key)) continue;
+    const correction = WRONG_SHAPE_CORRECTIONS[key];
+    if (correction) {
+      corrections.push(correction);
+    } else {
+      unknown.push(key);
+    }
+  }
+
+  if (corrections.length > 0) {
+    throw new Error(corrections.join("\n\n"));
+  }
+  if (unknown.length > 0) {
+    throw new Error(
+      `Unknown params: ${unknown.join(", ")}. ` +
+      `Use ${helpCmd} to see valid params and examples.`
+    );
+  }
+}
+
 export async function applyFillWithAutoBind(
   node: any,
   p: { fillVariableId?: string; fillVariableName?: string; fillStyleName?: string; fillColor?: any },

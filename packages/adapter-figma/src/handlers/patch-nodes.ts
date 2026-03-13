@@ -1,12 +1,13 @@
-import { batchHandler, findVariableById, findVariableByName, type Hint } from "./helpers";
+import { batchHandler, findVariableById, findVariableByName, rejectUnknownParams, type Hint } from "./helpers";
 import { setFillSingle, setStrokeSingle, setCornerSingle, setOpacitySingle } from "./fill-stroke";
 import { setEffectsSingle, setConstraintsSingle, setExportSettingsSingle, setNodePropertiesSingle } from "./effects";
 import { moveSingle, resizeSingle } from "./modify-node";
 import { updateFrameSingle } from "./update-frame";
 import { prepSetTextProperties, setTextPropertiesSingle } from "./text";
 import type { TextPropsContext } from "./text";
+import { nodeUpdate, mixinTextParams } from "@ufira/vibma/guards";
 
-// ─── Known key sets (flat params matching create shape) ─────────
+// ─── Sub-dispatch groups (handler-level concern, not schema validation) ────
 
 const SIMPLE_PROPS = ["name", "visible", "locked", "rotation", "blendMode", "layoutPositioning"] as const;
 
@@ -26,26 +27,13 @@ const LAYOUT_KEYS = ["layoutMode", "layoutWrap", "padding",
   "layoutSizingHorizontal", "layoutSizingVertical",
   "itemSpacing", "counterAxisSpacing"] as const;
 
-export const TEXT_KEYS = ["fontSize", "fontFamily", "fontStyle", "fontWeight",
-  "fontColor", "fontColorVariableName", "fontColorStyleName",
-  "textStyleId", "textStyleName",
-  "textAlignHorizontal", "textAlignVertical", "textAutoResize"] as const;
+export const TEXT_KEYS = [...mixinTextParams] as string[];
 
+// Validation set: schema-generated + handler-level extensions
 const ALL_KNOWN = new Set<string>([
-  "nodeId", "id",
-  ...SIMPLE_PROPS,
-  "x", "y", "width", "height",
-  "minWidth", "maxWidth", "minHeight", "maxHeight",
-  "opacity",
-  ...FILL_KEYS,
-  ...STROKE_KEYS,
-  ...CORNER_KEYS,
-  ...EFFECT_KEYS,
-  ...LAYOUT_KEYS,
-  ...TEXT_KEYS,
-  "constraints", "bindings", "explicitMode", "exportSettings", "properties",
-  // Instance component property keys (allowed when called from combined instance handler)
-  "componentProperties",
+  ...nodeUpdate,
+  "nodeId",              // handler alias for id
+  "componentProperties", // instance handler extension
 ]);
 
 export function hasAny(item: any, keys: readonly string[]): boolean {
@@ -71,18 +59,13 @@ async function doResize(item: any): Promise<void> {
 }
 
 export async function patchSingleNode(item: any, textCtx: TextPropsContext | null): Promise<any> {
+  rejectUnknownParams(item, ALL_KNOWN, 'frames(method: "help", topic: "update")');
   const result: any = {};
   const hints: Hint[] = [];
 
   /** Collect hints from a sub-handler result */
   function collectHints(r: any) {
     if (r?.hints) hints.push(...(r.hints as Hint[]));
-  }
-
-  // 0. Warn on unrecognized keys
-  const unknownKeys = Object.keys(item).filter(k => !ALL_KNOWN.has(k));
-  if (unknownKeys.length > 0) {
-    hints.push({ type: "warn", message: `Unknown properties ignored: ${unknownKeys.join(", ")}` });
   }
 
   // 1. Simple scalar properties
