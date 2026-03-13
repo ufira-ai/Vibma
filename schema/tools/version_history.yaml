@@ -1,0 +1,27 @@
+endpoint: version_history
+domain: document
+description: "Save named versions to the Figma file's version history."
+
+notes: |
+  // Version history lets you create named snapshots of a Figma file.
+  // Use this after completing design tasks to create an audit trail of changes.
+  // Equivalent to Figma's File → Save to Version History (Cmd+Opt+S).
+
+methods:
+  save:
+    tier: edit
+    description: Save a named version to the file's version history
+    params:
+      title:
+        type: string
+        required: true
+        description: Version title (e.g., "Added hero sections with website copy")
+      description:
+        type: string
+        optional: true
+        description: Optional longer description of what changed
+    response:
+      type: object
+      properties:
+        id: { type: string, required: true, description: Version ID returned by Figma }
+      required: [id]

@@ -18,6 +18,7 @@ import { figmaHandlers as componentsHandlers } from "./components";
 import { figmaHandlers as stylesHandlers } from "./styles";
 import { figmaHandlers as variablesHandlers } from "./variables";
 import { figmaHandlers as lintHandlers } from "./lint";
+import { figmaHandlers as versionHistoryHandlers } from "./version-history";
 
 /** Merged dispatch map: command name → handler function */
 export const allFigmaHandlers: Record<string, (params: any) => Promise<any>> = {
@@ -39,6 +40,7 @@ export const allFigmaHandlers: Record<string, (params: any) => Promise<any>> = {
   ...stylesHandlers,
   ...variablesHandlers,
   ...lintHandlers,
+  ...versionHistoryHandlers,
 
   // ─── Endpoint-style command aliases (generated endpoints use {endpoint}.{method}) ───
   // connection endpoint
@@ -195,4 +197,7 @@ export const allFigmaHandlers: Record<string, (params: any) => Promise<any>> = {
   "variables.create": variablesHandlers.variables,
   "variables.update": variablesHandlers.variables,
   "variables.delete": variablesHandlers.variables,
+
+  // ─── version_history endpoint ───
+  "version_history.save": versionHistoryHandlers.save_version_history,
 };

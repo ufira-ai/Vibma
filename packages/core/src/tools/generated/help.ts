@@ -128,6 +128,12 @@ export const helpEndpoints: Record<string, { summary: string; methods: Record<st
       "update": "# variables.update\nUpdate variable metadata and/or set values per mode\n\nExample: variables(method:\"update\", items:[{name:\"bg/primary\", modeId:\"Dark\", value:\"#1A1A2E\"}])\n\nParams:\n    items (VariableUpdateItem[], required) — Array of {name, collectionId?, rename?, description?, scopes?, modeId?, value?}\n      name (string, required) — Variable name\n      collectionId (string, optional) — Collection ID or name (required if ambiguous)\n      rename (string, optional) — Rename the variable\n      description (string, optional) — Set description\n      scopes (string[], optional) — Restrict where variable can be applied. FLOAT: CORNER_RADIUS, GAP, STROKE_FLOAT, WIDTH_HEIGHT, OPACITY, EFFECT_FLOAT, FONT_SIZE, LINE_HEIGHT, LETTER_SPACING, PARAGRAPH_SPACING, PARAGRAPH_INDENT. COLOR: ALL_FILLS, FRAME_FILL, SHAPE_FILL, TEXT_FILL, STROKE_COLOR, EFFECT_COLOR. Default: ALL_SCOPES.\n      modeId (string, optional) — Mode ID or name (e.g. \"Dark\"). Required when setting value.\n      value (variable_value, optional) — New value. Must also pass modeId to specify which mode to update.",
       "delete": "# variables.delete\nDelete variables\n\nParams:\n    name (string, optional) — Variable name\n    collectionId (string, optional) — Collection ID or name (required if ambiguous)\n    items (array, optional) — Batch: [{name, collectionId?}, ...]\n      name (string, required)\n      collectionId (string, optional) — Collection ID or name"
     }
+  },
+  "version_history": {
+    "summary": "# version_history\nSave named versions to the Figma file's version history.\n\nMethods:\n  save                 Save a named version to the file's version history [edit]\n\n// Version history lets you create named snapshots of a Figma file.\n// Use this after completing design tasks to create an audit trail of changes.\n// Equivalent to Figma's File → Save to Version History (Cmd+Opt+S).\n\nUse version_history(method: \"help\", topic: \"<method>\") for method details.",
+    "methods": {
+      "save": "# version_history.save\nSave a named version to the file's version history\n\nParams:\n    title (string, required) — Version title (e.g., \"Added hero sections with website copy\")\n    description (string, optional) — Optional longer description of what changed"
+    }
   }
 };
 

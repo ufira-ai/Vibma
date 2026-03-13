@@ -31,4 +31,6 @@ export const generatedResponseSchemas: Record<string, Record<string, unknown>> =
   },
   "variables": {
   },
+  "version_history": {
+  },
 };
