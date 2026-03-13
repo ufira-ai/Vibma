@@ -67,7 +67,7 @@ function serializeStyle(style: BaseStyle): Record<string, any> {
     // Expose bound variable name on the paint style
     const bv = (ps as any).boundVariables;
     if (bv) {
-      for (const [key, val] of Object.entries(bv)) {
+      for (const [, val] of Object.entries(bv)) {
         if (Array.isArray(val)) {
           for (const v of val) {
             if (v?.id) {

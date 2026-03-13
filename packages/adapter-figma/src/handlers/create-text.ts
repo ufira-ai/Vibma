@@ -1,4 +1,4 @@
-import { batchHandler, appendToParent, checkOverlappingSiblings, coerceColor, suggestTextStyle, applyFillWithAutoBind, styleNotFoundHint, type Hint } from "./helpers";
+import { batchHandler, appendToParent, checkOverlappingSiblings, suggestTextStyle, applyFillWithAutoBind, styleNotFoundHint, type Hint } from "./helpers";
 import { textCreate } from "@ufira/vibma/guards";
 
 // ─── Figma Handlers ──────────────────────────────────────────────
