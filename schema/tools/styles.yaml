@@ -119,6 +119,7 @@ methods:
   update:
     tier: edit
     description: Update styles by ID or name
+    example: 'styles(method:"update", items:[{id:"Surface/Primary", color:"#F5F5F5"}])'
     params:
       type:
         type: enum

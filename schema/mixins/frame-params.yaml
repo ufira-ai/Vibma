@@ -25,7 +25,7 @@ frame_params:
   strokeColor: { $ref: color, optional: true, description: "Shorthand — sets a single solid stroke (auto-binds to matching variable/style)" }
   strokeStyleName: { type: string, optional: true, description: "Paint style name for stroke" }
   strokeVariableName: { type: string, optional: true, description: "Color variable by name for stroke" }
-  strokeWeight: { type: token, optional: true, description: "Stroke weight (default: 1)" }
+  strokeWeight: { $expand: stroke, type: token }
   cornerRadius: { $expand: corners, type: token }
   effectStyleName: { type: string, optional: true, description: "Effect style name (e.g. 'Shadow/Card') for shadows, blurs" }
   layoutMode: { type: enum, values: [NONE, HORIZONTAL, VERTICAL], optional: true, description: "Layout direction (default: NONE)" }
@@ -35,7 +35,7 @@ frame_params:
   counterAxisAlignItems: { type: enum, values: [MIN, MAX, CENTER, BASELINE], optional: true }
   layoutSizingHorizontal: { type: enum, values: [FIXED, HUG, FILL], optional: true }
   layoutSizingVertical: { type: enum, values: [FIXED, HUG, FILL], optional: true }
-  itemSpacing: { type: token, optional: true, description: "Spacing between children (default: 0)" }
+  itemSpacing: { type: token, optional: true, description: "Spacing between children (number or variable name string, default: 0)" }
   counterAxisSpacing: { type: token, optional: true, description: "Gap between wrapped rows (requires layoutWrap: WRAP)" }
   minWidth: { type: number, coerce: true, optional: true, description: "Min width for responsive auto-layout" }
   maxWidth: { type: number, coerce: true, optional: true, description: "Max width for responsive auto-layout" }

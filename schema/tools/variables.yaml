@@ -110,6 +110,7 @@ methods:
   update:
     tier: edit
     description: "Update variable metadata and/or set values per mode"
+    example: 'variables(method:"update", items:[{name:"bg/primary", modeId:"Dark", value:"#1A1A2E"}])'
     params:
       items:
         type: array
@@ -124,9 +125,9 @@ methods:
             collectionId: { type: string, optional: true, description: "Collection ID or name (required if ambiguous)" }
             rename: { type: string, optional: true, description: "Rename the variable" }
             description: { type: string, optional: true, description: "Set description" }
-            scopes: { type: "string[]", coerce: json, optional: true, description: 'Restrict where variable can be applied. FLOAT: CORNER_RADIUS, GAP, STROKE_FLOAT, WIDTH_HEIGHT, OPACITY. COLOR: ALL_FILLS, FRAME_FILL, SHAPE_FILL, TEXT_FILL, STROKE_COLOR. Default: ALL_SCOPES.' }
-            modeId: { type: string, optional: true, description: "Mode ID or name (e.g. \"Dark\"). Required when setting value" }
-            value: { type: variable_value, optional: true }
+            scopes: { type: "string[]", coerce: json, optional: true, description: 'Restrict where variable can be applied. FLOAT: CORNER_RADIUS, GAP, STROKE_FLOAT, WIDTH_HEIGHT, OPACITY, EFFECT_FLOAT, FONT_SIZE, LINE_HEIGHT, LETTER_SPACING, PARAGRAPH_SPACING, PARAGRAPH_INDENT. COLOR: ALL_FILLS, FRAME_FILL, SHAPE_FILL, TEXT_FILL, STROKE_COLOR, EFFECT_COLOR. Default: ALL_SCOPES.' }
+            modeId: { type: string, optional: true, description: "Mode ID or name (e.g. \"Dark\"). Required when setting value." }
+            value: { type: variable_value, optional: true, description: "New value. Must also pass modeId to specify which mode to update." }
     response:
       type: batch_mixed
 

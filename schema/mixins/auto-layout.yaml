@@ -7,5 +7,5 @@ auto_layout_params:
   padding: { $expand: padding, type: token }
   primaryAxisAlignItems: { type: enum, values: [MIN, MAX, CENTER, SPACE_BETWEEN], optional: true }
   counterAxisAlignItems: { type: enum, values: [MIN, MAX, CENTER, BASELINE], optional: true }
-  itemSpacing: { type: token, optional: true, description: "Spacing between children (default: 0)" }
+  itemSpacing: { type: token, optional: true, description: "Spacing between children (number or variable name string, default: 0)" }
   counterAxisSpacing: { type: token, optional: true, description: "Gap between wrapped rows (requires layoutWrap: WRAP)" }

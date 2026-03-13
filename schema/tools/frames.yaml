@@ -33,7 +33,6 @@ methods:
         description: Static frame with fixed dimensions
         params:
           $mixin: frame_params
-          strokeWeight: { $expand: stroke, type: token }
           clipsContent: { type: boolean, coerce: true, optional: true }
       auto_layout:
         description: Auto-layout frame that arranges children automatically
@@ -74,8 +73,8 @@ methods:
           strokeWeight: { type: token, optional: true }
           cornerRadius: { $expand: corners, type: token }
           opacity: { type: token, optional: true }
-          layoutSizingHorizontal: { type: string, enum: [FIXED, FILL], optional: true, description: "Horizontal sizing in auto-layout parent" }
-          layoutSizingVertical: { type: string, enum: [FIXED, FILL], optional: true, description: "Vertical sizing in auto-layout parent" }
+          layoutSizingHorizontal: { type: enum, values: [FIXED, FILL], optional: true, description: "Horizontal sizing in auto-layout parent" }
+          layoutSizingVertical: { type: enum, values: [FIXED, FILL], optional: true, description: "Vertical sizing in auto-layout parent" }
       ellipse:
         description: Ellipse/circle shape node
         params:
@@ -94,8 +93,8 @@ methods:
           strokeVariableName: { type: string, optional: true, description: "Color variable by name for stroke" }
           strokeWeight: { type: token, optional: true }
           opacity: { type: token, optional: true }
-          layoutSizingHorizontal: { type: string, enum: [FIXED, FILL], optional: true, description: "Horizontal sizing in auto-layout parent" }
-          layoutSizingVertical: { type: string, enum: [FIXED, FILL], optional: true, description: "Vertical sizing in auto-layout parent" }
+          layoutSizingHorizontal: { type: enum, values: [FIXED, FILL], optional: true, description: "Horizontal sizing in auto-layout parent" }
+          layoutSizingVertical: { type: enum, values: [FIXED, FILL], optional: true, description: "Vertical sizing in auto-layout parent" }
       line:
         description: Line shape node
         params:
@@ -110,7 +109,7 @@ methods:
           strokeVariableName: { type: string, optional: true, description: "Color variable by name for stroke" }
           strokeWeight: { type: token, optional: true, description: "Line thickness (default: 1)" }
           opacity: { type: token, optional: true }
-          layoutSizingHorizontal: { type: string, enum: [FIXED, FILL], optional: true, description: "Horizontal sizing in auto-layout parent (defaults to FILL in vertical auto-layout)" }
+          layoutSizingHorizontal: { type: enum, values: [FIXED, FILL], optional: true, description: "Horizontal sizing in auto-layout parent (defaults to FILL in vertical auto-layout)" }
       group:
         description: Group existing nodes together
         params:

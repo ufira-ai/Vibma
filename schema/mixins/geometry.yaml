@@ -10,5 +10,5 @@ geometry_params:
   strokeColor: { $ref: color, optional: true, description: "Shorthand — sets a single solid stroke (auto-binds to matching variable/style)" }
   strokeStyleName: { type: string, optional: true, description: "Paint style name for stroke" }
   strokeVariableName: { type: string, optional: true, description: "Color variable by name for stroke" }
-  strokeWeight: { type: token, optional: true, description: "Stroke weight (default: 1)" }
+  strokeWeight: { $expand: stroke, type: token }
   cornerRadius: { $expand: corners, type: token }
