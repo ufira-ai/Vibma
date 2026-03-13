@@ -171,10 +171,10 @@ export const tools: ToolDef[] = [
         const itemSchema = z.object({
           id: z.string().describe("Component or component set ID"),
           propertyName: z.string().describe("Property name (include #suffix for edit/delete)"),
-          action: z.enum(["add", "edit", "delete", "rename_variant"]).optional().describe("Action: \"add\" (default), \"edit\", \"delete\", or \"rename_variant\""),
+          action: z.enum(["add", "edit", "delete", "rename_variant"]).optional().describe("\"add\" (default) creates property, \"edit\" renames property or changes default, \"delete\" removes property, \"rename_variant\" renames a variant option value"),
           type: z.enum(["BOOLEAN", "TEXT", "INSTANCE_SWAP", "VARIANT"]).optional().describe("Property type (required for add)"),
-          defaultValue: S.stringOrBoolean.optional().describe("Default value (required for add)"),
-          name: z.string().optional().describe("New name (for edit action)"),
+          defaultValue: S.stringOrBoolean.optional().describe("Default value (add/edit). For rename_variant: the CURRENT option name to rename"),
+          name: z.string().optional().describe("New name — for edit: renames the property itself, for rename_variant: the new option value name"),
           preferredValues: flexJson(z.array(z.record(z.string(), z.unknown()))).optional().describe("Preferred values for INSTANCE_SWAP"),
         }).passthrough();
         try { params.items = z.array(itemSchema).parse(params.items); }
@@ -740,7 +740,7 @@ export const tools: ToolDef[] = [
       if (!params.items) return;
       if (m === "create") {
         const itemSchema = z.object({
-          text: z.string().describe("Text content"),
+          text: z.string().optional().describe("Text content (also accepts 'characters' as alias)"),
           name: z.string().optional().describe("Layer name"),
           x: z.number().optional(),
           y: z.number().optional(),

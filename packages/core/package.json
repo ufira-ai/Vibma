@@ -44,6 +44,10 @@
       "import": "./dist/tools/registry.js",
       "require": "./dist/tools/registry.cjs"
     },
+    "./guards": {
+      "import": "./dist/tools/generated/guards.js",
+      "require": "./dist/tools/generated/guards.cjs"
+    },
     "./utils/color": {
       "import": "./dist/utils/color.js",
       "require": "./dist/utils/color.cjs"

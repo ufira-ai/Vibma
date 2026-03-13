@@ -1,4 +1,9 @@
-import { batchHandler, appendToParent, checkOverlappingSiblings, solidPaint, applyFillWithAutoBind, applyStrokeWithAutoBind, applyCornerRadius, applyTokens, findVariableById, findColorVariableByName, type Hint } from "./helpers";
+import { batchHandler, appendToParent, checkOverlappingSiblings, solidPaint, applyFillWithAutoBind, applyStrokeWithAutoBind, applyCornerRadius, applyTokens, findVariableById, findColorVariableByName, rejectUnknownParams, type Hint } from "./helpers";
+import {
+  framesCreateSection, framesCreateSvg, framesCreateRectangle,
+  framesCreateEllipse, framesCreateLine, framesCreateGroup,
+  framesCreateBooleanOperation,
+} from "@ufira/vibma/guards";
 
 /**
  * Apply auto-layout sizing to a shape node after appending to parent.
@@ -18,9 +23,14 @@ async function applyLayoutSizing(
   if (v && "layoutSizingVertical" in node) (node as any).layoutSizingVertical = v;
 }
 
+// Handler-level extensions: params accepted by handler but not in YAML schema
+const SVG_KEYS = new Set([...framesCreateSvg, "fillVariableId"]) as ReadonlySet<string>;
+const LINE_KEYS = new Set([...framesCreateLine, "strokeVariableId", "strokeStyleName"]) as ReadonlySet<string>;
+
 // ─── Figma Handlers ──────────────────────────────────────────────
 
 async function createSingleSection(p: any) {
+  rejectUnknownParams(p, framesCreateSection, 'frames(method: "help", topic: "create")');
   const section = figma.createSection();
   section.x = p.x ?? 0;
   section.y = p.y ?? 0;
@@ -38,6 +48,7 @@ async function createSingleSection(p: any) {
 }
 
 async function createSingleSvg(p: any) {
+  rejectUnknownParams(p, SVG_KEYS, 'frames(method: "help", topic: "create")');
   const node = figma.createNodeFromSvg(p.svg);
   node.x = p.x ?? 0;
   node.y = p.y ?? 0;
@@ -87,6 +98,7 @@ async function createSingleSvg(p: any) {
 // ─── Rectangle ──────────────────────────────────────────────────
 
 async function createSingleRectangle(p: any) {
+  rejectUnknownParams(p, framesCreateRectangle, 'frames(method: "help", topic: "create")');
   const rect = figma.createRectangle();
   rect.x = p.x ?? 0;
   rect.y = p.y ?? 0;
@@ -110,6 +122,7 @@ async function createSingleRectangle(p: any) {
 // ─── Ellipse ────────────────────────────────────────────────────
 
 async function createSingleEllipse(p: any) {
+  rejectUnknownParams(p, framesCreateEllipse, 'frames(method: "help", topic: "create")');
   const ellipse = figma.createEllipse();
   ellipse.x = p.x ?? 0;
   ellipse.y = p.y ?? 0;
@@ -132,6 +145,7 @@ async function createSingleEllipse(p: any) {
 // ─── Line ───────────────────────────────────────────────────────
 
 async function createSingleLine(p: any) {
+  rejectUnknownParams(p, LINE_KEYS, 'frames(method: "help", topic: "create")');
   const line = figma.createLine();
   line.x = p.x ?? 0;
   line.y = p.y ?? 0;
@@ -163,6 +177,7 @@ async function createSingleLine(p: any) {
 // ─── Group ──────────────────────────────────────────────────────
 
 async function createSingleGroup(p: any) {
+  rejectUnknownParams(p, framesCreateGroup, 'frames(method: "help", topic: "create")');
   if (!p.nodeIds?.length) throw new Error("nodeIds required (at least 1 node)");
 
   const nodes: SceneNode[] = [];
@@ -186,6 +201,7 @@ async function createSingleGroup(p: any) {
 // ─── Boolean Operation ─────────────────────────────────────────
 
 async function createSingleBooleanOperation(p: any) {
+  rejectUnknownParams(p, framesCreateBooleanOperation, 'frames(method: "help", topic: "create")');
   if (!p.nodeIds?.length || p.nodeIds.length < 2) throw new Error("nodeIds required (at least 2 nodes)");
 
   const nodes: SceneNode[] = [];
