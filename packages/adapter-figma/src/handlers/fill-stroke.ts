@@ -1,16 +1,6 @@
-import { applyToken, applyTokens, batchHandler, coerceColor, findVariableById, findVariableByName, solidPaint, styleNotFoundHint, suggestStyleForColor, type Hint } from "./helpers";
+import { applyToken, applyTokens, applyFillWithAutoBind, applyStrokeWithAutoBind, batchHandler, coerceColor, solidPaint, type Hint } from "./helpers";
 
 // ─── Figma Handlers ──────────────────────────────────────────────
-
-async function resolveStyle(name: string): Promise<{ match: { id: string; name: string } | null, available: string[] }> {
-  const styles = await figma.getLocalPaintStylesAsync();
-  const available = styles.map(s => s.name);
-  const exact = styles.find(s => s.name === name);
-  if (exact) return { match: { id: exact.id, name: exact.name }, available };
-  const fuzzy = styles.find(s => s.name.toLowerCase().includes(name.toLowerCase()));
-  if (fuzzy) return { match: { id: fuzzy.id, name: fuzzy.name }, available };
-  return { match: null, available };
-}
 
 export async function setFillSingle(p: any): Promise<any> {
   const node = await figma.getNodeByIdAsync(p.nodeId);
@@ -22,41 +12,23 @@ export async function setFillSingle(p: any): Promise<any> {
     return {};
   }
 
-  if (p.variableName || p.variableId) {
-    const v = p.variableName
-      ? await findVariableByName(p.variableName)
-      : await findVariableById(p.variableId);
-    if (!v) throw new Error(`Fill variable '${p.variableName || p.variableId}' not found`);
-    const c = coerceColor(p.color) ?? { r: 0, g: 0, b: 0, a: 1 };
-    (node as any).fills = [solidPaint(c)];
-    const bound = figma.variables.setBoundVariableForPaint((node as any).fills[0], "color", v);
-    (node as any).fills = [bound];
-    return {};
-  } else if (p.styleName) {
-    const { match, available } = await resolveStyle(p.styleName);
-    if (match) {
-      await (node as any).setFillStyleIdAsync(match.id);
-      const result: any = { matchedStyle: match.name };
-      if (p.color) result.hints = [{ type: "warn", message: "Both styleName and color provided — used styleName, ignored color. Pass only one." }];
-      return result;
+  const hints: Hint[] = [];
+  // Normalize to fills (same priority as batchHandler: variableName > styleName > color)
+  let fills = p.fills;
+  if (fills === undefined) {
+    if (p.variableName) fills = { _variable: p.variableName };
+    else if (p.variableId) fills = { _variableId: p.variableId };
+    else if (p.styleName) fills = { _style: p.styleName };
+    else if (p.color !== undefined) {
+      const c = coerceColor(p.color);
+      fills = c ? [solidPaint(c)] : p.color;
     }
-    throw new Error(styleNotFoundHint("styleName", p.styleName, available).message);
-  } else if (p.color) {
-    const c = coerceColor(p.color);
-    if (!c) throw new Error(`Invalid fill color: ${JSON.stringify(p.color)}. Use hex "#FF0000" or {r, g, b, a?} with values 0-1.`);
-    (node as any).fills = [{ type: "SOLID", color: { r: c.r, g: c.g, b: c.b }, opacity: c.a }];
-    const match = await suggestStyleForColor(c, "styleName", "ALL_FILLS");
-    if (match.variable) {
-      const bound = figma.variables.setBoundVariableForPaint((node as any).fills[0], "color", match.variable);
-      (node as any).fills = [bound];
-      return { hints: [match.hint] };
-    }
-    if (match.paintStyleId) {
-      try { await (node as any).setFillStyleIdAsync(match.paintStyleId); return { hints: [match.hint] }; } catch {}
-    }
-    return { hints: [match.hint] };
   }
-  return {};
+  await applyFillWithAutoBind(node, { fills }, hints);
+
+  const result: any = {};
+  if (hints.length > 0) result.hints = hints;
+  return result;
 }
 
 export async function setStrokeSingle(p: any): Promise<any> {
@@ -64,53 +36,27 @@ export async function setStrokeSingle(p: any): Promise<any> {
   if (!node) throw new Error(`Node not found: ${p.nodeId}`);
   if (!("strokes" in node)) throw new Error(`Node does not support strokes: ${p.nodeId}`);
 
-  if (p.variableName || p.variableId) {
-    const v = p.variableName
-      ? await findVariableByName(p.variableName)
-      : await findVariableById(p.variableId);
-    if (!v) throw new Error(`Stroke variable '${p.variableName || p.variableId}' not found`);
-    const c = coerceColor(p.color) ?? { r: 0, g: 0, b: 0, a: 1 };
-    (node as any).strokes = [solidPaint(c)];
-    const bound = figma.variables.setBoundVariableForPaint((node as any).strokes[0], "color", v);
-    (node as any).strokes = [bound];
-  } else if (p.styleName) {
-    const { match, available } = await resolveStyle(p.styleName);
-    if (match) {
-      await (node as any).setStrokeStyleIdAsync(match.id);
-      const result: any = { matchedStyle: match.name };
-      const allHints: Hint[] = [];
-      if (p.color) allHints.push({ type: "warn", message: "Both styleName and color provided — used styleName, ignored color. Pass only one." });
-      if (p.strokeWeight !== undefined && "strokeWeight" in node) {
-        await applyTokens(node, { strokeWeight: p.strokeWeight }, allHints);
-      }
-      if (allHints.length > 0) result.hints = allHints;
-      return result;
-    }
-    throw new Error(styleNotFoundHint("styleName", p.styleName, available).message);
-  } else if (p.color) {
-    const c = coerceColor(p.color);
-    if (!c) throw new Error(`Invalid stroke color: ${JSON.stringify(p.color)}. Use hex "#FF0000" or {r, g, b, a?} with values 0-1.`);
-    (node as any).strokes = [{ type: "SOLID", color: { r: c.r, g: c.g, b: c.b }, opacity: c.a }];
-  }
   const hints: Hint[] = [];
-  const swFields: Record<string, any> = {};
-  for (const f of ["strokeWeight", "strokeTopWeight", "strokeBottomWeight", "strokeLeftWeight", "strokeRightWeight"]) {
-    if (p[f] !== undefined && f in node) swFields[f] = p[f];
-  }
-  await applyTokens(node, swFields, hints);
-  if (p.color && !p.styleName && !p.variableId && !p.variableName) {
-    const c = coerceColor(p.color);
-    if (c) {
-      const match = await suggestStyleForColor(c, "styleName", "STROKE_COLOR");
-      if (match.variable) {
-        const bound = figma.variables.setBoundVariableForPaint((node as any).strokes[0], "color", match.variable);
-        (node as any).strokes = [bound];
-      } else if (match.paintStyleId) {
-        try { await (node as any).setStrokeStyleIdAsync(match.paintStyleId); } catch {}
-      }
-      hints.push(match.hint);
+  // Normalize legacy flat params → strokes (canonical) if not already set
+  let strokes = p.strokes;
+  if (strokes === undefined) {
+    if (p.variableName) strokes = { _variable: p.variableName };
+    else if (p.variableId) strokes = { _variableId: p.variableId };
+    else if (p.styleName) strokes = { _style: p.styleName };
+    else if (p.color !== undefined) {
+      const c = coerceColor(p.color);
+      strokes = c ? [solidPaint(c)] : p.color;
     }
   }
+  await applyStrokeWithAutoBind(node, {
+    strokes,
+    strokeWeight: p.strokeWeight,
+    strokeTopWeight: p.strokeTopWeight,
+    strokeBottomWeight: p.strokeBottomWeight,
+    strokeLeftWeight: p.strokeLeftWeight,
+    strokeRightWeight: p.strokeRightWeight,
+  }, hints);
+
   const result: any = {};
   if (hints.length > 0) result.hints = hints;
   return result;

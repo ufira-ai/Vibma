@@ -1,5 +1,10 @@
 import { batchHandler, coerceColor, findVariableById, findVariableByName, type Hint } from "./helpers";
 import { createDispatcher, paginate, pickFields } from "@ufira/vibma/endpoint";
+import {
+  variablesCreate, variablesUpdate, variablesDelete,
+  variableCollectionsCreate, variableCollectionsUpdate, variableCollectionsDelete,
+  variableCollectionsAddMode, variableCollectionsRenameMode, variableCollectionsRemoveMode,
+} from "@ufira/vibma/guards";
 
 // ─── Figma Handlers ──────────────────────────────────────────────
 
@@ -331,21 +336,21 @@ async function getNodeVariablesFigma(params: any) {
 
 export const figmaHandlers: Record<string, (params: any) => Promise<any>> = {
   variable_collections: createDispatcher({
-    create: (p) => batchHandler(p, createCollectionSingle),
+    create: (p) => batchHandler(p, createCollectionSingle, { keys: variableCollectionsCreate, help: 'variable_collections(method: "help", topic: "create")' }),
     get: getCollectionFigma,
     list: listCollectionsFigma,
-    update: (p) => batchHandler(p, renameCollectionSingle),
-    delete: (p) => batchHandler(p, deleteCollectionSingle),
-    add_mode: (p) => batchHandler(p, addModeSingle),
-    rename_mode: (p) => batchHandler(p, renameModeSingle),
-    remove_mode: (p) => batchHandler(p, removeModeSingle),
+    update: (p) => batchHandler(p, renameCollectionSingle, { keys: variableCollectionsUpdate, help: 'variable_collections(method: "help", topic: "update")' }),
+    delete: (p) => batchHandler(p, deleteCollectionSingle, { keys: variableCollectionsDelete, help: 'variable_collections(method: "help", topic: "delete")' }),
+    add_mode: (p) => batchHandler(p, addModeSingle, { keys: variableCollectionsAddMode, help: 'variable_collections(method: "help", topic: "add_mode")' }),
+    rename_mode: (p) => batchHandler(p, renameModeSingle, { keys: variableCollectionsRenameMode, help: 'variable_collections(method: "help", topic: "rename_mode")' }),
+    remove_mode: (p) => batchHandler(p, removeModeSingle, { keys: variableCollectionsRemoveMode, help: 'variable_collections(method: "help", topic: "remove_mode")' }),
   }),
   variables: createDispatcher({
-    create: (p) => batchHandler(p, createVariableSingle),
+    create: (p) => batchHandler(p, createVariableSingle, { keys: variablesCreate, help: 'variables(method: "help", topic: "create")' }),
     get: getVariableFigma,
     list: listVariablesFigma,
-    update: (p) => batchHandler(p, updateVariableSingle),
-    delete: (p) => batchHandler(p, deleteVariableSingle),
+    update: (p) => batchHandler(p, updateVariableSingle, { keys: variablesUpdate, help: 'variables(method: "help", topic: "update")' }),
+    delete: (p) => batchHandler(p, deleteVariableSingle, { keys: variablesDelete, help: 'variables(method: "help", topic: "delete")' }),
   }),
   set_variable_binding: (p) => batchHandler(p, setBindingSingle),
   set_explicit_variable_mode: (p) => batchHandler(p, setExplicitModeSingle),

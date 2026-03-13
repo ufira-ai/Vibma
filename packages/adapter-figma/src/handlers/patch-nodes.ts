@@ -1,4 +1,4 @@
-import { batchHandler, findVariableById, findVariableByName, rejectUnknownParams, type Hint } from "./helpers";
+import { batchHandler, findVariableById, findVariableByName, type Hint } from "./helpers";
 import { setFillSingle, setStrokeSingle, setCornerSingle, setOpacitySingle } from "./fill-stroke";
 import { setEffectsSingle, setConstraintsSingle, setExportSettingsSingle, setNodePropertiesSingle } from "./effects";
 import { moveSingle, resizeSingle } from "./modify-node";
@@ -11,9 +11,9 @@ import { nodeUpdate, mixinTextParams } from "@ufira/vibma/guards";
 
 const SIMPLE_PROPS = ["name", "visible", "locked", "rotation", "blendMode", "layoutPositioning"] as const;
 
-const FILL_KEYS = ["fillColor", "fillStyleName", "fillVariableName", "clearFill"] as const;
+const FILL_KEYS = ["fills", "fillColor", "fillStyleName", "fillVariableName", "clearFill"] as const;
 
-const STROKE_KEYS = ["strokeColor", "strokeStyleName", "strokeVariableName", "strokeWeight",
+const STROKE_KEYS = ["strokes", "strokeColor", "strokeStyleName", "strokeVariableName", "strokeWeight",
   "strokeTopWeight", "strokeBottomWeight", "strokeLeftWeight", "strokeRightWeight"] as const;
 
 const CORNER_KEYS = ["cornerRadius", "topLeftRadius", "topRightRadius",
@@ -59,7 +59,6 @@ async function doResize(item: any): Promise<void> {
 }
 
 export async function patchSingleNode(item: any, textCtx: TextPropsContext | null): Promise<any> {
-  rejectUnknownParams(item, ALL_KNOWN, 'frames(method: "help", topic: "update")');
   const result: any = {};
   const hints: Hint[] = [];
 
@@ -100,33 +99,27 @@ export async function patchSingleNode(item: any, textCtx: TextPropsContext | nul
     await doResize(item);
   }
 
-  // 5. Fill (flat: fillColor, fillStyleName, fillVariableName, clearFill)
+  // 5. Fill (fills is canonical — all aliases normalized by batchHandler)
   if (hasAny(item, FILL_KEYS)) {
     const r = await setFillSingle({
       nodeId: item.nodeId,
-      color: item.fillColor,
-      styleName: item.fillStyleName,
-      variableName: item.fillVariableName,
+      fills: item.fills,
       clear: item.clearFill,
     });
-    if (r.matchedStyle) result.matchedFillStyle = r.matchedStyle;
     collectHints(r);
   }
 
-  // 6. Stroke (flat: strokeColor, strokeStyleName, strokeVariableName, strokeWeight, strokeTopWeight, ...)
+  // 6. Stroke (strokes is canonical — all aliases normalized by batchHandler)
   if (hasAny(item, STROKE_KEYS)) {
     const r = await setStrokeSingle({
       nodeId: item.nodeId,
-      color: item.strokeColor,
+      strokes: item.strokes,
       strokeWeight: item.strokeWeight,
-      styleName: item.strokeStyleName,
-      variableName: item.strokeVariableName,
       strokeTopWeight: item.strokeTopWeight,
       strokeBottomWeight: item.strokeBottomWeight,
       strokeLeftWeight: item.strokeLeftWeight,
       strokeRightWeight: item.strokeRightWeight,
     });
-    if (r.matchedStyle) result.matchedStrokeStyle = r.matchedStyle;
     collectHints(r);
   }
 
@@ -195,7 +188,7 @@ export async function patchSingleNode(item: any, textCtx: TextPropsContext | nul
     await doResize(item);
   }
 
-  // 13. Text (flat: fontSize, fontFamily, fontStyle, fontWeight, fontColor, ...)
+  // 13. Text (flat: fontSize, fontFamily, fontStyle, fontWeight, fills, ...)
   const hasText = hasAny(item, TEXT_KEYS);
   if (hasText && textCtx) {
     const r = await setTextPropertiesSingle({
@@ -204,9 +197,7 @@ export async function patchSingleNode(item: any, textCtx: TextPropsContext | nul
       fontFamily: item.fontFamily,
       fontStyle: item.fontStyle,
       fontWeight: item.fontWeight,
-      fontColor: item.fontColor,
-      fontColorVariableName: item.fontColorVariableName,
-      fontColorStyleName: item.fontColorStyleName,
+      fills: item.fills,
       textStyleId: item.textStyleId,
       textStyleName: item.textStyleName,
       textAlignHorizontal: item.textAlignHorizontal,
@@ -302,7 +293,6 @@ async function patchNodesBatch(params: any) {
       fontFamily: item.fontFamily,
       fontStyle: item.fontStyle,
       fontWeight: item.fontWeight,
-      fontColor: item.fontColor,
       textStyleId: item.textStyleId,
       textStyleName: item.textStyleName,
     }));
@@ -310,7 +300,7 @@ async function patchNodesBatch(params: any) {
   }
 
   // Phase 2: Process each item
-  return batchHandler(params, (item: any) => patchSingleNode(item, textCtx));
+  return batchHandler(params, (item: any) => patchSingleNode(item, textCtx), { keys: ALL_KNOWN, help: 'frames(method: "help", topic: "update")' });
 }
 
 export const figmaHandlers: Record<string, (params: any) => Promise<any>> = {

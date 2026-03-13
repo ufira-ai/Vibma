@@ -56,9 +56,12 @@ methods:
             fontWeight:
               type: number
               description: "100-900 (default: 400). Ignored when fontStyle is set."
+            fills:
+              type: array
+              description: "Text color paints — e.g. [{type: 'SOLID', color: '#hex'}]. Same as node fills."
             fontColor:
               type: color
-              description: "Text color (auto-binds to matching variable/style)"
+              description: "Shorthand — sets text color (auto-binds to matching variable/style)"
             fontColorVariableName:
               type: string
               description: "Bind color variable by name e.g. 'text/primary'"

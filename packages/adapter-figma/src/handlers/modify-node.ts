@@ -39,7 +39,17 @@ async function cloneSingle(p: any) {
   if (p.parentId) {
     const parent = await figma.getNodeByIdAsync(p.parentId);
     if (!parent || !("appendChild" in parent)) throw new Error(`Invalid parent: ${p.parentId}`);
-    (parent as any).appendChild(clone);
+    try {
+      (parent as any).appendChild(clone);
+    } catch (e: any) {
+      clone.remove();
+      const isComponent = node.type === "COMPONENT" || node.type === "COMPONENT_SET";
+      const parentIsComponent = parent.type === "COMPONENT" || parent.type === "COMPONENT_SET";
+      if (isComponent && parentIsComponent) {
+        throw new Error(`Cannot nest component "${(node as any).name}" inside component "${(parent as any).name}". Use instances(method: "create", items: [{componentId: "${node.id}", parentId: "${p.parentId}"}]) to create an instance instead.`);
+      }
+      throw new Error(`Cannot append "${(node as any).name}" to "${(parent as any).name}": ${e.message}`);
+    }
   } else if (node.parent) {
     (node.parent as any).appendChild(clone);
   } else {

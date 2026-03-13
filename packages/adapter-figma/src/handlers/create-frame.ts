@@ -1,4 +1,4 @@
-import { batchHandler, appendToParent, checkOverlappingSiblings, applyFillWithAutoBind, applyStrokeWithAutoBind, applyCornerRadius, applyTokens, rejectUnknownParams, type Hint } from "./helpers";
+import { batchHandler, appendToParent, checkOverlappingSiblings, applyFillWithAutoBind, applyStrokeWithAutoBind, applyCornerRadius, applyTokens, type Hint } from "./helpers";
 import { looksInteractive } from "@ufira/vibma/utils/wcag";
 import { framesCreateFrame, framesCreateAutoLayout } from "@ufira/vibma/guards";
 
@@ -146,7 +146,6 @@ export async function setupFrameNode(
 // ─── Figma Handlers ──────────────────────────────────────────────
 
 async function createSingleFrame(p: any) {
-  rejectUnknownParams(p, framesCreateFrame, 'frames(method: "help", topic: "create")');
   const frame = figma.createFrame();
   frame.x = p.x ?? 0;
   frame.y = p.y ?? 0;
@@ -162,8 +161,6 @@ async function createSingleFrame(p: any) {
 }
 
 async function createSingleAutoLayout(p: any) {
-  rejectUnknownParams(p, framesCreateAutoLayout, 'frames(method: "help", topic: "create")');
-
   // Expand padding shorthand → per-edge (token values preserved)
   if (p.padding !== undefined) {
     p.paddingTop ??= p.padding;
@@ -249,6 +246,6 @@ async function createSingleAutoLayout(p: any) {
 }
 
 export const figmaHandlers: Record<string, (params: any) => Promise<any>> = {
-  create_frame: (p) => batchHandler(p, createSingleFrame),
-  create_auto_layout: (p) => batchHandler(p, createSingleAutoLayout),
+  create_frame: (p) => batchHandler(p, createSingleFrame, { keys: framesCreateFrame, help: 'frames(method: "help", topic: "create")' }),
+  create_auto_layout: (p) => batchHandler(p, createSingleAutoLayout, { keys: framesCreateAutoLayout, help: 'frames(method: "help", topic: "create")' }),
 };

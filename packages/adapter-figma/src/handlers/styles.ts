@@ -2,6 +2,10 @@ import { batchHandler, coerceColor, findColorVariableByName, suggestStyleForColo
 import { resolveFontAsync, clearFontCache } from "./create-text";
 import { createDispatcher, paginate, pickFields } from "@ufira/vibma/endpoint";
 import type { ListResponse } from "@ufira/vibma/endpoint";
+import {
+  stylesCreatePaint, stylesCreateText, stylesCreateEffect, stylesCreateGrid,
+  stylesUpdate, stylesDelete,
+} from "@ufira/vibma/guards";
 
 // ─── TypeScript Types ────────────────────────────────────────────
 
@@ -395,7 +399,7 @@ async function createTextStyleBatch(params: any) {
     p._resolvedFontStyle = resolved.get(key);
   }
 
-  return batchHandler(params, createTextStyleSingle);
+  return batchHandler(params, createTextStyleSingle, { keys: stylesCreateText, help: 'styles(method: "help", topic: "create")' });
 }
 
 async function patchStylesBatch(params: any) {
@@ -420,7 +424,7 @@ async function patchStylesBatch(params: any) {
     } catch { /* skip -- will error in batchHandler */ }
   }
 
-  return batchHandler(params, patchStyleSingle);
+  return batchHandler(params, patchStyleSingle, { keys: stylesUpdate, help: 'styles(method: "help", topic: "update")' });
 }
 
 // ─── Figma Dispatcher ────────────────────────────────────────────
@@ -429,16 +433,16 @@ export const figmaHandlers: Record<string, (params: any) => Promise<any>> = {
   styles: createDispatcher({
     create: (p: StyleParams & { method: "create" }) => {
       switch (p.type) {
-        case "paint":  return batchHandler(p, createPaintStyleSingle);
+        case "paint":  return batchHandler(p, createPaintStyleSingle, { keys: stylesCreatePaint, help: 'styles(method: "help", topic: "create")' });
         case "text":   return createTextStyleBatch(p);
-        case "effect": return batchHandler(p, createEffectStyleSingle);
-        case "grid":   return batchHandler(p, createGridStyleSingle);
+        case "effect": return batchHandler(p, createEffectStyleSingle, { keys: stylesCreateEffect, help: 'styles(method: "help", topic: "create")' });
+        case "grid":   return batchHandler(p, createGridStyleSingle, { keys: stylesCreateGrid, help: 'styles(method: "help", topic: "create")' });
         default: throw new Error(`create requires type: "paint", "text", "effect", or "grid"`);
       }
     },
     get:    (p: StyleParams & { method: "get" })    => getStyleByIdFigma(p),
     list:   (p: StyleParams & { method: "list" })   => listStylesFigma(p),
     update: (p: StyleParams & { method: "update" }) => patchStylesBatch(p),
-    delete: (p: StyleParams & { method: "delete" }) => batchHandler(p, removeStyleSingle),
+    delete: (p: StyleParams & { method: "delete" }) => batchHandler(p, removeStyleSingle, { keys: stylesDelete, help: 'styles(method: "help", topic: "delete")' }),
   }),
 };

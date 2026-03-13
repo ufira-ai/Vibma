@@ -1,6 +1,11 @@
 import { batchHandler, appendToParent, checkOverlappingSiblings, applyTokens, type Hint } from "./helpers";
 import { setupFrameNode } from "./create-frame";
 import { createDispatcher, paginate, pickFields } from "@ufira/vibma/endpoint";
+import {
+  componentsCreateComponent, componentsCreateFromNode, componentsCreateVariantSet,
+  componentsUpdate, instancesCreate, instancesUpdate, instancesSwap,
+  instancesDetach, instancesResetOverrides, nodeUpdate,
+} from "@ufira/vibma/guards";
 
 function findTextNodes(node: BaseNode, skipInstances = false): TextNode[] {
   if (node.type === "TEXT") return [node as TextNode];
@@ -44,6 +49,12 @@ function serializeComponent(node: any): Record<string, any> {
 
 async function createComponentSingle(p: any) {
   if (!p.name) throw new Error("Missing name");
+
+  // When layoutMode is set, default to HUG sizing (same as auto_layout frames)
+  if (p.layoutMode && p.layoutMode !== "NONE") {
+    p.layoutSizingHorizontal ??= "HUG";
+    p.layoutSizingVertical ??= "HUG";
+  }
 
   const comp = figma.createComponent();
   comp.x = p.x ?? 0;
@@ -215,9 +226,9 @@ async function combineSingle(p: any) {
 
 async function createComponentDispatch(params: any) {
   switch (params.type) {
-    case "component": return batchHandler(params, createComponentSingle);
-    case "from_node": return batchHandler(params, fromNodeSingle);
-    case "variant_set": return batchHandler(params, combineSingle);
+    case "component": return batchHandler(params, createComponentSingle, { keys: componentsCreateComponent, help: 'components(method: "help", topic: "create")' });
+    case "from_node": return batchHandler(params, fromNodeSingle, { keys: componentsCreateFromNode, help: 'components(method: "help", topic: "create")' });
+    case "variant_set": return batchHandler(params, combineSingle, { keys: componentsCreateVariantSet, help: 'components(method: "help", topic: "create")' });
     default: throw new Error(`Unknown create type: ${params.type}`);
   }
 }
@@ -522,21 +533,8 @@ async function instanceResetOverridesSingle(p: any) {
 import { patchSingleNode, hasAny, TEXT_KEYS } from "./patch-nodes";
 import { prepSetTextProperties } from "./text";
 
-const VISUAL_KEYS = [
-  "fillColor", "fillStyleName", "fillVariableName", "clearFill",
-  "strokeColor", "strokeStyleName", "strokeVariableName", "strokeWeight",
-  "strokeTopWeight", "strokeBottomWeight", "strokeLeftWeight", "strokeRightWeight",
-  "cornerRadius", "topLeftRadius", "topRightRadius", "bottomRightRadius", "bottomLeftRadius",
-  "effects", "effectStyleName", "opacity",
-  "layoutMode", "layoutWrap", "padding", "paddingTop", "paddingRight", "paddingBottom", "paddingLeft",
-  "primaryAxisAlignItems", "counterAxisAlignItems", "layoutSizingHorizontal", "layoutSizingVertical",
-  "itemSpacing", "counterAxisSpacing",
-  "fontSize", "fontFamily", "fontStyle", "fontWeight", "fontColor", "fontColorVariableName",
-  "fontColorStyleName", "textStyleId", "textStyleName", "textAlignHorizontal", "textAlignVertical", "textAutoResize",
-  "name", "visible", "locked", "rotation", "blendMode", "layoutPositioning",
-  "x", "y", "width", "height", "minWidth", "maxWidth", "minHeight", "maxHeight",
-  "constraints", "bindings", "explicitMode", "exportSettings",
-];
+// Visual keys derived from generated nodeUpdate guard — single source of truth
+const VISUAL_KEYS = [...nodeUpdate];
 
 /**
  * Combined instances.update handler: supports visual PatchItem params AND component properties.
@@ -548,7 +546,7 @@ export async function instanceUpdateCombined(p: any): Promise<any> {
 
   if (!anyVisual) {
     // Pure component property update — use the existing dispatcher
-    return batchHandler(p, instanceUpdateSingle);
+    return batchHandler(p, instanceUpdateSingle, { keys: instancesUpdate, help: 'instances(method: "help", topic: "update")' });
   }
 
   // Prep text context if needed
@@ -561,7 +559,6 @@ export async function instanceUpdateCombined(p: any): Promise<any> {
       fontFamily: item.fontFamily,
       fontStyle: item.fontStyle,
       fontWeight: item.fontWeight,
-      fontColor: item.fontColor,
       textStyleId: item.textStyleId,
       textStyleName: item.textStyleName,
     }));
@@ -596,7 +593,7 @@ export async function instanceUpdateCombined(p: any): Promise<any> {
 
     if (hints.length > 0) result.hints = hints;
     return result;
-  });
+  }, { keys: instancesUpdate, help: 'instances(method: "help", topic: "update")' });
 }
 
 // ─── Handler Exports ─────────────────────────────────────────────
@@ -606,15 +603,15 @@ export const figmaHandlers: Record<string, (params: any) => Promise<any>> = {
     create: createComponentDispatch,
     get: getComponentFigma,
     list: listComponentsFigma,
-    update: (p) => batchHandler(p, updateComponentPropertySingle),
+    update: (p) => batchHandler(p, updateComponentPropertySingle, { keys: componentsUpdate, help: 'components(method: "help", topic: "update")' }),
     delete: (p) => batchHandler(p, deleteComponentSingle),
   }),
   instances: createDispatcher({
-    create: (p) => batchHandler(p, instanceCreateSingle),
+    create: (p) => batchHandler(p, instanceCreateSingle, { keys: instancesCreate, help: 'instances(method: "help", topic: "create")' }),
     get: instanceGetFigma,
-    update: (p) => batchHandler(p, instanceUpdateSingle),
-    swap: (p) => batchHandler(p, instanceSwapSingle),
-    detach: (p) => batchHandler(p, instanceDetachSingle),
-    reset_overrides: (p) => batchHandler(p, instanceResetOverridesSingle),
+    update: (p) => batchHandler(p, instanceUpdateSingle, { keys: instancesUpdate, help: 'instances(method: "help", topic: "update")' }),
+    swap: (p) => batchHandler(p, instanceSwapSingle, { keys: instancesSwap, help: 'instances(method: "help", topic: "swap")' }),
+    detach: (p) => batchHandler(p, instanceDetachSingle, { keys: instancesDetach, help: 'instances(method: "help", topic: "detach")' }),
+    reset_overrides: (p) => batchHandler(p, instanceResetOverridesSingle, { keys: instancesResetOverrides, help: 'instances(method: "help", topic: "reset_overrides")' }),
   }),
 };

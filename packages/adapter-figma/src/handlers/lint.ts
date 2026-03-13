@@ -132,8 +132,8 @@ const FIX_INSTRUCTIONS: Record<string, string> = {
   "hug-cross-axis": 'Child has HUG on the cross-axis of a constrained parent — it won\'t fill the available space. Text won\'t wrap and elements look undersized. Fix: set the cross-axis sizing to FILL. For a vertical container: frames(method:"update", items:[{id, layoutSizingHorizontal:"FILL"}]). For a horizontal container: frames(method:"update", items:[{id, layoutSizingVertical:"FILL"}]).',
   "unbounded-hug": 'HUG on both axes breaks responsive behavior — content grows unboundedly, text won\'t wrap, and nested hug chains create unpredictable sizing cascades. For frames: FILL or FIXED width + HUG height (mirrors CSS block-level elements). For text nodes: use FILL width + HUG height so text wraps within its parent, or set textAutoResize:"HEIGHT" for fixed-width wrapping. Fix frames: frames(method:"update", items:[{id, layout:{layoutSizingHorizontal:"FILL"}}]). Fix text: text(method:"update", items:[{id, layoutSizingHorizontal:"FILL", layoutSizingVertical:"HUG"}]) or items:[{id, textAutoResize:"HEIGHT"}].',
   // -- WCAG fix instructions --
-  "wcag-contrast": 'Adjust text color or background to meet AA contrast (4.5:1 normal text, 3:1 large text). Use frames(method:"update") with fill or text.fontColor to change colors.',
-  "wcag-contrast-enhanced": 'Adjust to meet AAA contrast (7:1 normal text, 4.5:1 large text). Use frames(method:"update") with fill or text.fontColor.',
+  "wcag-contrast": 'Adjust text color or background to meet AA contrast (4.5:1 normal text, 3:1 large text). Use frames(method:"update") with fills to change colors.',
+  "wcag-contrast-enhanced": 'Adjust to meet AAA contrast (7:1 normal text, 4.5:1 large text). Use frames(method:"update") with fills.',
   "wcag-non-text-contrast": 'Need 3:1 contrast against parent background. Use frames(method:"update", items:[{id, fill:{color:"#..."}}]) to adjust.',
   "wcag-target-size": 'Resize to at least 24x24px: frames(method:"update", items:[{id, width:24, height:24}]) or add padding via layout.',
   "wcag-text-size": 'Increase to 12px minimum: frames(method:"update", items:[{id, text:{fontSize:12}}]).',
