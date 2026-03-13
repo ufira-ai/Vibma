@@ -8,9 +8,10 @@ notes: |
   // Variables are identified by name (unique within a collection). Use name to get/update/delete.
   // All ID params (collectionId, modeId) accept both IDs and display names. Use whichever you have.
   // Workflow: create a variable_collection first → then create variables inside it → bind to nodes via frames/text update PatchItem.bindings.
+  // list returns `items` (not `results`). get/create/update/delete use standard batch responses.
   // ---
   // Each variable has values per mode (e.g. Light/Dark). Use modeId when setting values for a specific mode.
-  // valuesByMode keys are mode IDs (from the collection), values match the variable's resolvedType.
+  // valuesByMode keys are mode names (e.g. "Light", "Dark"), not IDs. Values match the variable's resolvedType.
   // Aliases: a variable can reference another variable by name via {type: "VARIABLE_ALIAS", name: "other/variable"}.
   // scopes: restrict where variables appear in the UI. Values: "ALL_SCOPES", "TEXT_CONTENT", "WIDTH_HEIGHT", "GAP",
   //   "CORNER_RADIUS", "ALL_FILLS", "FRAME_FILL", "SHAPE_FILL", "TEXT_FILL", "STROKE_COLOR", "STROKE_FLOAT",
@@ -42,8 +43,9 @@ methods:
         type: object
         properties:
           name: { type: string, required: true }
-          resolvedType: { type: string, required: true }
-          collectionId: { type: string, required: true }
+          resolvedType: { type: string, optional: true, description: "Included in stubs by default" }
+          collectionId: { type: string, optional: true, description: "Collection name. Included in stubs by default" }
+          scopes: { type: "string[]", optional: true, description: "Variable scopes. Included in stubs by default" }
 
   get:
     tier: read
@@ -67,11 +69,18 @@ methods:
         resolvedType:
           type: enum
           values: [COLOR, FLOAT, STRING, BOOLEAN]
-        collectionId: { type: string, required: true }
+          required: true
+        collectionId: { type: string, required: true, description: "Collection display name" }
         valuesByMode:
           type: object
           required: true
           tsType: "Record<string, number | boolean | string | Color | {type: \"VARIABLE_ALIAS\", name: string}>"
+          description: "Values keyed by mode name (e.g. \"Light\", \"Dark\")"
+        description: { type: string, description: "Variable description" }
+        scopes:
+          type: "string[]"
+          description: "Where this variable can be applied (e.g. CORNER_RADIUS, GAP, ALL_SCOPES)"
+      required: [name, resolvedType, collectionId, valuesByMode]
 
   create:
     tier: create
@@ -93,13 +102,15 @@ methods:
             value: { type: variable_value, optional: true, description: "Initial value (uses default mode unless modeId specified)" }
             modeId: { type: string, optional: true, description: "Mode ID or name (e.g. \"Dark\"). Default: collection's default mode" }
             description: { type: string, optional: true, description: "Variable description" }
-            scopes: { type: "string[]", coerce: json, optional: true, description: 'UI scopes e.g. ["ALL_SCOPES"]' }
+            scopes: { type: "string[]", coerce: json, optional: true, description: 'Restrict where variable can be applied. FLOAT: CORNER_RADIUS, GAP, STROKE_FLOAT, WIDTH_HEIGHT, OPACITY, EFFECT_FLOAT, FONT_SIZE, LINE_HEIGHT, LETTER_SPACING, PARAGRAPH_SPACING, PARAGRAPH_INDENT. COLOR: ALL_FILLS, FRAME_FILL, SHAPE_FILL, TEXT_FILL, STROKE_COLOR, EFFECT_COLOR. Default: ALL_SCOPES.' }
     response:
-      type: batch_ok
+      type: batch
+      item: { name: { type: string, description: "Name of the created variable" } }
 
   update:
     tier: edit
     description: "Update variable metadata and/or set values per mode"
+    example: 'variables(method:"update", items:[{name:"bg/primary", modeId:"Dark", value:"#1A1A2E"}])'
     params:
       items:
         type: array
@@ -114,9 +125,9 @@ methods:
             collectionId: { type: string, optional: true, description: "Collection ID or name (required if ambiguous)" }
             rename: { type: string, optional: true, description: "Rename the variable" }
             description: { type: string, optional: true, description: "Set description" }
-            scopes: { type: "string[]", coerce: json, optional: true, description: 'UI scopes e.g. ["ALL_SCOPES"] or ["WIDTH_HEIGHT","CORNER_RADIUS"]' }
-            modeId: { type: string, optional: true, description: "Mode ID or name (e.g. \"Dark\"). Required when setting value" }
-            value: { type: variable_value, optional: true }
+            scopes: { type: "string[]", coerce: json, optional: true, description: 'Restrict where variable can be applied. FLOAT: CORNER_RADIUS, GAP, STROKE_FLOAT, WIDTH_HEIGHT, OPACITY, EFFECT_FLOAT, FONT_SIZE, LINE_HEIGHT, LETTER_SPACING, PARAGRAPH_SPACING, PARAGRAPH_INDENT. COLOR: ALL_FILLS, FRAME_FILL, SHAPE_FILL, TEXT_FILL, STROKE_COLOR, EFFECT_COLOR. Default: ALL_SCOPES.' }
+            modeId: { type: string, optional: true, description: "Mode ID or name (e.g. \"Dark\"). Required when setting value." }
+            value: { type: variable_value, optional: true, description: "New value. Must also pass modeId to specify which mode to update." }
     response:
       type: batch_mixed
 

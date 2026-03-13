@@ -9,6 +9,7 @@ import { readFileSync } from "fs";
 import { join, basename } from "path";
 import { fileURLToPath } from "url";
 import { registerAllTools } from "./tools/mcp-registry";
+import { resolveEndpointHelp } from "./tools/generated/help";
 
 // Read version — works with both tsx (source) and node (compiled dist/)
 let VIBMA_VERSION = "0.0.0";
@@ -319,12 +320,18 @@ server.registerTool(
   async (params: any) => {
     const method = params.method;
     try {
+      if (method === "help") {
+        const text = resolveEndpointHelp("connection", params.topic) ?? "No help available for connection";
+        return { content: [{ type: "text", text }] };
+      }
+
       if (method === "create") {
         const channel = params.channel || "vibma";
         await joinChannel(channel);
         await new Promise((r) => setTimeout(r, 200));
         let msg = `Joined channel "${channel}" on port ${activePort}. Call connection(method: "get") to verify the Figma plugin is connected.`;
         if (versionWarning) msg += `\n\n⚠️ ${versionWarning}\nSee "Version mismatch" in CARRYME.md or DRAGME.md for update steps.`;
+        msg += "\n\nWelcome to Vibma! As you work, the MCP will give you warnings when it spots issues — hardcoded colors, missing auto-layout, unbound tokens, etc. Following these best practices will reduce the noise from the MCP and help you create a well-structured design system that designers enjoy working with.";
         return { content: [{ type: "text", text: msg }] };
       }
 

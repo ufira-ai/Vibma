@@ -9,7 +9,10 @@ notes: |
   // textAutoResize: NONE (fixed box), WIDTH_AND_HEIGHT (grow both), HEIGHT (fixed width, auto height), TRUNCATE (fixed + ellipsis).
   // Prefer textStyleName for typography, fontColorVariableName/fontColorStyleName for color.
   // Aliases: fillColor → fontColor, fillVariableName → fontColorVariableName, fillStyleName → fontColorStyleName (consistent with frames API).
+  // Alias: "characters" is accepted as alias for "text" param.
   // ---
+  // Smart defaults inside auto-layout parent: layoutSizingHorizontal defaults to FILL, layoutSizingVertical to HUG, textAutoResize to HEIGHT.
+  //   Text fills parent width and wraps automatically. Override with explicit values if needed.
   // fontStyle vs fontWeight: fontStyle is a named variant like "Bold", "Italic", "SemiBold". When set, fontWeight is ignored.
   //   Use fonts.list to find available fontFamily + fontStyle combinations.
   // scan: finds all text nodes in a subtree. path (when includePath:true) shows the layer hierarchy e.g. "Frame > Card > Label".
@@ -32,8 +35,7 @@ methods:
           properties:
             text:
               type: string
-              required: true
-              description: "Text content"
+              description: "Text content (also accepts 'characters' as alias)"
             name:
               type: string
               description: "Layer name"
@@ -54,9 +56,12 @@ methods:
             fontWeight:
               type: number
               description: "100-900 (default: 400). Ignored when fontStyle is set."
+            fills:
+              type: array
+              description: "Text color paints — e.g. [{type: 'SOLID', color: '#hex'}]. Same as node fills."
             fontColor:
               type: color
-              description: "Text color (auto-binds to matching variable/style)"
+              description: "Shorthand — sets text color (auto-binds to matching variable/style)"
             fontColorVariableName:
               type: string
               description: "Bind color variable by name e.g. 'text/primary'"

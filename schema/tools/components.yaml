@@ -14,22 +14,22 @@ notes: |
   // Auto-bind: TEXT properties auto-bind to text children with matching names (case-insensitive).
   // Example: properties:[{propertyName:"Label", type:"TEXT", defaultValue:"Click"}] binds to a child text node named "Label".
   // text.create also accepts componentPropertyName to bind on creation: text(method:"create", items:[{parentId, text:"Click", componentPropertyName:"Label"}]).
-  // Property keys include a unique suffix like "Label#1:0" — use components.get to find exact keys.
+  // Property keys include a unique suffix like "Label#1:0". Call components.get(id) to discover exact keys before edit/delete.
   // ComponentItem accepts the same params as FrameItem (layout, fill, stroke, sizing, min/max).
   // A component IS a frame — create it directly with all layout properties, then add children.
-  // action: "add" (default) adds property, "edit" renames/changes default, "delete" removes property
-  // action: "rename_variant" renames a variant option (defaultValue=current name, name=new name)
-  // For VARIANT properties: "edit" with defaultValue reorders children to set the default variant
+  // action: "add" (default) — requires type + defaultValue. "edit" — pass defaultValue to change value, name to rename property. "delete" — just propertyName#suffix.
+  // action: "rename_variant" — renames a variant option VALUE (not the property). Pass defaultValue=current option name, name=new option name.
+  // For VARIANT properties: "edit" with defaultValue reorders children to set the default variant.
 
 methods:
   list:
     tier: read
     description: List components and component sets
     params:
-      name:
+      query:
         type: string
         optional: true
-        description: "Filter by name (case-insensitive substring)"
+        description: "Name search query (case-insensitive substring match)"
       setsOnly:
         type: boolean
         coerce: true
@@ -49,6 +49,9 @@ methods:
           id: { type: string, required: true }
           name: { type: string, required: true }
           type: { type: string, required: true }
+          pageId: { type: string, optional: true, description: "Page ID the component lives on" }
+          pageName: { type: string, optional: true, description: "Page name the component lives on" }
+          variantCount: { type: number, optional: true, description: "Number of variants (COMPONENT_SET only)" }
 
   get:
     tier: read
@@ -121,11 +124,11 @@ methods:
           type: object
           properties:
             id: { type: string, required: true, description: "Component or component set ID" }
-            propertyName: { type: string, required: true, description: "Property name (include #suffix for edit/delete)" }
-            action: { type: enum, values: [add, edit, delete, rename_variant], optional: true, description: 'Action: "add" (default), "edit", "delete", or "rename_variant"' }
+            propertyName: { type: string, required: true, description: "Property name with #suffix for edit/delete (e.g. \"Label#1:0\"). Call components.get to find exact keys. For add, plain name works." }
+            action: { type: enum, values: [add, edit, delete, rename_variant], optional: true, description: '"add" (default): requires type + defaultValue. "edit": pass defaultValue to change default, name to rename property. "delete": just propertyName. "rename_variant": pass defaultValue=current option name, name=new option name.' }
             type: { type: enum, values: [BOOLEAN, TEXT, INSTANCE_SWAP, VARIANT], optional: true, description: "Property type (required for add)" }
-            defaultValue: { type: string_or_boolean, optional: true, description: "Default value (required for add)" }
-            name: { type: string, optional: true, description: "New name (for edit action)" }
+            defaultValue: { type: string_or_boolean, optional: true, description: "Default value (add/edit). For rename_variant: the CURRENT option name to rename" }
+            name: { type: string, optional: true, description: "New name — for edit: renames the property itself, for rename_variant: the new option value name" }
             preferredValues: { type: array, coerce: json, optional: true, description: "Preferred values for INSTANCE_SWAP" }
       depth: { $ref: depth }
     response:
@@ -140,4 +143,4 @@ methods:
         required: true
         description: "Component or component set ID"
     response:
-      type: batch
+      type: batch_ok

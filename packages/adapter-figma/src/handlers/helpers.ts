@@ -63,6 +63,7 @@ function sendBatchProgress(commandId: string, processed: number, total: number, 
 export async function batchHandler<TItem, TResult>(
   params: { items?: TItem[]; depth?: number } & Record<string, unknown>,
   fn: (item: TItem) => Promise<TResult>,
+  guard?: { keys: ReadonlySet<string>; help: string },
 ): Promise<BatchResult<TResult>> {
   const items = (params.items || [params]) as TItem[];
   const depth = params.depth;
@@ -75,6 +76,63 @@ export async function batchHandler<TItem, TResult>(
   const allHints: Hint[] = [];
   for (let i = 0; i < items.length; i++) {
     try {
+      if (guard) {
+        // Normalize aliases before guard check
+        const p = items[i] as any;
+        // Normalize all fill aliases → fills (canonical form, highest priority last)
+        if (guard.keys.has("fills") && !p.fills) {
+          // color/backgroundColor/background → fillColor first
+          const colorAlias = p.color !== undefined && !guard.keys.has("fontColor") ? "color"
+            : p.backgroundColor !== undefined ? "backgroundColor"
+            : p.background !== undefined ? "background"
+            : null;
+          if (colorAlias) { p.fillColor = p[colorAlias]; delete p[colorAlias]; }
+          // Text context: fontColor* → fills (when guard has both fills and fontColor)
+          if (guard.keys.has("fontColor")) {
+            if (p.fontColorVariableId !== undefined) {
+              p.fills = { _variableId: p.fontColorVariableId };
+              delete p.fontColorVariableId;
+            } else if (p.fontColorVariableName !== undefined) {
+              p.fills = { _variable: p.fontColorVariableName };
+              delete p.fontColorVariableName;
+            } else if (p.fontColorStyleName !== undefined) {
+              p.fills = { _style: p.fontColorStyleName };
+              delete p.fontColorStyleName;
+            } else if (p.fontColor !== undefined) {
+              const c = coerceColor(p.fontColor);
+              p.fills = c ? [solidPaint(c)] : p.fontColor;
+              delete p.fontColor;
+            }
+          }
+          // Resolve in priority order: fillVariableName > fillStyleName > fillColor
+          if (!p.fills && p.fillVariableName !== undefined) {
+            p.fills = { _variable: p.fillVariableName };
+            delete p.fillVariableName;
+          } else if (!p.fills && p.fillStyleName !== undefined) {
+            p.fills = { _style: p.fillStyleName };
+            delete p.fillStyleName;
+          } else if (!p.fills && p.fillColor !== undefined) {
+            const c = coerceColor(p.fillColor);
+            p.fills = c ? [solidPaint(c)] : p.fillColor;
+            delete p.fillColor;
+          }
+        }
+        // Normalize all stroke aliases → strokes (same pattern as fills)
+        if (guard.keys.has("strokes") && !p.strokes) {
+          if (p.strokeVariableName !== undefined) {
+            p.strokes = { _variable: p.strokeVariableName };
+            delete p.strokeVariableName;
+          } else if (p.strokeStyleName !== undefined) {
+            p.strokes = { _style: p.strokeStyleName };
+            delete p.strokeStyleName;
+          } else if (p.strokeColor !== undefined) {
+            const c = coerceColor(p.strokeColor);
+            p.strokes = c ? [solidPaint(c)] : p.strokeColor;
+            delete p.strokeColor;
+          }
+        }
+        rejectUnknownParams(p, guard.keys, guard.help);
+      }
       let result: any = await fn(items[i]);
       if (depth !== undefined && result?.id) {
         const snapshot = await nodeSnapshot(result.id, depth);
@@ -129,7 +187,7 @@ export async function batchHandler<TItem, TResult>(
  * Append a node to a parent (by ID) or the current page.
  * Returns the parent node if parentId was given, null otherwise.
  */
-export async function appendToParent(node: SceneNode, parentId?: string): Promise<BaseNode | null> {
+export async function appendToParent(node: SceneNode, parentId?: string): Promise<BaseNode> {
   if (parentId) {
     const parent = await figma.getNodeByIdAsync(parentId);
     if (!parent) throw new Error(`Parent not found: ${parentId}`);
@@ -139,7 +197,7 @@ export async function appendToParent(node: SceneNode, parentId?: string): Promis
     return parent;
   }
   figma.currentPage.appendChild(node);
-  return null;
+  return figma.currentPage;
 }
 
 /** Check for sibling nodes at the same position in a non-auto-layout parent. */
@@ -210,6 +268,7 @@ async function resolveVariable(
   name: string,
   typeFilter?: VariableResolvedDataType,
   collectionName?: string,
+  scopeContext?: string,
 ): Promise<Variable | null> {
   const all = typeFilter
     ? await figma.variables.getLocalVariablesAsync(typeFilter)
@@ -222,7 +281,7 @@ async function resolveVariable(
   // Fallback: try parsing "CollectionName/VarName" when no exact match
   if (matches.length === 0 && !collectionName && name.includes("/")) {
     const slashIdx = name.indexOf("/");
-    return resolveVariable(name.substring(slashIdx + 1), typeFilter, name.substring(0, slashIdx));
+    return resolveVariable(name.substring(slashIdx + 1), typeFilter, name.substring(0, slashIdx), scopeContext);
   }
   if (matches.length === 0) return null;
   if (collectionName) {
@@ -232,6 +291,20 @@ async function resolveVariable(
     if (!col) return null;
     return matches.find(v => v.variableCollectionId === col.id) || null;
   }
+  if (matches.length > 1 && scopeContext) {
+    // Disambiguate by scope: prefer variable whose scope matches the binding context
+    const scoped = matches.filter(v => {
+      const scopes: string[] = (v as any).scopes || [];
+      return scopes.includes(scopeContext);
+    });
+    if (scoped.length === 1) return scoped[0];
+    // Also try ALL_SCOPES as fallback
+    const allScope = matches.filter(v => {
+      const scopes: string[] = (v as any).scopes || [];
+      return scopes.length === 0 || scopes.includes("ALL_SCOPES");
+    });
+    if (allScope.length === 1) return allScope[0];
+  }
   if (matches.length > 1) {
     const collections = await figma.variables.getLocalVariableCollectionsAsync();
     const colNames = matches.map(v => collections.find(c => c.id === v.variableCollectionId)?.name || "?");
@@ -240,8 +313,8 @@ async function resolveVariable(
   return matches[0];
 }
 
-export async function findVariableByName(name: string, collectionName?: string): Promise<Variable | null> {
-  return resolveVariable(name, undefined, collectionName);
+export async function findVariableByName(name: string, collectionName?: string, scopeContext?: string): Promise<Variable | null> {
+  return resolveVariable(name, undefined, collectionName, scopeContext);
 }
 
 export async function findColorVariableByName(name: string, collectionName?: string): Promise<Variable | null> {
@@ -291,9 +364,8 @@ export async function suggestStyleForColor(
     const collections = await figma.variables.getLocalVariableCollectionsAsync();
     const defaultModes = new Map(collections.map(c => [c.id, c.defaultModeId]));
 
-    // Collect all matching variables, then pick the best by scope
-    let scopedMatch: any = null;
-    let fallbackMatch: any = null;
+    // Auto-bind requires explicit scope match — ALL_SCOPES is not enough
+    let best: any = null;
 
     for (const v of colorVars) {
       const modeId = defaultModes.get(v.variableCollectionId);
@@ -303,18 +375,11 @@ export async function suggestStyleForColor(
       if (!colorMatches(val as any)) continue;
 
       const scopes: string[] = (v as any).scopes || [];
-      const isAllScopes = scopes.length === 0 || scopes.includes("ALL_SCOPES");
-
-      if (bindingContext && !isAllScopes && scopes.includes(bindingContext)) {
-        // Exact scope match — best pick
-        scopedMatch = v;
+      if (bindingContext && scopes.includes(bindingContext)) {
+        best = v;
         break;
-      } else if (!fallbackMatch) {
-        fallbackMatch = v;
       }
     }
-
-    const best = scopedMatch || fallbackMatch;
     if (best) {
       return {
         hint: { type: "confirm", message: `Auto-bound color ${hex} → variable '${best.name}'.` },
@@ -340,7 +405,8 @@ export async function suggestStyleForColor(
     }
   }
 
-  return { hint: { type: "suggest", message: `Hardcoded color ${hex} has no matching paint style or color variable. Create one with styles(method: "create", type: "paint") or variables(method: "create"), then use ${styleParam} for design token consistency.` } };
+  const scopeHint = bindingContext ? ` with scopes: [${bindingContext}]` : "";
+  return { hint: { type: "suggest", message: `Hardcoded color ${hex} has no matching color variable${scopeHint} or paint style. Create one with variables(method: "create"${scopeHint}) or styles(method: "create", type: "paint"), then use ${styleParam} for design token consistency.` } };
 }
 
 /**
@@ -348,29 +414,88 @@ export async function suggestStyleForColor(
  * Priority: fillVariableId > fillVariableName > fillStyleName > fillColor (with auto-bind).
  * Returns hints array with auto-bind confirmations or errors.
  */
+// ─── Wrong-shape param corrections ─────────────────────────────
+// Map of commonly-misused param names → corrective message with correct schema + example.
+
+const WRONG_SHAPE_CORRECTIONS: Record<string, string> = {
+  // fills: handled by batchHandler normalization — not rejected
+  // strokes: handled by batchHandler normalization — not rejected
+
+  color: `"color" is ambiguous on text nodes. Use fills: [{type:"SOLID", color:"#hex"}] for text color, or fontColor: "#hex" as shorthand.`,
+  border: `"border" is not a valid param. Use strokeColor: "#hex", strokeWeight: 1`,
+  borderColor: `"borderColor" is not a valid param. Use strokeColor: "#hex" or strokeVariableName: "border/default"`,
+  borderWidth: `"borderWidth" is not a valid param. Use strokeWeight: 1 (number or variable name string)`,
+  borderRadius: `"borderRadius" is not a valid param. Use cornerRadius: 8 (number or variable name string). Per-corner: topLeftRadius, topRightRadius, bottomRightRadius, bottomLeftRadius`,
+  radius: `"radius" is not a valid param. Use cornerRadius: 8 (number or variable name string)`,
+  children: `"children" array is not a valid param. Create children separately then reparent, or pass parentId when creating child nodes.`,
+  font: `"font" is not a valid param. Use fontFamily: "Inter" and fontStyle: "Bold" (or fontWeight: 700)`,
+  text: `"text" is not a valid param on frames. For text nodes, use text(method: "create", items: [{text: "Hello", parentId: "<frameId>"}])`,
+  content: `"content" is not a valid param. For text nodes, use text(method: "create", items: [{text: "Hello"}])`,
+  label: `"label" is not a valid param. For text nodes, use text(method: "create", items: [{text: "Hello", parentId: "<frameId>"}])`,
+  gap: `"gap" is not a valid param. Use itemSpacing: 8 (number or variable name string) for spacing between children`,
+  spacing: `"spacing" is not a valid param. Use itemSpacing: 8 for spacing between children, or padding: 16 for inner padding`,
+  alignItems: `"alignItems" is not a valid param. Use counterAxisAlignItems: "CENTER" (MIN | MAX | CENTER | BASELINE)`,
+  justifyContent: `"justifyContent" is not a valid param. Use primaryAxisAlignItems: "CENTER" (MIN | MAX | CENTER | SPACE_BETWEEN)`,
+  direction: `"direction" is not a valid param. Use layoutMode: "HORIZONTAL" or "VERTICAL"`,
+  display: `"display" is not a valid param. Use layoutMode: "HORIZONTAL" or "VERTICAL" for auto-layout, or "NONE" for static frames`,
+};
+
+/**
+ * Reject unknown/wrong params on create handlers. For known wrong shapes, gives the
+ * correct schema definition and example payload. For truly unknown keys, lists them
+ * and points to the help command.
+ */
+export function rejectUnknownParams(p: any, knownKeys: ReadonlySet<string>, helpCmd: string): void {
+  const unknown: string[] = [];
+  const corrections: string[] = [];
+
+  for (const key of Object.keys(p)) {
+    if (knownKeys.has(key) || key.startsWith("_")) continue; // skip internal keys
+    const correction = WRONG_SHAPE_CORRECTIONS[key];
+    if (correction) {
+      corrections.push(correction);
+    } else {
+      unknown.push(key);
+    }
+  }
+
+  if (corrections.length > 0) {
+    throw new Error(corrections.join("\n\n"));
+  }
+  if (unknown.length > 0) {
+    throw new Error(
+      `Unknown params: ${unknown.join(", ")}. ` +
+      `Use ${helpCmd} to see valid params and examples.`
+    );
+  }
+}
+
 export async function applyFillWithAutoBind(
   node: any,
-  p: { fillVariableId?: string; fillVariableName?: string; fillStyleName?: string; fillColor?: any },
+  p: { fills?: any },
   hints: Hint[],
 ): Promise<boolean> {
-  // 1. Explicit variable ID
-  if (p.fillVariableId) {
-    const v = await findVariableById(p.fillVariableId);
+  if (p.fills === undefined) return false;
+
+  // Tagged binding: { _variableId: "id" } (from fillVariableId)
+  if (p.fills?._variableId) {
+    const v = await findVariableById(p.fills._variableId);
     if (v) {
-      node.fills = [solidPaint(p.fillColor || { r: 0, g: 0, b: 0 })];
+      node.fills = [solidPaint({ r: 0, g: 0, b: 0 })];
       const bound = figma.variables.setBoundVariableForPaint(node.fills[0] as SolidPaint, "color", v);
       node.fills = [bound];
       return true;
     }
-    hints.push({ type: "error", message: `fillVariableId '${p.fillVariableId}' not found.` });
+    hints.push({ type: "error", message: `fillVariableId '${p.fills._variableId}' not found.` });
     return false;
   }
 
-  // 2. Variable by name (new!)
-  if (p.fillVariableName) {
-    const v = await findColorVariableByName(p.fillVariableName);
+  // Tagged binding: { _variable: "name" } (from fillVariableName normalization)
+  if (p.fills?._variable) {
+    const name = p.fills._variable;
+    const v = await findColorVariableByName(name);
     if (v) {
-      node.fills = [solidPaint(p.fillColor || { r: 0, g: 0, b: 0 })];
+      node.fills = [solidPaint({ r: 0, g: 0, b: 0 })];
       const bound = figma.variables.setBoundVariableForPaint(node.fills[0] as SolidPaint, "color", v);
       node.fills = [bound];
       hints.push({ type: "confirm", message: `Bound fill → variable '${v.name}'.` });
@@ -378,145 +503,201 @@ export async function applyFillWithAutoBind(
     }
     const colorVars = await figma.variables.getLocalVariablesAsync("COLOR");
     const names = colorVars.map(v => v.name).slice(0, 20);
-    hints.push({ type: "error", message: `fillVariableName '${p.fillVariableName}' not found. Available: [${names.join(", ")}]` });
+    hints.push({ type: "error", message: `fillVariableName '${name}' not found. Available: [${names.join(", ")}]` });
     return false;
   }
 
-  // 3. Paint style by name
-  if (p.fillStyleName) {
+  // Tagged binding: { _style: "name" } (from fillStyleName normalization)
+  if (p.fills?._style) {
+    const name = p.fills._style;
     const styles = await figma.getLocalPaintStylesAsync();
     const available = styles.map(s => s.name);
-    const exact = styles.find(s => s.name === p.fillStyleName);
-    const match = exact || styles.find(s => s.name.toLowerCase().includes(p.fillStyleName!.toLowerCase()));
+    const exact = styles.find(s => s.name === name);
+    const match = exact || styles.find(s => s.name.toLowerCase().includes(name.toLowerCase()));
     if (match) {
       try { await node.setFillStyleIdAsync(match.id); return true; }
-      catch (e: any) { hints.push({ type: "error", message: `fillStyleName '${p.fillStyleName}' matched but failed to apply: ${e.message}` }); return false; }
+      catch (e: any) { hints.push({ type: "error", message: `fillStyleName '${name}' matched but failed to apply: ${e.message}` }); return false; }
     }
-    hints.push(styleNotFoundHint("fillStyleName", p.fillStyleName, available));
+    hints.push(styleNotFoundHint("fillStyleName", name, available));
     return false;
   }
 
-  // 4. Direct color — auto-bind if matching variable/style exists
-  if (p.fillColor) {
-    const color = coerceColor(p.fillColor);
-    if (!color) {
-      // Not a valid color — maybe the user passed a style/variable name by mistake
-      // Try resolving as style name first, then variable name
-      const styles = await figma.getLocalPaintStylesAsync();
-      const exact = styles.find(s => s.name === p.fillColor);
-      const match = exact || styles.find(s => s.name.toLowerCase() === String(p.fillColor).toLowerCase());
-      if (match) {
-        try { await node.setFillStyleIdAsync(match.id); hints.push({ type: "confirm", message: `fillColor '${p.fillColor}' resolved as paint style. Use fillStyleName instead for clarity.` }); return true; }
-        catch (e: any) { hints.push({ type: "error", message: `fillColor '${p.fillColor}' matched style but failed: ${e.message}` }); return false; }
+  // Empty array → transparent
+  if (Array.isArray(p.fills) && p.fills.length === 0) {
+    node.fills = [];
+    return true;
+  }
+
+  // Array of paints → coerce hex colors, auto-bind single solid
+  if (Array.isArray(p.fills)) {
+    node.fills = p.fills.map((f: any) => {
+      if (f.type === "SOLID" && f.color) {
+        const c = coerceColor(f.color);
+        if (c) return { type: "SOLID" as const, color: { r: c.r, g: c.g, b: c.b }, opacity: f.opacity ?? c.a ?? 1 };
       }
-      const v = await findColorVariableByName(String(p.fillColor));
-      if (v) {
-        node.fills = [solidPaint({ r: 0, g: 0, b: 0 })];
-        const bound = figma.variables.setBoundVariableForPaint(node.fills[0] as SolidPaint, "color", v);
+      return f;
+    });
+    // Auto-bind for single solid color
+    if (p.fills.length === 1 && node.fills[0]?.type === "SOLID") {
+      const sc = node.fills[0].color;
+      const match = await suggestStyleForColor({ ...sc, a: node.fills[0].opacity ?? 1 }, "fillStyleName", "ALL_FILLS");
+      if (match.variable) {
+        const bound = figma.variables.setBoundVariableForPaint(node.fills[0] as SolidPaint, "color", match.variable);
         node.fills = [bound];
-        hints.push({ type: "confirm", message: `fillColor '${p.fillColor}' resolved as color variable. Use fillVariableName instead for clarity.` });
-        return true;
+      } else if (match.paintStyleId) {
+        try { await node.setFillStyleIdAsync(match.paintStyleId); } catch {}
       }
-      hints.push({ type: "error", message: `fillColor '${p.fillColor}' is not a valid color (hex or {r,g,b}), paint style, or color variable.` });
-      return false;
+      hints.push(match.hint);
     }
-    node.fills = [solidPaint(color)];
-    const match = await suggestStyleForColor(color, "fillStyleName", "ALL_FILLS");
+    return true;
+  }
+
+  // Scalar: hex color string
+  const c = coerceColor(p.fills);
+  if (c) {
+    node.fills = [solidPaint(c)];
+    const match = await suggestStyleForColor(c, "fillStyleName", "ALL_FILLS");
     if (match.variable) {
-      // Auto-bind to matching variable
       const bound = figma.variables.setBoundVariableForPaint(node.fills[0] as SolidPaint, "color", match.variable);
       node.fills = [bound];
-      hints.push(match.hint);
-      return true;
-    }
-    if (match.paintStyleId) {
-      // Auto-apply matching paint style
-      try {
-        await node.setFillStyleIdAsync(match.paintStyleId);
-        hints.push(match.hint);
-        return true;
-      } catch { /* fall through to keep direct color */ }
+    } else if (match.paintStyleId) {
+      try { await node.setFillStyleIdAsync(match.paintStyleId); } catch {}
     }
     hints.push(match.hint);
-    return false;
+    return true;
   }
 
+  // Scalar string: try as style name, then variable name
+  const styles = await figma.getLocalPaintStylesAsync();
+  const exact = styles.find(s => s.name === p.fills);
+  const styleMatch = exact || styles.find(s => s.name.toLowerCase() === String(p.fills).toLowerCase());
+  if (styleMatch) {
+    try { await node.setFillStyleIdAsync(styleMatch.id); hints.push({ type: "confirm", message: `fills '${p.fills}' resolved as paint style '${styleMatch.name}'. Use fillStyleName for clarity.` }); return true; }
+    catch (e: any) { hints.push({ type: "error", message: `fills '${p.fills}' matched style but failed: ${e.message}` }); return false; }
+  }
+  const v = await findColorVariableByName(String(p.fills));
+  if (v) {
+    node.fills = [solidPaint({ r: 0, g: 0, b: 0 })];
+    const bound = figma.variables.setBoundVariableForPaint(node.fills[0] as SolidPaint, "color", v);
+    node.fills = [bound];
+    hints.push({ type: "confirm", message: `fills '${p.fills}' resolved as color variable '${v.name}'. Use fillVariableName for clarity.` });
+    return true;
+  }
+  hints.push({ type: "error", message: `fills '${p.fills}' is not a valid color (hex or {r,g,b}), paint style, or color variable.` });
   return false;
 }
 
 /**
  * Apply stroke to a node with full token resolution and auto-binding.
- * Priority: strokeVariableId > strokeVariableName > strokeStyleName > strokeColor (with auto-bind).
+ * Accepts canonical `strokes` (array, tagged binding, hex string) — same pattern as applyFillWithAutoBind.
+ * Also handles strokeWeight token fields.
  */
 export async function applyStrokeWithAutoBind(
   node: any,
-  p: { strokeVariableId?: string; strokeVariableName?: string; strokeStyleName?: string; strokeColor?: any; strokeWeight?: number | string;
-       strokeTopWeight?: number | string; strokeBottomWeight?: number | string; strokeLeftWeight?: number | string; strokeRightWeight?: number | string },
+  p: { strokes?: any; strokeWeight?: number | string;
+       strokeTopWeight?: number | string; strokeBottomWeight?: number | string;
+       strokeLeftWeight?: number | string; strokeRightWeight?: number | string },
   hints: Hint[],
 ): Promise<void> {
-  if (p.strokeVariableId) {
-    const v = await findVariableById(p.strokeVariableId);
-    if (v) {
-      node.strokes = [solidPaint(p.strokeColor || { r: 0, g: 0, b: 0 })];
-      const bound = figma.variables.setBoundVariableForPaint(node.strokes[0] as SolidPaint, "color", v);
-      node.strokes = [bound];
-    } else {
-      hints.push({ type: "error", message: `strokeVariableId '${p.strokeVariableId}' not found.` });
-    }
-  } else if (p.strokeVariableName) {
-    const v = await findColorVariableByName(p.strokeVariableName);
-    if (v) {
-      node.strokes = [solidPaint(p.strokeColor || { r: 0, g: 0, b: 0 })];
-      const bound = figma.variables.setBoundVariableForPaint(node.strokes[0] as SolidPaint, "color", v);
-      node.strokes = [bound];
-      hints.push({ type: "confirm", message: `Bound stroke → variable '${v.name}'.` });
-    } else {
-      const colorVars = await figma.variables.getLocalVariablesAsync("COLOR");
-      hints.push({ type: "error", message: `strokeVariableName '${p.strokeVariableName}' not found. Available: [${colorVars.map(v => v.name).slice(0, 20).join(", ")}]` });
-    }
-  } else if (p.strokeStyleName) {
-    const styles = await figma.getLocalPaintStylesAsync();
-    const available = styles.map(s => s.name);
-    const exact = styles.find(s => s.name === p.strokeStyleName);
-    const match = exact || styles.find(s => s.name.toLowerCase().includes(p.strokeStyleName!.toLowerCase()));
-    if (match) {
-      try { await node.setStrokeStyleIdAsync(match.id); }
-      catch (e: any) { hints.push({ type: "error", message: `strokeStyleName '${p.strokeStyleName}' matched but failed to apply: ${e.message}` }); }
-    } else {
-      hints.push(styleNotFoundHint("strokeStyleName", p.strokeStyleName, available));
-    }
-  } else if (p.strokeColor) {
-    const color = coerceColor(p.strokeColor);
-    if (!color) {
-      // Not a valid color — try resolving as style/variable name
-      const styles = await figma.getLocalPaintStylesAsync();
-      const exact = styles.find(s => s.name === p.strokeColor);
-      const match = exact || styles.find(s => s.name.toLowerCase() === String(p.strokeColor).toLowerCase());
-      if (match) {
-        try { await node.setStrokeStyleIdAsync(match.id); hints.push({ type: "confirm", message: `strokeColor '${p.strokeColor}' resolved as paint style. Use strokeStyleName instead for clarity.` }); }
-        catch (e: any) { hints.push({ type: "error", message: `strokeColor '${p.strokeColor}' matched style but failed: ${e.message}` }); }
-      } else {
-        const v = await findColorVariableByName(String(p.strokeColor));
-        if (v) {
-          node.strokes = [solidPaint({ r: 0, g: 0, b: 0 })];
-          const bound = figma.variables.setBoundVariableForPaint(node.strokes[0] as SolidPaint, "color", v);
-          node.strokes = [bound];
-          hints.push({ type: "confirm", message: `strokeColor '${p.strokeColor}' resolved as color variable. Use strokeVariableName instead for clarity.` });
-        } else {
-          hints.push({ type: "error", message: `strokeColor '${p.strokeColor}' is not a valid color (hex or {r,g,b}), paint style, or color variable.` });
-        }
-      }
-    } else {
-      node.strokes = [solidPaint(color)];
-      const match = await suggestStyleForColor(color, "strokeStyleName", "STROKE_COLOR");
-      if (match.variable) {
-        const bound = figma.variables.setBoundVariableForPaint(node.strokes[0] as SolidPaint, "color", match.variable);
+  if (p.strokes !== undefined) {
+    // Tagged binding: { _variableId: "id" }
+    if (p.strokes?._variableId) {
+      const v = await findVariableById(p.strokes._variableId);
+      if (v) {
+        node.strokes = [solidPaint({ r: 0, g: 0, b: 0 })];
+        const bound = figma.variables.setBoundVariableForPaint(node.strokes[0] as SolidPaint, "color", v);
         node.strokes = [bound];
-        hints.push(match.hint);
-      } else if (match.paintStyleId) {
-        try { await node.setStrokeStyleIdAsync(match.paintStyleId); hints.push(match.hint); } catch {}
       } else {
+        hints.push({ type: "error", message: `strokeVariableId '${p.strokes._variableId}' not found.` });
+      }
+    }
+    // Tagged binding: { _variable: "name" }
+    else if (p.strokes?._variable) {
+      const name = p.strokes._variable;
+      const v = await findColorVariableByName(name);
+      if (v) {
+        node.strokes = [solidPaint({ r: 0, g: 0, b: 0 })];
+        const bound = figma.variables.setBoundVariableForPaint(node.strokes[0] as SolidPaint, "color", v);
+        node.strokes = [bound];
+        hints.push({ type: "confirm", message: `Bound stroke → variable '${v.name}'.` });
+      } else {
+        const colorVars = await figma.variables.getLocalVariablesAsync("COLOR");
+        const names = colorVars.map(v => v.name).slice(0, 20);
+        hints.push({ type: "error", message: `strokeVariableName '${name}' not found. Available: [${names.join(", ")}]` });
+      }
+    }
+    // Tagged binding: { _style: "name" }
+    else if (p.strokes?._style) {
+      const name = p.strokes._style;
+      const styles = await figma.getLocalPaintStylesAsync();
+      const available = styles.map(s => s.name);
+      const exact = styles.find(s => s.name === name);
+      const match = exact || styles.find(s => s.name.toLowerCase().includes(name.toLowerCase()));
+      if (match) {
+        try { await node.setStrokeStyleIdAsync(match.id); }
+        catch (e: any) { hints.push({ type: "error", message: `strokeStyleName '${name}' matched but failed to apply: ${e.message}` }); }
+      } else {
+        hints.push(styleNotFoundHint("strokeStyleName", name, available));
+      }
+    }
+    // Empty array → clear strokes
+    else if (Array.isArray(p.strokes) && p.strokes.length === 0) {
+      node.strokes = [];
+    }
+    // Array of paints → coerce hex colors, auto-bind single solid
+    else if (Array.isArray(p.strokes)) {
+      node.strokes = p.strokes.map((f: any) => {
+        if (f.type === "SOLID" && f.color) {
+          const c = coerceColor(f.color);
+          if (c) return { type: "SOLID" as const, color: { r: c.r, g: c.g, b: c.b }, opacity: f.opacity ?? c.a ?? 1 };
+        }
+        return f;
+      });
+      // Auto-bind for single solid color
+      if (p.strokes.length === 1 && node.strokes[0]?.type === "SOLID") {
+        const sc = node.strokes[0].color;
+        const match = await suggestStyleForColor({ ...sc, a: node.strokes[0].opacity ?? 1 }, "strokeStyleName", "STROKE_COLOR");
+        if (match.variable) {
+          const bound = figma.variables.setBoundVariableForPaint(node.strokes[0] as SolidPaint, "color", match.variable);
+          node.strokes = [bound];
+        } else if (match.paintStyleId) {
+          try { await node.setStrokeStyleIdAsync(match.paintStyleId); } catch {}
+        }
         hints.push(match.hint);
+      }
+    }
+    // Scalar: hex color string
+    else {
+      const c = coerceColor(p.strokes);
+      if (c) {
+        node.strokes = [solidPaint(c)];
+        const match = await suggestStyleForColor(c, "strokeStyleName", "STROKE_COLOR");
+        if (match.variable) {
+          const bound = figma.variables.setBoundVariableForPaint(node.strokes[0] as SolidPaint, "color", match.variable);
+          node.strokes = [bound];
+        } else if (match.paintStyleId) {
+          try { await node.setStrokeStyleIdAsync(match.paintStyleId); } catch {}
+        }
+        hints.push(match.hint);
+      } else {
+        // Scalar string: try as style name, then variable name
+        const styles = await figma.getLocalPaintStylesAsync();
+        const exact = styles.find(s => s.name === p.strokes);
+        const styleMatch = exact || styles.find(s => s.name.toLowerCase() === String(p.strokes).toLowerCase());
+        if (styleMatch) {
+          try { await node.setStrokeStyleIdAsync(styleMatch.id); hints.push({ type: "confirm", message: `strokes '${p.strokes}' resolved as paint style '${styleMatch.name}'. Use strokeStyleName for clarity.` }); }
+          catch (e: any) { hints.push({ type: "error", message: `strokes '${p.strokes}' matched style but failed: ${e.message}` }); }
+        } else {
+          const v = await findColorVariableByName(String(p.strokes));
+          if (v) {
+            node.strokes = [solidPaint({ r: 0, g: 0, b: 0 })];
+            const bound = figma.variables.setBoundVariableForPaint(node.strokes[0] as SolidPaint, "color", v);
+            node.strokes = [bound];
+            hints.push({ type: "confirm", message: `strokes '${p.strokes}' resolved as color variable '${v.name}'. Use strokeVariableName for clarity.` });
+          } else {
+            hints.push({ type: "error", message: `strokes '${p.strokes}' is not a valid color (hex or {r,g,b}), paint style, or color variable.` });
+          }
+        }
       }
     }
   }
@@ -525,99 +706,6 @@ export async function applyStrokeWithAutoBind(
     if ((p as any)[f] !== undefined && f in node) swFields[f] = (p as any)[f];
   }
   await applyTokens(node, swFields, hints);
-}
-
-/**
- * Apply font color to a text node with auto-binding.
- * Priority: fontColorVariableId > fontColorVariableName > fontColorStyleName > fontColor (with auto-bind).
- */
-export async function applyFontColorWithAutoBind(
-  textNode: any,
-  p: { fontColorVariableId?: string; fontColorVariableName?: string; fontColorStyleName?: string; fontColor?: any },
-  hints: Hint[],
-  paintStyles?: any[] | null,
-): Promise<boolean> {
-  const makeSolid = (fc: any) => ({ type: "SOLID" as const, color: { r: fc.r ?? 0, g: fc.g ?? 0, b: fc.b ?? 0 }, opacity: fc.a ?? 1 });
-
-  if (p.fontColorVariableId) {
-    const v = await findVariableById(p.fontColorVariableId);
-    if (v) {
-      const fc = p.fontColor || { r: 0, g: 0, b: 0, a: 1 };
-      textNode.fills = [makeSolid(fc)];
-      const bound = figma.variables.setBoundVariableForPaint(textNode.fills[0] as SolidPaint, "color", v);
-      textNode.fills = [bound];
-      return true;
-    }
-    hints.push({ type: "error", message: `fontColorVariableId '${p.fontColorVariableId}' not found.` });
-    return false;
-  }
-
-  if (p.fontColorVariableName) {
-    const v = await findColorVariableByName(p.fontColorVariableName);
-    if (v) {
-      const fc = p.fontColor || { r: 0, g: 0, b: 0, a: 1 };
-      textNode.fills = [makeSolid(fc)];
-      const bound = figma.variables.setBoundVariableForPaint(textNode.fills[0] as SolidPaint, "color", v);
-      textNode.fills = [bound];
-      hints.push({ type: "confirm", message: `Bound font color → variable '${v.name}'.` });
-      return true;
-    }
-    const colorVars = await figma.variables.getLocalVariablesAsync("COLOR");
-    hints.push({ type: "error", message: `fontColorVariableName '${p.fontColorVariableName}' not found. Available: [${colorVars.map(v => v.name).slice(0, 20).join(", ")}]` });
-    return false;
-  }
-
-  if (p.fontColorStyleName) {
-    const styles = paintStyles || await figma.getLocalPaintStylesAsync();
-    const exact = styles.find((s: any) => s.name === p.fontColorStyleName);
-    const match = exact || styles.find((s: any) => s.name.toLowerCase().includes(p.fontColorStyleName!.toLowerCase()));
-    if (match) {
-      try { await textNode.setFillStyleIdAsync(match.id); return true; }
-      catch (e: any) { hints.push({ type: "error", message: `fontColorStyleName '${p.fontColorStyleName}' failed: ${e.message}` }); return false; }
-    }
-    hints.push(styleNotFoundHint("fontColorStyleName", p.fontColorStyleName, styles.map((s: any) => s.name)));
-    return false;
-  }
-
-  // Direct color with auto-bind
-  if (p.fontColor) {
-    const color = coerceColor(p.fontColor);
-    if (!color) {
-      // Not a valid color — try resolving as style/variable name
-      const styles = paintStyles || await figma.getLocalPaintStylesAsync();
-      const exact = styles.find((s: any) => s.name === p.fontColor);
-      const match = exact || styles.find((s: any) => s.name.toLowerCase() === String(p.fontColor).toLowerCase());
-      if (match) {
-        try { await textNode.setFillStyleIdAsync(match.id); hints.push({ type: "confirm", message: `fontColor '${p.fontColor}' resolved as paint style. Use fontColorStyleName instead for clarity.` }); return true; }
-        catch (e: any) { hints.push({ type: "error", message: `fontColor '${p.fontColor}' matched style but failed: ${e.message}` }); return false; }
-      }
-      const v = await findColorVariableByName(String(p.fontColor));
-      if (v) {
-        textNode.fills = [makeSolid({ r: 0, g: 0, b: 0 })];
-        const bound = figma.variables.setBoundVariableForPaint(textNode.fills[0] as SolidPaint, "color", v);
-        textNode.fills = [bound];
-        hints.push({ type: "confirm", message: `fontColor '${p.fontColor}' resolved as color variable. Use fontColorVariableName instead for clarity.` });
-        return true;
-      }
-      hints.push({ type: "error", message: `fontColor '${p.fontColor}' is not a valid color (hex or {r,g,b}), paint style, or color variable.` });
-      return false;
-    }
-    textNode.fills = [makeSolid(color)];
-    const match = await suggestStyleForColor(color, "fontColorStyleName", "TEXT_FILL");
-    if (match.variable) {
-      const bound = figma.variables.setBoundVariableForPaint(textNode.fills[0] as SolidPaint, "color", match.variable);
-      textNode.fills = [bound];
-      hints.push(match.hint);
-      return true;
-    }
-    if (match.paintStyleId) {
-      try { await textNode.setFillStyleIdAsync(match.paintStyleId); hints.push(match.hint); return true; } catch {}
-    }
-    hints.push(match.hint);
-    return false;
-  }
-
-  return false;
 }
 
 /**
@@ -664,25 +752,104 @@ export async function applyCornerRadius(node: any, p: any, hints: Hint[]): Promi
     // Node supports cornerRadius but not per-corner — apply as single field
     const bound = await applyToken(node, "cornerRadius", p.cornerRadius, hints);
     if (!bound && p.cornerRadius !== 0) {
-      hints.push({ type: "suggest", message: `Hardcoded cornerRadius. Use an existing FLOAT variable or create one with variables(method:"create"), then pass the variable name string instead of a number.` });
+      hints.push({ type: "suggest", message: `Hardcoded cornerRadius. Use an existing FLOAT variable with scopes: [CORNER_RADIUS] or create one with variables(method:"create"), then pass the variable name string instead of a number.` });
     }
   }
 }
 
+// ─── FLOAT token scope mapping ──────────────────────────────────
+// Maps node property names to Figma variable scopes for auto-bind matching.
+const FIELD_TO_SCOPE: Record<string, string> = {
+  cornerRadius: "CORNER_RADIUS",
+  topLeftRadius: "CORNER_RADIUS",
+  topRightRadius: "CORNER_RADIUS",
+  bottomRightRadius: "CORNER_RADIUS",
+  bottomLeftRadius: "CORNER_RADIUS",
+  itemSpacing: "GAP",
+  counterAxisSpacing: "GAP",
+  paddingTop: "GAP",
+  paddingRight: "GAP",
+  paddingBottom: "GAP",
+  paddingLeft: "GAP",
+  strokeWeight: "STROKE_FLOAT",
+  strokeTopWeight: "STROKE_FLOAT",
+  strokeBottomWeight: "STROKE_FLOAT",
+  strokeLeftWeight: "STROKE_FLOAT",
+  strokeRightWeight: "STROKE_FLOAT",
+  opacity: "OPACITY",
+};
+
+async function getFloatVarsWithModes(): Promise<{ vars: any[]; defaultModes: Map<string, string> }> {
+  const vars = await figma.variables.getLocalVariablesAsync("FLOAT");
+  const collections = await figma.variables.getLocalVariableCollectionsAsync();
+  const defaultModes = new Map(collections.map(c => [c.id, c.defaultModeId]));
+  return { vars, defaultModes };
+}
+
+/**
+ * Match a numeric value against existing FLOAT variables by value and scope.
+ * Uses Figma variable scopes (CORNER_RADIUS, GAP, etc.) — no collection name assumptions.
+ * Returns the matched variable or null.
+ */
+async function matchFloatVariable(
+  numericValue: number, field: string,
+): Promise<any | null> {
+  if (numericValue === 0) return null; // 0 is too common to match
+  const scope = FIELD_TO_SCOPE[field];
+  if (!scope) return null; // No scope mapping — can't auto-bind
+  const { vars, defaultModes } = await getFloatVarsWithModes();
+  if (vars.length === 0) return null;
+
+  for (const v of vars) {
+    const modeId = defaultModes.get(v.variableCollectionId);
+    if (!modeId) continue;
+    const val = v.valuesByMode[modeId];
+    // Skip aliases and non-numeric values
+    if (typeof val !== "number") continue;
+    if (val !== numericValue) continue;
+
+    const scopes: string[] = (v as any).scopes || [];
+
+    // Auto-bind requires explicit scope match — ALL_SCOPES is not enough
+    if (scope && scopes.includes(scope)) {
+      return v;
+    }
+  }
+
+  return null;
+}
+
 /**
  * Apply a token value (number or variable name string) to a node property.
+ * Numbers are auto-bound to matching FLOAT variables (by value + scope).
+ * Strings are bound as variable names.
  * Returns true if a variable was bound, false if hardcoded numeric.
  */
 export async function applyToken(
   node: any, field: string, value: number | string, hints: Hint[],
 ): Promise<boolean> {
-  const parsed = parseToken(value);
-  if ("varName" in parsed) {
-    await bindNumericVariable(node, field, parsed.varName, hints);
-    return true;
+  // Coerce numeric strings to plain numbers — variable names are never purely numeric
+  if (typeof value === "string") {
+    const n = Number(value);
+    if (!isNaN(n) && value.trim() !== "") {
+      value = n;
+    }
   }
-  node[field] = parsed.num;
-  return false;
+  if (typeof value === "number") {
+    // Auto-bind: match numeric value against existing FLOAT variables by scope
+    const matched = await matchFloatVariable(value, field);
+    if (matched) {
+      node.setBoundVariable(field, matched);
+      hints.push({ type: "confirm", message: `Auto-bound ${field} ${value} → variable '${matched.name}'.` });
+      return true;
+    }
+    node[field] = value;
+    return false;
+  }
+  // Non-numeric string — bind as variable name, using scope to disambiguate
+  const scope = FIELD_TO_SCOPE[field];
+  await bindNumericVariable(node, field, value, hints, scope);
+  return true;
 }
 
 /**
@@ -696,17 +863,20 @@ export async function applyTokens(
   for (const [field, value] of Object.entries(fields)) {
     if (value !== undefined) {
       const bound = await applyToken(node, field, value, hints);
-      if (!bound && value !== 0) hardcoded.push(field);
+      if (!bound && Number(value) !== 0) hardcoded.push(field);
     }
   }
   if (hardcoded.length > 0) {
-    // Group related fields for compact messages
+    // Group related fields for compact messages, include required scopes
     const paddingFields = hardcoded.filter(f => f.startsWith("padding"));
     const others = hardcoded.filter(f => !f.startsWith("padding"));
     const groups: string[] = [];
     if (paddingFields.length > 0) groups.push(paddingFields.length >= 3 ? "padding" : paddingFields.join(", "));
     groups.push(...others);
-    hints.push({ type: "suggest", message: `Hardcoded ${groups.join(", ")}. Use an existing FLOAT variable or create one with variables(method:"create"), then pass the variable name string instead of a number.` });
+    // Collect unique scopes needed for auto-bind
+    const neededScopes = new Set(hardcoded.map(f => FIELD_TO_SCOPE[f]).filter(Boolean));
+    const scopeHint = neededScopes.size > 0 ? ` with scopes: [${[...neededScopes].join(", ")}]` : "";
+    hints.push({ type: "suggest", message: `Hardcoded ${groups.join(", ")}. Use an existing FLOAT variable${scopeHint} or create one with variables(method:"create"), then pass the variable name string instead of a number.` });
   }
 }
 
@@ -719,8 +889,9 @@ export async function bindNumericVariable(
   fields: string | string[],
   variableName: string,
   hints: Hint[],
+  scopeContext?: string,
 ): Promise<boolean> {
-  const v = await findVariableByName(variableName);
+  const v = await findVariableByName(variableName, undefined, scopeContext);
   if (!v) {
     const floatVars = await figma.variables.getLocalVariablesAsync("FLOAT");
     const names = floatVars.map(v => v.name).slice(0, 20);

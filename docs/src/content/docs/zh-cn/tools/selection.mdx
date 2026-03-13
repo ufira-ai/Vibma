@@ -14,7 +14,7 @@ import ParameterTable from "../../../../components/ParameterTable.astro";
 // Selection is the set of nodes currently highlighted in the Figma canvas.
 // get returns the current selection. Without depth, returns stubs ({id, name, type}). With depth=0, returns full properties.
 // _truncated: true when the response was cut short due to node budget limits. Use depth=0 or specific fields to reduce payload.
-// update sets the selection AND scrolls the viewport to show the selected nodes.
+// set replaces the entire selection AND scrolls the viewport to show the selected nodes.
 ```
 
 </details>
@@ -49,7 +49,7 @@ Get the current selection
 
 </details>
 
-## update
+## set
 
 Set selection to nodes and scroll viewport to show them
 

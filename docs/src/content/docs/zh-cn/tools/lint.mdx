@@ -49,7 +49,7 @@ import ParameterTable from "../../../../components/ParameterTable.astro";
 
 Run design linter on a node tree
 
-<ParameterTable schema={{"type":"object","properties":{"nodeId":{"description":"Node ID to lint. If omitted: 1 selected node → lints that node, 2+ selected → lints entire page, 0 selected → error. Pass a page or frame ID explicitly for reliable targeting.","type":"string"},"rules":{"description":"Rules to run. Default: [\"all\"]. Use [\"wcag\"] for accessibility only.","type":"array","items":{"type":"string"}},"maxDepth":{"description":"Max tree depth (default: 10)","type":"number"},"maxFindings":{"description":"Max findings (default: 50)","type":"number"}}}} />
+<ParameterTable schema={{"type":"object","properties":{"nodeId":{"description":"Node ID to lint. If omitted: 1 selected node → lints that node, 2+ selected → lints entire page (not the selection), 0 selected → error. Always pass nodeId explicitly for reliable targeting.","type":"string"},"rules":{"description":"Rules to run. Default: [\"all\"]. Use [\"wcag\"] for accessibility only.","type":"array","items":{"type":"string"}},"maxDepth":{"description":"Max tree depth (default: 10)","type":"number"},"maxFindings":{"description":"Max findings (default: 50)","type":"number"}}}} />
 
 **Response**
 
@@ -61,7 +61,7 @@ Run design linter on a node tree
 
 Auto-fix frames to auto-layout
 
-<ParameterTable schema={{"type":"object","properties":{"items":{"description":"Array of {nodeId, layoutMode?, itemSpacing?}","type":"array","items":{"type":"object","properties":{"nodeId":{"description":"Frame node ID","type":"string"},"layoutMode":{"description":"Direction (default: auto-detected)","type":"string","enum":["VERTICAL","HORIZONTAL"]},"itemSpacing":{"description":"Spacing between children","type":"number"}},"required":["nodeId"]}},"depth":{"description":"Response detail: omit for id+name only. 0=properties + child stubs. N=recurse N levels. -1=unlimited.","type":"number"}},"required":["items"]}} />
+<ParameterTable schema={{"type":"object","properties":{"items":{"description":"Array of {nodeId, layoutMode?, itemSpacing?}","type":"array","items":{"type":"object","properties":{"nodeId":{"description":"Frame node ID","type":"string"},"layoutMode":{"description":"Direction (default: auto-detected)","type":"string","enum":["VERTICAL","HORIZONTAL"]},"itemSpacing":{"description":"Spacing between children","type":"number"}},"required":["nodeId"]}},"depth":{"description":"Response detail for fixed nodes: omit for stubs, 0=properties, -1=full tree","type":"number"}},"required":["items"]}} />
 
 **Response**
 

@@ -5,14 +5,15 @@ import { moveSingle, resizeSingle } from "./modify-node";
 import { updateFrameSingle } from "./update-frame";
 import { prepSetTextProperties, setTextPropertiesSingle } from "./text";
 import type { TextPropsContext } from "./text";
+import { nodeUpdate, mixinTextParams } from "@ufira/vibma/guards";
 
-// ─── Known key sets (flat params matching create shape) ─────────
+// ─── Sub-dispatch groups (handler-level concern, not schema validation) ────
 
 const SIMPLE_PROPS = ["name", "visible", "locked", "rotation", "blendMode", "layoutPositioning"] as const;
 
-const FILL_KEYS = ["fillColor", "fillStyleName", "fillVariableName", "clearFill"] as const;
+const FILL_KEYS = ["fills", "fillColor", "fillStyleName", "fillVariableName", "clearFill"] as const;
 
-const STROKE_KEYS = ["strokeColor", "strokeStyleName", "strokeVariableName", "strokeWeight",
+const STROKE_KEYS = ["strokes", "strokeColor", "strokeStyleName", "strokeVariableName", "strokeWeight",
   "strokeTopWeight", "strokeBottomWeight", "strokeLeftWeight", "strokeRightWeight"] as const;
 
 const CORNER_KEYS = ["cornerRadius", "topLeftRadius", "topRightRadius",
@@ -26,26 +27,13 @@ const LAYOUT_KEYS = ["layoutMode", "layoutWrap", "padding",
   "layoutSizingHorizontal", "layoutSizingVertical",
   "itemSpacing", "counterAxisSpacing"] as const;
 
-export const TEXT_KEYS = ["fontSize", "fontFamily", "fontStyle", "fontWeight",
-  "fontColor", "fontColorVariableName", "fontColorStyleName",
-  "textStyleId", "textStyleName",
-  "textAlignHorizontal", "textAlignVertical", "textAutoResize"] as const;
+export const TEXT_KEYS = [...mixinTextParams] as string[];
 
+// Validation set: schema-generated + handler-level extensions
 const ALL_KNOWN = new Set<string>([
-  "nodeId", "id",
-  ...SIMPLE_PROPS,
-  "x", "y", "width", "height",
-  "minWidth", "maxWidth", "minHeight", "maxHeight",
-  "opacity",
-  ...FILL_KEYS,
-  ...STROKE_KEYS,
-  ...CORNER_KEYS,
-  ...EFFECT_KEYS,
-  ...LAYOUT_KEYS,
-  ...TEXT_KEYS,
-  "constraints", "bindings", "explicitMode", "exportSettings", "properties",
-  // Instance component property keys (allowed when called from combined instance handler)
-  "componentProperties",
+  ...nodeUpdate,
+  "nodeId",              // handler alias for id
+  "componentProperties", // instance handler extension
 ]);
 
 export function hasAny(item: any, keys: readonly string[]): boolean {
@@ -77,12 +65,6 @@ export async function patchSingleNode(item: any, textCtx: TextPropsContext | nul
   /** Collect hints from a sub-handler result */
   function collectHints(r: any) {
     if (r?.hints) hints.push(...(r.hints as Hint[]));
-  }
-
-  // 0. Warn on unrecognized keys
-  const unknownKeys = Object.keys(item).filter(k => !ALL_KNOWN.has(k));
-  if (unknownKeys.length > 0) {
-    hints.push({ type: "warn", message: `Unknown properties ignored: ${unknownKeys.join(", ")}` });
   }
 
   // 1. Simple scalar properties
@@ -117,33 +99,27 @@ export async function patchSingleNode(item: any, textCtx: TextPropsContext | nul
     await doResize(item);
   }
 
-  // 5. Fill (flat: fillColor, fillStyleName, fillVariableName, clearFill)
+  // 5. Fill (fills is canonical — all aliases normalized by batchHandler)
   if (hasAny(item, FILL_KEYS)) {
     const r = await setFillSingle({
       nodeId: item.nodeId,
-      color: item.fillColor,
-      styleName: item.fillStyleName,
-      variableName: item.fillVariableName,
+      fills: item.fills,
       clear: item.clearFill,
     });
-    if (r.matchedStyle) result.matchedFillStyle = r.matchedStyle;
     collectHints(r);
   }
 
-  // 6. Stroke (flat: strokeColor, strokeStyleName, strokeVariableName, strokeWeight, strokeTopWeight, ...)
+  // 6. Stroke (strokes is canonical — all aliases normalized by batchHandler)
   if (hasAny(item, STROKE_KEYS)) {
     const r = await setStrokeSingle({
       nodeId: item.nodeId,
-      color: item.strokeColor,
+      strokes: item.strokes,
       strokeWeight: item.strokeWeight,
-      styleName: item.strokeStyleName,
-      variableName: item.strokeVariableName,
       strokeTopWeight: item.strokeTopWeight,
       strokeBottomWeight: item.strokeBottomWeight,
       strokeLeftWeight: item.strokeLeftWeight,
       strokeRightWeight: item.strokeRightWeight,
     });
-    if (r.matchedStyle) result.matchedStrokeStyle = r.matchedStyle;
     collectHints(r);
   }
 
@@ -212,18 +188,18 @@ export async function patchSingleNode(item: any, textCtx: TextPropsContext | nul
     await doResize(item);
   }
 
-  // 13. Text (flat: fontSize, fontFamily, fontStyle, fontWeight, fontColor, ...)
+  // 13. Text (flat: fontSize, fontFamily, fontStyle, fontWeight, fills, ...)
+  // Guard: only dispatch to text handler if the node is actually a TEXT node.
+  // TEXT_KEYS overlap with general node keys (e.g. fills) — key presence alone is not enough.
   const hasText = hasAny(item, TEXT_KEYS);
-  if (hasText && textCtx) {
+  if (hasText && textCtx && textCtx.nodeMap.has(item.nodeId)) {
     const r = await setTextPropertiesSingle({
       nodeId: item.nodeId,
       fontSize: item.fontSize,
       fontFamily: item.fontFamily,
       fontStyle: item.fontStyle,
       fontWeight: item.fontWeight,
-      fontColor: item.fontColor,
-      fontColorVariableName: item.fontColorVariableName,
-      fontColorStyleName: item.fontColorStyleName,
+      fills: item.fills,
       textStyleId: item.textStyleId,
       textStyleName: item.textStyleName,
       textAlignHorizontal: item.textAlignHorizontal,
@@ -319,7 +295,6 @@ async function patchNodesBatch(params: any) {
       fontFamily: item.fontFamily,
       fontStyle: item.fontStyle,
       fontWeight: item.fontWeight,
-      fontColor: item.fontColor,
       textStyleId: item.textStyleId,
       textStyleName: item.textStyleName,
     }));
@@ -327,7 +302,7 @@ async function patchNodesBatch(params: any) {
   }
 
   // Phase 2: Process each item
-  return batchHandler(params, (item: any) => patchSingleNode(item, textCtx));
+  return batchHandler(params, (item: any) => patchSingleNode(item, textCtx), { keys: ALL_KNOWN, help: 'frames(method: "help", topic: "update")' });
 }
 
 export const figmaHandlers: Record<string, (params: any) => Promise<any>> = {

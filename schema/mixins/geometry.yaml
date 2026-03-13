@@ -2,11 +2,13 @@
 # Include via $mixin: geometry_params
 
 geometry_params:
-  fillColor: { $ref: color, optional: true, description: "Fill color (auto-binds to matching variable/style)" }
+  fills: { type: array, optional: true, description: "Fill paints array — e.g. [{type: 'SOLID', color: '#hex'}] or [] for transparent. Primary way to set fills." }
+  fillColor: { $ref: color, optional: true, description: "Shorthand — sets a single solid fill (auto-binds to matching variable/style)" }
   fillStyleName: { type: string, optional: true, description: "Paint style name for fill" }
   fillVariableName: { type: string, optional: true, description: "Color variable by name e.g. 'bg/primary'" }
-  strokeColor: { $ref: color, optional: true, description: "Stroke color (auto-binds to matching variable/style)" }
+  strokes: { type: array, optional: true, description: "Stroke paints array — e.g. [{type: 'SOLID', color: '#hex'}] or [] to clear. Primary way to set strokes." }
+  strokeColor: { $ref: color, optional: true, description: "Shorthand — sets a single solid stroke (auto-binds to matching variable/style)" }
   strokeStyleName: { type: string, optional: true, description: "Paint style name for stroke" }
   strokeVariableName: { type: string, optional: true, description: "Color variable by name for stroke" }
-  strokeWeight: { type: token, optional: true, description: "Stroke weight (default: 1)" }
+  strokeWeight: { $expand: stroke, type: token }
   cornerRadius: { $expand: corners, type: token }

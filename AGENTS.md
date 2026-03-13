@@ -2,6 +2,12 @@
 
 Non-obvious development details for working on the Vibma MCP-to-Figma bridge.
 
+## Design Philosophy
+
+**Vibma helps designers focus on taste, not structure.** The MCP guardrails good Figma design structure — proper auto-layout, design tokens, component architecture — so designers don't have to fix structural mistakes left by agents.
+
+The MCP emits warnings when it spots structural issues (hardcoded colors, missing auto-layout, unbound tokens). Following these warnings reduces noise from the MCP and produces well-structured design systems that designers enjoy working with.
+
 ## Architecture Overview
 
 Three processes form the communication chain:

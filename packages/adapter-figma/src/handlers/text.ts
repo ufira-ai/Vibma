@@ -1,4 +1,4 @@
-import { batchHandler, coerceColor, suggestStyleForColor, suggestTextStyle, type Hint } from "./helpers";
+import { batchHandler, applyFillWithAutoBind, suggestTextStyle, type Hint } from "./helpers";
 
 // ─── Figma Handlers ──────────────────────────────────────────────
 
@@ -133,20 +133,15 @@ export async function setTextPropertiesSingle(p: any, ctx: TextPropsContext) {
     if (p.fontSize !== undefined) node.fontSize = p.fontSize;
   }
 
-  if (p.fontColor) {
-    const fc = coerceColor(p.fontColor) ?? { r: 0, g: 0, b: 0, a: 1 };
-    node.fills = [{
-      type: "SOLID",
-      color: { r: fc.r, g: fc.g, b: fc.b },
-      opacity: fc.a,
-    }];
+  // Text color: fills is canonical (normalized from fontColor* by batchHandler)
+  const warnings: Hint[] = [];
+  if (p.fills !== undefined) {
+    await applyFillWithAutoBind(node, { fills: p.fills }, warnings);
   }
 
   if (p.textAlignHorizontal) node.textAlignHorizontal = p.textAlignHorizontal;
   if (p.textAlignVertical) node.textAlignVertical = p.textAlignVertical;
   if (p.textAutoResize) node.textAutoResize = p.textAutoResize;
-  // Warnings
-  const warnings: Hint[] = [];
   if (p.layoutSizingHorizontal) {
     const parentIsAL = node.parent && "layoutMode" in node.parent && (node.parent as any).layoutMode !== "NONE";
     if (parentIsAL || p.layoutSizingHorizontal !== "FILL") { node.layoutSizingHorizontal = p.layoutSizingHorizontal; }
@@ -186,18 +181,6 @@ export async function setTextPropertiesSingle(p: any, ctx: TextPropsContext) {
     const fw = p.fontWeight ?? 400;
     warnings.push(await suggestTextStyle(fs, fw));
   }
-  if (p.fontColor) {
-    const fc = coerceColor(p.fontColor) ?? { r: 0, g: 0, b: 0, a: 1 };
-    const match = await suggestStyleForColor(fc, "fontColorStyleName", "TEXT_FILL");
-    if (match.variable) {
-      const bound = figma.variables.setBoundVariableForPaint(node.fills[0] as SolidPaint, "color", match.variable);
-      node.fills = [bound];
-    } else if (match.paintStyleId) {
-      try { await (node as any).setFillStyleIdAsync(match.paintStyleId); } catch {}
-    }
-    warnings.push(match.hint);
-  }
-
   const result: any = {};
   if (warnings.length > 0) result.hints = warnings;
   return result;

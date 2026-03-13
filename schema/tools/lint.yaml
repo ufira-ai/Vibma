@@ -42,7 +42,7 @@ methods:
       nodeId:
         type: string
         optional: true
-        description: "Node ID to lint. If omitted: 1 selected node → lints that node, 2+ selected → lints entire page, 0 selected → error. Pass a page or frame ID explicitly for reliable targeting."
+        description: "Node ID to lint. If omitted: 1 selected node → lints that node, 2+ selected → lints entire page (not the selection), 0 selected → error. Always pass nodeId explicitly for reliable targeting."
       rules:
         type: string[]
         coerce: json
@@ -108,6 +108,8 @@ methods:
               coerce: true
               optional: true
               description: "Spacing between children"
-      depth: { $ref: depth }
+      depth:
+        $ref: depth
+        description: "Response detail for fixed nodes: omit for stubs, 0=properties, -1=full tree"
     response:
       type: batch_mixed

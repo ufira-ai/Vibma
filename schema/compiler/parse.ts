@@ -131,6 +131,7 @@ function resolveBase(def: RawBaseDef, refs: Record<string, RawParam>, mixins: Re
 export interface ParseResult {
   bases: Map<string, RawBaseDef>;
   endpoints: RawEndpointDef[];
+  mixins: Record<string, Record<string, RawParam>>;
 }
 
 /** Load and parse all YAML schema files */
@@ -158,5 +159,5 @@ export function parseAll(): ParseResult {
     }
   }
 
-  return { bases, endpoints };
+  return { bases, endpoints, mixins };
 }

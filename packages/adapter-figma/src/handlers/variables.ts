@@ -1,5 +1,11 @@
 import { batchHandler, coerceColor, findVariableById, findVariableByName, type Hint } from "./helpers";
+import { rgbaToHex } from "@ufira/vibma/utils/color";
 import { createDispatcher, paginate, pickFields } from "@ufira/vibma/endpoint";
+import {
+  variablesCreate, variablesUpdate, variablesDelete,
+  variableCollectionsCreate, variableCollectionsUpdate, variableCollectionsDelete,
+  variableCollectionsAddMode, variableCollectionsRenameMode, variableCollectionsRemoveMode,
+} from "@ufira/vibma/guards";
 
 // ─── Figma Handlers ──────────────────────────────────────────────
 
@@ -41,10 +47,28 @@ async function serializeCollection(c: any): Promise<Record<string, any>> {
 
 async function serializeVariable(v: any): Promise<Record<string, any>> {
   const col = await findCollection(v.variableCollectionId);
+  // Resolve mode IDs to names so valuesByMode keys are human-readable (e.g. "Light"/"Dark")
+  const modeMap = new Map<string, string>(
+    (col?.modes ?? []).map((m: any) => [m.modeId, m.name])
+  );
+  const valuesByMode: Record<string, any> = {};
+  for (const [modeId, rawValue] of Object.entries(v.valuesByMode as Record<string, any>)) {
+    let value = rawValue;
+    // Resolve alias IDs to names
+    if (value && typeof value === "object" && value.type === "VARIABLE_ALIAS" && value.id) {
+      const aliasVar = await findVariableById(value.id);
+      value = { type: "VARIABLE_ALIAS", name: aliasVar?.name ?? value.id };
+    }
+    // Coerce COLOR {r,g,b,a} to hex
+    if (value && typeof value === "object" && !value.type && "r" in value) {
+      value = rgbaToHex(value);
+    }
+    valuesByMode[modeMap.get(modeId) ?? modeId] = value;
+  }
   return {
     name: v.name, resolvedType: v.resolvedType,
     collectionId: col?.name ?? v.variableCollectionId,
-    valuesByMode: v.valuesByMode, description: v.description, scopes: v.scopes,
+    valuesByMode, description: v.description, scopes: v.scopes,
   };
 }
 
@@ -159,7 +183,7 @@ async function createVariableSingle(p: any) {
     const colNames = dupes.map(v => collections.find(c => c.id === v.variableCollectionId)?.name || "?");
     hints.push({ type: "warn", message: `Name "${p.name}" also exists in collection(s): [${colNames.join(", ")}]. Use "${collection.name}/${p.name}" to disambiguate when referencing this variable.` });
   }
-  const result: any = {};
+  const result: any = { name: variable.name };
   if (hints.length > 0) result.hints = hints;
   return result;
 }
@@ -190,7 +214,7 @@ async function listVariablesFigma(params: any) {
   const items: any[] = [];
   for (const v of paged.items) {
     const full = await serializeVariable(v);
-    items.push(!fields?.length ? pickFields(full, []) : pickFields(full, fields));
+    items.push(!fields?.length ? pickFields(full, ["resolvedType", "collectionId", "scopes"]) : pickFields(full, fields));
   }
   return { ...paged, items };
 }
@@ -331,21 +355,21 @@ async function getNodeVariablesFigma(params: any) {
 
 export const figmaHandlers: Record<string, (params: any) => Promise<any>> = {
   variable_collections: createDispatcher({
-    create: (p) => batchHandler(p, createCollectionSingle),
+    create: (p) => batchHandler(p, createCollectionSingle, { keys: variableCollectionsCreate, help: 'variable_collections(method: "help", topic: "create")' }),
     get: getCollectionFigma,
     list: listCollectionsFigma,
-    update: (p) => batchHandler(p, renameCollectionSingle),
-    delete: (p) => batchHandler(p, deleteCollectionSingle),
-    add_mode: (p) => batchHandler(p, addModeSingle),
-    rename_mode: (p) => batchHandler(p, renameModeSingle),
-    remove_mode: (p) => batchHandler(p, removeModeSingle),
+    update: (p) => batchHandler(p, renameCollectionSingle, { keys: variableCollectionsUpdate, help: 'variable_collections(method: "help", topic: "update")' }),
+    delete: (p) => batchHandler(p, deleteCollectionSingle, { keys: variableCollectionsDelete, help: 'variable_collections(method: "help", topic: "delete")' }),
+    add_mode: (p) => batchHandler(p, addModeSingle, { keys: variableCollectionsAddMode, help: 'variable_collections(method: "help", topic: "add_mode")' }),
+    rename_mode: (p) => batchHandler(p, renameModeSingle, { keys: variableCollectionsRenameMode, help: 'variable_collections(method: "help", topic: "rename_mode")' }),
+    remove_mode: (p) => batchHandler(p, removeModeSingle, { keys: variableCollectionsRemoveMode, help: 'variable_collections(method: "help", topic: "remove_mode")' }),
   }),
   variables: createDispatcher({
-    create: (p) => batchHandler(p, createVariableSingle),
+    create: (p) => batchHandler(p, createVariableSingle, { keys: variablesCreate, help: 'variables(method: "help", topic: "create")' }),
     get: getVariableFigma,
     list: listVariablesFigma,
-    update: (p) => batchHandler(p, updateVariableSingle),
-    delete: (p) => batchHandler(p, deleteVariableSingle),
+    update: (p) => batchHandler(p, updateVariableSingle, { keys: variablesUpdate, help: 'variables(method: "help", topic: "update")' }),
+    delete: (p) => batchHandler(p, deleteVariableSingle, { keys: variablesDelete, help: 'variables(method: "help", topic: "delete")' }),
   }),
   set_variable_binding: (p) => batchHandler(p, setBindingSingle),
   set_explicit_variable_mode: (p) => batchHandler(p, setExplicitModeSingle),

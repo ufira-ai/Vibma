@@ -44,6 +44,10 @@
       "import": "./dist/tools/registry.js",
       "require": "./dist/tools/registry.cjs"
     },
+    "./guards": {
+      "import": "./dist/tools/generated/guards.js",
+      "require": "./dist/tools/generated/guards.cjs"
+    },
     "./utils/color": {
       "import": "./dist/utils/color.js",
       "require": "./dist/utils/color.cjs"
@@ -75,7 +79,7 @@
     "zod": "4.3.6"
   },
   "devDependencies": {
-    "@types/node": "^25.3.3",
+    "@types/node": "^25.4.0",
     "@types/ws": "^8.18.1",
     "tsup": "^8.5.1",
     "typescript": "^5.9.3"

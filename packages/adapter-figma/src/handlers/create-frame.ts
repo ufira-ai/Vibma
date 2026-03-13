@@ -1,5 +1,6 @@
 import { batchHandler, appendToParent, checkOverlappingSiblings, applyFillWithAutoBind, applyStrokeWithAutoBind, applyCornerRadius, applyTokens, type Hint } from "./helpers";
 import { looksInteractive } from "@ufira/vibma/utils/wcag";
+import { framesCreateFrame, framesCreateAutoLayout } from "@ufira/vibma/guards";
 
 /**
  * Shared setup for frame-like nodes (Frame, Component).
@@ -80,7 +81,7 @@ export async function setupFrameNode(
   if (p.minHeight !== undefined) (node as any).minHeight = p.minHeight;
   if (p.maxHeight !== undefined) (node as any).maxHeight = p.maxHeight;
 
-  // Append to parent (with deferred FILL sizing)
+  // Append to parent (with deferred FILL sizing + smart cross-axis defaults)
   const parent = await appendToParent(node, parentId);
   const parentIsAL = parent && "layoutMode" in parent && (parent as any).layoutMode !== "NONE";
   if (parent) {
@@ -92,6 +93,21 @@ export async function setupFrameNode(
       if (parentIsAL) { node.layoutSizingVertical = "FILL"; }
       else { hints.push({ type: "warn", message: "layoutSizingVertical 'FILL' ignored — parent is not an auto-layout frame. Add layoutMode to parent first." }); }
     }
+
+    // Smart defaults: when no explicit sizing was provided and parent is auto-layout,
+    // default cross-axis to FILL (instead of HUG) so child fills available space.
+    if (parentIsAL && layoutMode !== "NONE") {
+      const parentAL = parent as any;
+      const isHorizontal = parentAL.layoutMode === "HORIZONTAL";
+      if (!p.layoutSizingHorizontal && !deferH) {
+        // Cross-axis of horizontal parent is vertical → default H to FILL if it's the cross-axis
+        if (!isHorizontal) node.layoutSizingHorizontal = "FILL";
+      }
+      if (!p.layoutSizingVertical && !deferV) {
+        if (isHorizontal) node.layoutSizingVertical = "FILL";
+      }
+    }
+
     if (!deferH && !deferV && parentIsAL) {
       if (layoutSizingHorizontal === "FIXED" && layoutSizingVertical === "FIXED" && layoutMode === "NONE") {
         hints.push({ type: "warn", message: "Child has FIXED sizing inside auto-layout parent. Consider layoutSizingHorizontal/Vertical: 'FILL' or 'HUG' for responsive layout." });
@@ -155,8 +171,9 @@ async function createSingleAutoLayout(p: any) {
 
   // If no nodeIds, create a fresh auto-layout frame (matching YAML schema)
   if (!p.nodeIds?.length) {
+    const { nodeIds: _, ...rest } = p;
     return createSingleFrame({
-      ...p,
+      ...rest,
       name: p.name || "Auto Layout",
       layoutMode: p.layoutMode || "VERTICAL",
       layoutSizingHorizontal: p.layoutSizingHorizontal || "HUG",
@@ -229,6 +246,6 @@ async function createSingleAutoLayout(p: any) {
 }
 
 export const figmaHandlers: Record<string, (params: any) => Promise<any>> = {
-  create_frame: (p) => batchHandler(p, createSingleFrame),
-  create_auto_layout: (p) => batchHandler(p, createSingleAutoLayout),
+  create_frame: (p) => batchHandler(p, createSingleFrame, { keys: framesCreateFrame, help: 'frames(method: "help", topic: "create")' }),
+  create_auto_layout: (p) => batchHandler(p, createSingleAutoLayout, { keys: framesCreateAutoLayout, help: 'frames(method: "help", topic: "create")' }),
 };

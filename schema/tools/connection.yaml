@@ -56,7 +56,7 @@ methods:
     command: reset_tunnel
     tier: edit
     inline: true
-    description: Factory-reset a channel, disconnecting ALL clients
+    description: Disconnect all clients (MCP server and Figma plugin) from a channel and reset its state
     params:
       channel:
         type: string

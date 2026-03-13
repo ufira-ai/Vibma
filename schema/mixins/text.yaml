@@ -6,7 +6,8 @@ text_params:
   fontFamily: { type: string, optional: true, description: "Font family" }
   fontStyle: { type: string, optional: true, description: 'Font variant e.g. "Bold", "Italic" — overrides fontWeight' }
   fontWeight: { type: number, optional: true, description: "100-900. Ignored when fontStyle is set." }
-  fontColor: { type: color, optional: true, description: "Text color (auto-binds to matching variable/style)" }
+  # fills intentionally omitted — geometry_params provides it. Text-specific color: use fontColor/fontColorVariableName/fontColorStyleName.
+  fontColor: { type: color, optional: true, description: "Shorthand — sets text color (auto-binds to matching variable/style)" }
   fontColorVariableName: { type: string, optional: true, description: "Bind color variable by name e.g. 'text/primary'" }
   fontColorStyleName: { type: string, optional: true, description: "Apply paint style — overrides fontColor" }
   textStyleId: { type: string, optional: true, description: "Apply text style by ID — overrides fontSize/fontWeight" }

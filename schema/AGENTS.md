@@ -6,8 +6,9 @@ YAML schemas in `tools/` define tool params, methods, notes. The compiler (`comp
 
 1. **`defs.ts`** — Zod schemas, tool descriptions, `commandMap` (MCP-side)
 2. **`help.ts`** — runtime help text for the `help` tool and per-endpoint `method: "help"` (MCP-side)
-3. **`prompts.ts`** — MCP prompt definitions
-4. **`docs/` MDX pages** — static docs site (Astro) with parameter tables, response schemas, type references (`gen-docs.ts`)
+3. **`guards.ts`** — `ReadonlySet<string>` param key sets for handler-level validation (`gen-guards.ts`)
+4. **`prompts.ts`** — MCP prompt definitions
+5. **`docs/` MDX pages** — static docs site (Astro) with parameter tables, response schemas, type references (`gen-docs.ts`)
 
 Key YAML features:
 - `notes:` — prose context only (workflow, enum docs, cross-tool guidance). `// ---` separator: lines before go to compact description, all lines go to help. **Do not put interfaces in notes** — they are auto-generated (see below).
@@ -33,6 +34,8 @@ Three paths for interface generation (`gen-descriptions.ts`):
 3. **Named responses** — `response` with `tsType` + `properties` → generates `LintResult`, `Variable`, `Collection`, etc.
 
 For complex `items` arrays (>3 props), always add `tsType` to get a named interface. Without it, the schema renders as inline `{ ... }[]` in the method DSL.
+
+**Param guard key sets** (`guards.ts`) are generated from the same YAML. Handlers import `ReadonlySet<string>` values from `@ufira/vibma/guards` for `rejectUnknownParams()` validation. Handler-level aliases (e.g. `characters` for `text`) extend the generated set inline — never duplicate the schema keys.
 
 **Remaining exception**: `SHARED_TYPES` in `gen-descriptions.ts` (Color, Effect, Paint, LayoutGrid, NodeStub) are still hardcoded. Their shapes exist in `refs/common.yaml` but the auto-append mechanism hasn't been migrated yet.
 

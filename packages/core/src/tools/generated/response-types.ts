@@ -21,7 +21,7 @@ export const generatedResponseSchemas: Record<string, Record<string, unknown>> =
   },
   "selection": {
     "get": {"example":{"selectionCount":1,"selection":[{"id":"1:2","name":"Button","type":"COMPONENT"}]}},
-    "update": {"example":{"count":2,"selectedNodes":[{"name":"Button","id":"1:2"},{"name":"Card","id":"3:4"}]}},
+    "set": {"example":{"count":2,"selectedNodes":[{"name":"Button","id":"1:2"},{"name":"Card","id":"3:4"}]}},
   },
   "styles": {
   },

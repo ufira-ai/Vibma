@@ -1,4 +1,5 @@
-import { batchHandler, appendToParent, checkOverlappingSiblings, coerceColor, suggestTextStyle, applyFontColorWithAutoBind, styleNotFoundHint, type Hint } from "./helpers";
+import { batchHandler, appendToParent, checkOverlappingSiblings, suggestTextStyle, applyFillWithAutoBind, styleNotFoundHint, type Hint } from "./helpers";
+import { textCreate } from "@ufira/vibma/guards";
 
 // ─── Figma Handlers ──────────────────────────────────────────────
 
@@ -63,6 +64,14 @@ export function normalizeFontStyle(style: string): string {
   return style.replace(/([a-z])([A-Z])/g, "$1 $2");
 }
 
+// Schema keys + handler-level aliases not in YAML
+const TEXT_CREATE_KEYS = new Set([
+  ...textCreate,
+  "characters",        // alias for "text"
+  "fontColorVariableId", // accepted but not in schema
+  "fillColor", "fillVariableName", "fillStyleName", // aliases → fills via batchHandler
+]) as ReadonlySet<string>;
+
 interface CreateTextContext {
   textStyles: any[] | null;
   paintStyles: any[] | null;
@@ -79,12 +88,7 @@ async function prepCreateText(params: any): Promise<CreateTextContext> {
 
   clearFontCache();
 
-  // Normalize fill* → fontColor* aliases early so preload checks see them
-  for (const p of items) {
-    if (p.fillColor && !p.fontColor) p.fontColor = p.fillColor;
-    if (p.fillVariableName && !p.fontColorVariableName) p.fontColorVariableName = p.fillVariableName;
-    if (p.fillStyleName && !p.fontColorStyleName) p.fontColorStyleName = p.fillStyleName;
-  }
+  // Note: fill*/fontColor* aliases are normalized to `fills` by batchHandler
 
   // Resolve text styles by name once (not per-item)
   const styleNames = new Set<string>();
@@ -96,10 +100,10 @@ async function prepCreateText(params: any): Promise<CreateTextContext> {
     textStyles = await figma.getLocalTextStylesAsync();
   }
 
-  // Preload paint styles if any item uses fontColorStyleName
-  const hasFontColorStyle = items.some((p: any) => p.fontColorStyleName);
+  // Preload paint styles if any item uses a style-tagged fill
+  const hasFillStyle = items.some((p: any) => p.fills?._style || p.fontColorStyleName);
   let paintStyles: any[] | null = null;
-  if (hasFontColorStyle) {
+  if (hasFillStyle) {
     paintStyles = await figma.getLocalPaintStylesAsync();
   }
 
@@ -116,16 +120,18 @@ async function prepCreateText(params: any): Promise<CreateTextContext> {
   const resolvedTextStyleMap = new Map<string, any>();
   for (const p of items) {
     let sid = p.textStyleId;
+    let foundStyle: any = null;
     if (!sid && p.textStyleName && textStyles) {
       const exact = textStyles.find((s: any) => s.name === p.textStyleName);
-      if (exact) sid = exact.id;
+      if (exact) { sid = exact.id; foundStyle = exact; }
       else {
         const fuzzy = textStyles.find((s: any) => s.name.toLowerCase().includes(p.textStyleName.toLowerCase()));
-        if (fuzzy) sid = fuzzy.id;
+        if (fuzzy) { sid = fuzzy.id; foundStyle = fuzzy; }
       }
     }
     if (sid && !resolvedTextStyleMap.has(sid)) {
-      const s = await figma.getStyleByIdAsync(sid);
+      // Use the style object found by name directly (avoids re-fetch failures for recently-created styles)
+      const s = foundStyle ?? await figma.getStyleByIdAsync(sid);
       if (s?.type === "TEXT") {
         resolvedTextStyleMap.set(sid, s);
         const fn = (s as TextStyle).fontName;
@@ -155,9 +161,9 @@ async function prepCreateText(params: any): Promise<CreateTextContext> {
  */
 async function createTextSingle(p: any, ctx: CreateTextContext) {
   const {
-    x = 0, y = 0, text = "Text", fontSize = 14, fontWeight = 400,
+    x = 0, y = 0, text = p.characters ?? "Text", fontSize = 14, fontWeight = 400,
     fontFamily = "Inter", fontStyle,
-    fontColor: rawFontColor, fontColorVariableId, fontColorVariableName, fontColorStyleName, name = "",
+    fills, name = "",
     parentId, textStyleId, textStyleName,
     textAlignHorizontal, textAlignVertical,
     layoutSizingHorizontal, layoutSizingVertical, textAutoResize,
@@ -169,7 +175,6 @@ async function createTextSingle(p: any, ctx: CreateTextContext) {
   textNode.y = y;
   textNode.name = name || text;
 
-  const fontColor = rawFontColor ? coerceColor(rawFontColor) : undefined;
   const requestedStyle = fontStyle || getFontStyle(fontWeight);
   const resolvedFont = ctx.resolvedFontMap.get(`${fontFamily}::${requestedStyle}`) ?? { family: fontFamily, style: requestedStyle };
   textNode.fontName = resolvedFont;
@@ -180,15 +185,10 @@ async function createTextSingle(p: any, ctx: CreateTextContext) {
   if (textAlignHorizontal) textNode.textAlignHorizontal = textAlignHorizontal;
   if (textAlignVertical) textNode.textAlignVertical = textAlignVertical;
 
-  // Font color: shared helper handles variableName > variableId > styleName > color (with auto-bind)
+  // Text color: fills is canonical (normalized from fontColor/fontColorVariableName/fontColorStyleName by batchHandler)
   const hints: Hint[] = [];
-  const colorTokenized = await applyFontColorWithAutoBind(
-    textNode,
-    { fontColorVariableId, fontColorVariableName, fontColorStyleName, fontColor },
-    hints,
-    ctx.paintStyles,
-  );
-  if (!colorTokenized && !fontColor && !fontColorVariableId && !fontColorVariableName && !fontColorStyleName) {
+  const colorSet = await applyFillWithAutoBind(textNode, { fills }, hints);
+  if (!colorSet && fills === undefined) {
     // Default black for text with no color specified
     textNode.fills = [{ type: "SOLID", color: { r: 0, g: 0, b: 0 }, opacity: 1 }];
   }
@@ -224,8 +224,8 @@ async function createTextSingle(p: any, ctx: CreateTextContext) {
   checkOverlappingSiblings(textNode, parent, hints);
 
   // Component property binding: bind text to a component TEXT property
+  const comp = parent && (parent.type === "COMPONENT" || parent.type === "COMPONENT_SET") ? parent as ComponentNode : null;
   if (componentPropertyName) {
-    const comp = parent && (parent.type === "COMPONENT" || parent.type === "COMPONENT_SET") ? parent as ComponentNode : null;
     if (!comp) {
       hints.push({ type: "error", message: `componentPropertyName '${componentPropertyName}' ignored — parent is not a component.` });
     } else {
@@ -240,35 +240,48 @@ async function createTextSingle(p: any, ctx: CreateTextContext) {
         (textNode as any).componentPropertyReferences = { characters: key };
       }
     }
+  } else if (comp) {
+    // Auto-bind: match text node name to component TEXT property name
+    const defs = comp.componentPropertyDefinitions;
+    const textProps = Object.keys(defs).filter(k => defs[k].type === "TEXT");
+    if (textProps.length > 0) {
+      const nodeName = textNode.name.toLowerCase();
+      const match = textProps.find(k => {
+        const baseName = k.split("#")[0].toLowerCase();
+        return baseName === nodeName;
+      });
+      if (match) {
+        (textNode as any).componentPropertyReferences = { characters: match };
+      } else {
+        const available = textProps.map(k => k.split("#")[0]);
+        hints.push({ type: "warn", message: `Text "${textNode.name}" added to component "${comp.name}" but not bound to any TEXT property. Pass componentPropertyName to bind, or rename to match an existing property: [${available.join(", ")}].` });
+      }
+    }
   }
 
   if (fontSize < 12) {
     hints.push({ type: "suggest", message: "WCAG: Min 12px text recommended." });
   }
 
+  const parentIsAL = textNode.parent && "layoutMode" in textNode.parent && (textNode.parent as any).layoutMode !== "NONE";
+
+  // Smart defaults for text inside auto-layout: FILL width + HUG height (text wraps)
+  const effectiveH = layoutSizingHorizontal || (parentIsAL ? "FILL" : undefined);
+  const effectiveV = layoutSizingVertical || (parentIsAL ? "HUG" : undefined);
+
   if (textAutoResize) {
     textNode.textAutoResize = textAutoResize;
-  } else if (layoutSizingHorizontal === "FILL" || layoutSizingHorizontal === "FIXED") {
+  } else if (effectiveH === "FILL" || effectiveH === "FIXED") {
     textNode.textAutoResize = "HEIGHT";
   }
 
-  if (layoutSizingHorizontal) {
-    const parentIsAL = textNode.parent && "layoutMode" in textNode.parent && (textNode.parent as any).layoutMode !== "NONE";
-    if (parentIsAL || layoutSizingHorizontal !== "FILL") { textNode.layoutSizingHorizontal = layoutSizingHorizontal; }
-    else { hints.push({ type: "warn", message: `layoutSizingHorizontal '${layoutSizingHorizontal}' ignored — text node is not inside an auto-layout frame.` }); }
+  if (effectiveH) {
+    if (parentIsAL || effectiveH !== "FILL") { textNode.layoutSizingHorizontal = effectiveH; }
+    else { hints.push({ type: "warn", message: `layoutSizingHorizontal '${effectiveH}' ignored — text node is not inside an auto-layout frame.` }); }
   }
-  if (layoutSizingVertical) {
-    const parentIsAL = textNode.parent && "layoutMode" in textNode.parent && (textNode.parent as any).layoutMode !== "NONE";
-    if (parentIsAL || layoutSizingVertical !== "FILL") { textNode.layoutSizingVertical = layoutSizingVertical; }
-    else { hints.push({ type: "warn", message: `layoutSizingVertical '${layoutSizingVertical}' ignored — text node is not inside an auto-layout frame.` }); }
-  }
-
-  // Text with HUG on both axes won't wrap — warn and recommend FILL width
-  if (textNode.layoutSizingHorizontal === "HUG" && textNode.layoutSizingVertical === "HUG") {
-    const parentIsAL = textNode.parent && "layoutMode" in textNode.parent && (textNode.parent as any).layoutMode !== "NONE";
-    if (parentIsAL) {
-      hints.push({ type: "warn", message: "Text with HUG on both axes won't wrap. Use layoutSizingHorizontal:\"FILL\" + layoutSizingVertical:\"HUG\" so text fills parent width and wraps, or set textAutoResize:\"HEIGHT\" for fixed-width wrapping." });
-    }
+  if (effectiveV) {
+    if (parentIsAL || effectiveV !== "FILL") { textNode.layoutSizingVertical = effectiveV; }
+    else { hints.push({ type: "warn", message: `layoutSizingVertical '${effectiveV}' ignored — text node is not inside an auto-layout frame.` }); }
   }
 
   // HUG on cross-axis of constrained parent — text won't fill available space
@@ -293,7 +306,7 @@ async function createTextSingle(p: any, ctx: CreateTextContext) {
  */
 async function createTextBatch(params: any) {
   const ctx = await prepCreateText(params);
-  return batchHandler(params, (item) => createTextSingle(item, ctx));
+  return batchHandler(params, (item) => createTextSingle(item, ctx), { keys: TEXT_CREATE_KEYS, help: 'text(method: "help", topic: "create")' });
 }
 
 export const figmaHandlers: Record<string, (params: any) => Promise<any>> = {

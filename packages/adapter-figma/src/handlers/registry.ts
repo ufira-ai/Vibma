@@ -48,7 +48,8 @@ export const allFigmaHandlers: Record<string, (params: any) => Promise<any>> = {
 
   // selection endpoint
   "selection.get": selectionHandlers.get_selection,
-  "selection.update": selectionHandlers.set_selection,
+  "selection.set": selectionHandlers.set_selection,
+  "selection.update": selectionHandlers.set_selection,  // backward-compat alias
 
   // frames endpoint — own methods
   "frames.create": async (params: any) => {
@@ -164,7 +165,7 @@ export const allFigmaHandlers: Record<string, (params: any) => Promise<any>> = {
   "instances.update": instanceUpdateCombined,
 
   // instances endpoint — inherited node base methods
-  "instances.list": (p: any) => nodeInfoHandlers.search_nodes({ ...p, scopeNodeId: p.parentId, type: "INSTANCE" }),
+  "instances.list": (p: any) => nodeInfoHandlers.search_nodes({ ...p, scopeNodeId: p.parentId, types: p.types ?? ["INSTANCE"] }),
   "instances.delete": (p: any) => {
     const items = p.items
       ? p.items.map((i: any) => ({ ...i, nodeId: i.nodeId ?? i.id }))
