@@ -34,6 +34,8 @@ async function myBatch(params: any) {
 - **Auto-bind colors** — when a hardcoded color matches a variable/style, automatically bind it and emit a confirmation warning
 - **Fix instructions in lint results** must reference current tool names
 
+**Warnings are the product.** Every warning (hardcoded color, missing auto-layout, unbound token) represents a structural issue a designer would have to fix manually. Following warnings reduces noise from the MCP and produces well-structured design systems that designers enjoy working with.
+
 ## Command Dispatch
 
 `src/handlers/registry.ts` maps every `"{endpoint}.{method}"` command to a handler function:
