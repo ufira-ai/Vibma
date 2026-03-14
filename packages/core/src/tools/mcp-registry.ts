@@ -5,6 +5,7 @@ import { registerTools } from "./registry";
 // Generated endpoint tools (schema compiler output)
 import { tools as generatedTools } from "./generated/defs";
 import { resolveHelp } from "./generated/help";
+import { resolveGuideline } from "./generated/guidelines";
 
 import { registerPrompts } from "./prompts";
 
@@ -40,6 +41,16 @@ export function registerAllTools(server: McpServer, sendCommand: SendCommandFn, 
     },
   }, async (params: any) => {
     return { content: [{ type: "text" as const, text: resolveHelp(params.topic) }] };
+  });
+
+  // Standalone guidelines tool — design methodology, handled locally
+  server.registerTool("guidelines", {
+    description: 'Design guidelines for building quality Figma designs. Covers layout, responsiveness, tokens, components, accessibility, naming, and workflow.\nExamples: guidelines() → list topics, guidelines(topic: "responsive-designs") → full guideline.',
+    inputSchema: {
+      topic: z.string().optional().describe('Guideline topic name, e.g. "responsive-designs" or "token-discipline"'),
+    },
+  }, async (params: any) => {
+    return { content: [{ type: "text" as const, text: resolveGuideline(params.topic) }] };
   });
 
   registerTools(server, sendCommand, caps, allTools);

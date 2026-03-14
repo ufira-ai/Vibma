@@ -22,6 +22,7 @@ import { generateDocs } from "./gen-docs";
 import { generatePromptsTs, generatePromptsDocs, loadPrompts } from "./gen-prompts";
 import { generateHelpTs } from "./gen-help";
 import { generateGuards } from "./gen-guards";
+import { generateGuidelinesTs } from "./gen-guidelines";
 import { expandAll } from "./expand";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -76,6 +77,12 @@ const guardsCode = generateGuards(resolved, mixins);
 const guardsPath = join(outDir, "guards.ts");
 writeFileSync(guardsPath, guardsCode);
 console.log(`Written: ${guardsPath}`);
+
+// ─── Generate Guidelines ────────────────────────────────────────
+const guidelinesCode = generateGuidelinesTs();
+const guidelinesPath = join(outDir, "guidelines.ts");
+writeFileSync(guidelinesPath, guidelinesCode);
+console.log(`Written: ${guidelinesPath}`);
 
 // ─── Generate Response Types ────────────────────────────────────
 const responseCode = generateResponseTypes(resolved);
