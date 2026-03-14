@@ -1,87 +1,29 @@
 # Accessibility Baseline
 
-Accessibility is not a polish pass. It is part of the minimum acceptable quality.
+Lint catches contrast ratios and target sizes, but these design decisions can't be automated.
 
-## Core Principle
+## Don't Rely on Color Alone
 
-The default output should be usable, legible, and operable without special pleading.
-
-## Color Contrast
-
-Meet at least AA contrast for normal UI text.
-
-- body text should have sufficient contrast against its background
-- muted text can be softer, but still readable
-- semantic surfaces should not hide labels or metadata
-
-Do not use subtlety as an excuse for unreadable UI.
-
-## Non-Text Contrast
-
-Interactive or meaningful boundaries should still be visible.
-
-- inputs should look like inputs
-- selected items should read as selected
-- cards and panels should separate clearly enough from the background
-
-If a reviewer has to squint to understand hierarchy, contrast is too weak.
-
-## Touch Target And Control Size
-
-Interactive controls should respect practical target size.
-
-- aim for at least `44x44`
-- do not create tiny pills or buttons that only look clickable
-
-Compact UI still needs usable targets.
-
-## Labeling Rule
-
-Do not rely on color alone.
-
-- warnings need text or icon support
-- states should have a label, not just a fill change
-- icons that carry meaning should have text support unless the pattern is universally obvious
+- Status indicators need text or icon support, not just a color dot
+- Error states need labels, not just red fills
+- Selected items should be distinguishable without color vision
 
 ## Text Hierarchy
 
-Readable hierarchy requires:
+- Body text: 14px minimum, sufficient contrast against background
+- Muted/tertiary text: still readable, not decorative
+- Don't create hierarchy through tiny font size differences alone
 
-- clear title sizes
-- readable body text
-- supporting copy that is visibly secondary but still legible
+## Interactive Targets
 
-If hierarchy depends only on tiny font size changes, it is too weak.
+- Buttons and controls: at least 44x44 touch target
+- Don't create tiny pills that only look clickable
+- Compact UI still needs usable hit areas
 
-## Form Rule
+## Forms
 
-Inputs should provide:
+- Every input needs a visible label (not just placeholder text)
+- Error and helper text should be present, not implied
+- Field boundaries must be visible
 
-- clear label
-- visible field boundary
-- helper or error text when needed
-
-Do not hide critical form meaning in placeholder text alone.
-
-## Checklist
-
-Before considering accessibility acceptable, verify:
-
-1. Does body text meet practical contrast expectations?
-2. Are interactive boundaries visible enough?
-3. Are controls large enough to use?
-4. Are status and state communicated by more than color?
-5. Are labels and helpers present where needed?
-
-If the answer to any of these is no, the design is not ready.
-
-## Figma and Vibma Notes
-
-When working through Vibma:
-
-- run focused contrast lint
-- review dark and light modes separately
-- check both text contrast and practical non-text visibility
-- do not stop at zero hardcoded colors; that is not the same as accessibility
-
-An accessible baseline is the floor, not the stretch goal.
+Run `lint(method: "check", rules: ["wcag"])` to catch measurable violations. The rules above cover what lint can't measure.
