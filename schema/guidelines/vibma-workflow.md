@@ -15,6 +15,16 @@ Work with the tool in a predictable sequence: read before writing, create parent
 
 Create parent containers before children. Dependent creates must be sequential — never parallelize when the child needs the parent ID.
 
+## Component Creation
+
+Build components early — they are the building blocks for screens. A component IS a frame: create it directly with layout properties, then add children.
+
+- Use `components.create(type: "component")` with properties for TEXT, BOOLEAN, INSTANCE_SWAP
+- TEXT properties auto-bind to child text nodes with matching names
+- Group related components into variant sets with `components.create(type: "variant_set")` for state dimensions (Style, Size, State)
+- Use flat components (not variant sets) for INSTANCE_SWAP slots like icons or avatars
+- Assemble screens from `instances.create`, not by cloning frames
+
 ## Placement Rule
 
 Always pass `x` and `y` for top-level nodes and clones. Do not stack everything at `0,0`.
