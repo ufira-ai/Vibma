@@ -75,6 +75,9 @@ export const tools: ToolDef[] = [
       }
       if (!params.items) return;
       if (m === "create") {
+        if (params.items) {
+          if (params.type === "variant_set") for (const it of params.items) { if (it.nodeIds !== undefined && it.componentIds === undefined) { it.componentIds = it.nodeIds; delete it.nodeIds; } }
+        }
         const schemas: Record<string, z.ZodTypeAny> = {
           "component": z.object({
             name: z.string().describe("Component name"),
@@ -485,6 +488,9 @@ export const tools: ToolDef[] = [
       }
       if (!params.items) return;
       if (m === "create") {
+        for (const it of params.items) {
+          if (it.id !== undefined && it.componentId === undefined) { it.componentId = it.id; delete it.id; }
+        }
         const itemSchema = z.object({
           opacity: S.token.optional().describe("Opacity (0-1) or variable name"),
           effectStyleName: z.string().optional().describe("Effect style name (e.g. 'Shadow/Card') for shadows, blurs"),
@@ -625,6 +631,9 @@ export const tools: ToolDef[] = [
       const m = params.method;
       if (!params.items) return;
       if (m === "fix") {
+        for (const it of params.items) {
+          if (it.id !== undefined && it.nodeId === undefined) { it.nodeId = it.id; delete it.id; }
+        }
         const itemSchema = z.object({
           nodeId: z.string().describe("Frame node ID"),
           layoutMode: z.enum(["VERTICAL", "HORIZONTAL"]).optional().describe("Direction (default: auto-detected)"),
@@ -766,8 +775,11 @@ export const tools: ToolDef[] = [
       const m = params.method;
       if (!params.items) return;
       if (m === "create") {
+        for (const it of params.items) {
+          if (it.characters !== undefined && it.text === undefined) { it.text = it.characters; delete it.characters; }
+        }
         const itemSchema = z.object({
-          text: z.string().optional().describe("Text content (also accepts 'characters' as alias)"),
+          text: z.string().optional().describe("Text content"),
           name: z.string().optional().describe("Layer name"),
           x: z.number().optional(),
           y: z.number().optional(),
@@ -793,6 +805,10 @@ export const tools: ToolDef[] = [
         catch (e) { if (e instanceof z.ZodError) { throw new Error(e.issues.map(i => { const path = i.path.join("."); const shape = itemSchema instanceof z.ZodObject ? (itemSchema as any).shape : null; const desc = shape?.[i.path[1]]?.description; return path + ": " + i.message + (desc ? " (expected: " + desc + ")" : ""); }).join("; ")); } throw e; }
       }
       if (m === "set_content") {
+        for (const it of params.items) {
+          if (it.id !== undefined && it.nodeId === undefined) { it.nodeId = it.id; delete it.id; }
+          if (it.characters !== undefined && it.text === undefined) { it.text = it.characters; delete it.characters; }
+        }
         const itemSchema = z.object({
           nodeId: z.string().describe("Text node ID"),
           text: z.string().describe("New text content"),

@@ -204,6 +204,32 @@ function getRequiredParams(method: ResolvedMethod): string[] {
   return required;
 }
 
+/**
+ * Collect alias preprocessing lines for item params.
+ * Each alias generates: if (it.alias !== undefined && it.canonical === undefined) { it.canonical = it.alias; delete it.alias; }
+ * Optional guard condition scopes the alias to a specific discriminant type.
+ */
+function collectAliasLines(params: Record<string, RawParam>, guard?: string): string[] {
+  const lines: string[] = [];
+  for (const [paramName, param] of Object.entries(params)) {
+    if (!param.aliases?.length) continue;
+    for (const alias of param.aliases) {
+      const body = `if (it.${alias} !== undefined && it.${paramName} === undefined) { it.${paramName} = it.${alias}; delete it.${alias}; }`;
+      if (guard) {
+        lines.push(`if (${guard}) for (const it of params.items) { ${body} }`);
+      } else {
+        lines.push(body);
+      }
+    }
+  }
+  return lines;
+}
+
+/** Generate the inline Zod catch block for a schema variable name. */
+function zodCatchBlock(schemaVar: string): string {
+  return `catch (e) { if (e instanceof z.ZodError) { throw new Error(e.issues.map(i => { const path = i.path.join("."); const shape = ${schemaVar} instanceof z.ZodObject ? (${schemaVar} as any).shape : null; const desc = shape?.[i.path[1]]?.description; return path + ": " + i.message + (desc ? " (expected: " + desc + ")" : ""); }).join("; ")); } throw e; }`;
+}
+
 /** Generate a validate function for an endpoint. Returns null if no validation needed. */
 function generateValidate(endpoint: ResolvedEndpoint): string | null {
   const itemBranches: string[] = [];
@@ -227,17 +253,23 @@ function generateValidate(endpoint: ResolvedEndpoint): string | null {
     if (method.discriminant && method.types) {
       // Discriminated: per-type item schemas
       const schemaLines: string[] = [];
+      const aliasLines: string[] = [];
       for (const [typeName, variant] of Object.entries(method.types)) {
         const zodObj = generateItemZodObject(variant.params, 10);
         schemaLines.push(`          ${JSON.stringify(typeName)}: ${zodObj},`);
+        aliasLines.push(...collectAliasLines(variant.params, `params.${method.discriminant} === ${JSON.stringify(typeName)}`));
       }
+      const aliasBlock = aliasLines.length > 0
+        ? `        if (params.items) {\n${aliasLines.map(l => `          ${l}`).join("\n")}\n        }\n`
+        : "";
       itemBranches.push(
         `      if (m === ${JSON.stringify(method.name)}) {\n` +
+        aliasBlock +
         `        const schemas: Record<string, z.ZodTypeAny> = {\n${schemaLines.join("\n")}\n        };\n` +
         `        const s = params.${method.discriminant} && schemas[params.${method.discriminant}];\n` +
         `        if (s) {\n` +
         `          try { params.items = z.array(s).parse(params.items); }\n` +
-        `          catch (e) { if (e instanceof z.ZodError) { throw new Error(e.issues.map(i => { const path = i.path.join("."); const shape = s instanceof z.ZodObject ? (s as any).shape : null; const desc = shape?.[i.path[1]]?.description; return path + ": " + i.message + (desc ? " (expected: " + desc + ")" : ""); }).join("; ")); } throw e; }\n` +
+        `          ${zodCatchBlock("s")}\n` +
         `        }\n` +
         `      }`
       );
@@ -245,12 +277,17 @@ function generateValidate(endpoint: ResolvedEndpoint): string | null {
       // Simple: single item schema from items.items.properties
       const items = method.params?.items;
       if (items?.items && typeof items.items === "object" && "properties" in items.items && items.items.properties) {
+        const aliasLines = collectAliasLines(items.items.properties);
+        const aliasBlock = aliasLines.length > 0
+          ? `        for (const it of params.items) {\n${aliasLines.map(l => `          ${l}`).join("\n")}\n        }\n`
+          : "";
         const zodObj = generateItemZodObject(items.items.properties, 8);
         itemBranches.push(
           `      if (m === ${JSON.stringify(method.name)}) {\n` +
+          aliasBlock +
           `        const itemSchema = ${zodObj};\n` +
           `        try { params.items = z.array(itemSchema).parse(params.items); }\n` +
-          `        catch (e) { if (e instanceof z.ZodError) { throw new Error(e.issues.map(i => { const path = i.path.join("."); const shape = itemSchema instanceof z.ZodObject ? (itemSchema as any).shape : null; const desc = shape?.[i.path[1]]?.description; return path + ": " + i.message + (desc ? " (expected: " + desc + ")" : ""); }).join("; ")); } throw e; }\n` +
+          `        ${zodCatchBlock("itemSchema")}\n` +
           `      }`
         );
       }

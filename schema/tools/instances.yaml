@@ -52,7 +52,7 @@ methods:
           type: object
           properties:
             $mixin: [blend_params, sizing_params]
-            componentId: { type: string, required: true, description: "Component or component set ID" }
+            componentId: { type: string, required: true, description: "Component or component set ID", aliases: [id] }
             variantProperties: { type: object, coerce: json, optional: true, description: 'Pick variant e.g. {"Style":"Secondary"}' }
             name: { type: string, optional: true, description: "Instance layer name" }
             x: { type: number, coerce: true, optional: true }

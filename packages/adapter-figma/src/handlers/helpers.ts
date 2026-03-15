@@ -875,8 +875,9 @@ export async function applyTokens(
     groups.push(...others);
     // Collect unique scopes needed for auto-bind
     const neededScopes = new Set(hardcoded.map(f => FIELD_TO_SCOPE[f]).filter(Boolean));
-    const scopeHint = neededScopes.size > 0 ? ` with scopes: [${[...neededScopes].join(", ")}]` : "";
-    hints.push({ type: "suggest", message: `Hardcoded ${groups.join(", ")}. Use an existing FLOAT variable${scopeHint} or create one with variables(method:"create"), then pass the variable name string instead of a number.` });
+    const scopeList = [...neededScopes].join(", ");
+    const scopeHint = neededScopes.size > 0 ? ` with scopes: [${scopeList}]` : "";
+    hints.push({ type: "suggest", message: `Hardcoded ${groups.join(", ")}. Use an existing FLOAT variable${scopeHint} or create one with variables(method:"create", items:[{name:"<name>", resolvedType:"FLOAT", collectionId:"<collection>", value:<N>, scopes:[${scopeList}]}]), then pass the variable name string instead of a number.` });
   }
 }
 
@@ -908,6 +909,51 @@ export async function bindNumericVariable(
   }
   const label = fieldList.length > 1 ? fieldList[0].replace(/^topLeftRadius$/, "cornerRadius") : fieldList[0];
   hints.push({ type: "confirm", message: `Bound ${label} → variable '${v.name}'.` });
+  return true;
+}
+
+/**
+ * Resolve a component TEXT property key by prefix match.
+ * Property keys have auto-generated suffixes like "Label#2:33" — agents often omit the suffix.
+ * Returns the full key or null if not found.
+ */
+export function resolveComponentPropertyKey(
+  defs: Record<string, { type: string }>,
+  name: string,
+): string | null {
+  if (defs[name]) return name;
+  return Object.keys(defs).find(k => k.startsWith(name + "#")) ?? null;
+}
+
+/**
+ * Bind a text node to a component TEXT property by name.
+ * Resolves the property key by prefix match and sets componentPropertyReferences.
+ * For variant components (children of COMPONENT_SET), walks up to find the set that owns the property definitions.
+ * Returns hints for errors (property not found, wrong type, parent not a component).
+ */
+export function bindTextToComponentProperty(
+  textNode: any,
+  comp: any,
+  propertyName: string,
+  hints: Hint[],
+): boolean {
+  // Variant components delegate property definitions to their parent COMPONENT_SET
+  let defOwner = comp;
+  if (comp.type === "COMPONENT" && comp.parent?.type === "COMPONENT_SET") {
+    defOwner = comp.parent;
+  }
+  const defs = defOwner.componentPropertyDefinitions;
+  const key = resolveComponentPropertyKey(defs, propertyName);
+  if (!key) {
+    const available = Object.keys(defs).filter(k => defs[k].type === "TEXT").map(k => k.split("#")[0]);
+    hints.push({ type: "error", message: `componentPropertyName '${propertyName}' not found. Available TEXT properties: [${available.join(", ")}]` });
+    return false;
+  }
+  if (defs[key].type !== "TEXT") {
+    hints.push({ type: "error", message: `componentPropertyName '${propertyName}' is ${defs[key].type}, not TEXT.` });
+    return false;
+  }
+  textNode.componentPropertyReferences = { characters: key };
   return true;
 }
 

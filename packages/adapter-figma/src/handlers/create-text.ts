@@ -1,4 +1,4 @@
-import { batchHandler, appendToParent, checkOverlappingSiblings, suggestTextStyle, applyFillWithAutoBind, styleNotFoundHint, type Hint } from "./helpers";
+import { batchHandler, appendToParent, checkOverlappingSiblings, suggestTextStyle, applyFillWithAutoBind, styleNotFoundHint, bindTextToComponentProperty, resolveComponentPropertyKey, type Hint } from "./helpers";
 import { textCreate } from "@ufira/vibma/guards";
 
 // ─── Figma Handlers ──────────────────────────────────────────────
@@ -64,10 +64,9 @@ export function normalizeFontStyle(style: string): string {
   return style.replace(/([a-z])([A-Z])/g, "$1 $2");
 }
 
-// Schema keys + handler-level aliases not in YAML
+// Schema keys + handler-level extensions not in YAML
 const TEXT_CREATE_KEYS = new Set([
   ...textCreate,
-  "characters",        // alias for "text"
   "fontColorVariableId", // accepted but not in schema
   "fillColor", "fillVariableName", "fillStyleName", // aliases → fills via batchHandler
 ]) as ReadonlySet<string>;
@@ -161,7 +160,7 @@ async function prepCreateText(params: any): Promise<CreateTextContext> {
  */
 async function createTextSingle(p: any, ctx: CreateTextContext) {
   const {
-    x = 0, y = 0, text = p.characters ?? "Text", fontSize = 14, fontWeight = 400,
+    x = 0, y = 0, text = p.characters ?? "Text", fontSize = 14, fontWeight = 400, // characters: legacy fallback, aliased to text at MCP level
     fontFamily = "Inter", fontStyle,
     fills, name = "",
     parentId, textStyleId, textStyleName,
@@ -171,134 +170,132 @@ async function createTextSingle(p: any, ctx: CreateTextContext) {
   } = p;
 
   const textNode = figma.createText();
-  textNode.x = x;
-  textNode.y = y;
-  textNode.name = name || text;
+  try {
+    textNode.x = x;
+    textNode.y = y;
+    textNode.name = name || text;
 
-  const requestedStyle = fontStyle || getFontStyle(fontWeight);
-  const resolvedFont = ctx.resolvedFontMap.get(`${fontFamily}::${requestedStyle}`) ?? { family: fontFamily, style: requestedStyle };
-  textNode.fontName = resolvedFont;
-  textNode.fontSize = parseInt(String(fontSize));
+    const requestedStyle = fontStyle || getFontStyle(fontWeight);
+    const resolvedFont = ctx.resolvedFontMap.get(`${fontFamily}::${requestedStyle}`) ?? { family: fontFamily, style: requestedStyle };
+    textNode.fontName = resolvedFont;
+    textNode.fontSize = parseInt(String(fontSize));
 
-  await ctx.setCharacters(textNode, text);
+    await ctx.setCharacters(textNode, text);
 
-  if (textAlignHorizontal) textNode.textAlignHorizontal = textAlignHorizontal;
-  if (textAlignVertical) textNode.textAlignVertical = textAlignVertical;
+    if (textAlignHorizontal) textNode.textAlignHorizontal = textAlignHorizontal;
+    if (textAlignVertical) textNode.textAlignVertical = textAlignVertical;
 
-  // Text color: fills is canonical (normalized from fontColor/fontColorVariableName/fontColorStyleName by batchHandler)
-  const hints: Hint[] = [];
-  const colorSet = await applyFillWithAutoBind(textNode, { fills }, hints);
-  if (!colorSet && fills === undefined) {
-    // Default black for text with no color specified
-    textNode.fills = [{ type: "SOLID", color: { r: 0, g: 0, b: 0 }, opacity: 1 }];
-  }
-
-  // Text style: by name > by ID (fonts already preloaded)
-  let resolvedStyleId = textStyleId;
-  if (!resolvedStyleId && textStyleName && ctx.textStyles) {
-    const exact = ctx.textStyles.find((s: any) => s.name === textStyleName);
-    if (exact) resolvedStyleId = exact.id;
-    else {
-      const fuzzy = ctx.textStyles.find((s: any) => s.name.toLowerCase().includes(textStyleName.toLowerCase()));
-      if (fuzzy) resolvedStyleId = fuzzy.id;
+    // Text color: fills is canonical (normalized from fontColor/fontColorVariableName/fontColorStyleName by batchHandler)
+    const hints: Hint[] = [];
+    const colorSet = await applyFillWithAutoBind(textNode, { fills }, hints);
+    if (!colorSet && fills === undefined) {
+      // Default black for text with no color specified
+      textNode.fills = [{ type: "SOLID", color: { r: 0, g: 0, b: 0 }, opacity: 1 }];
     }
-  }
-  if (resolvedStyleId) {
-    const cached = ctx.resolvedTextStyleMap.get(resolvedStyleId);
-    if (cached) {
-      try {
-        await (textNode as any).setTextStyleIdAsync(cached.id);
-      } catch (e: any) {
-        hints.push({ type: "error", message: `textStyleName '${textStyleName || resolvedStyleId}' matched but failed to apply: ${e.message}` });
+
+    // Text style: by name > by ID (fonts already preloaded)
+    let resolvedStyleId = textStyleId;
+    if (!resolvedStyleId && textStyleName && ctx.textStyles) {
+      const exact = ctx.textStyles.find((s: any) => s.name === textStyleName);
+      if (exact) resolvedStyleId = exact.id;
+      else {
+        const fuzzy = ctx.textStyles.find((s: any) => s.name.toLowerCase().includes(textStyleName.toLowerCase()));
+        if (fuzzy) resolvedStyleId = fuzzy.id;
       }
-    } else {
-      hints.push({ type: "error", message: `textStyleName '${textStyleName || resolvedStyleId}' matched style ID '${resolvedStyleId}' but the style could not be loaded. It may be from a remote library or deleted.` });
     }
-  } else if (textStyleName) {
-    hints.push(styleNotFoundHint("textStyleName", textStyleName, ctx.textStyles!.map((s: any) => s.name)));
-  } else {
-    hints.push(await suggestTextStyle(fontSize, fontWeight));
-  }
-
-  const parent = await appendToParent(textNode, parentId);
-  checkOverlappingSiblings(textNode, parent, hints);
-
-  // Component property binding: bind text to a component TEXT property
-  const comp = parent && (parent.type === "COMPONENT" || parent.type === "COMPONENT_SET") ? parent as ComponentNode : null;
-  if (componentPropertyName) {
-    if (!comp) {
-      hints.push({ type: "error", message: `componentPropertyName '${componentPropertyName}' ignored — parent is not a component.` });
-    } else {
-      const defs = comp.componentPropertyDefinitions;
-      const key = Object.keys(defs).find(k => k === componentPropertyName || k.startsWith(componentPropertyName + "#"));
-      if (!key) {
-        const available = Object.keys(defs).filter(k => defs[k].type === "TEXT").map(k => k.split("#")[0]);
-        hints.push({ type: "error", message: `componentPropertyName '${componentPropertyName}' not found. Available TEXT properties: [${available.join(", ")}]` });
-      } else if (defs[key].type !== "TEXT") {
-        hints.push({ type: "error", message: `componentPropertyName '${componentPropertyName}' is ${defs[key].type}, not TEXT.` });
+    if (resolvedStyleId) {
+      const cached = ctx.resolvedTextStyleMap.get(resolvedStyleId);
+      if (cached) {
+        try {
+          await (textNode as any).setTextStyleIdAsync(cached.id);
+        } catch (e: any) {
+          hints.push({ type: "error", message: `textStyleName '${textStyleName || resolvedStyleId}' matched but failed to apply: ${e.message}` });
+        }
       } else {
-        (textNode as any).componentPropertyReferences = { characters: key };
+        hints.push({ type: "error", message: `textStyleName '${textStyleName || resolvedStyleId}' matched style ID '${resolvedStyleId}' but the style could not be loaded. It may be from a remote library or deleted.` });
       }
+    } else if (textStyleName) {
+      hints.push(styleNotFoundHint("textStyleName", textStyleName, ctx.textStyles!.map((s: any) => s.name)));
+    } else {
+      hints.push(await suggestTextStyle(fontSize, fontWeight));
     }
-  } else if (comp) {
-    // Auto-bind: match text node name to component TEXT property name
-    const defs = comp.componentPropertyDefinitions;
-    const textProps = Object.keys(defs).filter(k => defs[k].type === "TEXT");
-    if (textProps.length > 0) {
-      const nodeName = textNode.name.toLowerCase();
-      const match = textProps.find(k => {
-        const baseName = k.split("#")[0].toLowerCase();
-        return baseName === nodeName;
-      });
-      if (match) {
-        (textNode as any).componentPropertyReferences = { characters: match };
+
+    const parent = await appendToParent(textNode, parentId);
+    checkOverlappingSiblings(textNode, parent, hints);
+
+    // Component property binding: bind text to a component TEXT property
+    const comp = parent && (parent.type === "COMPONENT" || parent.type === "COMPONENT_SET") ? parent as ComponentNode : null;
+    if (componentPropertyName) {
+      if (!comp) {
+        hints.push({ type: "error", message: `componentPropertyName '${componentPropertyName}' ignored — parent is not a component.` });
       } else {
-        const available = textProps.map(k => k.split("#")[0]);
-        hints.push({ type: "warn", message: `Text "${textNode.name}" added to component "${comp.name}" but not bound to any TEXT property. Pass componentPropertyName to bind, or rename to match an existing property: [${available.join(", ")}].` });
+        bindTextToComponentProperty(textNode, comp, componentPropertyName, hints);
+      }
+    } else if (comp) {
+      // Auto-bind: match text node name to component TEXT property name
+      // Variant components delegate property definitions to their parent COMPONENT_SET
+      const defOwner = comp.type === "COMPONENT" && comp.parent?.type === "COMPONENT_SET" ? comp.parent : comp;
+      const defs = defOwner.componentPropertyDefinitions;
+      const textProps = Object.keys(defs).filter(k => defs[k].type === "TEXT");
+      if (textProps.length > 0) {
+        const nodeName = textNode.name.toLowerCase();
+        const match = textProps.find(k => {
+          const baseName = k.split("#")[0].toLowerCase();
+          return baseName === nodeName;
+        });
+        if (match) {
+          (textNode as any).componentPropertyReferences = { characters: match };
+        } else {
+          const available = textProps.map(k => k.split("#")[0]);
+          hints.push({ type: "warn", message: `Text "${textNode.name}" added to component "${comp.name}" but not bound to any TEXT property. Pass componentPropertyName on text.create or text/frames(method:"update") to bind, or rename to match an existing property: [${available.join(", ")}].` });
+        }
       }
     }
-  }
 
-  if (fontSize < 12) {
-    hints.push({ type: "suggest", message: "WCAG: Min 12px text recommended." });
-  }
-
-  const parentIsAL = textNode.parent && "layoutMode" in textNode.parent && (textNode.parent as any).layoutMode !== "NONE";
-
-  // Smart defaults for text inside auto-layout: FILL width + HUG height (text wraps)
-  const effectiveH = layoutSizingHorizontal || (parentIsAL ? "FILL" : undefined);
-  const effectiveV = layoutSizingVertical || (parentIsAL ? "HUG" : undefined);
-
-  if (textAutoResize) {
-    textNode.textAutoResize = textAutoResize;
-  } else if (effectiveH === "FILL" || effectiveH === "FIXED") {
-    textNode.textAutoResize = "HEIGHT";
-  }
-
-  if (effectiveH) {
-    if (parentIsAL || effectiveH !== "FILL") { textNode.layoutSizingHorizontal = effectiveH; }
-    else { hints.push({ type: "warn", message: `layoutSizingHorizontal '${effectiveH}' ignored — text node is not inside an auto-layout frame.` }); }
-  }
-  if (effectiveV) {
-    if (parentIsAL || effectiveV !== "FILL") { textNode.layoutSizingVertical = effectiveV; }
-    else { hints.push({ type: "warn", message: `layoutSizingVertical '${effectiveV}' ignored — text node is not inside an auto-layout frame.` }); }
-  }
-
-  // HUG on cross-axis of constrained parent — text won't fill available space
-  if (textNode.parent && "layoutMode" in textNode.parent && (textNode.parent as any).layoutMode !== "NONE") {
-    const parentAL = textNode.parent as any;
-    const isHorizontal = parentAL.layoutMode === "HORIZONTAL";
-    const parentCross = isHorizontal ? parentAL.layoutSizingVertical : parentAL.layoutSizingHorizontal;
-    const childCross = isHorizontal ? textNode.layoutSizingVertical : textNode.layoutSizingHorizontal;
-    if ((parentCross === "FIXED" || parentCross === "FILL") && childCross === "HUG") {
-      const crossProp = isHorizontal ? "layoutSizingVertical" : "layoutSizingHorizontal";
-      hints.push({ type: "warn", message: `Text has HUG on cross-axis of constrained parent — won't fill available space and text won't wrap. Use ${crossProp}:"FILL".` });
+    if (fontSize < 12) {
+      hints.push({ type: "suggest", message: "WCAG: Min 12px text recommended." });
     }
-  }
 
-  const result: any = { id: textNode.id };
-  if (hints.length > 0) result.hints = hints;
-  return result;
+    const parentIsAL = textNode.parent && "layoutMode" in textNode.parent && (textNode.parent as any).layoutMode !== "NONE";
+
+    // Smart defaults for text inside auto-layout: FILL width + HUG height (text wraps)
+    const effectiveH = layoutSizingHorizontal || (parentIsAL ? "FILL" : undefined);
+    const effectiveV = layoutSizingVertical || (parentIsAL ? "HUG" : undefined);
+
+    if (textAutoResize) {
+      textNode.textAutoResize = textAutoResize;
+    } else if (effectiveH === "FILL" || effectiveH === "FIXED") {
+      textNode.textAutoResize = "HEIGHT";
+    }
+
+    if (effectiveH) {
+      if (parentIsAL || effectiveH !== "FILL") { textNode.layoutSizingHorizontal = effectiveH; }
+      else { hints.push({ type: "warn", message: `layoutSizingHorizontal '${effectiveH}' ignored — text node is not inside an auto-layout frame.` }); }
+    }
+    if (effectiveV) {
+      if (parentIsAL || effectiveV !== "FILL") { textNode.layoutSizingVertical = effectiveV; }
+      else { hints.push({ type: "warn", message: `layoutSizingVertical '${effectiveV}' ignored — text node is not inside an auto-layout frame.` }); }
+    }
+
+    // HUG on cross-axis of constrained parent — text won't fill available space
+    if (textNode.parent && "layoutMode" in textNode.parent && (textNode.parent as any).layoutMode !== "NONE") {
+      const parentAL = textNode.parent as any;
+      const isHorizontal = parentAL.layoutMode === "HORIZONTAL";
+      const parentCross = isHorizontal ? parentAL.layoutSizingVertical : parentAL.layoutSizingHorizontal;
+      const childCross = isHorizontal ? textNode.layoutSizingVertical : textNode.layoutSizingHorizontal;
+      if ((parentCross === "FIXED" || parentCross === "FILL") && childCross === "HUG") {
+        const crossProp = isHorizontal ? "layoutSizingVertical" : "layoutSizingHorizontal";
+        hints.push({ type: "warn", message: `Text has HUG on cross-axis of constrained parent — won't fill available space and text won't wrap. Use ${crossProp}:"FILL".` });
+      }
+    }
+
+    const result: any = { id: textNode.id };
+    if (hints.length > 0) result.hints = hints;
+    return result;
+  } catch (e) {
+    textNode.remove();
+    throw e;
+  }
 }
 
 /**

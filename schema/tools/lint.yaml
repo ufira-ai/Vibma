@@ -97,7 +97,7 @@ methods:
         items:
           type: object
           properties:
-            nodeId: { type: string, required: true, description: Frame node ID }
+            nodeId: { type: string, required: true, description: Frame node ID, aliases: [id] }
             layoutMode:
               type: enum
               values: [VERTICAL, HORIZONTAL]

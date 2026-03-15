@@ -147,17 +147,22 @@ export async function setupFrameNode(
 
 async function createSingleFrame(p: any) {
   const frame = figma.createFrame();
-  frame.x = p.x ?? 0;
-  frame.y = p.y ?? 0;
-  frame.resize(p.width ?? 100, p.height ?? 100);
-  frame.name = p.name || "Frame";
-  frame.fills = [];
+  try {
+    frame.x = p.x ?? 0;
+    frame.y = p.y ?? 0;
+    frame.resize(p.width ?? 100, p.height ?? 100);
+    frame.name = p.name || "Frame";
+    frame.fills = [];
 
-  const { hints } = await setupFrameNode(frame, p);
+    const { hints } = await setupFrameNode(frame, p);
 
-  const result: any = { id: frame.id };
-  if (hints.length > 0) result.hints = hints;
-  return result;
+    const result: any = { id: frame.id };
+    if (hints.length > 0) result.hints = hints;
+    return result;
+  } catch (e) {
+    frame.remove();
+    throw e;
+  }
 }
 
 async function createSingleAutoLayout(p: any) {
@@ -204,45 +209,54 @@ async function createSingleAutoLayout(p: any) {
   }
 
   const frame = figma.createFrame();
-  frame.name = p.name || "Auto Layout";
-  frame.fills = [];
-  if (minX !== Infinity) {
-    frame.x = minX;
-    frame.y = minY;
-    frame.resize(maxX - minX, maxY - minY);
+  try {
+    frame.name = p.name || "Auto Layout";
+    frame.fills = [];
+    if (minX !== Infinity) {
+      frame.x = minX;
+      frame.y = minY;
+      frame.resize(maxX - minX, maxY - minY);
+    }
+
+    if ("appendChild" in originalParent) (originalParent as any).appendChild(frame);
+    for (const node of nodes) frame.appendChild(node);
+
+    // Apply all frame properties (layout, fill, stroke, etc.)
+    const hints: Hint[] = [];
+    await applyTokens(frame, { opacity: p.opacity }, hints);
+
+    frame.layoutMode = p.layoutMode || "VERTICAL";
+    for (const f of ["paddingTop", "paddingRight", "paddingBottom", "paddingLeft", "itemSpacing"] as const) {
+      if (p[f] === undefined) (frame as any)[f] = 0;
+    }
+    await applyTokens(frame, {
+      paddingTop: p.paddingTop, paddingRight: p.paddingRight,
+      paddingBottom: p.paddingBottom, paddingLeft: p.paddingLeft,
+      itemSpacing: p.itemSpacing,
+    }, hints);
+    if (p.primaryAxisAlignItems) frame.primaryAxisAlignItems = p.primaryAxisAlignItems;
+    if (p.counterAxisAlignItems) frame.counterAxisAlignItems = p.counterAxisAlignItems;
+    frame.layoutSizingHorizontal = p.layoutSizingHorizontal || "HUG";
+    frame.layoutSizingVertical = p.layoutSizingVertical || "HUG";
+    if (p.layoutWrap) frame.layoutWrap = p.layoutWrap;
+    if (p.counterAxisSpacing !== undefined && p.layoutWrap === "WRAP") {
+      await applyTokens(frame, { counterAxisSpacing: p.counterAxisSpacing }, hints);
+    }
+
+    await applyFillWithAutoBind(frame, p, hints);
+    await applyStrokeWithAutoBind(frame, p, hints);
+
+    const result: any = { id: frame.id };
+    if (hints.length > 0) result.hints = hints;
+    return result;
+  } catch (e) {
+    // Return wrapped nodes to original parent before removing the frame
+    for (const node of [...frame.children]) {
+      (originalParent as any).appendChild(node);
+    }
+    frame.remove();
+    throw e;
   }
-
-  if ("appendChild" in originalParent) (originalParent as any).appendChild(frame);
-  for (const node of nodes) frame.appendChild(node);
-
-  // Apply all frame properties (layout, fill, stroke, etc.)
-  const hints: Hint[] = [];
-  await applyTokens(frame, { opacity: p.opacity }, hints);
-
-  frame.layoutMode = p.layoutMode || "VERTICAL";
-  for (const f of ["paddingTop", "paddingRight", "paddingBottom", "paddingLeft", "itemSpacing"] as const) {
-    if (p[f] === undefined) (frame as any)[f] = 0;
-  }
-  await applyTokens(frame, {
-    paddingTop: p.paddingTop, paddingRight: p.paddingRight,
-    paddingBottom: p.paddingBottom, paddingLeft: p.paddingLeft,
-    itemSpacing: p.itemSpacing,
-  }, hints);
-  if (p.primaryAxisAlignItems) frame.primaryAxisAlignItems = p.primaryAxisAlignItems;
-  if (p.counterAxisAlignItems) frame.counterAxisAlignItems = p.counterAxisAlignItems;
-  frame.layoutSizingHorizontal = p.layoutSizingHorizontal || "HUG";
-  frame.layoutSizingVertical = p.layoutSizingVertical || "HUG";
-  if (p.layoutWrap) frame.layoutWrap = p.layoutWrap;
-  if (p.counterAxisSpacing !== undefined && p.layoutWrap === "WRAP") {
-    await applyTokens(frame, { counterAxisSpacing: p.counterAxisSpacing }, hints);
-  }
-
-  await applyFillWithAutoBind(frame, p, hints);
-  await applyStrokeWithAutoBind(frame, p, hints);
-
-  const result: any = { id: frame.id };
-  if (hints.length > 0) result.hints = hints;
-  return result;
 }
 
 export const figmaHandlers: Record<string, (params: any) => Promise<any>> = {

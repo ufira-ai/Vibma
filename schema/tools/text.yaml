@@ -9,7 +9,6 @@ notes: |
   // textAutoResize: NONE (fixed box), WIDTH_AND_HEIGHT (grow both), HEIGHT (fixed width, auto height), TRUNCATE (fixed + ellipsis).
   // Prefer textStyleName for typography, fontColorVariableName/fontColorStyleName for color.
   // Aliases: fillColor → fontColor, fillVariableName → fontColorVariableName, fillStyleName → fontColorStyleName (consistent with frames API).
-  // Alias: "characters" is accepted as alias for "text" param.
   // ---
   // Smart defaults inside auto-layout parent: layoutSizingHorizontal defaults to FILL, layoutSizingVertical to HUG, textAutoResize to HEIGHT.
   //   Text fills parent width and wraps automatically. Override with explicit values if needed.
@@ -35,7 +34,8 @@ methods:
           properties:
             text:
               type: string
-              description: "Text content (also accepts 'characters' as alias)"
+              description: "Text content"
+              aliases: [characters]
             name:
               type: string
               description: "Layer name"
@@ -115,8 +115,8 @@ methods:
         items:
           type: object
           properties:
-            nodeId: { type: string, required: true, description: Text node ID }
-            text: { type: string, required: true, description: New text content }
+            nodeId: { type: string, required: true, description: Text node ID, aliases: [id] }
+            text: { type: string, required: true, description: New text content, aliases: [characters] }
       depth: { $ref: depth }
     response:
       type: batch_ok

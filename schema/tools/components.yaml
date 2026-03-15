@@ -103,7 +103,7 @@ methods:
         description: Combine components into a variant set. The resulting set is a frame — accepts all frame properties for layout/styling.
         params:
           $mixin: frame_params
-          componentIds: { type: "string[]", coerce: json, required: true, description: "Component IDs to combine (min 2)" }
+          componentIds: { type: "string[]", coerce: json, required: true, description: "Component IDs to combine (min 2)", aliases: [nodeIds] }
           variantPropertyName: { type: string, optional: true, description: "Rename the auto-generated variant property (default: 'Property 1')" }
     response:
       type: batch
