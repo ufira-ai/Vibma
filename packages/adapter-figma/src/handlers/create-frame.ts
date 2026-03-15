@@ -1,4 +1,4 @@
-import { batchHandler, appendToParent, checkOverlappingSiblings, applyDeferredSizing, applyFillWithAutoBind, applyStrokeWithAutoBind, applyCornerRadius, applyTokens, type Hint } from "./helpers";
+import { batchHandler, appendToParent, appendAndApplySizing, applySizing, checkOverlappingSiblings, applyFillWithAutoBind, applyStrokeWithAutoBind, applyCornerRadius, applyTokens, type Hint } from "./helpers";
 import { looksInteractive } from "@ufira/vibma/utils/wcag";
 import { framesCreateFrame, framesCreateAutoLayout } from "@ufira/vibma/guards";
 
@@ -33,9 +33,6 @@ export async function setupFrameNode(
   // Opacity
   await applyTokens(node, { opacity: p.opacity }, hints);
 
-  const deferH = parentId && layoutSizingHorizontal === "FILL";
-  const deferV = parentId && layoutSizingVertical === "FILL";
-
   // Auto-layout
   if (layoutMode !== "NONE") {
     node.layoutMode = layoutMode;
@@ -50,8 +47,6 @@ export async function setupFrameNode(
     }, hints);
     node.primaryAxisAlignItems = primaryAxisAlignItems;
     node.counterAxisAlignItems = counterAxisAlignItems;
-    node.layoutSizingHorizontal = deferH ? "FIXED" : layoutSizingHorizontal;
-    node.layoutSizingVertical = deferV ? "FIXED" : layoutSizingVertical;
     if (p.counterAxisSpacing !== undefined && layoutWrap === "WRAP") {
       await applyTokens(node, { counterAxisSpacing: p.counterAxisSpacing }, hints);
     }
@@ -81,37 +76,8 @@ export async function setupFrameNode(
   if (p.minHeight !== undefined) (node as any).minHeight = p.minHeight;
   if (p.maxHeight !== undefined) (node as any).maxHeight = p.maxHeight;
 
-  // Append to parent (with deferred FILL sizing + smart cross-axis defaults)
-  const parent = await appendToParent(node, parentId);
-  const parentIsAL = parent && "layoutMode" in parent && (parent as any).layoutMode !== "NONE";
-  if (parent) {
-    // Deferred FILL: apply or warn (shared with shapes, instances)
-    if (deferH || deferV) {
-      const deferred: any = {};
-      if (deferH) deferred.layoutSizingHorizontal = "FILL";
-      if (deferV) deferred.layoutSizingVertical = "FILL";
-      applyDeferredSizing(node, parent, deferred, hints);
-    }
-
-    // Smart defaults: when no explicit sizing was provided and parent is auto-layout,
-    // default cross-axis to FILL (instead of HUG) so child fills available space.
-    if (parentIsAL && layoutMode !== "NONE") {
-      const parentAL = parent as any;
-      const isHorizontal = parentAL.layoutMode === "HORIZONTAL";
-      if (!p.layoutSizingHorizontal && !deferH) {
-        if (!isHorizontal) node.layoutSizingHorizontal = "FILL";
-      }
-      if (!p.layoutSizingVertical && !deferV) {
-        if (isHorizontal) node.layoutSizingVertical = "FILL";
-      }
-    }
-
-    if (!deferH && !deferV && parentIsAL) {
-      if (layoutSizingHorizontal === "FIXED" && layoutSizingVertical === "FIXED" && layoutMode === "NONE") {
-        hints.push({ type: "warn", message: "Child has FIXED sizing inside auto-layout parent. Consider layoutSizingHorizontal/Vertical: 'FILL' or 'HUG' for responsive layout." });
-      }
-    }
-  }
+  // Append to parent + apply sizing (FILL deferred, smart cross-axis defaults, FIXED warning)
+  const parent = await appendAndApplySizing(node, p, hints);
 
   // Overlapping children: detect sibling at same position in non-auto-layout parent
   checkOverlappingSiblings(node, parent, hints);
@@ -175,12 +141,14 @@ async function createSingleAutoLayout(p: any) {
   // If no nodeIds, create a fresh auto-layout frame (matching YAML schema)
   if (!p.nodeIds?.length) {
     const { nodeIds: _, ...rest } = p;
+    // Only inject HUG defaults when agent didn't specify and there's no parentId
+    // (applySizing handles smart cross-axis defaults when parentId is set)
     return createSingleFrame({
       ...rest,
       name: p.name || "Auto Layout",
       layoutMode: p.layoutMode || "VERTICAL",
-      layoutSizingHorizontal: p.layoutSizingHorizontal || "HUG",
-      layoutSizingVertical: p.layoutSizingVertical || "HUG",
+      layoutSizingHorizontal: p.layoutSizingHorizontal || (p.parentId ? undefined : "HUG"),
+      layoutSizingVertical: p.layoutSizingVertical || (p.parentId ? undefined : "HUG"),
     });
   }
 
@@ -234,8 +202,10 @@ async function createSingleAutoLayout(p: any) {
     }, hints);
     if (p.primaryAxisAlignItems) frame.primaryAxisAlignItems = p.primaryAxisAlignItems;
     if (p.counterAxisAlignItems) frame.counterAxisAlignItems = p.counterAxisAlignItems;
-    frame.layoutSizingHorizontal = p.layoutSizingHorizontal || "HUG";
-    frame.layoutSizingVertical = p.layoutSizingVertical || "HUG";
+    applySizing(frame, originalParent, {
+      layoutSizingHorizontal: p.layoutSizingHorizontal || "HUG",
+      layoutSizingVertical: p.layoutSizingVertical || "HUG",
+    }, hints);
     if (p.layoutWrap) frame.layoutWrap = p.layoutWrap;
     if (p.counterAxisSpacing !== undefined && p.layoutWrap === "WRAP") {
       await applyTokens(frame, { counterAxisSpacing: p.counterAxisSpacing }, hints);

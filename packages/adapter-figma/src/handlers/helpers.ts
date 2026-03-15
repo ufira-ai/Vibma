@@ -201,39 +201,90 @@ export async function appendToParent(node: SceneNode, parentId?: string): Promis
 }
 
 /**
- * Apply deferred FILL sizing after a node has been appended to its parent.
- * Shared by all create paths (frames, shapes, instances) — single source of truth.
+ * Apply layout sizing to a node that is already parented.
+ * Single source of truth for FILL validation across all node types.
  *
- * FILL can only be set on children of auto-layout frames. When parentId is provided,
- * FILL is deferred (node starts as FIXED/HUG), then applied here after append.
- * If parent is not auto-layout, emits a warning instead of silently ignoring.
- *
- * @param node - The created node (already appended to parent)
- * @param parent - The parent node (from appendToParent)
- * @param p - Raw params with layoutSizingHorizontal/Vertical
- * @param hints - Warning collector
- * @param defaults - Optional default sizing per axis (e.g. lines default H to FILL in vertical parents)
+ * FILL requires an auto-layout parent. If the parent is not auto-layout,
+ * emits a warning instead of silently ignoring. Non-FILL values (HUG, FIXED)
+ * are applied directly.
  */
-export function applyDeferredSizing(
+/**
+ * Apply layout sizing to a node. Single source of truth for FILL validation.
+ *
+ * @param autoDefault - When true (fresh frames/shapes), auto-default cross-axis to FILL.
+ *                      When false (instances/updates), only warn about sizing issues.
+ */
+export function applySizing(
   node: SceneNode,
   parent: BaseNode | null,
   p: { layoutSizingHorizontal?: string; layoutSizingVertical?: string },
   hints: Hint[],
-  defaults?: { h?: string; v?: string },
+  autoDefault = true,
 ): void {
   const parentIsAL = parent && "layoutMode" in parent && (parent as any).layoutMode !== "NONE";
   const axes = [
-    { field: "layoutSizingHorizontal" as const, value: p.layoutSizingHorizontal || defaults?.h },
-    { field: "layoutSizingVertical" as const, value: p.layoutSizingVertical || defaults?.v },
+    { field: "layoutSizingHorizontal" as const, value: p.layoutSizingHorizontal },
+    { field: "layoutSizingVertical" as const, value: p.layoutSizingVertical },
   ];
   for (const { field, value } of axes) {
-    if (!value) continue;
+    if (!value || !(field in node)) continue;
     if (value === "FILL" && !parentIsAL) {
       hints.push({ type: "warn", message: `${field} 'FILL' ignored — parent is not an auto-layout frame. Add layoutMode to parent first.` });
-    } else if (field in node) {
+    } else {
       (node as any)[field] = value;
     }
   }
+
+  if (parentIsAL) {
+    const isHorizontal = (parent as any).layoutMode === "HORIZONTAL";
+    const crossField = isHorizontal ? "layoutSizingVertical" : "layoutSizingHorizontal";
+    const crossValue = isHorizontal ? p.layoutSizingVertical : p.layoutSizingHorizontal;
+
+    // Cross-axis not specified by agent
+    if (!crossValue && crossField in node) {
+      if (autoDefault) {
+        // Fresh frames/shapes: default cross-axis to FILL
+        (node as any)[crossField] = "FILL";
+      } else if ((node as any)[crossField] === "HUG" || (node as any)[crossField] === "FIXED") {
+        // Instances/updates: warn but don't override
+        hints.push({ type: "suggest", message: `${crossField} is '${(node as any)[crossField]}' inside auto-layout parent. Consider ${crossField}:"FILL" to fill available space.` });
+      }
+    }
+
+    // Warn if both axes ended up FIXED inside auto-layout (likely unintended)
+    if ((node as any).layoutSizingHorizontal === "FIXED" && (node as any).layoutSizingVertical === "FIXED") {
+      hints.push({ type: "warn", message: "Child has FIXED sizing inside auto-layout parent. Consider layoutSizingHorizontal/Vertical: 'FILL' or 'HUG' for responsive layout." });
+    }
+  }
+}
+
+/**
+ * Append a node to its parent, then apply layout sizing with FILL deferral.
+ * Convenience wrapper: appendToParent + applySizing.
+ *
+ * FILL is deferred until after append because Figma requires an auto-layout parent.
+ * Non-FILL values are applied before append (they work without a parent).
+ */
+export async function appendAndApplySizing(
+  node: SceneNode,
+  p: { parentId?: string; layoutSizingHorizontal?: string; layoutSizingVertical?: string },
+  hints: Hint[],
+  autoDefault = true,
+): Promise<BaseNode> {
+  // Pre-parent: apply non-FILL sizing immediately (HUG/FIXED work without a parent)
+  for (const field of ["layoutSizingHorizontal", "layoutSizingVertical"] as const) {
+    const value = p[field];
+    if (!value || !(field in node)) continue;
+    if (value === "FILL" && p.parentId) continue; // defer until after append
+    (node as any)[field] = value;
+  }
+
+  const parent = await appendToParent(node, p.parentId);
+
+  // Post-parent: apply deferred FILL + defaults/warnings
+  applySizing(node, parent, p, hints, autoDefault);
+
+  return parent;
 }
 
 /** Check for sibling nodes at the same position in a non-auto-layout parent. */

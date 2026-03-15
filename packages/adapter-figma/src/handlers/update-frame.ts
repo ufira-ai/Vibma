@@ -1,4 +1,4 @@
-import { batchHandler, applyTokens, type Hint } from "./helpers";
+import { batchHandler, applyTokens, applySizing, type Hint } from "./helpers";
 
 // ─── Figma Handlers ──────────────────────────────────────────────
 
@@ -47,9 +47,10 @@ export async function updateFrameSingle(p: any) {
     if (p.counterAxisAlignItems !== undefined) (node as any).counterAxisAlignItems = p.counterAxisAlignItems;
   }
 
-  // 4. Sizing (no type check — works on any node in auto-layout)
-  if (p.layoutSizingHorizontal !== undefined) (node as any).layoutSizingHorizontal = p.layoutSizingHorizontal;
-  if (p.layoutSizingVertical !== undefined) (node as any).layoutSizingVertical = p.layoutSizingVertical;
+  // 4. Sizing (shared FILL validation — warns if parent is not auto-layout)
+  if (p.layoutSizingHorizontal !== undefined || p.layoutSizingVertical !== undefined) {
+    applySizing(node as SceneNode, node.parent, p, hints, false);
+  }
 
   // 5. Spacing (supports token strings for variable binding)
   if (p.itemSpacing !== undefined) {

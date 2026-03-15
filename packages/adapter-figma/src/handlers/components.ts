@@ -1,4 +1,4 @@
-import { batchHandler, appendToParent, checkOverlappingSiblings, applyDeferredSizing, applyTokens, resolveComponentPropertyKey, type Hint } from "./helpers";
+import { batchHandler, appendToParent, appendAndApplySizing, checkOverlappingSiblings, applyTokens, resolveComponentPropertyKey, type Hint } from "./helpers";
 import { setupFrameNode } from "./create-frame";
 import { createDispatcher, paginate, pickFields } from "@ufira/vibma/endpoint";
 import {
@@ -442,20 +442,9 @@ async function instanceCreateSingle(p: any) {
   if (p.minHeight !== undefined) (inst as any).minHeight = p.minHeight;
   if (p.maxHeight !== undefined) (inst as any).maxHeight = p.maxHeight;
 
-  // Defer FILL sizing until after parent append
-  const deferH = p.parentId && p.layoutSizingHorizontal === "FILL";
-  const deferV = p.parentId && p.layoutSizingVertical === "FILL";
-  if (p.layoutSizingHorizontal && !deferH) inst.layoutSizingHorizontal = p.layoutSizingHorizontal;
-  if (p.layoutSizingVertical && !deferV) inst.layoutSizingVertical = p.layoutSizingVertical;
-
-  const parent = await appendToParent(inst, p.parentId);
+  // Instances inherit sizing from component — warn about issues but don't auto-default
+  const parent = await appendAndApplySizing(inst, p, hints, false);
   checkOverlappingSiblings(inst, parent, hints);
-  if (deferH || deferV) {
-    const deferred: any = {};
-    if (deferH) deferred.layoutSizingHorizontal = "FILL";
-    if (deferV) deferred.layoutSizingVertical = "FILL";
-    applyDeferredSizing(inst, parent, deferred, hints);
-  }
 
   const result: any = { id: inst.id };
   if (hints.length > 0) result.hints = hints;

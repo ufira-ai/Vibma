@@ -1,4 +1,4 @@
-import { batchHandler, appendToParent, checkOverlappingSiblings, applyDeferredSizing, solidPaint, applyFillWithAutoBind, applyStrokeWithAutoBind, applyCornerRadius, applyTokens, findVariableById, findColorVariableByName, type Hint } from "./helpers";
+import { batchHandler, appendToParent, appendAndApplySizing, checkOverlappingSiblings, solidPaint, applyFillWithAutoBind, applyStrokeWithAutoBind, applyCornerRadius, applyTokens, findVariableById, findColorVariableByName, type Hint } from "./helpers";
 import {
   framesCreateSection, framesCreateSvg, framesCreateRectangle,
   framesCreateEllipse, framesCreateLine, framesCreateGroup,
@@ -101,9 +101,8 @@ async function createSingleRectangle(p: any) {
     await applyCornerRadius(rect, p, hints);
     await applyFillWithAutoBind(rect, p, hints);
     await applyStrokeWithAutoBind(rect, p, hints);
-    const parent = await appendToParent(rect, p.parentId);
+    const parent = await appendAndApplySizing(rect, p, hints);
     checkOverlappingSiblings(rect, parent, hints);
-    await applyDeferredSizing(rect, parent, p, hints);
 
     const result: any = { id: rect.id };
     if (hints.length > 0) result.hints = hints;
@@ -128,9 +127,8 @@ async function createSingleEllipse(p: any) {
     await applyTokens(ellipse, { opacity: p.opacity }, hints);
     await applyFillWithAutoBind(ellipse, p, hints);
     await applyStrokeWithAutoBind(ellipse, p, hints);
-    const parent = await appendToParent(ellipse, p.parentId);
+    const parent = await appendAndApplySizing(ellipse, p, hints);
     checkOverlappingSiblings(ellipse, parent, hints);
-    await applyDeferredSizing(ellipse, parent, p, hints);
 
     const result: any = { id: ellipse.id };
     if (hints.length > 0) result.hints = hints;
@@ -161,12 +159,12 @@ async function createSingleLine(p: any) {
     // applyStrokeWithAutoBind handles both stroke color and strokeWeight tokens
     await applyStrokeWithAutoBind(line, p, hints);
 
-    const parent = await appendToParent(line, p.parentId);
+    const parent = await appendAndApplySizing(line, p, hints);
     checkOverlappingSiblings(line, parent, hints);
     // Lines in vertical auto-layout default to FILL width (divider pattern)
-    const parentMode = parent && "layoutMode" in parent ? (parent as any).layoutMode : null;
-    const defaultH = parentMode === "VERTICAL" ? "FILL" : undefined;
-    await applyDeferredSizing(line, parent, p, hints, { h: defaultH });
+    if (!p.layoutSizingHorizontal && parent && "layoutMode" in parent && (parent as any).layoutMode === "VERTICAL") {
+      (line as any).layoutSizingHorizontal = "FILL";
+    }
 
     const result: any = { id: line.id };
     if (hints.length > 0) result.hints = hints;

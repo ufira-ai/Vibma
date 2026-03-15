@@ -1,4 +1,4 @@
-import { batchHandler, applyFillWithAutoBind, suggestTextStyle, type Hint } from "./helpers";
+import { batchHandler, applyFillWithAutoBind, applySizing, suggestTextStyle, type Hint } from "./helpers";
 
 // ─── Figma Handlers ──────────────────────────────────────────────
 
@@ -142,15 +142,8 @@ export async function setTextPropertiesSingle(p: any, ctx: TextPropsContext) {
   if (p.textAlignHorizontal) node.textAlignHorizontal = p.textAlignHorizontal;
   if (p.textAlignVertical) node.textAlignVertical = p.textAlignVertical;
   if (p.textAutoResize) node.textAutoResize = p.textAutoResize;
-  if (p.layoutSizingHorizontal) {
-    const parentIsAL = node.parent && "layoutMode" in node.parent && (node.parent as any).layoutMode !== "NONE";
-    if (parentIsAL || p.layoutSizingHorizontal !== "FILL") { node.layoutSizingHorizontal = p.layoutSizingHorizontal; }
-    else { warnings.push({ type: "warn", message: `layoutSizingHorizontal '${p.layoutSizingHorizontal}' ignored — node is not inside an auto-layout frame.` }); }
-  }
-  if (p.layoutSizingVertical) {
-    const parentIsAL = node.parent && "layoutMode" in node.parent && (node.parent as any).layoutMode !== "NONE";
-    if (parentIsAL || p.layoutSizingVertical !== "FILL") { node.layoutSizingVertical = p.layoutSizingVertical; }
-    else { warnings.push({ type: "warn", message: `layoutSizingVertical '${p.layoutSizingVertical}' ignored — node is not inside an auto-layout frame.` }); }
+  if (p.layoutSizingHorizontal || p.layoutSizingVertical) {
+    applySizing(node, node.parent, p, warnings, false);
   }
   // Text with HUG on both axes won't wrap — warn after sizing updates
   if ((p.layoutSizingHorizontal || p.layoutSizingVertical) &&

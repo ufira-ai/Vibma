@@ -1,4 +1,4 @@
-import { batchHandler, appendToParent, checkOverlappingSiblings, suggestTextStyle, applyFillWithAutoBind, styleNotFoundHint, bindTextToComponentProperty, type Hint } from "./helpers";
+import { batchHandler, appendToParent, checkOverlappingSiblings, suggestTextStyle, applyFillWithAutoBind, applySizing, styleNotFoundHint, bindTextToComponentProperty, type Hint } from "./helpers";
 import { textCreate } from "@ufira/vibma/guards";
 
 // ─── Figma Handlers ──────────────────────────────────────────────
@@ -272,14 +272,10 @@ async function createTextSingle(p: any, ctx: CreateTextContext) {
       textNode.textAutoResize = "HEIGHT";
     }
 
-    if (effectiveH) {
-      if (parentIsAL || effectiveH !== "FILL") { textNode.layoutSizingHorizontal = effectiveH; }
-      else { hints.push({ type: "warn", message: `layoutSizingHorizontal '${effectiveH}' ignored — text node is not inside an auto-layout frame.` }); }
-    }
-    if (effectiveV) {
-      if (parentIsAL || effectiveV !== "FILL") { textNode.layoutSizingVertical = effectiveV; }
-      else { hints.push({ type: "warn", message: `layoutSizingVertical '${effectiveV}' ignored — text node is not inside an auto-layout frame.` }); }
-    }
+    applySizing(textNode, parent, {
+      layoutSizingHorizontal: effectiveH,
+      layoutSizingVertical: effectiveV,
+    }, hints);
 
     // HUG on cross-axis of constrained parent — text won't fill available space
     if (textNode.parent && "layoutMode" in textNode.parent && (textNode.parent as any).layoutMode !== "NONE") {
