@@ -31,142 +31,167 @@ const LINE_KEYS = new Set([...framesCreateLine, "strokeVariableId", "strokeStyle
 
 async function createSingleSection(p: any) {
   const section = figma.createSection();
-  section.x = p.x ?? 0;
-  section.y = p.y ?? 0;
-  section.resizeWithoutConstraints(p.width ?? 500, p.height ?? 500);
-  section.name = p.name || "Section";
-  section.fills = [];
+  try {
+    section.x = p.x ?? 0;
+    section.y = p.y ?? 0;
+    section.resizeWithoutConstraints(p.width ?? 500, p.height ?? 500);
+    section.name = p.name || "Section";
+    section.fills = [];
 
-  const hints: Hint[] = [];
-  await applyFillWithAutoBind(section, p, hints);
+    const hints: Hint[] = [];
+    await applyFillWithAutoBind(section, p, hints);
 
-  await appendToParent(section, p.parentId);
-  const result: any = { id: section.id };
-  if (hints.length > 0) result.hints = hints;
-  return result;
+    await appendToParent(section, p.parentId);
+    const result: any = { id: section.id };
+    if (hints.length > 0) result.hints = hints;
+    return result;
+  } catch (e) {
+    section.remove();
+    throw e;
+  }
 }
 
 async function createSingleSvg(p: any) {
   const node = figma.createNodeFromSvg(p.svg);
-  node.x = p.x ?? 0;
-  node.y = p.y ?? 0;
-  if (p.name) node.name = p.name;
-  await appendToParent(node, p.parentId);
+  try {
+    node.x = p.x ?? 0;
+    node.y = p.y ?? 0;
+    if (p.name) node.name = p.name;
+    await appendToParent(node, p.parentId);
 
-  // Bind fill style/variable to all vector children
-  if (p.fillStyleName || p.fillVariableId || p.fillVariableName) {
-    const vectors: SceneNode[] = [];
-    const collect = (n: SceneNode) => {
-      if (n.type === "VECTOR" || n.type === "BOOLEAN_OPERATION" || n.type === "STAR" || n.type === "LINE" || n.type === "ELLIPSE" || n.type === "POLYGON") vectors.push(n);
-      if ("children" in n) (n as any).children.forEach(collect);
-    };
-    collect(node);
+    // Bind fill style/variable to all vector children
+    if (p.fillStyleName || p.fillVariableId || p.fillVariableName) {
+      const vectors: SceneNode[] = [];
+      const collect = (n: SceneNode) => {
+        if (n.type === "VECTOR" || n.type === "BOOLEAN_OPERATION" || n.type === "STAR" || n.type === "LINE" || n.type === "ELLIPSE" || n.type === "POLYGON") vectors.push(n);
+        if ("children" in n) (n as any).children.forEach(collect);
+      };
+      collect(node);
 
-    // Resolve variable: by ID > by name
-    let variable: any = null;
-    if (p.fillVariableId) {
-      variable = await findVariableById(p.fillVariableId);
-    } else if (p.fillVariableName) {
-      variable = await findColorVariableByName(p.fillVariableName);
-    }
-
-    if (variable) {
-      for (const vec of vectors) {
-        if ("fills" in vec && (vec as any).fills.length > 0) {
-          const paints = (vec as any).fills.slice();
-          paints[0] = figma.variables.setBoundVariableForPaint(paints[0], "color", variable);
-          (vec as any).fills = paints;
-        }
+      // Resolve variable: by ID > by name
+      let variable: any = null;
+      if (p.fillVariableId) {
+        variable = await findVariableById(p.fillVariableId);
+      } else if (p.fillVariableName) {
+        variable = await findColorVariableByName(p.fillVariableName);
       }
-    } else if (p.fillStyleName) {
-      const styles = await figma.getLocalPaintStylesAsync();
-      const exact = styles.find(s => s.name === p.fillStyleName);
-      const match = exact || styles.find(s => s.name.toLowerCase().includes(p.fillStyleName.toLowerCase()));
-      if (match) {
+
+      if (variable) {
         for (const vec of vectors) {
-          try { await (vec as any).setFillStyleIdAsync(match.id); } catch {}
+          if ("fills" in vec && (vec as any).fills.length > 0) {
+            const paints = (vec as any).fills.slice();
+            paints[0] = figma.variables.setBoundVariableForPaint(paints[0], "color", variable);
+            (vec as any).fills = paints;
+          }
+        }
+      } else if (p.fillStyleName) {
+        const styles = await figma.getLocalPaintStylesAsync();
+        const exact = styles.find(s => s.name === p.fillStyleName);
+        const match = exact || styles.find(s => s.name.toLowerCase().includes(p.fillStyleName.toLowerCase()));
+        if (match) {
+          for (const vec of vectors) {
+            try { await (vec as any).setFillStyleIdAsync(match.id); } catch {}
+          }
         }
       }
     }
-  }
 
-  return { id: node.id };
+    return { id: node.id };
+  } catch (e) {
+    node.remove();
+    throw e;
+  }
 }
 
 // ─── Rectangle ──────────────────────────────────────────────────
 
 async function createSingleRectangle(p: any) {
   const rect = figma.createRectangle();
-  rect.x = p.x ?? 0;
-  rect.y = p.y ?? 0;
-  rect.resize(p.width ?? 100, p.height ?? 100);
-  rect.name = p.name || "Rectangle";
+  try {
+    rect.x = p.x ?? 0;
+    rect.y = p.y ?? 0;
+    rect.resize(p.width ?? 100, p.height ?? 100);
+    rect.name = p.name || "Rectangle";
 
-  const hints: Hint[] = [];
-  await applyTokens(rect, { opacity: p.opacity }, hints);
-  await applyCornerRadius(rect, p, hints);
-  await applyFillWithAutoBind(rect, p, hints);
-  await applyStrokeWithAutoBind(rect, p, hints);
-  const parent = await appendToParent(rect, p.parentId);
-  checkOverlappingSiblings(rect, parent, hints);
-  await applyLayoutSizing(rect, parent, p);
+    const hints: Hint[] = [];
+    await applyTokens(rect, { opacity: p.opacity }, hints);
+    await applyCornerRadius(rect, p, hints);
+    await applyFillWithAutoBind(rect, p, hints);
+    await applyStrokeWithAutoBind(rect, p, hints);
+    const parent = await appendToParent(rect, p.parentId);
+    checkOverlappingSiblings(rect, parent, hints);
+    await applyLayoutSizing(rect, parent, p);
 
-  const result: any = { id: rect.id };
-  if (hints.length > 0) result.hints = hints;
-  return result;
+    const result: any = { id: rect.id };
+    if (hints.length > 0) result.hints = hints;
+    return result;
+  } catch (e) {
+    rect.remove();
+    throw e;
+  }
 }
 
 // ─── Ellipse ────────────────────────────────────────────────────
 
 async function createSingleEllipse(p: any) {
   const ellipse = figma.createEllipse();
-  ellipse.x = p.x ?? 0;
-  ellipse.y = p.y ?? 0;
-  ellipse.resize(p.width ?? 100, p.height ?? p.width ?? 100);
-  ellipse.name = p.name || "Ellipse";
+  try {
+    ellipse.x = p.x ?? 0;
+    ellipse.y = p.y ?? 0;
+    ellipse.resize(p.width ?? 100, p.height ?? p.width ?? 100);
+    ellipse.name = p.name || "Ellipse";
 
-  const hints: Hint[] = [];
-  await applyTokens(ellipse, { opacity: p.opacity }, hints);
-  await applyFillWithAutoBind(ellipse, p, hints);
-  await applyStrokeWithAutoBind(ellipse, p, hints);
-  const parent = await appendToParent(ellipse, p.parentId);
-  checkOverlappingSiblings(ellipse, parent, hints);
-  await applyLayoutSizing(ellipse, parent, p);
+    const hints: Hint[] = [];
+    await applyTokens(ellipse, { opacity: p.opacity }, hints);
+    await applyFillWithAutoBind(ellipse, p, hints);
+    await applyStrokeWithAutoBind(ellipse, p, hints);
+    const parent = await appendToParent(ellipse, p.parentId);
+    checkOverlappingSiblings(ellipse, parent, hints);
+    await applyLayoutSizing(ellipse, parent, p);
 
-  const result: any = { id: ellipse.id };
-  if (hints.length > 0) result.hints = hints;
-  return result;
+    const result: any = { id: ellipse.id };
+    if (hints.length > 0) result.hints = hints;
+    return result;
+  } catch (e) {
+    ellipse.remove();
+    throw e;
+  }
 }
 
 // ─── Line ───────────────────────────────────────────────────────
 
 async function createSingleLine(p: any) {
   const line = figma.createLine();
-  line.x = p.x ?? 0;
-  line.y = p.y ?? 0;
-  line.resize(p.length ?? 100, 0);
-  line.name = p.name || "Line";
-  if (p.rotation !== undefined) line.rotation = p.rotation;
+  try {
+    line.x = p.x ?? 0;
+    line.y = p.y ?? 0;
+    line.resize(p.length ?? 100, 0);
+    line.name = p.name || "Line";
+    if (p.rotation !== undefined) line.rotation = p.rotation;
 
-  // Lines use strokes not fills — default to black if no stroke specified
-  const hints: Hint[] = [];
-  await applyTokens(line, { opacity: p.opacity }, hints);
-  if (!p.strokes && !p.strokeColor && !p.strokeVariableId && !p.strokeVariableName && !p.strokeStyleName) {
-    line.strokes = [solidPaint({ r: 0, g: 0, b: 0 })];
+    // Lines use strokes not fills — default to black if no stroke specified
+    const hints: Hint[] = [];
+    await applyTokens(line, { opacity: p.opacity }, hints);
+    if (!p.strokes && !p.strokeColor && !p.strokeVariableId && !p.strokeVariableName && !p.strokeStyleName) {
+      line.strokes = [solidPaint({ r: 0, g: 0, b: 0 })];
+    }
+    // applyStrokeWithAutoBind handles both stroke color and strokeWeight tokens
+    await applyStrokeWithAutoBind(line, p, hints);
+
+    const parent = await appendToParent(line, p.parentId);
+    checkOverlappingSiblings(line, parent, hints);
+    // Lines in vertical auto-layout default to FILL width (divider pattern)
+    const parentMode = parent && "layoutMode" in parent ? (parent as any).layoutMode : null;
+    const defaultH = parentMode === "VERTICAL" ? "FILL" : undefined;
+    await applyLayoutSizing(line, parent, p, { h: defaultH });
+
+    const result: any = { id: line.id };
+    if (hints.length > 0) result.hints = hints;
+    return result;
+  } catch (e) {
+    line.remove();
+    throw e;
   }
-  // applyStrokeWithAutoBind handles both stroke color and strokeWeight tokens
-  await applyStrokeWithAutoBind(line, p, hints);
-
-  const parent = await appendToParent(line, p.parentId);
-  checkOverlappingSiblings(line, parent, hints);
-  // Lines in vertical auto-layout default to FILL width (divider pattern)
-  const parentMode = parent && "layoutMode" in parent ? (parent as any).layoutMode : null;
-  const defaultH = parentMode === "VERTICAL" ? "FILL" : undefined;
-  await applyLayoutSizing(line, parent, p, { h: defaultH });
-
-  const result: any = { id: line.id };
-  if (hints.length > 0) result.hints = hints;
-  return result;
 }
 
 // ─── Group ──────────────────────────────────────────────────────

@@ -150,92 +150,111 @@ async function createPaintStyleSingle(p: any) {
   const c = coerceColor(p.color);
   if (!c) throw new Error(`Invalid color for paint style "${p.name}": ${JSON.stringify(p.color)}`);
   const style = figma.createPaintStyle();
-  style.name = p.name;
-  if (p.description) style.description = p.description;
-  style.paints = [{ type: "SOLID", color: { r: c.r, g: c.g, b: c.b }, opacity: c.a }];
-  const result: any = { id: style.id };
-  if (p.colorVariableName) {
-    const v = await findColorVariableByName(p.colorVariableName);
-    if (v) {
-      const bound = figma.variables.setBoundVariableForPaint(style.paints[0] as SolidPaint, "color", v);
-      style.paints = [bound];
-      result.boundVariable = v.name;
+  try {
+    style.name = p.name;
+    if (p.description) style.description = p.description;
+    style.paints = [{ type: "SOLID", color: { r: c.r, g: c.g, b: c.b }, opacity: c.a }];
+    const result: any = { id: style.id };
+    if (p.colorVariableName) {
+      const v = await findColorVariableByName(p.colorVariableName);
+      if (v) {
+        const bound = figma.variables.setBoundVariableForPaint(style.paints[0] as SolidPaint, "color", v);
+        style.paints = [bound];
+        result.boundVariable = v.name;
+      } else {
+        const colorVars = await figma.variables.getLocalVariablesAsync("COLOR");
+        const names = colorVars.map(v => v.name).slice(0, 20);
+        throw new Error(`colorVariableName '${p.colorVariableName}' not found. Available: [${names.join(", ")}]`);
+      }
     } else {
-      style.remove();
-      const colorVars = await figma.variables.getLocalVariablesAsync("COLOR");
-      const names = colorVars.map(v => v.name).slice(0, 20);
-      throw new Error(`colorVariableName '${p.colorVariableName}' not found. Available: [${names.join(", ")}]`);
+      // Auto-bind: find matching color variable
+      const match = await suggestStyleForColor(c, "colorVariableName", "ALL_FILLS");
+      if (match.variable) {
+        const bound = figma.variables.setBoundVariableForPaint(style.paints[0] as SolidPaint, "color", match.variable);
+        style.paints = [bound];
+        result.boundVariable = match.variable.name;
+      }
     }
-  } else {
-    // Auto-bind: find matching color variable
-    const match = await suggestStyleForColor(c, "colorVariableName", "ALL_FILLS");
-    if (match.variable) {
-      const bound = figma.variables.setBoundVariableForPaint(style.paints[0] as SolidPaint, "color", match.variable);
-      style.paints = [bound];
-      result.boundVariable = match.variable.name;
-    }
+    return result;
+  } catch (e) {
+    style.remove();
+    throw e;
   }
-  return result;
 }
 
 async function createTextStyleSingle(p: any) {
   const style = figma.createTextStyle();
-  style.name = p.name;
-  if (p.description) style.description = p.description;
-  // Font already resolved + preloaded by batch prep; use stored resolved name
-  const fontStyle = p._resolvedFontStyle ?? p.fontStyle ?? "Regular";
-  style.fontName = { family: p.fontFamily, style: fontStyle };
-  style.fontSize = p.fontSize;
-  if (p.lineHeight !== undefined) {
-    if (typeof p.lineHeight === "number") style.lineHeight = { value: p.lineHeight, unit: "PIXELS" };
-    else if (p.lineHeight.unit === "AUTO") style.lineHeight = { unit: "AUTO" };
-    else style.lineHeight = { value: p.lineHeight.value, unit: p.lineHeight.unit };
-  }
-  if (p.letterSpacing !== undefined) {
-    if (typeof p.letterSpacing === "number") style.letterSpacing = { value: p.letterSpacing, unit: "PIXELS" };
-    else style.letterSpacing = { value: p.letterSpacing.value, unit: p.letterSpacing.unit };
-  }
-  if (p.textCase) style.textCase = p.textCase;
-  if (p.textDecoration) style.textDecoration = p.textDecoration;
-  if (p.paragraphIndent !== undefined) style.paragraphIndent = p.paragraphIndent;
-  if (p.paragraphSpacing !== undefined) style.paragraphSpacing = p.paragraphSpacing;
-  if (p.leadingTrim !== undefined) (style as any).leadingTrim = p.leadingTrim;
-
-  // WCAG recommendations for text styles
-  const result: any = { id: style.id };
-  const hints: Hint[] = [];
-  if (p.fontSize < 12) {
-    hints.push({ type: "warn", message: "WCAG: Min 12px text recommended." });
-  }
-  if (p.lineHeight !== undefined && p.lineHeight !== "AUTO") {
-    let lhPx: number | null = null;
-    if (typeof p.lineHeight === "number") lhPx = p.lineHeight;
-    else if (p.lineHeight.unit === "PIXELS") lhPx = p.lineHeight.value;
-    else if (p.lineHeight.unit === "PERCENT") lhPx = (p.lineHeight.value / 100) * p.fontSize;
-    if (lhPx !== null && lhPx / p.fontSize < 1.5) {
-      hints.push({ type: "warn", message: `WCAG: Line height ${Math.ceil(p.fontSize * 1.5)}px (1.5x) recommended.` });
+  try {
+    style.name = p.name;
+    if (p.description) style.description = p.description;
+    // Font already resolved + preloaded by batch prep; use stored resolved name
+    const fontStyle = p._resolvedFontStyle ?? p.fontStyle ?? "Regular";
+    style.fontName = { family: p.fontFamily, style: fontStyle };
+    style.fontSize = p.fontSize;
+    if (p.lineHeight !== undefined) {
+      if (typeof p.lineHeight === "number") style.lineHeight = { value: p.lineHeight, unit: "PIXELS" };
+      else if (p.lineHeight.unit === "AUTO") style.lineHeight = { unit: "AUTO" };
+      else style.lineHeight = { value: p.lineHeight.value, unit: p.lineHeight.unit };
     }
-  }
-  if (hints.length > 0) result.hints = hints;
+    if (p.letterSpacing !== undefined) {
+      if (typeof p.letterSpacing === "number") style.letterSpacing = { value: p.letterSpacing, unit: "PIXELS" };
+      else style.letterSpacing = { value: p.letterSpacing.value, unit: p.letterSpacing.unit };
+    }
+    if (p.textCase) style.textCase = p.textCase;
+    if (p.textDecoration) style.textDecoration = p.textDecoration;
+    if (p.paragraphIndent !== undefined) style.paragraphIndent = p.paragraphIndent;
+    if (p.paragraphSpacing !== undefined) style.paragraphSpacing = p.paragraphSpacing;
+    if (p.leadingTrim !== undefined) (style as any).leadingTrim = p.leadingTrim;
 
-  return result;
+    // WCAG recommendations for text styles
+    const result: any = { id: style.id };
+    const hints: Hint[] = [];
+    if (p.fontSize < 12) {
+      hints.push({ type: "warn", message: "WCAG: Min 12px text recommended." });
+    }
+    if (p.lineHeight !== undefined && p.lineHeight !== "AUTO") {
+      let lhPx: number | null = null;
+      if (typeof p.lineHeight === "number") lhPx = p.lineHeight;
+      else if (p.lineHeight.unit === "PIXELS") lhPx = p.lineHeight.value;
+      else if (p.lineHeight.unit === "PERCENT") lhPx = (p.lineHeight.value / 100) * p.fontSize;
+      if (lhPx !== null && lhPx / p.fontSize < 1.5) {
+        hints.push({ type: "warn", message: `WCAG: Line height ${Math.ceil(p.fontSize * 1.5)}px (1.5x) recommended.` });
+      }
+    }
+    if (hints.length > 0) result.hints = hints;
+
+    return result;
+  } catch (e) {
+    style.remove();
+    throw e;
+  }
 }
 
 async function createEffectStyleSingle(p: any) {
   const effects = mapEffects(p.effects);
   const style = figma.createEffectStyle();
-  style.name = p.name;
-  if (p.description) style.description = p.description;
-  style.effects = effects;
-  return { id: style.id };
+  try {
+    style.name = p.name;
+    if (p.description) style.description = p.description;
+    style.effects = effects;
+    return { id: style.id };
+  } catch (e) {
+    style.remove();
+    throw e;
+  }
 }
 
 async function createGridStyleSingle(p: any) {
   const style = figma.createGridStyle();
-  style.name = p.name;
-  if (p.description) style.description = p.description;
-  style.layoutGrids = p.layoutGrids;
-  return { id: style.id };
+  try {
+    style.name = p.name;
+    if (p.description) style.description = p.description;
+    style.layoutGrids = p.layoutGrids;
+    return { id: style.id };
+  } catch (e) {
+    style.remove();
+    throw e;
+  }
 }
 
 /** Map effect descriptors to Figma Effect objects, coercing hex color strings. */
