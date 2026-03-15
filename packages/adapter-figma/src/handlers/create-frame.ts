@@ -95,16 +95,16 @@ export async function setupFrameNode(
     }
 
     // Smart defaults: when no explicit sizing was provided and parent is auto-layout,
-    // default cross-axis to FILL (fill available space) and primary-axis to HUG (size to content).
-    // This produces the most common responsive pattern: a child that stretches across and wraps along.
+    // default cross-axis to FILL (instead of HUG) so child fills available space.
     if (parentIsAL && layoutMode !== "NONE") {
       const parentAL = parent as any;
       const isHorizontal = parentAL.layoutMode === "HORIZONTAL";
       if (!p.layoutSizingHorizontal && !deferH) {
-        node.layoutSizingHorizontal = !isHorizontal ? "FILL" : "HUG";
+        // Cross-axis of horizontal parent is vertical → default H to FILL if it's the cross-axis
+        if (!isHorizontal) node.layoutSizingHorizontal = "FILL";
       }
       if (!p.layoutSizingVertical && !deferV) {
-        node.layoutSizingVertical = isHorizontal ? "FILL" : "HUG";
+        if (isHorizontal) node.layoutSizingVertical = "FILL";
       }
     }
 
@@ -175,17 +175,14 @@ async function createSingleAutoLayout(p: any) {
   }
 
   // If no nodeIds, create a fresh auto-layout frame (matching YAML schema)
-  // Don't force HUG when parentId is set — let setupFrameNode apply context-aware
-  // cross-axis defaults (FILL when inside auto-layout parent).
   if (!p.nodeIds?.length) {
     const { nodeIds: _, ...rest } = p;
-    const hasParent = !!p.parentId;
     return createSingleFrame({
       ...rest,
       name: p.name || "Auto Layout",
       layoutMode: p.layoutMode || "VERTICAL",
-      layoutSizingHorizontal: p.layoutSizingHorizontal || (hasParent ? undefined : "HUG"),
-      layoutSizingVertical: p.layoutSizingVertical || (hasParent ? undefined : "HUG"),
+      layoutSizingHorizontal: p.layoutSizingHorizontal || "HUG",
+      layoutSizingVertical: p.layoutSizingVertical || "HUG",
     });
   }
 
