@@ -7,20 +7,32 @@ import {
 
 /**
  * Apply auto-layout sizing to a shape node after appending to parent.
- * Shape primitives (rect, ellipse, line) support layoutSizing when inside auto-layout.
+ * Uses the same deferred FILL + warning pattern as setupFrameNode.
  */
-async function applyLayoutSizing(
+function applyLayoutSizing(
   node: SceneNode,
   parent: BaseNode | null,
   p: { layoutSizingHorizontal?: string; layoutSizingVertical?: string },
+  hints: Hint[],
   defaults?: { h?: string; v?: string },
-): Promise<void> {
+): void {
   const parentIsAL = parent && "layoutMode" in parent && (parent as any).layoutMode !== "NONE";
-  if (!parentIsAL) return;
   const h = p.layoutSizingHorizontal || defaults?.h;
   const v = p.layoutSizingVertical || defaults?.v;
-  if (h && "layoutSizingHorizontal" in node) (node as any).layoutSizingHorizontal = h;
-  if (v && "layoutSizingVertical" in node) (node as any).layoutSizingVertical = v;
+  if (h) {
+    if (h === "FILL" && !parentIsAL) {
+      hints.push({ type: "warn", message: "layoutSizingHorizontal 'FILL' ignored — parent is not an auto-layout frame. Add layoutMode to parent first." });
+    } else if ("layoutSizingHorizontal" in node) {
+      (node as any).layoutSizingHorizontal = h;
+    }
+  }
+  if (v) {
+    if (v === "FILL" && !parentIsAL) {
+      hints.push({ type: "warn", message: "layoutSizingVertical 'FILL' ignored — parent is not an auto-layout frame. Add layoutMode to parent first." });
+    } else if ("layoutSizingVertical" in node) {
+      (node as any).layoutSizingVertical = v;
+    }
+  }
 }
 
 // Handler-level extensions: params accepted by handler but not in YAML schema
@@ -120,7 +132,7 @@ async function createSingleRectangle(p: any) {
     await applyStrokeWithAutoBind(rect, p, hints);
     const parent = await appendToParent(rect, p.parentId);
     checkOverlappingSiblings(rect, parent, hints);
-    await applyLayoutSizing(rect, parent, p);
+    await applyLayoutSizing(rect, parent, p, hints);
 
     const result: any = { id: rect.id };
     if (hints.length > 0) result.hints = hints;
@@ -147,7 +159,7 @@ async function createSingleEllipse(p: any) {
     await applyStrokeWithAutoBind(ellipse, p, hints);
     const parent = await appendToParent(ellipse, p.parentId);
     checkOverlappingSiblings(ellipse, parent, hints);
-    await applyLayoutSizing(ellipse, parent, p);
+    await applyLayoutSizing(ellipse, parent, p, hints);
 
     const result: any = { id: ellipse.id };
     if (hints.length > 0) result.hints = hints;
@@ -183,7 +195,7 @@ async function createSingleLine(p: any) {
     // Lines in vertical auto-layout default to FILL width (divider pattern)
     const parentMode = parent && "layoutMode" in parent ? (parent as any).layoutMode : null;
     const defaultH = parentMode === "VERTICAL" ? "FILL" : undefined;
-    await applyLayoutSizing(line, parent, p, { h: defaultH });
+    await applyLayoutSizing(line, parent, p, hints, { h: defaultH });
 
     const result: any = { id: line.id };
     if (hints.length > 0) result.hints = hints;
