@@ -1,4 +1,4 @@
-import { batchHandler, appendToParent, checkOverlappingSiblings, applyTokens, resolveComponentPropertyKey, type Hint } from "./helpers";
+import { batchHandler, appendToParent, checkOverlappingSiblings, applyDeferredSizing, applyTokens, resolveComponentPropertyKey, type Hint } from "./helpers";
 import { setupFrameNode } from "./create-frame";
 import { createDispatcher, paginate, pickFields } from "@ufira/vibma/endpoint";
 import {
@@ -450,14 +450,11 @@ async function instanceCreateSingle(p: any) {
 
   const parent = await appendToParent(inst, p.parentId);
   checkOverlappingSiblings(inst, parent, hints);
-  const parentIsAL = parent && "layoutMode" in parent && (parent as any).layoutMode !== "NONE";
-  if (deferH) {
-    if (parentIsAL) inst.layoutSizingHorizontal = "FILL";
-    else hints.push({ type: "warn", message: "layoutSizingHorizontal 'FILL' ignored — parent is not an auto-layout frame." });
-  }
-  if (deferV) {
-    if (parentIsAL) inst.layoutSizingVertical = "FILL";
-    else hints.push({ type: "warn", message: "layoutSizingVertical 'FILL' ignored — parent is not an auto-layout frame." });
+  if (deferH || deferV) {
+    const deferred: any = {};
+    if (deferH) deferred.layoutSizingHorizontal = "FILL";
+    if (deferV) deferred.layoutSizingVertical = "FILL";
+    applyDeferredSizing(inst, parent, deferred, hints);
   }
 
   const result: any = { id: inst.id };

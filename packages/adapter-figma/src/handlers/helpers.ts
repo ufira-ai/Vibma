@@ -200,6 +200,42 @@ export async function appendToParent(node: SceneNode, parentId?: string): Promis
   return figma.currentPage;
 }
 
+/**
+ * Apply deferred FILL sizing after a node has been appended to its parent.
+ * Shared by all create paths (frames, shapes, instances) — single source of truth.
+ *
+ * FILL can only be set on children of auto-layout frames. When parentId is provided,
+ * FILL is deferred (node starts as FIXED/HUG), then applied here after append.
+ * If parent is not auto-layout, emits a warning instead of silently ignoring.
+ *
+ * @param node - The created node (already appended to parent)
+ * @param parent - The parent node (from appendToParent)
+ * @param p - Raw params with layoutSizingHorizontal/Vertical
+ * @param hints - Warning collector
+ * @param defaults - Optional default sizing per axis (e.g. lines default H to FILL in vertical parents)
+ */
+export function applyDeferredSizing(
+  node: SceneNode,
+  parent: BaseNode | null,
+  p: { layoutSizingHorizontal?: string; layoutSizingVertical?: string },
+  hints: Hint[],
+  defaults?: { h?: string; v?: string },
+): void {
+  const parentIsAL = parent && "layoutMode" in parent && (parent as any).layoutMode !== "NONE";
+  const axes = [
+    { field: "layoutSizingHorizontal" as const, value: p.layoutSizingHorizontal || defaults?.h },
+    { field: "layoutSizingVertical" as const, value: p.layoutSizingVertical || defaults?.v },
+  ];
+  for (const { field, value } of axes) {
+    if (!value) continue;
+    if (value === "FILL" && !parentIsAL) {
+      hints.push({ type: "warn", message: `${field} 'FILL' ignored — parent is not an auto-layout frame. Add layoutMode to parent first.` });
+    } else if (field in node) {
+      (node as any)[field] = value;
+    }
+  }
+}
+
 /** Check for sibling nodes at the same position in a non-auto-layout parent. */
 export function checkOverlappingSiblings(node: SceneNode, parent: BaseNode | null, hints: Hint[]): void {
   if (!parent || !("children" in parent)) return;

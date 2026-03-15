@@ -1,4 +1,4 @@
-import { batchHandler, appendToParent, checkOverlappingSiblings, applyFillWithAutoBind, applyStrokeWithAutoBind, applyCornerRadius, applyTokens, type Hint } from "./helpers";
+import { batchHandler, appendToParent, checkOverlappingSiblings, applyDeferredSizing, applyFillWithAutoBind, applyStrokeWithAutoBind, applyCornerRadius, applyTokens, type Hint } from "./helpers";
 import { looksInteractive } from "@ufira/vibma/utils/wcag";
 import { framesCreateFrame, framesCreateAutoLayout } from "@ufira/vibma/guards";
 
@@ -85,13 +85,12 @@ export async function setupFrameNode(
   const parent = await appendToParent(node, parentId);
   const parentIsAL = parent && "layoutMode" in parent && (parent as any).layoutMode !== "NONE";
   if (parent) {
-    if (deferH) {
-      if (parentIsAL) { node.layoutSizingHorizontal = "FILL"; }
-      else { hints.push({ type: "warn", message: "layoutSizingHorizontal 'FILL' ignored — parent is not an auto-layout frame. Add layoutMode to parent first." }); }
-    }
-    if (deferV) {
-      if (parentIsAL) { node.layoutSizingVertical = "FILL"; }
-      else { hints.push({ type: "warn", message: "layoutSizingVertical 'FILL' ignored — parent is not an auto-layout frame. Add layoutMode to parent first." }); }
+    // Deferred FILL: apply or warn (shared with shapes, instances)
+    if (deferH || deferV) {
+      const deferred: any = {};
+      if (deferH) deferred.layoutSizingHorizontal = "FILL";
+      if (deferV) deferred.layoutSizingVertical = "FILL";
+      applyDeferredSizing(node, parent, deferred, hints);
     }
 
     // Smart defaults: when no explicit sizing was provided and parent is auto-layout,
@@ -100,7 +99,6 @@ export async function setupFrameNode(
       const parentAL = parent as any;
       const isHorizontal = parentAL.layoutMode === "HORIZONTAL";
       if (!p.layoutSizingHorizontal && !deferH) {
-        // Cross-axis of horizontal parent is vertical → default H to FILL if it's the cross-axis
         if (!isHorizontal) node.layoutSizingHorizontal = "FILL";
       }
       if (!p.layoutSizingVertical && !deferV) {
