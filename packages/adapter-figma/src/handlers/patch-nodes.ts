@@ -1,4 +1,4 @@
-import { batchHandler, findVariableById, findVariableByName, type Hint } from "./helpers";
+import { batchHandler, findVariableById, findVariableByName, bindTextToComponentProperty, type Hint } from "./helpers";
 import { setFillSingle, setStrokeSingle, setCornerSingle, setOpacitySingle } from "./fill-stroke";
 import { setEffectsSingle, setConstraintsSingle, setExportSettingsSingle, setNodePropertiesSingle } from "./effects";
 import { moveSingle, resizeSingle } from "./modify-node";
@@ -34,6 +34,7 @@ const ALL_KNOWN = new Set<string>([
   ...nodeUpdate,
   "nodeId",              // handler alias for id
   "componentProperties", // instance handler extension
+  "componentPropertyName", // bind text node to component TEXT property
 ]);
 
 export function hasAny(item: any, keys: readonly string[]): boolean {
@@ -207,6 +208,23 @@ export async function patchSingleNode(item: any, textCtx: TextPropsContext | nul
       textAutoResize: item.textAutoResize,
     }, textCtx);
     collectHints(r);
+  }
+
+  // 13b. Component property binding: bind text node to a component TEXT property
+  if (item.componentPropertyName) {
+    const node = await figma.getNodeByIdAsync(item.nodeId);
+    if (!node) throw new Error(`Node not found: ${item.nodeId}`);
+    if (node.type !== "TEXT") {
+      hints.push({ type: "error", message: `componentPropertyName ignored — node is ${node.type}, not TEXT.` });
+    } else {
+      const parent = node.parent;
+      const comp = parent && (parent.type === "COMPONENT" || parent.type === "COMPONENT_SET") ? parent : null;
+      if (!comp) {
+        hints.push({ type: "error", message: `componentPropertyName '${item.componentPropertyName}' ignored — parent is not a component.` });
+      } else {
+        bindTextToComponentProperty(node, comp, item.componentPropertyName, hints);
+      }
+    }
   }
 
   // 14. Variable bindings

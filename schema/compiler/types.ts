@@ -16,6 +16,8 @@ export interface RawParam {
   const?: string;
   /** Override the auto-generated TS type string in descriptions */
   tsType?: string;
+  /** Accept alternate param names — preprocessed to canonical name before validation */
+  aliases?: string[];
 }
 
 export interface RawResponse {

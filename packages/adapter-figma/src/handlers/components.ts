@@ -1,4 +1,4 @@
-import { batchHandler, appendToParent, checkOverlappingSiblings, applyTokens, type Hint } from "./helpers";
+import { batchHandler, appendToParent, checkOverlappingSiblings, applyTokens, resolveComponentPropertyKey, type Hint } from "./helpers";
 import { setupFrameNode } from "./create-frame";
 import { createDispatcher, paginate, pickFields } from "@ufira/vibma/endpoint";
 import {
@@ -21,7 +21,7 @@ function findTextNodes(node: BaseNode, skipInstances = false): TextNode[] {
 function warnUnboundText(comp: ComponentNode, hints: Hint[]) {
   const textNodes = findTextNodes(comp, true);
   if (textNodes.length > 0) {
-    hints.push({ type: "suggest", message: `Component has ${textNodes.length} unbound text node${textNodes.length > 1 ? "s" : ""}. Pass exposeText: true to auto-expose text as editable properties on instances.` });
+    hints.push({ type: "suggest", message: `Component has ${textNodes.length} unbound text node${textNodes.length > 1 ? "s" : ""}. Fix: use components(method:"create", type:"from_node") with exposeText:true, or add properties with components(method:"update") then bind via text/frames(method:"update", items:[{id:"<textNodeId>", componentPropertyName:"<propName>"}]).` });
   }
 }
 
@@ -57,39 +57,44 @@ async function createComponentSingle(p: any) {
   }
 
   const comp = figma.createComponent();
-  comp.x = p.x ?? 0;
-  comp.y = p.y ?? 0;
-  comp.resize(p.width ?? 100, p.height ?? 100);
-  comp.name = p.name;
-  comp.fills = [];
+  try {
+    comp.x = p.x ?? 0;
+    comp.y = p.y ?? 0;
+    comp.resize(p.width ?? 100, p.height ?? 100);
+    comp.name = p.name;
+    comp.fills = [];
 
-  const { hints } = await setupFrameNode(comp, p);
+    const { hints } = await setupFrameNode(comp, p);
 
-  // Add component properties if provided
-  if (p.properties?.length) {
-    for (const prop of p.properties) {
-      const options = prop.preferredValues ? { preferredValues: prop.preferredValues } : undefined;
-      comp.addComponentProperty(prop.propertyName, prop.type, prop.defaultValue, options);
-    }
-    // Auto-bind TEXT properties to matching text children by name
-    const textNodes = findTextNodes(comp, true);
-    const defs = comp.componentPropertyDefinitions;
-    for (const prop of p.properties) {
-      if (prop.type !== "TEXT") continue;
-      const key = Object.keys(defs).find(k => k === prop.propertyName || k.startsWith(prop.propertyName + "#"));
-      if (!key) continue;
-      const match = textNodes.find(t => t.name.toLowerCase() === prop.propertyName.toLowerCase());
-      if (match) {
-        (match as any).componentPropertyReferences = { characters: key };
+    // Add component properties if provided
+    if (p.properties?.length) {
+      for (const prop of p.properties) {
+        const options = prop.preferredValues ? { preferredValues: prop.preferredValues } : undefined;
+        comp.addComponentProperty(prop.propertyName, prop.type, prop.defaultValue, options);
+      }
+      // Auto-bind TEXT properties to matching text children by name
+      const textNodes = findTextNodes(comp, true);
+      const defs = comp.componentPropertyDefinitions;
+      for (const prop of p.properties) {
+        if (prop.type !== "TEXT") continue;
+        const key = resolveComponentPropertyKey(defs, prop.propertyName);
+        if (!key) continue;
+        const match = textNodes.find(t => t.name.toLowerCase() === prop.propertyName.toLowerCase());
+        if (match) {
+          (match as any).componentPropertyReferences = { characters: key };
+        }
       }
     }
+
+    warnUnboundText(comp, hints);
+
+    const result: any = { id: comp.id };
+    if (hints.length > 0) result.hints = hints;
+    return result;
+  } catch (e) {
+    comp.remove();
+    throw e;
   }
-
-  warnUnboundText(comp, hints);
-
-  const result: any = { id: comp.id };
-  if (hints.length > 0) result.hints = hints;
-  return result;
 }
 
 /**
@@ -171,6 +176,8 @@ async function fromNodeSingle(p: any) {
 }
 
 async function combineSingle(p: any) {
+  // Accept nodeIds as alias for componentIds (consistent with group/boolean_operation)
+  if (!p.componentIds && p.nodeIds) p.componentIds = p.nodeIds;
   if (!p.componentIds?.length || p.componentIds.length < 2) throw new Error("Need at least 2 components");
   const comps: ComponentNode[] = [];
   for (const id of p.componentIds) {
@@ -218,17 +225,20 @@ async function combineSingle(p: any) {
   }, 0);
   const result: any = { id: set.id };
   if (unboundCount > 0) {
-    hints.push({ type: "suggest", message: `${unboundCount} text node${unboundCount > 1 ? "s" : ""} across variants not exposed as properties — instances cannot edit this text via properties. Fix: components(method: "update", items: [{id: "${set.id}", propertyName: "<textNodeName>", type: "TEXT", defaultValue: "<text>"}])` });
+    hints.push({ type: "suggest", message: `${unboundCount} text node${unboundCount > 1 ? "s" : ""} across variants not exposed as properties — instances cannot edit this text via properties. Fix: components(method:"update", items:[{id:"${set.id}", propertyName:"<textNodeName>", type:"TEXT", defaultValue:"<text>"}]) then bind via text/frames(method:"update", items:[{id:"<textNodeId>", componentPropertyName:"<propName>"}])` });
   }
   if (hints.length > 0) result.hints = hints;
   return result;
 }
 
+// Extend variant_set guard to accept nodeIds as alias for componentIds
+const VARIANT_SET_KEYS = new Set([...componentsCreateVariantSet, "nodeIds"]) as ReadonlySet<string>;
+
 async function createComponentDispatch(params: any) {
   switch (params.type) {
     case "component": return batchHandler(params, createComponentSingle, { keys: componentsCreateComponent, help: 'components(method: "help", topic: "create")' });
     case "from_node": return batchHandler(params, fromNodeSingle, { keys: componentsCreateFromNode, help: 'components(method: "help", topic: "create")' });
-    case "variant_set": return batchHandler(params, combineSingle, { keys: componentsCreateVariantSet, help: 'components(method: "help", topic: "create")' });
+    case "variant_set": return batchHandler(params, combineSingle, { keys: VARIANT_SET_KEYS, help: 'components(method: "help", topic: "create")' });
     default: throw new Error(`Unknown create type: ${params.type}`);
   }
 }
@@ -273,10 +283,7 @@ async function updateComponentPropertySingle(p: any) {
 
   // Resolve property name with prefix matching (agents may omit the #suffix)
   function resolveKey(name: string): string {
-    const defs = comp.componentPropertyDefinitions;
-    if (defs[name]) return name;
-    const match = Object.keys(defs).find(k => k.startsWith(name + "#"));
-    return match ?? name;
+    return resolveComponentPropertyKey(comp.componentPropertyDefinitions, name) ?? name;
   }
 
   // Delete property
@@ -354,8 +361,7 @@ async function updateComponentPropertySingle(p: any) {
   // Default: add property (backward compat)
   const options = p.preferredValues ? { preferredValues: p.preferredValues } : undefined;
   comp.addComponentProperty(p.propertyName, p.type, p.defaultValue, options);
-  const defs = comp.componentPropertyDefinitions;
-  const key = Object.keys(defs).find(k => k === p.propertyName || k.startsWith(p.propertyName + "#"));
+  const key = resolveComponentPropertyKey(comp.componentPropertyDefinitions, p.propertyName);
   if (key && p.type === "TEXT") {
     const roots = node.type === "COMPONENT_SET"
       ? comp.children.filter((c: any) => c.type === "COMPONENT")
@@ -476,15 +482,9 @@ async function instanceGetFigma(params: any) {
 export async function instanceUpdateComponentProps(inst: InstanceNode, props: Record<string, any>): Promise<void> {
   // Resolve partial property keys: "Label" → "Label#2:33"
   // Agents often don't know the full key suffix — match by prefix.
-  const defs = inst.componentProperties;
   const resolvedProps: Record<string, any> = {};
   for (const [key, value] of Object.entries(props)) {
-    if (defs[key]) {
-      resolvedProps[key] = value;
-    } else {
-      const match = Object.keys(defs).find(k => k.startsWith(key + "#"));
-      resolvedProps[match ?? key] = value;
-    }
+    resolvedProps[resolveComponentPropertyKey(inst.componentProperties, key) ?? key] = value;
   }
   inst.setProperties(resolvedProps);
 }
