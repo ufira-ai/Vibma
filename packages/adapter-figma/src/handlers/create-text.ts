@@ -33,8 +33,12 @@ export async function resolveFontAsync(family: string, style: string): Promise<F
   }
 
   // 3. Fuzzy match against available fonts
-  if (!_fontCache) _fontCache = await figma.listAvailableFontsAsync();
-  const familyFonts = _fontCache.filter(f => f.family.toLowerCase() === family.toLowerCase());
+  // listAvailableFontsAsync returns Font[] ({fontName: FontName}), normalize to FontName[]
+  if (!_fontCache) {
+    const raw = await figma.listAvailableFontsAsync();
+    _fontCache = raw.map((f: any) => f.fontName ?? f);
+  }
+  const familyFonts = _fontCache.filter(f => f.family?.toLowerCase() === family.toLowerCase());
   const stripped = stripStyle(style);
   const match = familyFonts.find(f => stripStyle(f.style) === stripped);
   if (match) {
@@ -44,7 +48,7 @@ export async function resolveFontAsync(family: string, style: string): Promise<F
 
   // 4. Case-insensitive family match (agent might say "inter" instead of "Inter")
   if (familyFonts.length === 0) {
-    const looseFamilyFonts = _fontCache.filter(f => f.family.toLowerCase() === family.toLowerCase());
+    const looseFamilyFonts = _fontCache.filter(f => f.family?.toLowerCase() === family.toLowerCase());
     const looseMatch = looseFamilyFonts.find(f => stripStyle(f.style) === stripped);
     if (looseMatch) {
       await figma.loadFontAsync(looseMatch);
