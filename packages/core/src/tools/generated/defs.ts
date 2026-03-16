@@ -31,7 +31,7 @@ export const commandMap: Record<string, Record<string, string>> = {
   "fonts": {"list":"fonts.list"},
   "frames": {"get":"frames.get","list":"frames.list","update":"frames.update","delete":"frames.delete","clone":"frames.clone","audit":"frames.audit","reparent":"frames.reparent","create":"frames.create","export":"frames.export"},
   "instances": {"list":"instances.list","delete":"instances.delete","clone":"instances.clone","audit":"instances.audit","reparent":"instances.reparent","get":"instances.get","create":"instances.create","update":"instances.update","swap":"instances.swap","detach":"instances.detach","reset_overrides":"instances.reset_overrides"},
-  "lint": {"check":"lint.check","fix":"lint.fix"},
+  "lint": {"check":"lint.check","fix":"lint.fix","guide":"lint.guide"},
   "selection": {"get":"selection.get","set":"selection.set"},
   "styles": {"list":"styles.list","get":"styles.get","create":"styles.create","update":"styles.update","delete":"styles.delete"},
   "text": {"get":"text.get","list":"text.list","update":"text.update","delete":"text.delete","clone":"text.clone","audit":"text.audit","reparent":"text.reparent","create":"text.create","set_content":"text.set_content","scan":"text.scan"},
@@ -626,8 +626,8 @@ export const tools: ToolDef[] = [
   },
   {
     name: "lint",
-    description: "/** Run design quality and accessibility checks. Use method \"help\" for detailed parameter docs. */\n  check     (nodeId?, rules?, maxDepth?, maxFindings?) → { nodeId, nodeName, categories, warning? }  // Run design linter on a node tree\n  fix       (items: { nodeId: string; layoutMode?: \"VERTICAL\" | \"HORIZONTAL\"; itemSpacing?: number }[], depth?) → { results: (\"ok\" | {error})[] }  // Auto-fix frames to auto-layout\n// Lint runs automated design quality and accessibility checks on a node tree.",
-    schema: (caps) => filterMethodsByTier({    method: z.enum(["check", "fix", "help"]),
+    description: "/** Run design quality and accessibility checks. Use method \"help\" for detailed parameter docs. */\n  check     (nodeId?, rules?, maxDepth?, maxFindings?) → { nodeId, nodeName, categories, warning? }  // Run design linter on a node tree\n  fix       (items: { nodeId: string; layoutMode?: \"VERTICAL\" | \"HORIZONTAL\"; itemSpacing?: number }[], depth?) → { results: (\"ok\" | {error})[] }  // Auto-fix frames to auto-layout\n  guide     (rules?) → unknown  // Get fix instructions for lint rules. Call when you don't know how to fix a finding.\n// Lint runs automated design quality and accessibility checks on a node tree.",
+    schema: (caps) => filterMethodsByTier({    method: z.enum(["check", "fix", "guide", "help"]),
     nodeId: z.string().optional().describe("Node ID to lint. If omitted: 1 selected node → lints that node, 2+ selected → lints entire page (not the selection), 0 selected → error. Always pass nodeId explicitly for reliable targeting."),
     rules: flexJson(z.array(z.string())).optional().describe("Rules to run. Default: [\"all\"]. Categories: \"component\", \"composition\", \"token\", \"naming\", \"wcag\"/\"accessibility\". Or specific rule names."),
     maxDepth: z.coerce.number().optional().describe("Max tree depth (default: 10)"),
@@ -635,7 +635,7 @@ export const tools: ToolDef[] = [
     items: flexJson(z.array(z.record(z.string(), z.unknown()))).optional().describe("Array of {nodeId, layoutMode?, itemSpacing?}"),
     depth: z.coerce.number().optional().describe("Response detail for fixed nodes: omit for stubs, 0=properties, -1=full tree"),
     topic: z.string().optional().describe("Help topic — method name for endpoint help, e.g. \"create\""),
-    }, caps, {"check":"read","fix":"edit","help":"read"}),
+    }, caps, {"check":"read","fix":"edit","guide":"read","help":"read"}),
     tier: "read" as const,
     validate: (params: any) => {
       const m = params.method;
@@ -653,7 +653,7 @@ export const tools: ToolDef[] = [
         catch (e) { if (e instanceof z.ZodError) { throw new Error(e.issues.map(i => { const path = i.path.join("."); const shape = itemSchema instanceof z.ZodObject ? (itemSchema as any).shape : null; const desc = shape?.[i.path[1]]?.description; return path + ": " + i.message + (desc ? " (expected: " + desc + ")" : ""); }).join("; ")); } throw e; }
       }
     },
-    commandMap: {"check":"lint.check","fix":"lint.fix"},
+    commandMap: {"check":"lint.check","fix":"lint.fix","guide":"lint.guide"},
   },
   {
     name: "selection",

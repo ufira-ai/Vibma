@@ -131,6 +131,7 @@ export const allFigmaHandlers: Record<string, (params: any) => Promise<any>> = {
   // ─── lint endpoint ───
   "lint.check": lintHandlers.lint_node,
   "lint.fix": lintHandlers.lint_fix_autolayout,
+  "lint.guide": lintHandlers.lint_guide,
 
   // ─── styles endpoint ───
   "styles.list": stylesHandlers.styles,

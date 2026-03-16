@@ -62,7 +62,7 @@ import ParameterTable from "../../../../components/ParameterTable.astro";
 
 </details>
 
-2 methods available.
+3 methods available.
 
 ## check
 
@@ -85,3 +85,9 @@ Auto-fix frames to auto-layout
 **Response**
 
 <ParameterTable schema={{"type":"object","properties":{"results":{"type":"array","description":"Array of \"ok\" or {error} per item","items":{"type":"any"}}}}} fieldLabel="Field" hideRequired />
+
+## guide
+
+Get fix instructions for lint rules. Call when you don't know how to fix a finding.
+
+<ParameterTable schema={{"type":"object","properties":{"rules":{"description":"Rule names to get fix instructions for. Omit for all rules.","type":"array","items":{"type":"string"}}}}} />

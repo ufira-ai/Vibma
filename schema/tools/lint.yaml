@@ -135,3 +135,17 @@ methods:
         description: "Response detail for fixed nodes: omit for stubs, 0=properties, -1=full tree"
     response:
       type: batch_mixed
+
+  guide:
+    tier: read
+    description: "Get fix instructions for lint rules. Call when you don't know how to fix a finding."
+    example: 'lint(method:"guide", rules:["hardcoded-color","unbounded-hug"])'
+    params:
+      rules:
+        type: string[]
+        coerce: json
+        optional: true
+        description: "Rule names to get fix instructions for. Omit for all rules."
+    response:
+      type: object
+      description: "Map of rule → {severity, category, fix, guide}"
