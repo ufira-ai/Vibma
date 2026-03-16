@@ -142,6 +142,7 @@ export const allFigmaHandlers: Record<string, (params: any) => Promise<any>> = {
   "components.get": componentsHandlers.components,
   "components.create": componentsHandlers.components,
   "components.update": componentsHandlers.components,
+  "components.audit": componentsHandlers.components,
   "components.delete": componentsHandlers.components,
 
   // components endpoint — inherited node base methods

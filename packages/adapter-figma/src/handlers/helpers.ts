@@ -1000,6 +1000,38 @@ export async function bindNumericVariable(
 }
 
 /**
+ * Walk up ancestors from a node to find the nearest COMPONENT or COMPONENT_SET.
+ * If `explicitId` is provided, fetches that node directly instead.
+ * Returns null if no component is found.
+ */
+export async function findComponentForBinding(
+  node: BaseNode,
+  explicitId: string | undefined,
+  hints: Hint[],
+): Promise<ComponentNode | ComponentSetNode | null> {
+  if (explicitId) {
+    const target = await figma.getNodeByIdAsync(explicitId);
+    if (!target) {
+      hints.push({ type: "error", message: `componentId '${explicitId}' not found.` });
+      return null;
+    }
+    if (target.type !== "COMPONENT" && target.type !== "COMPONENT_SET") {
+      hints.push({ type: "error", message: `componentId '${explicitId}' is ${target.type}, not a component.` });
+      return null;
+    }
+    return target as ComponentNode | ComponentSetNode;
+  }
+  let cursor: BaseNode | null = node.parent;
+  while (cursor) {
+    if (cursor.type === "COMPONENT" || cursor.type === "COMPONENT_SET") {
+      return cursor as ComponentNode | ComponentSetNode;
+    }
+    cursor = cursor.parent;
+  }
+  return null;
+}
+
+/**
  * Resolve a component TEXT property key by prefix match.
  * Property keys have auto-generated suffixes like "Label#2:33" — agents often omit the suffix.
  * Returns the full key or null if not found.

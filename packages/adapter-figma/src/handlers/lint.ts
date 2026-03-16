@@ -1,4 +1,5 @@
 import { batchHandler } from "./helpers";
+import { auditComponentBindings } from "./components";
 import { rgbaToHex } from "@ufira/vibma/utils/color";
 import {
   alphaComposite, checkContrastPair, isLargeText, inferFontWeight,
@@ -7,16 +8,113 @@ import {
 
 // ─── Figma Handlers ──────────────────────────────────────────────
 
+type Severity = "error" | "unsafe" | "heuristic" | "style";
+type RuleCategory = "component" | "composition" | "token" | "accessibility" | "naming";
+
 const WCAG_RULES = [
   "wcag-contrast", "wcag-contrast-enhanced", "wcag-non-text-contrast",
   "wcag-target-size", "wcag-text-size", "wcag-line-height",
 ] as const;
 
-/** Collected issue: just rule + nodeId. Grouping and prose happen at the end. */
+/** Category meta-rules: expand "component" → component rules, etc. */
+const CATEGORY_RULES: Record<string, readonly string[]> = {
+  component: ["no-text-property", "component-bindings"],
+  composition: ["no-autolayout", "overlapping-children", "shape-instead-of-frame", "fixed-in-autolayout", "unbounded-hug", "hug-cross-axis", "empty-container"],
+  token: ["hardcoded-color", "hardcoded-token", "no-text-style"],
+  naming: ["default-name", "stale-text-name"],
+};
+
+/** Per-rule metadata: severity, category, and actionable fix instructions. */
+const RULE_META: Record<string, { severity: Severity; category: RuleCategory; fix: string }> = {
+  "no-autolayout": {
+    severity: "heuristic", category: "composition",
+    fix: 'Use lint(method:"fix", items:[{nodeId}]) to auto-convert, or frames(method:"update", items:[{id, layoutMode:"VERTICAL"}]).',
+  },
+  "shape-instead-of-frame": {
+    severity: "style", category: "composition",
+    fix: 'Delete the shape with frames(method:"delete"), then frames(method:"create", type:"frame") with same position/size/fill, then frames(method:"reparent") to move overlapping siblings into the new frame.',
+  },
+  "hardcoded-color": {
+    severity: "heuristic", category: "token",
+    fix: 'Check each node\'s matchName/matchId for a suggested style or variable. If a match exists: frames(method:"update", items:[{id, fillStyleName:"..."}]) or bind a variable via items:[{id, fillVariableName:"..."}] or bindings:[{field:"fills/0/color", variableName:"..."}]. If no match: create a style with styles(method:"create", type:"paint") or a variable with variables(method:"create") first, then apply it.',
+  },
+  "hardcoded-token": {
+    severity: "heuristic", category: "token",
+    fix: 'Bind to a FLOAT variable instead of using hardcoded numbers. For cornerRadius: frames(method:"update", items:[{id, cornerRadius:"Radii/Medium"}]). For padding/itemSpacing: items:[{id, paddingTop:"Spacing/Medium", itemSpacing:"Spacing/Small"}]. For strokeWeight: items:[{id, strokeWeight:"Border/Thick"}]. For opacity: items:[{id, opacity:"Opacity/Subtle"}]. Pass a variable name string instead of a number. If no FLOAT variable exists, create one with variables(method:"create") first.',
+  },
+  "no-text-style": {
+    severity: "heuristic", category: "token",
+    fix: 'Apply a text style: frames(method:"update", items:[{id, textStyleName:"..."}]). If no text styles exist, create one with styles(method:"create", type:"text") first.',
+  },
+  "fixed-in-autolayout": {
+    severity: "heuristic", category: "composition",
+    fix: 'Use frames(method:"update", items:[{id, layoutSizingHorizontal:"FILL"}]) or "HUG" instead of FIXED. FILL stretches to fill the parent, HUG shrinks to fit content.',
+  },
+  "default-name": {
+    severity: "style", category: "naming",
+    fix: 'Use frames(method:"update", items:[{id, name:"descriptive name"}]) to rename.',
+  },
+  "empty-container": {
+    severity: "style", category: "composition",
+    fix: 'These frames have no children — likely leftover. Delete with frames(method:"delete", items:[{id}]) or add content.',
+  },
+  "stale-text-name": {
+    severity: "style", category: "naming",
+    fix: 'These text node names don\'t match their content. Use frames(method:"update", items:[{id, name:"..."}]) to sync, or leave if the name is intentional.',
+  },
+  "no-text-property": {
+    severity: "heuristic", category: "component",
+    fix: 'Use components(method:"update", items:[{id, propertyName:"TextLabel", action:"add", type:"TEXT", defaultValue:"..."}]) to expose the text as an editable property on the component.',
+  },
+  "component-bindings": {
+    severity: "heuristic", category: "component",
+    fix: 'Run components(method:"audit", id:"<componentId>") for a full binding report. Fix unbound text: frames(method:"update", items:[{id:"<textNodeId>", componentPropertyName:"<propName>"}]). Fix orphaned properties: components(method:"update", items:[{id, propertyName:"<key>", action:"delete"}]). Expose nested text: components(method:"update", items:[{id, propertyName:"<name>", action:"add", type:"TEXT", defaultValue:"..."}]) then bind.',
+  },
+  "overlapping-children": {
+    severity: "heuristic", category: "composition",
+    fix: 'Children are stacked at the same position — likely missing x/y. Either: (1) convert to auto-layout with frames(method:"update", items:[{id, layoutMode:"VERTICAL"}]) so children flow automatically, or (2) reposition each child with frames(method:"update", items:[{id:"<childId>", x:<value>, y:<value>}]).',
+  },
+  "hug-cross-axis": {
+    severity: "heuristic", category: "composition",
+    fix: 'Child has HUG on the cross-axis of a constrained parent — it won\'t fill the available space. Text won\'t wrap and elements look undersized. Fix: set the cross-axis sizing to FILL. For a vertical container: frames(method:"update", items:[{id, layoutSizingHorizontal:"FILL"}]). For a horizontal container: frames(method:"update", items:[{id, layoutSizingVertical:"FILL"}]).',
+  },
+  "unbounded-hug": {
+    severity: "unsafe", category: "composition",
+    fix: 'HUG on both axes breaks responsive behavior — content grows unboundedly, text won\'t wrap, and nested hug chains create unpredictable sizing cascades. For frames: FILL or FIXED width + HUG height (mirrors CSS block-level elements). For text nodes: use FILL width + HUG height so text wraps within its parent, or set textAutoResize:"HEIGHT" for fixed-width wrapping. Fix frames: frames(method:"update", items:[{id, layoutSizingHorizontal:"FILL"}]). Fix text: text(method:"update", items:[{id, layoutSizingHorizontal:"FILL", layoutSizingVertical:"HUG"}]) or items:[{id, textAutoResize:"HEIGHT"}].',
+  },
+  "wcag-contrast": {
+    severity: "unsafe", category: "accessibility",
+    fix: 'Adjust text color or background to meet AA contrast (4.5:1 normal text, 3:1 large text). Use frames(method:"update") with fills to change colors.',
+  },
+  "wcag-contrast-enhanced": {
+    severity: "style", category: "accessibility",
+    fix: 'Adjust to meet AAA contrast (7:1 normal text, 4.5:1 large text). Use frames(method:"update") with fills.',
+  },
+  "wcag-non-text-contrast": {
+    severity: "heuristic", category: "accessibility",
+    fix: 'Need 3:1 contrast against parent background. Use frames(method:"update", items:[{id, fillColor:"#..."}]) to adjust.',
+  },
+  "wcag-target-size": {
+    severity: "unsafe", category: "accessibility",
+    fix: 'Resize to at least 24x24px: frames(method:"update", items:[{id, width:24, height:24}]) or add padding.',
+  },
+  "wcag-text-size": {
+    severity: "unsafe", category: "accessibility",
+    fix: 'Increase to 12px minimum: frames(method:"update", items:[{id, fontSize:12}]).',
+  },
+  "wcag-line-height": {
+    severity: "style", category: "accessibility",
+    fix: 'Increase line height to at least 1.5x font size: frames(method:"update", items:[{id, lineHeight:{value:150, unit:"PERCENT"}}]).',
+  },
+};
+
+/** Collected issue: rule + nodeId + optional severity override for context-aware ranking. */
 interface Issue {
   rule: string;
   nodeId: string;
   nodeName: string;
+  /** Override the default rule severity based on context (leaf vs container, etc.) */
+  severity?: Severity;
   /** Extra context for the prose generator */
   extra?: Record<string, any>;
 }
@@ -24,9 +122,14 @@ interface Issue {
 async function lintNodeHandler(params: any) {
   const ruleSet = new Set<string>(params?.rules || ["all"]);
   const runAll = ruleSet.has("all");
-  // Expand "wcag" meta-rule into individual wcag-* rules
-  if (ruleSet.has("wcag") || runAll) {
+  // Expand meta-rules into individual rules
+  if (ruleSet.has("wcag") || ruleSet.has("accessibility") || runAll) {
     for (const r of WCAG_RULES) ruleSet.add(r);
+  }
+  for (const [cat, catRules] of Object.entries(CATEGORY_RULES)) {
+    if (ruleSet.has(cat) || runAll) {
+      for (const r of catRules) ruleSet.add(r);
+    }
   }
   const runWcag = WCAG_RULES.some(r => ruleSet.has(r));
   const maxDepth = params?.maxDepth ?? 10;
@@ -96,17 +199,24 @@ async function lintNodeHandler(params: any) {
 
   const categories: any[] = [];
   for (const [rule, ruleIssues] of Object.entries(grouped)) {
+    const meta = RULE_META[rule];
     categories.push({
       rule,
+      severity: meta?.severity || "heuristic",
+      category: meta?.category || "composition",
       count: ruleIssues.length,
-      fix: FIX_INSTRUCTIONS[rule] || "Review and fix manually.",
+      fix: meta?.fix || "Review and fix manually.",
       nodes: ruleIssues.map(i => {
         const entry: any = { id: i.nodeId, name: i.nodeName };
+        if (i.severity) entry.severity = i.severity; // per-finding override
         if (i.extra) Object.assign(entry, i.extra);
         return entry;
       }),
     });
   }
+  // Sort by severity: error > unsafe > heuristic > style
+  const SEV_ORDER: Record<string, number> = { error: 0, unsafe: 1, heuristic: 2, style: 3 };
+  categories.sort((a, b) => (SEV_ORDER[a.severity] ?? 2) - (SEV_ORDER[b.severity] ?? 2));
 
   const result: any = { nodeId: root.id, nodeName: root.name, categories };
   if (truncated) {
@@ -116,29 +226,6 @@ async function lintNodeHandler(params: any) {
   return result;
 }
 
-/** Per-rule fix instructions -- natural language, actionable, referencing MCP tools */
-const FIX_INSTRUCTIONS: Record<string, string> = {
-  "no-autolayout": 'Use lint(method:"fix", items:[{nodeId}]) to auto-convert, or frames(method:"update", items:[{id, layoutMode:"VERTICAL"}]).',
-  "shape-instead-of-frame": 'Delete the shape with frames(method:"delete"), then frames(method:"create", type:"frame") with same position/size/fill, then frames(method:"reparent") to move overlapping siblings into the new frame.',
-  "hardcoded-color": 'Check each node\'s matchName/matchId for a suggested style or variable. If a match exists: frames(method:"update", items:[{id, fillStyleName:"..."}]) or bind a variable via items:[{id, fillVariableName:"..."}] or bindings:[{field:"fills/0/color", variableName:"..."}]. If no match: create a style with styles(method:"create", type:"paint") or a variable with variables(method:"create") first, then apply it.',
-  "hardcoded-token": 'Bind to a FLOAT variable instead of using hardcoded numbers. For cornerRadius: frames(method:"update", items:[{id, cornerRadius:"Radii/Medium"}]). For padding/itemSpacing: items:[{id, paddingTop:"Spacing/Medium", itemSpacing:"Spacing/Small"}]. For strokeWeight: items:[{id, strokeWeight:"Border/Thick"}]. For opacity: items:[{id, opacity:"Opacity/Subtle"}]. Pass a variable name string instead of a number. If no FLOAT variable exists, create one with variables(method:"create") first.',
-  "no-text-style": 'Apply a text style: frames(method:"update", items:[{id, textStyleName:"..."}]). If no text styles exist, create one with styles(method:"create", type:"text") first.',
-  "fixed-in-autolayout": 'Use frames(method:"update", items:[{id, layoutSizingHorizontal:"FILL"}]) or "HUG" instead of FIXED. FILL stretches to fill the parent, HUG shrinks to fit content.',
-  "default-name": 'Use frames(method:"update", items:[{id, name:"descriptive name"}]) to rename.',
-  "empty-container": 'These frames have no children — likely leftover. Delete with frames(method:"delete", items:[{id}]) or add content.',
-  "stale-text-name": 'These text node names don\'t match their content. Use frames(method:"update", items:[{id, name:"..."}]) to sync, or leave if the name is intentional.',
-  "no-text-property": 'Use components(method:"update", items:[{id, propertyName:"TextLabel", action:"add", type:"TEXT", defaultValue:"..."}]) to expose the text as an editable property on the component.',
-  "overlapping-children": 'Children are stacked at the same position — likely missing x/y. Either: (1) convert to auto-layout with frames(method:"update", items:[{id, layoutMode:"VERTICAL"}]) so children flow automatically, or (2) reposition each child with frames(method:"update", items:[{id:"<childId>", x:<value>, y:<value>}]).',
-  "hug-cross-axis": 'Child has HUG on the cross-axis of a constrained parent — it won\'t fill the available space. Text won\'t wrap and elements look undersized. Fix: set the cross-axis sizing to FILL. For a vertical container: frames(method:"update", items:[{id, layoutSizingHorizontal:"FILL"}]). For a horizontal container: frames(method:"update", items:[{id, layoutSizingVertical:"FILL"}]).',
-  "unbounded-hug": 'HUG on both axes breaks responsive behavior — content grows unboundedly, text won\'t wrap, and nested hug chains create unpredictable sizing cascades. For frames: FILL or FIXED width + HUG height (mirrors CSS block-level elements). For text nodes: use FILL width + HUG height so text wraps within its parent, or set textAutoResize:"HEIGHT" for fixed-width wrapping. Fix frames: frames(method:"update", items:[{id, layoutSizingHorizontal:"FILL"}]). Fix text: text(method:"update", items:[{id, layoutSizingHorizontal:"FILL", layoutSizingVertical:"HUG"}]) or items:[{id, textAutoResize:"HEIGHT"}].',
-  // -- WCAG fix instructions --
-  "wcag-contrast": 'Adjust text color or background to meet AA contrast (4.5:1 normal text, 3:1 large text). Use frames(method:"update") with fills to change colors.',
-  "wcag-contrast-enhanced": 'Adjust to meet AAA contrast (7:1 normal text, 4.5:1 large text). Use frames(method:"update") with fills.',
-  "wcag-non-text-contrast": 'Need 3:1 contrast against parent background. Use frames(method:"update", items:[{id, fillColor:"#..."}]) to adjust.',
-  "wcag-target-size": 'Resize to at least 24x24px: frames(method:"update", items:[{id, width:24, height:24}]) or add padding.',
-  "wcag-text-size": 'Increase to 12px minimum: frames(method:"update", items:[{id, fontSize:12}]).',
-  "wcag-line-height": 'Increase line height to at least 1.5x font size: frames(method:"update", items:[{id, lineHeight:{value:150, unit:"PERCENT"}}]).',
-};
 
 interface ColorEntry { name: string; id: string; r: number; g: number; b: number; a: number }
 
@@ -165,10 +252,14 @@ async function walkNode(node: BaseNode, depth: number, issues: Issue[], ctx: Lin
   // -- Rule: no-autolayout --
   if (ctx.runAll || ctx.ruleSet.has("no-autolayout")) {
     if (isFrame(node) && node.layoutMode === "NONE" && "children" in node) {
-      const childCount = (node as any).children.length;
+      const children = (node as any).children as SceneNode[];
+      const childCount = children.length;
       if (childCount > 1) {
         const direction = detectLayoutDirection(node as FrameNode);
-        issues.push({ rule: "no-autolayout", nodeId: node.id, nodeName: node.name, extra: { suggestedDirection: direction } });
+        // Small containers with only leaf children (labels, icons) → style, not heuristic
+        const allLeaves = children.every(c => isLeaf(c));
+        const severity: Severity | undefined = allLeaves && childCount <= 3 ? "style" : undefined;
+        issues.push({ rule: "no-autolayout", nodeId: node.id, nodeName: node.name, severity, extra: { suggestedDirection: direction } });
         if (issues.length >= ctx.maxFindings) return;
       }
     }
@@ -218,7 +309,9 @@ async function walkNode(node: BaseNode, depth: number, issues: Issue[], ctx: Lin
       const th = (node as any).layoutSizingHorizontal;
       const tv = (node as any).layoutSizingVertical;
       if (th === "HUG" && tv === "HUG") {
-        issues.push({ rule: "unbounded-hug", nodeId: node.id, nodeName: node.name, extra: { nodeType: "TEXT" } });
+        // Short leaf labels (< 40 chars) are typically fine with HUG/HUG
+        const isShortLabel = ((node as any).characters?.length ?? 0) < 40;
+        issues.push({ rule: "unbounded-hug", nodeId: node.id, nodeName: node.name, severity: isShortLabel ? "style" : undefined, extra: { nodeType: "TEXT" } });
         if (issues.length >= ctx.maxFindings) return;
       }
     }
@@ -236,10 +329,13 @@ async function walkNode(node: BaseNode, depth: number, issues: Issue[], ctx: Lin
         const childCross = isHorizontal ? (node as any).layoutSizingVertical : (node as any).layoutSizingHorizontal;
         if ((parentCross === "FIXED" || parentCross === "FILL") && childCross === "HUG") {
           const crossAxis = isHorizontal ? "vertical" : "horizontal";
+          // Leaf text/shapes with HUG on cross-axis are often intentional (small labels, icons)
+          const leafSeverity: Severity | undefined = isLeaf(node) ? "style" : undefined;
           issues.push({
             rule: "hug-cross-axis",
             nodeId: node.id,
             nodeName: node.name,
+            severity: leafSeverity,
             extra: { crossAxis, parentSizing: parentCross, parentId: parent.id, parentName: parent.name },
           });
           if (issues.length >= ctx.maxFindings) return;
@@ -417,6 +513,25 @@ async function walkNode(node: BaseNode, depth: number, issues: Issue[], ctx: Lin
       const refs = (node as any).componentPropertyReferences;
       if (!refs || !refs.characters) {
         issues.push({ rule: "no-text-property", nodeId: node.id, nodeName: node.name });
+        if (issues.length >= ctx.maxFindings) return;
+      }
+    }
+  }
+
+  // -- Rule: component-bindings --
+  if (ctx.runAll || ctx.ruleSet.has("component-bindings")) {
+    if (node.type === "COMPONENT" || node.type === "COMPONENT_SET") {
+      const audit = auditComponentBindings(node as any);
+      for (const t of audit.unboundText) {
+        issues.push({ rule: "component-bindings", nodeId: t.id, nodeName: t.name, extra: { issue: "unbound-text", characters: t.characters } });
+        if (issues.length >= ctx.maxFindings) return;
+      }
+      for (const p of audit.orphanedProperties) {
+        issues.push({ rule: "component-bindings", nodeId: node.id, nodeName: node.name, severity: "unsafe", extra: { issue: "orphaned-property", propertyKey: p.key, propertyName: p.name } });
+        if (issues.length >= ctx.maxFindings) return;
+      }
+      for (const n of audit.unboundNested) {
+        issues.push({ rule: "component-bindings", nodeId: n.id, nodeName: n.name, severity: "style", extra: { issue: "unexposed-nested", path: n.path, characters: n.characters } });
         if (issues.length >= ctx.maxFindings) return;
       }
     }
@@ -650,6 +765,14 @@ function isInsideComponent(node: BaseNode): boolean {
 const SHAPE_TYPES = new Set(["RECTANGLE", "ELLIPSE", "POLYGON", "STAR", "VECTOR", "LINE"]);
 function isShape(node: BaseNode): boolean {
   return SHAPE_TYPES.has(node.type);
+}
+
+/** Leaf node: text, shape, or empty frame — not a structural container. */
+function isLeaf(node: BaseNode): boolean {
+  if (node.type === "TEXT") return true;
+  if (SHAPE_TYPES.has(node.type)) return true;
+  if ("children" in node && (node as any).children.length === 0) return true;
+  return false;
 }
 
 function getAbsoluteBounds(node: SceneNode): { x: number; y: number; width: number; height: number } | null {

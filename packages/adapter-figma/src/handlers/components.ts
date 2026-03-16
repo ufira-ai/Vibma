@@ -1,4 +1,4 @@
-import { batchHandler, appendToParent, appendAndApplySizing, checkOverlappingSiblings, applyTokens, resolveComponentPropertyKey, type Hint } from "./helpers";
+import { batchHandler, appendToParent, appendAndApplySizing, checkOverlappingSiblings, applyTokens, resolveComponentPropertyKey, applyFillWithAutoBind, applySizing, type Hint } from "./helpers";
 import { setupFrameNode } from "./create-frame";
 import { createDispatcher, paginate, pickFields } from "@ufira/vibma/endpoint";
 import {
@@ -19,7 +19,8 @@ function findTextNodes(node: BaseNode, skipInstances = false): TextNode[] {
 }
 
 function warnUnboundText(comp: ComponentNode, hints: Hint[]) {
-  const textNodes = findTextNodes(comp, true);
+  const textNodes = findTextNodes(comp, true)
+    .filter(t => !(t as any).componentPropertyReferences?.characters);
   if (textNodes.length > 0) {
     hints.push({ type: "suggest", message: `Component has ${textNodes.length} unbound text node${textNodes.length > 1 ? "s" : ""}. Fix: use components(method:"create", type:"from_node") with exposeText:true, or add properties with components(method:"update") then bind via text/frames(method:"update", items:[{id:"<textNodeId>", componentPropertyName:"<propName>"}]).` });
   }
@@ -45,6 +46,98 @@ function serializeComponent(node: any): Record<string, any> {
   return r;
 }
 
+// -- inline children --
+
+import { resolveFontAsync, clearFontCache } from "./create-text";
+
+/**
+ * Create child nodes inline during component creation.
+ * Text children with componentPropertyName auto-create TEXT properties and bind.
+ * Frame children recurse for nested trees.
+ */
+async function createInlineChildren(
+  appendTo: FrameNode | ComponentNode,
+  comp: ComponentNode,
+  children: any[],
+  hints: Hint[],
+): Promise<void> {
+  for (const child of children) {
+    if (child.type === "text") {
+      const family = child.fontFamily || "Inter";
+      const style = child.fontStyle || "Regular";
+      const font = await resolveFontAsync(family, style);
+      const text = child.text ?? child.characters ?? "Text";
+
+      const textNode = figma.createText();
+      textNode.fontName = font;
+      textNode.fontSize = child.fontSize || 14;
+
+      const { setCharacters } = await import("../utils/figma-helpers");
+      await setCharacters(textNode, text);
+      textNode.name = child.name || child.componentPropertyName || text;
+
+      // Color
+      const colorHints: Hint[] = [];
+      const colorSet = await applyFillWithAutoBind(textNode, { fills: child.fills, fontColor: child.fontColor, fontColorVariableName: child.fontColorVariableName }, colorHints);
+      if (!colorSet && !child.fills) {
+        textNode.fills = [{ type: "SOLID", color: { r: 0, g: 0, b: 0 }, opacity: 1 }];
+      }
+      hints.push(...colorHints);
+
+      if (child.textStyleName) {
+        const styles = await figma.getLocalTextStylesAsync();
+        const match = styles.find(s => s.name === child.textStyleName) ||
+          styles.find(s => s.name.toLowerCase().includes(child.textStyleName.toLowerCase()));
+        if (match) {
+          await (textNode as any).setTextStyleIdAsync(match.id);
+        }
+      }
+
+      appendTo.appendChild(textNode);
+
+      // Sizing: default FILL + HUG inside auto-layout parent
+      const parentIsAL = appendTo.layoutMode && appendTo.layoutMode !== "NONE";
+      applySizing(textNode, appendTo, {
+        layoutSizingHorizontal: child.layoutSizingHorizontal || (parentIsAL ? "FILL" : undefined),
+        layoutSizingVertical: child.layoutSizingVertical || (parentIsAL ? "HUG" : undefined),
+      }, hints);
+
+      // Auto-create TEXT property and bind
+      if (child.componentPropertyName) {
+        const keysBefore = new Set(Object.keys(comp.componentPropertyDefinitions));
+        comp.addComponentProperty(child.componentPropertyName, "TEXT", text);
+        // Find the newly added key (Figma may rename duplicates: "Label" → "Label2")
+        const keysAfter = Object.keys(comp.componentPropertyDefinitions);
+        const newKey = keysAfter.find(k => !keysBefore.has(k));
+        if (newKey) {
+          (textNode as any).componentPropertyReferences = { characters: newKey };
+        }
+      }
+    } else if (child.type === "frame") {
+      const frame = figma.createFrame();
+      frame.name = child.name || "Frame";
+      frame.fills = [];
+
+      const { hints: frameHints } = await setupFrameNode(frame, child);
+      hints.push(...frameHints);
+
+      appendTo.appendChild(frame);
+
+      applySizing(frame, appendTo, {
+        layoutSizingHorizontal: child.layoutSizingHorizontal,
+        layoutSizingVertical: child.layoutSizingVertical,
+      }, hints);
+
+      // Recurse for nested children — properties bind to the root component
+      if (child.children?.length) {
+        await createInlineChildren(frame, comp, child.children, hints);
+      }
+    } else {
+      hints.push({ type: "error", message: `Inline child type '${child.type}' not supported. Use 'text' or 'frame'.` });
+    }
+  }
+}
+
 // -- components handlers --
 
 async function createComponentSingle(p: any) {
@@ -66,9 +159,20 @@ async function createComponentSingle(p: any) {
 
     const { hints } = await setupFrameNode(comp, p);
 
-    // Add component properties if provided
+    // Create inline children if provided (before explicit properties so auto-created TEXT props don't conflict)
+    if (p.children?.length) {
+      clearFontCache();
+      await createInlineChildren(comp, comp, p.children, hints);
+    }
+
+    // Add explicit component properties if provided
     if (p.properties?.length) {
       for (const prop of p.properties) {
+        // Skip TEXT properties that were already auto-created by inline children
+        if (prop.type === "TEXT") {
+          const existing = resolveComponentPropertyKey(comp.componentPropertyDefinitions, prop.propertyName);
+          if (existing) continue;
+        }
         const options = prop.preferredValues ? { preferredValues: prop.preferredValues } : undefined;
         comp.addComponentProperty(prop.propertyName, prop.type, prop.defaultValue, options);
       }
@@ -80,7 +184,7 @@ async function createComponentSingle(p: any) {
         const key = resolveComponentPropertyKey(defs, prop.propertyName);
         if (!key) continue;
         const match = textNodes.find(t => t.name.toLowerCase() === prop.propertyName.toLowerCase());
-        if (match) {
+        if (match && !(match as any).componentPropertyReferences?.characters) {
           (match as any).componentPropertyReferences = { characters: key };
         }
       }
@@ -384,6 +488,107 @@ async function deleteComponentSingle(p: any) {
   return {};
 }
 
+// -- audit handler --
+
+/** Collect all text nodes in a subtree with their layer path. */
+function collectTextWithPath(node: BaseNode, path: string, skipInstances: boolean): Array<{ node: TextNode; path: string }> {
+  if (node.type === "TEXT") return [{ node: node as TextNode, path }];
+  if (skipInstances && node.type === "INSTANCE") return [];
+  if ("children" in node) {
+    const result: Array<{ node: TextNode; path: string }> = [];
+    for (const child of (node as any).children) {
+      result.push(...collectTextWithPath(child, path ? `${path} > ${child.name}` : child.name, skipInstances));
+    }
+    return result;
+  }
+  return [];
+}
+
+/**
+ * Audit a component's property bindings.
+ * Exported so lint can reuse the core logic.
+ */
+export function auditComponentBindings(comp: ComponentNode | ComponentSetNode) {
+  // For component sets, audit each variant; property defs live on the set
+  const defOwner = comp.type === "COMPONENT" && comp.parent?.type === "COMPONENT_SET"
+    ? comp.parent as ComponentSetNode : comp;
+  const defs = defOwner.componentPropertyDefinitions;
+
+  // All TEXT property keys
+  const textPropKeys = Object.keys(defs).filter(k => defs[k].type === "TEXT");
+
+  // Collect all text nodes across component(s)
+  const roots = comp.type === "COMPONENT_SET"
+    ? (comp as ComponentSetNode).children.filter((c: any) => c.type === "COMPONENT") as ComponentNode[]
+    : [comp as ComponentNode];
+
+  const allTextEntries: Array<{ node: TextNode; path: string; root: ComponentNode }> = [];
+  for (const root of roots) {
+    allTextEntries.push(...collectTextWithPath(root, "", true).map(e => ({ ...e, root })));
+  }
+
+  // Which property keys are actually bound to a text node?
+  const boundKeys = new Set<string>();
+  for (const { node } of allTextEntries) {
+    const refs = (node as any).componentPropertyReferences;
+    if (refs?.characters) boundKeys.add(refs.characters);
+  }
+
+  // 1. Unbound text: text nodes with no componentPropertyReferences.characters
+  const unboundText = allTextEntries
+    .filter(({ node }) => {
+      const refs = (node as any).componentPropertyReferences;
+      return !refs?.characters;
+    })
+    .map(({ node }) => ({
+      id: node.id,
+      name: node.name,
+      characters: node.characters?.slice(0, 80),
+    }));
+
+  // 2. Orphaned properties: TEXT properties not bound to any node
+  const orphanedProperties = textPropKeys
+    .filter(k => !boundKeys.has(k))
+    .map(k => ({
+      key: k,
+      name: k.split("#")[0],
+      defaultValue: String(defs[k].defaultValue ?? ""),
+    }));
+
+  // 3. Unbound nested: text nodes inside child frames (depth > 1) that aren't bound
+  const unboundNested = allTextEntries
+    .filter(({ node, path }) => {
+      const refs = (node as any).componentPropertyReferences;
+      return !refs?.characters && path.includes(" > ");
+    })
+    .map(({ node, path }) => ({
+      id: node.id,
+      name: node.name,
+      characters: node.characters?.slice(0, 80),
+      path,
+    }));
+
+  // Dedup nested from unboundText would be redundant — nested is a subset for information
+  // Keep both lists since they serve different purposes (flat list vs path-aware)
+
+  const issues = unboundText.length + orphanedProperties.length;
+  const summary = issues === 0
+    ? "All TEXT properties are bound and all text nodes are connected."
+    : `Found ${unboundText.length} unbound text node${unboundText.length !== 1 ? "s" : ""}, ${orphanedProperties.length} orphaned propert${orphanedProperties.length !== 1 ? "ies" : "y"}.`;
+
+  return { unboundText, orphanedProperties, unboundNested, summary };
+}
+
+async function auditComponentFigma(params: any) {
+  const node = await figma.getNodeByIdAsync(params.id);
+  if (!node) throw new Error(`Component not found: ${params.id}`);
+  if (node.type !== "COMPONENT" && node.type !== "COMPONENT_SET") throw new Error(`Not a component: ${node.type}`);
+  const comp = node as ComponentNode | ComponentSetNode;
+
+  const result = auditComponentBindings(comp);
+  return { id: comp.id, name: comp.name, ...result };
+}
+
 // -- instances handlers --
 
 async function instanceCreateSingle(p: any) {
@@ -591,6 +796,7 @@ export const figmaHandlers: Record<string, (params: any) => Promise<any>> = {
     get: getComponentFigma,
     list: listComponentsFigma,
     update: (p) => batchHandler(p, updateComponentPropertySingle, { keys: componentsUpdate, help: 'components(method: "help", topic: "update")' }),
+    audit: auditComponentFigma,
     delete: (p) => batchHandler(p, deleteComponentSingle),
   }),
   instances: createDispatcher({

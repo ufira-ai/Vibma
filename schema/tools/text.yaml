@@ -97,7 +97,10 @@ methods:
               description: "NONE (fixed box), WIDTH_AND_HEIGHT (grow both), HEIGHT (fixed width, auto height), TRUNCATE (fixed + ellipsis)"
             componentPropertyName:
               type: string
-              description: "Bind to a component TEXT property by name (parent must be a component)"
+              description: "Bind to a component TEXT property by name. Walks up ancestors to find the nearest component, or targets the component specified by componentId. For deeply nested text, consider using components(method:'create', type:'from_node') with exposeText:true instead — it auto-discovers and binds all text nodes."
+            componentId:
+              type: string
+              description: "Target component ID for componentPropertyName binding. When omitted, walks up ancestors to find the nearest COMPONENT or COMPONENT_SET."
       depth: { $ref: depth }
     response:
       type: batch

@@ -5,31 +5,50 @@ description_zh: "运行设计质量和无障碍检查。"
 
 notes: |
   // Lint runs automated design quality and accessibility checks on a node tree.
-  // Rules: "all" (default), "wcag" (accessibility only), or specific rule names. Use help(topic:"check") for full rule list.
   // ---
-  // Rules:
-  //   "all" (default) — run every rule. "wcag" — all accessibility rules only.
-  //   Design rules:
-  //     "no-autolayout" — frames with manually positioned children (should use auto-layout)
-  //     "shape-instead-of-frame" — shapes used as containers (should be frames)
-  //     "hardcoded-color" — colors not using styles or variables (should use design tokens)
-  //     "hardcoded-token" — numeric values (cornerRadius, strokeWeight, opacity, padding, itemSpacing) not bound to a FLOAT variable
-  //     "no-text-style" — text without a text style applied
-  //     "fixed-in-autolayout" — FIXED-size children in auto-layout parents (should be HUG or FILL)
-  //     "default-name" — nodes with default names like "Frame 1" (should be renamed)
-  //     "empty-container" — empty frames/groups (likely leftover, should be deleted)
-  //     "stale-text-name" — text node name doesn't match its content
-  //     "no-text-property" — component text not exposed as editable property
-  //     "overlapping-children" — multiple children at the same position in a non-auto-layout frame (agent likely forgot x/y)
-  //     "hug-cross-axis" — child has HUG on the cross-axis of a constrained parent (won't fill available space; use FILL)
-  //     "unbounded-hug" — frame or text node with HUG on both axes (breaks responsiveness, text won't wrap; use FILL/FIXED width + HUG height)
-  //   Accessibility (WCAG) rules:
-  //     "wcag-contrast" — text contrast ratio below 4.5:1 (WCAG AA)
-  //     "wcag-contrast-enhanced" — text contrast ratio below 7:1 (WCAG AAA)
-  //     "wcag-non-text-contrast" — non-text element contrast below 3:1
-  //     "wcag-target-size" — interactive targets smaller than 24x24px (WCAG 2.5.8)
-  //     "wcag-text-size" — text below 12px
-  //     "wcag-line-height" — line height below 1.5x font size
+  // Rules: "all" (default), or filter by category or specific rule names.
+  // Category meta-rules (expand to all rules in that category):
+  //   "component" — component property binding checks
+  //   "composition" — layout and positioning checks
+  //   "token" — design token / style usage checks
+  //   "naming" — layer naming checks
+  //   "wcag" / "accessibility" — all WCAG accessibility checks
+  // ---
+  // Severity levels (output is sorted by severity, highest first):
+  //   "error" — definite bug, must fix
+  //   "unsafe" — likely causes layout/accessibility problems
+  //   "heuristic" — probably worth fixing, context-dependent
+  //   "style" — opinionated, nice-to-have (leaf nodes, decorative elements often downgraded here)
+  // Context-aware: leaf nodes (text, shapes, small frames) are treated differently from containers.
+  //   Small labels with HUG sizing, leaf nodes on cross-axis — downgraded to "style" instead of "heuristic".
+  //   Per-finding severity overrides appear on individual nodes when context changes the default.
+  // ---
+  // Component rules [component]:
+  //   "no-text-property" — component text not exposed as editable property [heuristic]
+  //   "component-bindings" — unbound text, orphaned properties, unexposed nested text [heuristic; orphaned→unsafe, nested→style]
+  // Composition rules [composition]:
+  //   "no-autolayout" — frames with manually positioned children [heuristic; leaf-only containers→style]
+  //   "overlapping-children" — children stacked at same position [heuristic]
+  //   "shape-instead-of-frame" — shapes used as containers [style]
+  //   "fixed-in-autolayout" — FIXED-size children in auto-layout parents [heuristic]
+  //   "unbounded-hug" — HUG on both axes [unsafe; short leaf text→style]
+  //   "hug-cross-axis" — HUG on cross-axis of constrained parent [heuristic; leaf nodes→style]
+  //   "empty-container" — empty frames [style]
+  // Token rules [token]:
+  //   "hardcoded-color" — colors not using styles or variables [heuristic]
+  //   "hardcoded-token" — numeric values not bound to FLOAT variable [heuristic]
+  //   "no-text-style" — text without a text style [heuristic]
+  // Naming rules [naming]:
+  //   "default-name" — default names like "Frame 1" [style]
+  //   "stale-text-name" — text node name doesn't match content [style]
+  // Accessibility rules [wcag]:
+  //   "wcag-contrast" — AA contrast ratio [unsafe]
+  //   "wcag-contrast-enhanced" — AAA contrast ratio [style]
+  //   "wcag-non-text-contrast" — non-text 3:1 contrast [heuristic]
+  //   "wcag-target-size" — targets below 24x24px [unsafe]
+  //   "wcag-text-size" — text below 12px [unsafe]
+  //   "wcag-line-height" — line height below 1.5x [style]
+  // ---
   // maxDepth limits how deep the tree traversal goes (default: 10). maxFindings caps total findings (default: 50).
   // fix: auto-converts frames to auto-layout. Use after lint.check identifies "no-autolayout" issues.
 
@@ -47,7 +66,7 @@ methods:
         type: string[]
         coerce: json
         optional: true
-        description: 'Rules to run. Default: ["all"]. Use ["wcag"] for accessibility only.'
+        description: 'Rules to run. Default: ["all"]. Categories: "component", "composition", "token", "naming", "wcag"/"accessibility". Or specific rule names.'
       maxDepth:
         type: number
         coerce: true
@@ -67,10 +86,13 @@ methods:
         categories:
           type: array
           required: true
+          description: "Sorted by severity (error > unsafe > heuristic > style)"
           items:
             type: object
             properties:
               rule: { type: string, required: true }
+              severity: { type: string, required: true, description: "error | unsafe | heuristic | style" }
+              category: { type: string, required: true, description: "component | composition | token | accessibility | naming" }
               count: { type: number, required: true }
               fix: { type: string, required: true }
               nodes:
@@ -81,7 +103,7 @@ methods:
                   properties:
                     id: { type: string, required: true }
                     name: { type: string, required: true }
-                    detail: { type: string, optional: true }
+                    severity: { type: string, optional: true, description: "Per-finding override when context changes the default" }
         warning: { type: string }
       required: [nodeId, nodeName, categories]
 

@@ -1,4 +1,4 @@
-import { batchHandler, appendToParent, checkOverlappingSiblings, suggestTextStyle, applyFillWithAutoBind, applySizing, styleNotFoundHint, bindTextToComponentProperty, type Hint } from "./helpers";
+import { batchHandler, appendToParent, checkOverlappingSiblings, suggestTextStyle, applyFillWithAutoBind, applySizing, styleNotFoundHint, bindTextToComponentProperty, findComponentForBinding, type Hint } from "./helpers";
 import { textCreate } from "@ufira/vibma/guards";
 
 // ─── Figma Handlers ──────────────────────────────────────────────
@@ -170,7 +170,7 @@ async function createTextSingle(p: any, ctx: CreateTextContext) {
     parentId, textStyleId, textStyleName,
     textAlignHorizontal, textAlignVertical,
     layoutSizingHorizontal, layoutSizingVertical, textAutoResize,
-    componentPropertyName,
+    componentPropertyName, componentId,
   } = p;
 
   const textNode = figma.createText();
@@ -228,10 +228,10 @@ async function createTextSingle(p: any, ctx: CreateTextContext) {
     checkOverlappingSiblings(textNode, parent, hints);
 
     // Component property binding: bind text to a component TEXT property
-    const comp = parent && (parent.type === "COMPONENT" || parent.type === "COMPONENT_SET") ? parent as ComponentNode : null;
+    const comp = await findComponentForBinding(textNode, componentId, hints);
     if (componentPropertyName) {
       if (!comp) {
-        hints.push({ type: "error", message: `componentPropertyName '${componentPropertyName}' ignored — parent is not a component.` });
+        if (!componentId) hints.push({ type: "error", message: `componentPropertyName '${componentPropertyName}' ignored — no ancestor component found.` });
       } else {
         bindTextToComponentProperty(textNode, comp, componentPropertyName, hints);
       }

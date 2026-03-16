@@ -13,7 +13,9 @@ notes: |
   // exposeText: when creating from_node, text children become editable TEXT properties on the component.
   // Auto-bind: TEXT properties auto-bind to text children with matching names (case-insensitive).
   // Example: properties:[{propertyName:"Label", type:"TEXT", defaultValue:"Click"}] binds to a child text node named "Label".
-  // text.create also accepts componentPropertyName to bind on creation: text(method:"create", items:[{parentId, text:"Click", componentPropertyName:"Label"}]).
+  // text.create accepts componentPropertyName to bind on creation — walks up ancestors to find the nearest component.
+  //   For nested text (text inside frames inside a component), componentPropertyName resolves via ancestor walk. Alternatively, pass componentId explicitly.
+  //   For existing nodes with many text children, prefer components(method:"create", type:"from_node", exposeText:true) — it auto-discovers, creates TEXT properties, and binds all text nodes in one operation.
   // Property keys include a unique suffix like "Label#1:0". Call components.get(id) to discover exact keys before edit/delete.
   // ComponentItem accepts the same params as FrameItem (layout, fill, stroke, sizing, min/max).
   // A component IS a frame — create it directly with all layout properties, then add children.
@@ -74,7 +76,7 @@ methods:
   create:
     tier: create
     description: Create components
-    example: 'components(method:"create", type:"component", items:[{name:"Card", layoutMode:"VERTICAL", padding:"16", itemSpacing:"8", fillVariableName:"bg/surface", properties:[{propertyName:"Label", type:"TEXT", defaultValue:"Title"}, {propertyName:"Show Icon", type:"BOOLEAN", defaultValue:true}]}])'
+    example: 'components(method:"create", type:"component", items:[{name:"Card", layoutMode:"VERTICAL", padding:"16", itemSpacing:"8", fillVariableName:"bg/surface", children:[{type:"text", text:"Title", componentPropertyName:"Title"}, {type:"text", text:"Description", fontSize:14, componentPropertyName:"Description"}], properties:[{propertyName:"Show Icon", type:"BOOLEAN", defaultValue:true}]}])'
     discriminant: type
     types:
       component:
@@ -82,11 +84,18 @@ methods:
         params:
           $mixin: frame_params
           name: { type: string, required: true, description: Component name }
+          children:
+            type: array
+            coerce: json
+            optional: true
+            description: 'Inline child nodes. Text: {type:"text", text, componentPropertyName?, fontFamily?, fontSize?, fontColor?}. Frame: {type:"frame", name?, layoutMode?, fillColor?, children?}. Text with componentPropertyName auto-creates and binds a TEXT property — no need to add it to properties separately.'
+            items:
+              type: object
           properties:
             type: array
             coerce: json
             optional: true
-            description: "Component properties to define at creation: [{propertyName, type, defaultValue}]"
+            description: "Component properties to define at creation: [{propertyName, type, defaultValue}]. TEXT properties for inline children with componentPropertyName are created automatically."
             items:
               type: object
               properties:
@@ -133,6 +142,50 @@ methods:
       depth: { $ref: depth }
     response:
       type: batch_mixed
+
+  audit:
+    tier: read
+    description: Audit component property bindings — find unbound text, orphaned properties, and unexposed text nodes
+    example: 'components(method:"audit", id:"1:23")'
+    params:
+      id:
+        type: string
+        required: true
+        description: "Component or component set ID"
+    response:
+      type: object
+      properties:
+        id: { type: string }
+        name: { type: string }
+        unboundText:
+          type: array
+          description: "Text nodes inside the component not bound to any TEXT property"
+          items:
+            type: object
+            properties:
+              id: { type: string }
+              name: { type: string }
+              characters: { type: string }
+        orphanedProperties:
+          type: array
+          description: "TEXT properties defined but not connected to any text node"
+          items:
+            type: object
+            properties:
+              key: { type: string }
+              name: { type: string }
+              defaultValue: { type: string }
+        unboundNested:
+          type: array
+          description: "Text nodes nested inside child frames that could be exposed as properties"
+          items:
+            type: object
+            properties:
+              id: { type: string }
+              name: { type: string }
+              characters: { type: string }
+              path: { type: string, description: "Layer path from component root" }
+        summary: { type: string }
 
   delete:
     tier: edit

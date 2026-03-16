@@ -1,4 +1,4 @@
-import { batchHandler, findVariableById, findVariableByName, bindTextToComponentProperty, type Hint } from "./helpers";
+import { batchHandler, findVariableById, findVariableByName, bindTextToComponentProperty, findComponentForBinding, type Hint } from "./helpers";
 import { setFillSingle, setStrokeSingle, setCornerSingle, setOpacitySingle } from "./fill-stroke";
 import { setEffectsSingle, setConstraintsSingle, setExportSettingsSingle, setNodePropertiesSingle } from "./effects";
 import { moveSingle, resizeSingle } from "./modify-node";
@@ -35,6 +35,7 @@ const ALL_KNOWN = new Set<string>([
   "nodeId",              // handler alias for id
   "componentProperties", // instance handler extension
   "componentPropertyName", // bind text node to component TEXT property
+  "componentId",           // explicit target component for property binding
 ]);
 
 export function hasAny(item: any, keys: readonly string[]): boolean {
@@ -217,10 +218,9 @@ export async function patchSingleNode(item: any, textCtx: TextPropsContext | nul
     if (node.type !== "TEXT") {
       hints.push({ type: "error", message: `componentPropertyName ignored — node is ${node.type}, not TEXT.` });
     } else {
-      const parent = node.parent;
-      const comp = parent && (parent.type === "COMPONENT" || parent.type === "COMPONENT_SET") ? parent : null;
+      const comp = await findComponentForBinding(node, item.componentId, hints);
       if (!comp) {
-        hints.push({ type: "error", message: `componentPropertyName '${item.componentPropertyName}' ignored — parent is not a component.` });
+        if (!item.componentId) hints.push({ type: "error", message: `componentPropertyName '${item.componentPropertyName}' ignored — no ancestor component found.` });
       } else {
         bindTextToComponentProperty(node, comp, item.componentPropertyName, hints);
       }

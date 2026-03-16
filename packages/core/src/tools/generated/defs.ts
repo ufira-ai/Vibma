@@ -25,7 +25,7 @@ function filterMethodsByTier(
  * For discriminated methods (create with type), the value is a sub-map: type → command.
  */
 export const commandMap: Record<string, Record<string, string>> = {
-  "components": {"clone":"components.clone","reparent":"components.reparent","list":"components.list","get":"components.get","create":"components.create","update":"components.update","delete":"components.delete"},
+  "components": {"clone":"components.clone","reparent":"components.reparent","list":"components.list","get":"components.get","create":"components.create","update":"components.update","audit":"components.audit","delete":"components.delete"},
   "connection": {"create":"connection.create","get":"connection.get","list":"connection.list","delete":"connection.delete"},
   "document": {"get":"document.get","list":"document.list","set":"document.set","create":"document.create","update":"document.update"},
   "fonts": {"list":"fonts.list"},
@@ -48,8 +48,8 @@ export const inlineMethods: Record<string, Record<string, boolean>> = {
 export const tools: ToolDef[] = [
   {
     name: "components",
-    description: "/** Create and manage reusable components and variant sets. Use method \"help\" for detailed parameter docs. */\n  clone     (id, parentId?, x?, y?, depth?) → { results: {id}[] }  // Duplicate nodes\n  reparent  (items: { id: string; parentId: string; index?: number }[]) → { results: \"ok\"[] }  // Move nodes into a new parent\n  list      (query?, setsOnly?, fields?, offset?, limit?) → { totalCount, items }  // List components and component sets\n  get       (id, fields?) → { id?, name?, type?, propertyDefinitions? }  // Get component or component set detail\n  create    (type: component|from_node|variant_set, items: (ComponentItem | FromNodeItem | VariantSetItem)[]) → { results: {id}[] }  // Create components\n  update    (items: UpdatePropertyItem[], depth?) → { results: (\"ok\" | {error})[] }  // Add, edit, or delete component properties\n  delete    (id) → { results: \"ok\"[] }  // Delete components or component sets\n// depth: omit → id+name stubs | 0 → props + child stubs | N → recurse N | -1 → full tree\n// fields: whitelist e.g. [\"fills\",\"opacity\"] — id, name, type always included. Pass [\"*\"] for all.\n// layoutSizingHorizontal/Vertical: FIXED | HUG | FILL — how the node sizes within auto-layout.\n// Colors: fillVariableName/strokeVariableName bind by name — preferred over raw color values.\n// Note: node-based endpoints (frames, text, instances, components) use `results` as the list key.\n//   Standalone endpoints (styles, variables, variable_collections) use `items`. Components.list uses `items` (catalog view).",
-    schema: (caps) => filterMethodsByTier({    method: z.enum(["clone", "reparent", "list", "get", "create", "update", "delete", "help"]),
+    description: "/** Create and manage reusable components and variant sets. Use method \"help\" for detailed parameter docs. */\n  clone     (id, parentId?, x?, y?, depth?) → { results: {id}[] }  // Duplicate nodes\n  reparent  (items: { id: string; parentId: string; index?: number }[]) → { results: \"ok\"[] }  // Move nodes into a new parent\n  list      (query?, setsOnly?, fields?, offset?, limit?) → { totalCount, items }  // List components and component sets\n  get       (id, fields?) → { id?, name?, type?, propertyDefinitions? }  // Get component or component set detail\n  create    (type: component|from_node|variant_set, items: (ComponentItem | FromNodeItem | VariantSetItem)[]) → { results: {id}[] }  // Create components\n  update    (items: UpdatePropertyItem[], depth?) → { results: (\"ok\" | {error})[] }  // Add, edit, or delete component properties\n  audit     (id) → { id?, name?, unboundText?, orphanedProperties?, unboundNested?, summary? }  // Audit component property bindings — find unbound text, orphaned properties, and unexposed text nodes\n  delete    (id) → { results: \"ok\"[] }  // Delete components or component sets\n// depth: omit → id+name stubs | 0 → props + child stubs | N → recurse N | -1 → full tree\n// fields: whitelist e.g. [\"fills\",\"opacity\"] — id, name, type always included. Pass [\"*\"] for all.\n// layoutSizingHorizontal/Vertical: FIXED | HUG | FILL — how the node sizes within auto-layout.\n// Colors: fillVariableName/strokeVariableName bind by name — preferred over raw color values.\n// Note: node-based endpoints (frames, text, instances, components) use `results` as the list key.\n//   Standalone endpoints (styles, variables, variable_collections) use `items`. Components.list uses `items` (catalog view).",
+    schema: (caps) => filterMethodsByTier({    method: z.enum(["clone", "reparent", "list", "get", "create", "update", "audit", "delete", "help"]),
     id: z.string().optional().describe("Node ID"),
     parentId: z.string().optional().describe("Parent node ID. Omit to place on current page."),
     x: z.coerce.number().optional().describe("X position (default: 0)"),
@@ -63,12 +63,15 @@ export const tools: ToolDef[] = [
     limit: z.coerce.number().optional().default(100).describe("Max items per page (default 100)"),
     type: z.enum(["component", "from_node", "variant_set"]).optional().describe("Discriminant for create method"),
     topic: z.string().optional().describe("Help topic — method name for endpoint help, e.g. \"create\""),
-    }, caps, {"clone":"create","reparent":"edit","list":"read","get":"read","create":"create","update":"edit","delete":"edit","help":"read"}),
+    }, caps, {"clone":"create","reparent":"edit","list":"read","get":"read","create":"create","update":"edit","audit":"read","delete":"edit","help":"read"}),
     tier: "read" as const,
     validate: (params: any) => {
       const m = params.method;
       if (m === "get") {
         if (params.id === undefined) throw new Error("get requires \"id\"");
+      }
+      if (m === "audit") {
+        if (params.id === undefined) throw new Error("audit requires \"id\"");
       }
       if (m === "delete") {
         if (params.id === undefined) throw new Error("delete requires \"id\"");
@@ -123,7 +126,8 @@ export const tools: ToolDef[] = [
             maxWidth: z.coerce.number().optional().describe("Max width for responsive auto-layout"),
             minHeight: z.coerce.number().optional().describe("Min height for responsive auto-layout"),
             maxHeight: z.coerce.number().optional().describe("Max height for responsive auto-layout"),
-            properties: flexJson(z.array(z.record(z.string(), z.unknown()))).optional().describe("Component properties to define at creation: [{propertyName, type, defaultValue}]"),
+            children: flexJson(z.array(z.record(z.string(), z.unknown()))).optional().describe("Inline child nodes. Text: {type:\"text\", text, componentPropertyName?, fontFamily?, fontSize?, fontColor?}. Frame: {type:\"frame\", name?, layoutMode?, fillColor?, children?}. Text with componentPropertyName auto-creates and binds a TEXT property — no need to add it to properties separately."),
+            properties: flexJson(z.array(z.record(z.string(), z.unknown()))).optional().describe("Component properties to define at creation: [{propertyName, type, defaultValue}]. TEXT properties for inline children with componentPropertyName are created automatically."),
           }).passthrough(),
           "from_node": z.object({
             nodeId: z.string().describe("Node ID to convert"),
@@ -197,7 +201,7 @@ export const tools: ToolDef[] = [
         catch (e) { if (e instanceof z.ZodError) { throw new Error(e.issues.map(i => { const path = i.path.join("."); const shape = itemSchema instanceof z.ZodObject ? (itemSchema as any).shape : null; const desc = shape?.[i.path[1]]?.description; return path + ": " + i.message + (desc ? " (expected: " + desc + ")" : ""); }).join("; ")); } throw e; }
       }
     },
-    commandMap: {"clone":"components.clone","reparent":"components.reparent","list":"components.list","get":"components.get","create":"components.create","update":"components.update","delete":"components.delete"},
+    commandMap: {"clone":"components.clone","reparent":"components.reparent","list":"components.list","get":"components.get","create":"components.create","update":"components.update","audit":"components.audit","delete":"components.delete"},
   },
   {
     name: "connection",
@@ -616,10 +620,10 @@ export const tools: ToolDef[] = [
   },
   {
     name: "lint",
-    description: "/** Run design quality and accessibility checks. Use method \"help\" for detailed parameter docs. */\n  check     (nodeId?, rules?, maxDepth?, maxFindings?) → { nodeId, nodeName, categories, warning? }  // Run design linter on a node tree\n  fix       (items: { nodeId: string; layoutMode?: \"VERTICAL\" | \"HORIZONTAL\"; itemSpacing?: number }[], depth?) → { results: (\"ok\" | {error})[] }  // Auto-fix frames to auto-layout\n// Lint runs automated design quality and accessibility checks on a node tree.\n// Rules: \"all\" (default), \"wcag\" (accessibility only), or specific rule names. Use help(topic:\"check\") for full rule list.",
+    description: "/** Run design quality and accessibility checks. Use method \"help\" for detailed parameter docs. */\n  check     (nodeId?, rules?, maxDepth?, maxFindings?) → { nodeId, nodeName, categories, warning? }  // Run design linter on a node tree\n  fix       (items: { nodeId: string; layoutMode?: \"VERTICAL\" | \"HORIZONTAL\"; itemSpacing?: number }[], depth?) → { results: (\"ok\" | {error})[] }  // Auto-fix frames to auto-layout\n// Lint runs automated design quality and accessibility checks on a node tree.",
     schema: (caps) => filterMethodsByTier({    method: z.enum(["check", "fix", "help"]),
     nodeId: z.string().optional().describe("Node ID to lint. If omitted: 1 selected node → lints that node, 2+ selected → lints entire page (not the selection), 0 selected → error. Always pass nodeId explicitly for reliable targeting."),
-    rules: flexJson(z.array(z.string())).optional().describe("Rules to run. Default: [\"all\"]. Use [\"wcag\"] for accessibility only."),
+    rules: flexJson(z.array(z.string())).optional().describe("Rules to run. Default: [\"all\"]. Categories: \"component\", \"composition\", \"token\", \"naming\", \"wcag\"/\"accessibility\". Or specific rule names."),
     maxDepth: z.coerce.number().optional().describe("Max tree depth (default: 10)"),
     maxFindings: z.coerce.number().optional().describe("Max findings (default: 50)"),
     items: flexJson(z.array(z.record(z.string(), z.unknown()))).optional().describe("Array of {nodeId, layoutMode?, itemSpacing?}"),
@@ -799,7 +803,8 @@ export const tools: ToolDef[] = [
           layoutSizingHorizontal: z.enum(["FIXED", "HUG", "FILL"]).optional(),
           layoutSizingVertical: z.enum(["FIXED", "HUG", "FILL"]).optional(),
           textAutoResize: z.enum(["NONE", "WIDTH_AND_HEIGHT", "HEIGHT", "TRUNCATE"]).optional().describe("NONE (fixed box), WIDTH_AND_HEIGHT (grow both), HEIGHT (fixed width, auto height), TRUNCATE (fixed + ellipsis)"),
-          componentPropertyName: z.string().optional().describe("Bind to a component TEXT property by name (parent must be a component)"),
+          componentPropertyName: z.string().optional().describe("Bind to a component TEXT property by name. Walks up ancestors to find the nearest component, or targets the component specified by componentId. For deeply nested text, consider using components(method:'create', type:'from_node') with exposeText:true instead — it auto-discovers and binds all text nodes."),
+          componentId: z.string().optional().describe("Target component ID for componentPropertyName binding. When omitted, walks up ancestors to find the nearest COMPONENT or COMPONENT_SET."),
         }).passthrough();
         try { params.items = z.array(itemSchema).parse(params.items); }
         catch (e) { if (e instanceof z.ZodError) { throw new Error(e.issues.map(i => { const path = i.path.join("."); const shape = itemSchema instanceof z.ZodObject ? (itemSchema as any).shape : null; const desc = shape?.[i.path[1]]?.description; return path + ": " + i.message + (desc ? " (expected: " + desc + ")" : ""); }).join("; ")); } throw e; }

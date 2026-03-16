@@ -7,6 +7,7 @@ export const nodeReparent = new Set(["id","index","parentId"]) as ReadonlySet<st
 export const componentsCreateComponent = new Set([
   "bottomLeftRadius",
   "bottomRightRadius",
+  "children",
   "cornerRadius",
   "counterAxisAlignItems",
   "counterAxisSpacing",
@@ -534,6 +535,7 @@ export const stylesDelete = new Set(["id"]) as ReadonlySet<string>;
 
 /** text.create item params */
 export const textCreate = new Set([
+  "componentId",
   "componentPropertyName",
   "fills",
   "fontColor",
