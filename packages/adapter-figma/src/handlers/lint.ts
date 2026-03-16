@@ -80,7 +80,7 @@ const RULE_META: Record<string, { severity: Severity; category: RuleCategory; fi
   },
   "unbounded-hug": {
     severity: "unsafe", category: "composition",
-    fix: 'HUG on both axes breaks responsive behavior — content grows unboundedly, text won\'t wrap, and nested hug chains create unpredictable sizing cascades. For frames: FILL or FIXED width + HUG height (mirrors CSS block-level elements). For text nodes: use FILL width + HUG height so text wraps within its parent, or set textAutoResize:"HEIGHT" for fixed-width wrapping. Fix frames: frames(method:"update", items:[{id, layoutSizingHorizontal:"FILL"}]). Fix text: text(method:"update", items:[{id, layoutSizingHorizontal:"FILL", layoutSizingVertical:"HUG"}]) or items:[{id, textAutoResize:"HEIGHT"}].',
+    fix: 'Container has HUG on both axes — children with FILL have nothing to fill, text won\'t wrap. Set a width and layoutSizingHorizontal:"FIXED", or layoutSizingHorizontal:"FILL" if inside an auto-layout parent. For text nodes: layoutSizingHorizontal:"FILL" + layoutSizingVertical:"HUG".',
   },
   "wcag-contrast": {
     severity: "unsafe", category: "accessibility",
@@ -301,15 +301,24 @@ async function walkNode(node: BaseNode, depth: number, issues: Issue[], ctx: Lin
   if (ctx.runAll || ctx.ruleSet.has("unbounded-hug")) {
     if (isFrame(node) && node.layoutMode !== "NONE" &&
         node.layoutSizingHorizontal === "HUG" && node.layoutSizingVertical === "HUG") {
-      issues.push({ rule: "unbounded-hug", nodeId: node.id, nodeName: node.name });
-      if (issues.length >= ctx.maxFindings) return;
+      const isRoot = !node.parent || node.parent.type === "PAGE";
+      const children = "children" in node ? (node as FrameNode).children : [];
+      const hasTextChildren = children.some(c => c.type === "TEXT");
+      const hasFillChildren = children.some(c => "layoutSizingHorizontal" in c && (c as any).layoutSizingHorizontal === "FILL");
+      const hasLongText = children.some(c => c.type === "TEXT" && ((c as any).characters?.length ?? 0) > 20);
+
+      if (isRoot && (hasLongText || hasFillChildren)) {
+        // Root container with text/FILL children — no width constraint
+        issues.push({ rule: "unbounded-hug", nodeId: node.id, nodeName: node.name, extra: { context: "root", hasText: hasTextChildren, hasFillChildren } });
+        if (issues.length >= ctx.maxFindings) return;
+      }
+      // Nested HUG/HUG: skip — either fine (button in variant set) or cascades to root finding
     }
     // Text nodes inside auto-layout: HUG on both axes means text won't wrap
     if (node.type === "TEXT" && node.parent && "layoutMode" in node.parent && (node.parent as any).layoutMode !== "NONE") {
       const th = (node as any).layoutSizingHorizontal;
       const tv = (node as any).layoutSizingVertical;
       if (th === "HUG" && tv === "HUG") {
-        // Short leaf labels (< 40 chars) are typically fine with HUG/HUG
         const isShortLabel = ((node as any).characters?.length ?? 0) < 40;
         issues.push({ rule: "unbounded-hug", nodeId: node.id, nodeName: node.name, severity: isShortLabel ? "style" : undefined, extra: { nodeType: "TEXT" } });
         if (issues.length >= ctx.maxFindings) return;

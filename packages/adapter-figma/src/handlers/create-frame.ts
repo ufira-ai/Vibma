@@ -96,9 +96,8 @@ export async function setupFrameNode(
     if (isRoot && (hasTextChildren || hasFillChildren)) {
       const name = node.name || "Frame";
       hints.push({ type: "warn", message: `"${name}" has HUG on both axes with ${hasTextChildren ? "text" : "FILL"} children but no width constraint. Text won't wrap and FILL children collapse. Set a width and layoutSizingHorizontal:"FIXED".` });
-    } else if (!isRoot && hasFillChildren) {
-      hints.push({ type: "warn", message: `HUG on both axes but children use FILL — they need a constrained parent. Set layoutSizingHorizontal on this frame to FILL or FIXED with a width.` });
     }
+    // Nested HUG/HUG: no warning — parent provides constraint or cascades to root-level finding
     // Leaf containers (buttons, badges) with HUG/HUG: no warning — intentional
   }
 
