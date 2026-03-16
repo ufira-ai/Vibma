@@ -1,5 +1,6 @@
 import { batchHandler, appendAndApplySizing, checkOverlappingSiblings, applyTokens, resolveComponentPropertyKey, applyFillWithAutoBind, applySizing, normalizeAliases, TEXT_ALIAS_KEYS, FRAME_ALIAS_KEYS, type Hint } from "./helpers";
 import { setupFrameNode } from "./create-frame";
+import { auditNode } from "./lint";
 import { createDispatcher, paginate, pickFields } from "@ufira/vibma/endpoint";
 import {
   componentsCreateComponent, componentsCreateFromNode, componentsCreateVariantSet,
@@ -616,10 +617,34 @@ async function auditComponentFigma(params: any) {
   const node = await figma.getNodeByIdAsync(params.id);
   if (!node) throw new Error(`Component not found: ${params.id}`);
   if (node.type !== "COMPONENT" && node.type !== "COMPONENT_SET") throw new Error(`Not a component: ${node.type}`);
-  const comp = node as ComponentNode | ComponentSetNode;
 
-  const result = auditComponentBindings(comp);
-  return { id: comp.id, name: comp.name, ...result };
+  // Run lint (frames.audit base), then replace lint's component-bindings with our own richer check
+  const lintResult = await auditNode({ nodeId: params.id, rules: params.rules, maxDepth: params.maxDepth, maxFindings: params.maxFindings });
+  lintResult.categories = lintResult.categories.filter((c: any) => c.rule !== "component-bindings");
+
+  const bindings = auditComponentBindings(node as ComponentNode | ComponentSetNode);
+  if (bindings.unboundText.length > 0 || bindings.orphanedProperties.length > 0) {
+    const bindingNodes: any[] = [];
+    for (const t of bindings.unboundText) {
+      bindingNodes.push({ id: t.id, name: t.name, issue: "unbound-text", characters: t.characters });
+    }
+    for (const p of bindings.orphanedProperties) {
+      bindingNodes.push({ id: node.id, name: node.name, severity: "unsafe", issue: "orphaned-property", propertyKey: p.key, propertyName: p.name });
+    }
+    for (const n of bindings.unboundNested) {
+      bindingNodes.push({ id: n.id, name: n.name, severity: "style", issue: "unexposed-nested", path: n.path, characters: n.characters });
+    }
+    lintResult.categories.push({
+      rule: "component-bindings",
+      severity: "heuristic",
+      category: "component",
+      count: bindingNodes.length,
+      fix: 'Run components(method:"audit", id) for details. Fix unbound text: frames(method:"update", items:[{id, componentPropertyName:"<name>"}]). Fix orphaned properties: components(method:"update", items:[{id, propertyName:"<key>", action:"delete"}]).',
+      nodes: bindingNodes,
+    });
+  }
+
+  return lintResult;
 }
 
 // -- instances handlers --

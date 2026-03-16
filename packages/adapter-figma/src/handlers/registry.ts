@@ -17,7 +17,7 @@ import { figmaHandlers as fontsHandlers } from "./fonts";
 import { figmaHandlers as componentsHandlers } from "./components";
 import { figmaHandlers as stylesHandlers } from "./styles";
 import { figmaHandlers as variablesHandlers } from "./variables";
-import { figmaHandlers as lintHandlers } from "./lint";
+import { figmaHandlers as lintHandlers, auditNode } from "./lint";
 import { figmaHandlers as versionHistoryHandlers } from "./version-history";
 
 /** Merged dispatch map: command name → handler function */
@@ -88,6 +88,7 @@ export const allFigmaHandlers: Record<string, (params: any) => Promise<any>> = {
     items: (p.items || []).map((i: any) => ({ childId: i.id, parentId: i.parentId, index: i.index })),
   }),
   "frames.export": nodeInfoHandlers.export_node_as_image,
+  "frames.audit": (p: any) => auditNode({ nodeId: p.id, rules: p.rules, maxDepth: p.maxDepth, maxFindings: p.maxFindings }),
 
   // ─── document endpoint ───
   "document.get": documentHandlers.get_current_page,
@@ -118,6 +119,7 @@ export const allFigmaHandlers: Record<string, (params: any) => Promise<any>> = {
     ...p,
     items: p.items ?? [{ nodeId: p.id, parentId: p.parentId, x: p.x, y: p.y }],
   }),
+  "text.audit": (p: any) => auditNode({ nodeId: p.id, rules: p.rules, maxDepth: p.maxDepth, maxFindings: p.maxFindings }),
   "text.reparent": (p: any) => modifyNodeHandlers.insert_child({
     ...p,
     items: (p.items || []).map((i: any) => ({ childId: i.id, parentId: i.parentId, index: i.index })),
@@ -161,6 +163,7 @@ export const allFigmaHandlers: Record<string, (params: any) => Promise<any>> = {
   "instances.swap": componentsHandlers.instances,
   "instances.detach": componentsHandlers.instances,
   "instances.reset_overrides": componentsHandlers.instances,
+  "instances.audit": (p: any) => auditNode({ nodeId: p.id, rules: p.rules, maxDepth: p.maxDepth, maxFindings: p.maxFindings }),
 
   // instances.update — combined: visual PatchItem params + component properties
   "instances.update": instanceUpdateCombined,

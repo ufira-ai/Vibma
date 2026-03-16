@@ -63,7 +63,7 @@ interface Node {
 
 </details>
 
-10 methods available.
+11 methods available.
 
 ## list
 
@@ -102,6 +102,18 @@ Duplicate nodes
 **Response**
 
 <ParameterTable schema={{"type":"object","properties":{"results":{"type":"array","description":"One entry per input item","items":{"type":"object","properties":{"id":{"type":"string"}}}}}}} fieldLabel="Field" hideRequired />
+
+## audit
+
+*inherited*
+
+Run lint on a node — returns severity-ranked findings
+
+<ParameterTable schema={{"type":"object","properties":{"id":{"description":"Node ID to audit","type":"string"},"rules":{"description":"Rules to check. Default: [\"all\"]. Categories: \"component\", \"composition\", \"token\", \"naming\", \"wcag\".","type":"array","items":{"type":"string"}},"maxDepth":{"description":"Max tree depth (default: 10)","type":"number"},"maxFindings":{"description":"Max findings (default: 50)","type":"number"}},"required":["id"]}} />
+
+**Response**
+
+<ParameterTable schema={{"type":"object","properties":{"nodeId":{"type":"string"},"nodeName":{"type":"string"},"categories":{"description":"Sorted by severity (error > unsafe > heuristic > style)","type":"array"}}}} fieldLabel="Field" hideRequired />
 
 ## reparent
 

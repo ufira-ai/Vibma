@@ -25,16 +25,16 @@ function filterMethodsByTier(
  * For discriminated methods (create with type), the value is a sub-map: type → command.
  */
 export const commandMap: Record<string, Record<string, string>> = {
-  "components": {"clone":"components.clone","reparent":"components.reparent","list":"components.list","get":"components.get","create":"components.create","update":"components.update","audit":"components.audit","delete":"components.delete"},
+  "components": {"clone":"components.clone","audit":"components.audit","reparent":"components.reparent","list":"components.list","get":"components.get","create":"components.create","update":"components.update","delete":"components.delete"},
   "connection": {"create":"connection.create","get":"connection.get","list":"connection.list","delete":"connection.delete"},
   "document": {"get":"document.get","list":"document.list","set":"document.set","create":"document.create","update":"document.update"},
   "fonts": {"list":"fonts.list"},
-  "frames": {"get":"frames.get","list":"frames.list","update":"frames.update","delete":"frames.delete","clone":"frames.clone","reparent":"frames.reparent","create":"frames.create","export":"frames.export"},
-  "instances": {"list":"instances.list","delete":"instances.delete","clone":"instances.clone","reparent":"instances.reparent","get":"instances.get","create":"instances.create","update":"instances.update","swap":"instances.swap","detach":"instances.detach","reset_overrides":"instances.reset_overrides"},
+  "frames": {"get":"frames.get","list":"frames.list","update":"frames.update","delete":"frames.delete","clone":"frames.clone","audit":"frames.audit","reparent":"frames.reparent","create":"frames.create","export":"frames.export"},
+  "instances": {"list":"instances.list","delete":"instances.delete","clone":"instances.clone","audit":"instances.audit","reparent":"instances.reparent","get":"instances.get","create":"instances.create","update":"instances.update","swap":"instances.swap","detach":"instances.detach","reset_overrides":"instances.reset_overrides"},
   "lint": {"check":"lint.check","fix":"lint.fix"},
   "selection": {"get":"selection.get","set":"selection.set"},
   "styles": {"list":"styles.list","get":"styles.get","create":"styles.create","update":"styles.update","delete":"styles.delete"},
-  "text": {"get":"text.get","list":"text.list","update":"text.update","delete":"text.delete","clone":"text.clone","reparent":"text.reparent","create":"text.create","set_content":"text.set_content","scan":"text.scan"},
+  "text": {"get":"text.get","list":"text.list","update":"text.update","delete":"text.delete","clone":"text.clone","audit":"text.audit","reparent":"text.reparent","create":"text.create","set_content":"text.set_content","scan":"text.scan"},
   "variable_collections": {"list":"variable_collections.list","get":"variable_collections.get","create":"variable_collections.create","update":"variable_collections.update","delete":"variable_collections.delete","add_mode":"variable_collections.add_mode","rename_mode":"variable_collections.rename_mode","remove_mode":"variable_collections.remove_mode"},
   "variables": {"list":"variables.list","get":"variables.get","create":"variables.create","update":"variables.update","delete":"variables.delete"},
   "version_history": {"save":"version_history.save"},
@@ -48,13 +48,16 @@ export const inlineMethods: Record<string, Record<string, boolean>> = {
 export const tools: ToolDef[] = [
   {
     name: "components",
-    description: "/** Create and manage reusable components and variant sets. Use method \"help\" for detailed parameter docs. */\n  clone     (id, parentId?, x?, y?, depth?) → { results: {id}[] }  // Duplicate nodes\n  reparent  (items: { id: string; parentId: string; index?: number }[]) → { results: \"ok\"[] }  // Move nodes into a new parent\n  list      (query?, setsOnly?, fields?, offset?, limit?) → { totalCount, items }  // List components and component sets\n  get       (id, fields?) → { id?, name?, type?, propertyDefinitions? }  // Get component or component set detail\n  create    (type: component|from_node|variant_set, items: (ComponentItem | FromNodeItem | VariantSetItem)[]) → { results: {id}[] }  // Create components\n  update    (items: UpdatePropertyItem[], depth?) → { results: (\"ok\" | {error})[] }  // Add, edit, or delete component properties\n  audit     (id) → { id?, name?, unboundText?, orphanedProperties?, unboundNested?, summary? }  // Audit component property bindings — find unbound text, orphaned properties, and unexposed text nodes\n  delete    (id) → { results: \"ok\"[] }  // Delete components or component sets\n// depth: omit → id+name stubs | 0 → props + child stubs | N → recurse N | -1 → full tree\n// fields: whitelist e.g. [\"fills\",\"opacity\"] — id, name, type always included. Pass [\"*\"] for all.\n// layoutSizingHorizontal/Vertical: FIXED | HUG | FILL — how the node sizes within auto-layout.\n// Colors: fillVariableName/strokeVariableName bind by name — preferred over raw color values.\n// Note: node-based endpoints (frames, text, instances, components) use `results` as the list key.\n//   Standalone endpoints (styles, variables, variable_collections) use `items`. Components.list uses `items` (catalog view).",
-    schema: (caps) => filterMethodsByTier({    method: z.enum(["clone", "reparent", "list", "get", "create", "update", "audit", "delete", "help"]),
+    description: "/** Create and manage reusable components and variant sets. Use method \"help\" for detailed parameter docs. */\n  clone     (id, parentId?, x?, y?, depth?) → { results: {id}[] }  // Duplicate nodes\n  audit     (id, rules?, maxDepth?, maxFindings?) → { nodeId?, nodeName?, categories? }  // Run lint on a node — returns severity-ranked findings\n  reparent  (items: { id: string; parentId: string; index?: number }[]) → { results: \"ok\"[] }  // Move nodes into a new parent\n  list      (query?, setsOnly?, fields?, offset?, limit?) → { totalCount, items }  // List components and component sets\n  get       (id, fields?) → { id?, name?, type?, propertyDefinitions? }  // Get component or component set detail\n  create    (type: component|from_node|variant_set, items: (ComponentItem | FromNodeItem | VariantSetItem)[]) → { results: {id}[] }  // Create components\n  update    (items: UpdatePropertyItem[], depth?) → { results: (\"ok\" | {error})[] }  // Add, edit, or delete component properties\n  delete    (id) → { results: \"ok\"[] }  // Delete components or component sets\n// depth: omit → id+name stubs | 0 → props + child stubs | N → recurse N | -1 → full tree\n// fields: whitelist e.g. [\"fills\",\"opacity\"] — id, name, type always included. Pass [\"*\"] for all.\n// layoutSizingHorizontal/Vertical: FIXED | HUG | FILL — how the node sizes within auto-layout.\n// Colors: fillVariableName/strokeVariableName bind by name — preferred over raw color values.\n// Note: node-based endpoints (frames, text, instances, components) use `results` as the list key.\n//   Standalone endpoints (styles, variables, variable_collections) use `items`. Components.list uses `items` (catalog view).",
+    schema: (caps) => filterMethodsByTier({    method: z.enum(["clone", "audit", "reparent", "list", "get", "create", "update", "delete", "help"]),
     id: z.string().optional().describe("Node ID"),
     parentId: z.string().optional().describe("Parent node ID. Omit to place on current page."),
     x: z.coerce.number().optional().describe("X position (default: 0)"),
     y: z.coerce.number().optional().describe("Y position (default: 0)"),
     depth: z.coerce.number().optional().describe("Response detail: omit for id+name only. 0=properties + child stubs. N=recurse N levels. -1=unlimited."),
+    rules: flexJson(z.array(z.string())).optional().describe("Rules to check. Default: [\"all\"]. Categories: \"component\", \"composition\", \"token\", \"naming\", \"wcag\"."),
+    maxDepth: z.coerce.number().optional().describe("Max tree depth (default: 10)"),
+    maxFindings: z.coerce.number().optional().describe("Max findings (default: 50)"),
     items: flexJson(z.array(z.record(z.string(), z.unknown()))).optional().describe("Array of {id, ...properties} to reparent/update"),
     query: z.string().optional().describe("Name search query (case-insensitive substring match)"),
     setsOnly: flexBool(z.boolean()).optional().describe("If true, return only COMPONENT_SET nodes"),
@@ -63,15 +66,12 @@ export const tools: ToolDef[] = [
     limit: z.coerce.number().optional().default(100).describe("Max items per page (default 100)"),
     type: z.enum(["component", "from_node", "variant_set"]).optional().describe("Discriminant for create method"),
     topic: z.string().optional().describe("Help topic — method name for endpoint help, e.g. \"create\""),
-    }, caps, {"clone":"create","reparent":"edit","list":"read","get":"read","create":"create","update":"edit","audit":"read","delete":"edit","help":"read"}),
+    }, caps, {"clone":"create","audit":"read","reparent":"edit","list":"read","get":"read","create":"create","update":"edit","delete":"edit","help":"read"}),
     tier: "read" as const,
     validate: (params: any) => {
       const m = params.method;
       if (m === "get") {
         if (params.id === undefined) throw new Error("get requires \"id\"");
-      }
-      if (m === "audit") {
-        if (params.id === undefined) throw new Error("audit requires \"id\"");
       }
       if (m === "delete") {
         if (params.id === undefined) throw new Error("delete requires \"id\"");
@@ -201,7 +201,7 @@ export const tools: ToolDef[] = [
         catch (e) { if (e instanceof z.ZodError) { throw new Error(e.issues.map(i => { const path = i.path.join("."); const shape = itemSchema instanceof z.ZodObject ? (itemSchema as any).shape : null; const desc = shape?.[i.path[1]]?.description; return path + ": " + i.message + (desc ? " (expected: " + desc + ")" : ""); }).join("; ")); } throw e; }
       }
     },
-    commandMap: {"clone":"components.clone","reparent":"components.reparent","list":"components.list","get":"components.get","create":"components.create","update":"components.update","audit":"components.audit","delete":"components.delete"},
+    commandMap: {"clone":"components.clone","audit":"components.audit","reparent":"components.reparent","list":"components.list","get":"components.get","create":"components.create","update":"components.update","delete":"components.delete"},
   },
   {
     name: "connection",
@@ -248,8 +248,8 @@ export const tools: ToolDef[] = [
   },
   {
     name: "frames",
-    description: "/** Create and manage frames, shapes, auto-layout containers, sections, and SVG nodes. Use method \"help\" for detailed parameter docs. */\n  get       (id, fields?, depth?) → { results: Node[], _truncated?, _notice? }  // Get serialized node data\n  list      (query?, types?, parentId?, fields?, offset?, limit?) → { totalCount, returned?, offset?, limit?, results }  // Search for nodes (returns stubs only — use get with depth for full properties)\n  update    (items: PatchItem[]) → { results: (\"ok\" | {error})[] }  // Patch node properties\n  delete    (id?, items?: { id?: string }[]) → { results: \"ok\"[] }  // Delete nodes\n  clone     (id, parentId?, x?, y?, depth?) → { results: {id}[] }  // Duplicate nodes\n  reparent  (items: { id: string; parentId: string; index?: number }[]) → { results: \"ok\"[] }  // Move nodes into a new parent\n  create    (type: frame|auto_layout|section|rectangle|ellipse|line|group|boolean_operation|svg, items: (FrameItem | AutoLayoutItem | SectionItem | RectangleItem | EllipseItem | LineItem | GroupItem | BooleanOperationItem | SvgItem)[]) → { results: {id}[] }  // Create frame-like containers\n  export    (id, format?: PNG|JPG|SVG|SVG_STRING|PDF, scale?) → { imageData?, mimeType? }  // Export a node as PNG, JPG, SVG, SVG_STRING, or PDF\n// depth: omit → id+name stubs | 0 → props + child stubs | N → recurse N | -1 → full tree\n// fields: whitelist e.g. [\"fills\",\"opacity\"] — id, name, type always included. Pass [\"*\"] for all.\n// layoutSizingHorizontal/Vertical: FIXED | HUG | FILL — how the node sizes within auto-layout.\n// Colors: fillVariableName/strokeVariableName bind by name — preferred over raw color values.\n// Note: node-based endpoints (frames, text, instances, components) use `results` as the list key.\n//   Standalone endpoints (styles, variables, variable_collections) use `items`. Components.list uses `items` (catalog view).",
-    schema: (caps) => filterMethodsByTier({    method: z.enum(["get", "list", "update", "delete", "clone", "reparent", "create", "export", "help"]),
+    description: "/** Create and manage frames, shapes, auto-layout containers, sections, and SVG nodes. Use method \"help\" for detailed parameter docs. */\n  get       (id, fields?, depth?) → { results: Node[], _truncated?, _notice? }  // Get serialized node data\n  list      (query?, types?, parentId?, fields?, offset?, limit?) → { totalCount, returned?, offset?, limit?, results }  // Search for nodes (returns stubs only — use get with depth for full properties)\n  update    (items: PatchItem[]) → { results: (\"ok\" | {error})[] }  // Patch node properties\n  delete    (id?, items?: { id?: string }[]) → { results: \"ok\"[] }  // Delete nodes\n  clone     (id, parentId?, x?, y?, depth?) → { results: {id}[] }  // Duplicate nodes\n  audit     (id, rules?, maxDepth?, maxFindings?) → { nodeId?, nodeName?, categories? }  // Run lint on a node — returns severity-ranked findings\n  reparent  (items: { id: string; parentId: string; index?: number }[]) → { results: \"ok\"[] }  // Move nodes into a new parent\n  create    (type: frame|auto_layout|section|rectangle|ellipse|line|group|boolean_operation|svg, items: (FrameItem | AutoLayoutItem | SectionItem | RectangleItem | EllipseItem | LineItem | GroupItem | BooleanOperationItem | SvgItem)[]) → { results: {id}[] }  // Create frame-like containers\n  export    (id, format?: PNG|JPG|SVG|SVG_STRING|PDF, scale?) → { imageData?, mimeType? }  // Export a node as PNG, JPG, SVG, SVG_STRING, or PDF\n// depth: omit → id+name stubs | 0 → props + child stubs | N → recurse N | -1 → full tree\n// fields: whitelist e.g. [\"fills\",\"opacity\"] — id, name, type always included. Pass [\"*\"] for all.\n// layoutSizingHorizontal/Vertical: FIXED | HUG | FILL — how the node sizes within auto-layout.\n// Colors: fillVariableName/strokeVariableName bind by name — preferred over raw color values.\n// Note: node-based endpoints (frames, text, instances, components) use `results` as the list key.\n//   Standalone endpoints (styles, variables, variable_collections) use `items`. Components.list uses `items` (catalog view).",
+    schema: (caps) => filterMethodsByTier({    method: z.enum(["get", "list", "update", "delete", "clone", "audit", "reparent", "create", "export", "help"]),
     id: z.string().optional().describe("Node ID"),
     fields: flexJson(z.array(z.string())).optional().describe("Property whitelist. Identity fields (id, name, type) always included. Omit for stubs on list, full on get. Pass [\"*\"] for all."),
     depth: z.coerce.number().optional().describe("Response detail: omit for id+name only. 0=properties + child stubs. N=recurse N levels. -1=unlimited."),
@@ -261,11 +261,14 @@ export const tools: ToolDef[] = [
     items: flexJson(z.array(z.record(z.string(), z.unknown()))).optional().describe("Array of {id, ...properties} to update/delete/reparent"),
     x: z.coerce.number().optional().describe("X position (default: 0)"),
     y: z.coerce.number().optional().describe("Y position (default: 0)"),
+    rules: flexJson(z.array(z.string())).optional().describe("Rules to check. Default: [\"all\"]. Categories: \"component\", \"composition\", \"token\", \"naming\", \"wcag\"."),
+    maxDepth: z.coerce.number().optional().describe("Max tree depth (default: 10)"),
+    maxFindings: z.coerce.number().optional().describe("Max findings (default: 50)"),
     type: z.enum(["frame", "auto_layout", "section", "rectangle", "ellipse", "line", "group", "boolean_operation", "svg"]).optional().describe("Discriminant for create method"),
     format: z.enum(["PNG", "JPG", "SVG", "SVG_STRING", "PDF"]).optional().describe("Export format (default: PNG). SVG_STRING returns raw SVG text."),
     scale: z.coerce.number().optional().describe("Export scale (default: 1, only for PNG/JPG)"),
     topic: z.string().optional().describe("Help topic — method name for endpoint help, e.g. \"create\""),
-    }, caps, {"get":"read","list":"read","update":"edit","delete":"edit","clone":"create","reparent":"edit","create":"create","export":"read","help":"read"}),
+    }, caps, {"get":"read","list":"read","update":"edit","delete":"edit","clone":"create","audit":"read","reparent":"edit","create":"create","export":"read","help":"read"}),
     tier: "read" as const,
     validate: (params: any) => {
       const m = params.method;
@@ -465,12 +468,12 @@ export const tools: ToolDef[] = [
         }
       }
     },
-    commandMap: {"get":"frames.get","list":"frames.list","update":"frames.update","delete":"frames.delete","clone":"frames.clone","reparent":"frames.reparent","create":"frames.create","export":"frames.export"},
+    commandMap: {"get":"frames.get","list":"frames.list","update":"frames.update","delete":"frames.delete","clone":"frames.clone","audit":"frames.audit","reparent":"frames.reparent","create":"frames.create","export":"frames.export"},
   },
   {
     name: "instances",
-    description: "/** Create and manage component instances. Use method \"help\" for detailed parameter docs. */\n  list      (query?, types?, parentId?, fields?, offset?, limit?) → { totalCount, returned?, offset?, limit?, results }  // Search for nodes (returns stubs only — use get with depth for full properties)\n  delete    (id?, items?: { id?: string }[]) → { results: \"ok\"[] }  // Delete nodes\n  clone     (id, parentId?, x?, y?, depth?) → { results: {id}[] }  // Duplicate nodes\n  reparent  (items: { id: string; parentId: string; index?: number }[]) → { results: \"ok\"[] }  // Move nodes into a new parent\n  get       (id, fields?, depth?) → { mainComponentId?, componentProperties?, overrides? }  // Get instance properties, overrides, and main component\n  create    (items: InstanceCreateItem[], depth?) → { results: {id}[] }  // Create component instances\n  update    (items: InstanceUpdateItem[]) → { results: (\"ok\" | {error})[] }  // Set instance properties\n  swap      (items: { id: string; componentId: string }[]) → { results: (\"ok\" | {error})[] }  // Swap instance component (preserves overrides)\n  detach    (items: { id: string }[]) → { results: {id}[] }  // Detach instances from their component (converts to frame)\n  reset_overrides(items: { id: string }[]) → { results: (\"ok\" | {error})[] }  // Reset all overrides on instances to match their main component\n// depth: omit → id+name stubs | 0 → props + child stubs | N → recurse N | -1 → full tree\n// fields: whitelist e.g. [\"fills\",\"opacity\"] — id, name, type always included. Pass [\"*\"] for all.\n// layoutSizingHorizontal/Vertical: FIXED | HUG | FILL — how the node sizes within auto-layout.\n// Colors: fillVariableName/strokeVariableName bind by name — preferred over raw color values.\n// Note: node-based endpoints (frames, text, instances, components) use `results` as the list key.\n//   Standalone endpoints (styles, variables, variable_collections) use `items`. Components.list uses `items` (catalog view).",
-    schema: (caps) => filterMethodsByTier({    method: z.enum(["list", "delete", "clone", "reparent", "get", "create", "update", "swap", "detach", "reset_overrides", "help"]),
+    description: "/** Create and manage component instances. Use method \"help\" for detailed parameter docs. */\n  list      (query?, types?, parentId?, fields?, offset?, limit?) → { totalCount, returned?, offset?, limit?, results }  // Search for nodes (returns stubs only — use get with depth for full properties)\n  delete    (id?, items?: { id?: string }[]) → { results: \"ok\"[] }  // Delete nodes\n  clone     (id, parentId?, x?, y?, depth?) → { results: {id}[] }  // Duplicate nodes\n  audit     (id, rules?, maxDepth?, maxFindings?) → { nodeId?, nodeName?, categories? }  // Run lint on a node — returns severity-ranked findings\n  reparent  (items: { id: string; parentId: string; index?: number }[]) → { results: \"ok\"[] }  // Move nodes into a new parent\n  get       (id, fields?, depth?) → { mainComponentId?, componentProperties?, overrides? }  // Get instance properties, overrides, and main component\n  create    (items: InstanceCreateItem[], depth?) → { results: {id}[] }  // Create component instances\n  update    (items: InstanceUpdateItem[]) → { results: (\"ok\" | {error})[] }  // Set instance properties\n  swap      (items: { id: string; componentId: string }[]) → { results: (\"ok\" | {error})[] }  // Swap instance component (preserves overrides)\n  detach    (items: { id: string }[]) → { results: {id}[] }  // Detach instances from their component (converts to frame)\n  reset_overrides(items: { id: string }[]) → { results: (\"ok\" | {error})[] }  // Reset all overrides on instances to match their main component\n// depth: omit → id+name stubs | 0 → props + child stubs | N → recurse N | -1 → full tree\n// fields: whitelist e.g. [\"fills\",\"opacity\"] — id, name, type always included. Pass [\"*\"] for all.\n// layoutSizingHorizontal/Vertical: FIXED | HUG | FILL — how the node sizes within auto-layout.\n// Colors: fillVariableName/strokeVariableName bind by name — preferred over raw color values.\n// Note: node-based endpoints (frames, text, instances, components) use `results` as the list key.\n//   Standalone endpoints (styles, variables, variable_collections) use `items`. Components.list uses `items` (catalog view).",
+    schema: (caps) => filterMethodsByTier({    method: z.enum(["list", "delete", "clone", "audit", "reparent", "get", "create", "update", "swap", "detach", "reset_overrides", "help"]),
     query: z.string().optional().describe("Name search query (case-insensitive substring match)"),
     types: flexJson(z.array(z.string())).optional().describe("Filter by node types (e.g. [\"FRAME\", \"TEXT\"])"),
     parentId: z.string().optional().describe("Search only within this subtree"),
@@ -482,8 +485,11 @@ export const tools: ToolDef[] = [
     x: z.coerce.number().optional().describe("X position (default: 0)"),
     y: z.coerce.number().optional().describe("Y position (default: 0)"),
     depth: z.coerce.number().optional().describe("Response detail: omit for id+name only. 0=properties + child stubs. N=recurse N levels. -1=unlimited."),
+    rules: flexJson(z.array(z.string())).optional().describe("Rules to check. Default: [\"all\"]. Categories: \"component\", \"composition\", \"token\", \"naming\", \"wcag\"."),
+    maxDepth: z.coerce.number().optional().describe("Max tree depth (default: 10)"),
+    maxFindings: z.coerce.number().optional().describe("Max findings (default: 50)"),
     topic: z.string().optional().describe("Help topic — method name for endpoint help, e.g. \"create\""),
-    }, caps, {"list":"read","delete":"edit","clone":"create","reparent":"edit","get":"read","create":"create","update":"edit","swap":"edit","detach":"edit","reset_overrides":"edit","help":"read"}),
+    }, caps, {"list":"read","delete":"edit","clone":"create","audit":"read","reparent":"edit","get":"read","create":"create","update":"edit","swap":"edit","detach":"edit","reset_overrides":"edit","help":"read"}),
     tier: "read" as const,
     validate: (params: any) => {
       const m = params.method;
@@ -616,7 +622,7 @@ export const tools: ToolDef[] = [
         catch (e) { if (e instanceof z.ZodError) { throw new Error(e.issues.map(i => { const path = i.path.join("."); const shape = itemSchema instanceof z.ZodObject ? (itemSchema as any).shape : null; const desc = shape?.[i.path[1]]?.description; return path + ": " + i.message + (desc ? " (expected: " + desc + ")" : ""); }).join("; ")); } throw e; }
       }
     },
-    commandMap: {"list":"instances.list","delete":"instances.delete","clone":"instances.clone","reparent":"instances.reparent","get":"instances.get","create":"instances.create","update":"instances.update","swap":"instances.swap","detach":"instances.detach","reset_overrides":"instances.reset_overrides"},
+    commandMap: {"list":"instances.list","delete":"instances.delete","clone":"instances.clone","audit":"instances.audit","reparent":"instances.reparent","get":"instances.get","create":"instances.create","update":"instances.update","swap":"instances.swap","detach":"instances.detach","reset_overrides":"instances.reset_overrides"},
   },
   {
     name: "lint",
@@ -759,8 +765,8 @@ export const tools: ToolDef[] = [
   },
   {
     name: "text",
-    description: "/** Create and manage text nodes. Use method \"help\" for detailed parameter docs. */\n  get       (id, fields?, depth?) → { results: Node[], _truncated?, _notice? }  // Get serialized node data\n  list      (query?, types?, parentId?, fields?, offset?, limit?) → { totalCount, returned?, offset?, limit?, results }  // Search for nodes (returns stubs only — use get with depth for full properties)\n  update    (items: PatchItem[]) → { results: (\"ok\" | {error})[] }  // Patch node properties\n  delete    (id?, items?: { id?: string }[]) → { results: \"ok\"[] }  // Delete nodes\n  clone     (id, parentId?, x?, y?, depth?) → { results: {id}[] }  // Duplicate nodes\n  reparent  (items: { id: string; parentId: string; index?: number }[]) → { results: \"ok\"[] }  // Move nodes into a new parent\n  create    (items: TextItem[], depth?) → { results: {id}[] }  // Create text nodes\n  set_content(items: { nodeId: string; text: string }[], depth?) → { results: \"ok\"[] }  // Replace text content on existing text nodes\n  scan      (items: { nodeId: string; limit?: number; includePath?: boolean; includeGeometry?: boolean }[]) → { results: (\"ok\" | {error})[] }  // Scan all text nodes within a subtree\n// depth: omit → id+name stubs | 0 → props + child stubs | N → recurse N | -1 → full tree\n// fields: whitelist e.g. [\"fills\",\"opacity\"] — id, name, type always included. Pass [\"*\"] for all.\n// layoutSizingHorizontal/Vertical: FIXED | HUG | FILL — how the node sizes within auto-layout.\n// Colors: fillVariableName/strokeVariableName bind by name — preferred over raw color values.\n// Note: node-based endpoints (frames, text, instances, components) use `results` as the list key.\n//   Standalone endpoints (styles, variables, variable_collections) use `items`. Components.list uses `items` (catalog view).",
-    schema: (caps) => filterMethodsByTier({    method: z.enum(["get", "list", "update", "delete", "clone", "reparent", "create", "set_content", "scan", "help"]),
+    description: "/** Create and manage text nodes. Use method \"help\" for detailed parameter docs. */\n  get       (id, fields?, depth?) → { results: Node[], _truncated?, _notice? }  // Get serialized node data\n  list      (query?, types?, parentId?, fields?, offset?, limit?) → { totalCount, returned?, offset?, limit?, results }  // Search for nodes (returns stubs only — use get with depth for full properties)\n  update    (items: PatchItem[]) → { results: (\"ok\" | {error})[] }  // Patch node properties\n  delete    (id?, items?: { id?: string }[]) → { results: \"ok\"[] }  // Delete nodes\n  clone     (id, parentId?, x?, y?, depth?) → { results: {id}[] }  // Duplicate nodes\n  audit     (id, rules?, maxDepth?, maxFindings?) → { nodeId?, nodeName?, categories? }  // Run lint on a node — returns severity-ranked findings\n  reparent  (items: { id: string; parentId: string; index?: number }[]) → { results: \"ok\"[] }  // Move nodes into a new parent\n  create    (items: TextItem[], depth?) → { results: {id}[] }  // Create text nodes\n  set_content(items: { nodeId: string; text: string }[], depth?) → { results: \"ok\"[] }  // Replace text content on existing text nodes\n  scan      (items: { nodeId: string; limit?: number; includePath?: boolean; includeGeometry?: boolean }[]) → { results: (\"ok\" | {error})[] }  // Scan all text nodes within a subtree\n// depth: omit → id+name stubs | 0 → props + child stubs | N → recurse N | -1 → full tree\n// fields: whitelist e.g. [\"fills\",\"opacity\"] — id, name, type always included. Pass [\"*\"] for all.\n// layoutSizingHorizontal/Vertical: FIXED | HUG | FILL — how the node sizes within auto-layout.\n// Colors: fillVariableName/strokeVariableName bind by name — preferred over raw color values.\n// Note: node-based endpoints (frames, text, instances, components) use `results` as the list key.\n//   Standalone endpoints (styles, variables, variable_collections) use `items`. Components.list uses `items` (catalog view).",
+    schema: (caps) => filterMethodsByTier({    method: z.enum(["get", "list", "update", "delete", "clone", "audit", "reparent", "create", "set_content", "scan", "help"]),
     id: z.string().optional().describe("Node ID"),
     fields: flexJson(z.array(z.string())).optional().describe("Property whitelist. Identity fields (id, name, type) always included. Omit for stubs on list, full on get. Pass [\"*\"] for all."),
     depth: z.coerce.number().optional().describe("Response detail: omit for id+name only. 0=properties + child stubs. N=recurse N levels. -1=unlimited."),
@@ -772,8 +778,11 @@ export const tools: ToolDef[] = [
     items: flexJson(z.array(z.record(z.string(), z.unknown()))).optional().describe("Array of {id, ...properties} to update/delete/reparent/create/set_content/scan"),
     x: z.coerce.number().optional().describe("X position (default: 0)"),
     y: z.coerce.number().optional().describe("Y position (default: 0)"),
+    rules: flexJson(z.array(z.string())).optional().describe("Rules to check. Default: [\"all\"]. Categories: \"component\", \"composition\", \"token\", \"naming\", \"wcag\"."),
+    maxDepth: z.coerce.number().optional().describe("Max tree depth (default: 10)"),
+    maxFindings: z.coerce.number().optional().describe("Max findings (default: 50)"),
     topic: z.string().optional().describe("Help topic — method name for endpoint help, e.g. \"create\""),
-    }, caps, {"get":"read","list":"read","update":"edit","delete":"edit","clone":"create","reparent":"edit","create":"create","set_content":"edit","scan":"read","help":"read"}),
+    }, caps, {"get":"read","list":"read","update":"edit","delete":"edit","clone":"create","audit":"read","reparent":"edit","create":"create","set_content":"edit","scan":"read","help":"read"}),
     tier: "read" as const,
     validate: (params: any) => {
       const m = params.method;
@@ -822,7 +831,7 @@ export const tools: ToolDef[] = [
         catch (e) { if (e instanceof z.ZodError) { throw new Error(e.issues.map(i => { const path = i.path.join("."); const shape = itemSchema instanceof z.ZodObject ? (itemSchema as any).shape : null; const desc = shape?.[i.path[1]]?.description; return path + ": " + i.message + (desc ? " (expected: " + desc + ")" : ""); }).join("; ")); } throw e; }
       }
     },
-    commandMap: {"get":"text.get","list":"text.list","update":"text.update","delete":"text.delete","clone":"text.clone","reparent":"text.reparent","create":"text.create","set_content":"text.set_content","scan":"text.scan"},
+    commandMap: {"get":"text.get","list":"text.list","update":"text.update","delete":"text.delete","clone":"text.clone","audit":"text.audit","reparent":"text.reparent","create":"text.create","set_content":"text.set_content","scan":"text.scan"},
   },
   {
     name: "variable_collections",

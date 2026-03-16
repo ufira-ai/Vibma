@@ -146,50 +146,6 @@ methods:
     response:
       type: batch_mixed
 
-  audit:
-    tier: read
-    description: Audit component property bindings — find unbound text, orphaned properties, and unexposed text nodes
-    example: 'components(method:"audit", id:"1:23")'
-    params:
-      id:
-        type: string
-        required: true
-        description: "Component or component set ID"
-    response:
-      type: object
-      properties:
-        id: { type: string }
-        name: { type: string }
-        unboundText:
-          type: array
-          description: "Text nodes inside the component not bound to any TEXT property"
-          items:
-            type: object
-            properties:
-              id: { type: string }
-              name: { type: string }
-              characters: { type: string }
-        orphanedProperties:
-          type: array
-          description: "TEXT properties defined but not connected to any text node"
-          items:
-            type: object
-            properties:
-              key: { type: string }
-              name: { type: string }
-              defaultValue: { type: string }
-        unboundNested:
-          type: array
-          description: "Text nodes nested inside child frames that could be exposed as properties"
-          items:
-            type: object
-            properties:
-              id: { type: string }
-              name: { type: string }
-              characters: { type: string }
-              path: { type: string, description: "Layer path from component root" }
-        summary: { type: string }
-
   delete:
     tier: edit
     description: Delete components or component sets

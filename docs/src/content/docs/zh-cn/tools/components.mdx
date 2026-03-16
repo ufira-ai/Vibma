@@ -86,6 +86,18 @@ Duplicate nodes
 
 <ParameterTable schema={{"type":"object","properties":{"results":{"type":"array","description":"One entry per input item","items":{"type":"object","properties":{"id":{"type":"string"}}}}}}} fieldLabel="Field" hideRequired />
 
+## audit
+
+*inherited*
+
+Run lint on a node — returns severity-ranked findings
+
+<ParameterTable schema={{"type":"object","properties":{"id":{"description":"Node ID to audit","type":"string"},"rules":{"description":"Rules to check. Default: [\"all\"]. Categories: \"component\", \"composition\", \"token\", \"naming\", \"wcag\".","type":"array","items":{"type":"string"}},"maxDepth":{"description":"Max tree depth (default: 10)","type":"number"},"maxFindings":{"description":"Max findings (default: 50)","type":"number"}},"required":["id"]}} />
+
+**Response**
+
+<ParameterTable schema={{"type":"object","properties":{"nodeId":{"type":"string"},"nodeName":{"type":"string"},"categories":{"description":"Sorted by severity (error > unsafe > heuristic > style)","type":"array"}}}} fieldLabel="Field" hideRequired />
+
 ## reparent
 
 **edit** | *inherited*
@@ -162,16 +174,6 @@ Add, edit, or delete component properties
 **Response**
 
 <ParameterTable schema={{"type":"object","properties":{"results":{"type":"array","description":"Array of \"ok\" or {error} per item","items":{"type":"any"}}}}} fieldLabel="Field" hideRequired />
-
-## audit
-
-Audit component property bindings — find unbound text, orphaned properties, and unexposed text nodes
-
-<ParameterTable schema={{"type":"object","properties":{"id":{"description":"Component or component set ID","type":"string"}},"required":["id"]}} />
-
-**Response**
-
-<ParameterTable schema={{"type":"object","properties":{"id":{"type":"string"},"name":{"type":"string"},"unboundText":{"description":"Text nodes inside the component not bound to any TEXT property","type":"array","items":{"type":"object","properties":{"id":{"type":"string"},"name":{"type":"string"},"characters":{"type":"string"}}}},"orphanedProperties":{"description":"TEXT properties defined but not connected to any text node","type":"array","items":{"type":"object","properties":{"key":{"type":"string"},"name":{"type":"string"},"defaultValue":{"type":"string"}}}},"unboundNested":{"description":"Text nodes nested inside child frames that could be exposed as properties","type":"array","items":{"type":"object","properties":{"id":{"type":"string"},"name":{"type":"string"},"characters":{"type":"string"},"path":{"description":"Layer path from component root","type":"string"}}}},"summary":{"type":"string"}}}} fieldLabel="Field" hideRequired />
 
 ## delete
 

@@ -928,6 +928,9 @@ async function fixAutolayoutSingle(p: any) {
   return { layoutMode: direction };
 }
 
+/** Run lint on a node — used by frames.audit and as base for component audit. */
+export { lintNodeHandler as auditNode };
+
 export const figmaHandlers: Record<string, (params: any) => Promise<any>> = {
   lint_node: lintNodeHandler,
   lint_fix_autolayout: (p) => batchHandler(p, fixAutolayoutSingle),

@@ -192,6 +192,38 @@ methods:
       type: batch
       item: { id: { type: string } }
 
+  audit:
+    tier: read
+    description: "Run lint on a node — returns severity-ranked findings"
+    params:
+      id:
+        type: string
+        required: true
+        description: "Node ID to audit"
+      rules:
+        type: string[]
+        coerce: json
+        optional: true
+        description: 'Rules to check. Default: ["all"]. Categories: "component", "composition", "token", "naming", "wcag".'
+      maxDepth:
+        type: number
+        coerce: true
+        optional: true
+        description: "Max tree depth (default: 10)"
+      maxFindings:
+        type: number
+        coerce: true
+        optional: true
+        description: "Max findings (default: 50)"
+    response:
+      type: object
+      properties:
+        nodeId: { type: string }
+        nodeName: { type: string }
+        categories:
+          type: array
+          description: "Sorted by severity (error > unsafe > heuristic > style)"
+
   reparent:
     # command auto-derived as {endpoint}.reparent
     tier: edit
