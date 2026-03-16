@@ -370,16 +370,157 @@
 
       .operation-complete { color: #4ade80; }
       .operation-error { color: #f87171; }
+
+      /* Collapse button in header */
+      .collapse-toggle {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        background-color: #2a2a2a;
+        border: 1px solid #3a3a3a;
+        color: #999;
+        cursor: pointer;
+        padding: 0;
+        width: 24px;
+        height: 24px;
+        flex-shrink: 0;
+        border-radius: 6px;
+        transition: color 0.15s, background-color 0.15s, border-color 0.15s;
+      }
+
+      .collapse-toggle:hover {
+        color: #e8e8e8;
+        background-color: #333;
+        border-color: #4a4a4a;
+      }
+
+      .collapse-toggle svg {
+        width: 14px;
+        height: 14px;
+      }
+
+      /* Collapsed mode */
+      body.collapsed .container {
+        padding: 0;
+        gap: 0;
+        min-height: auto;
+      }
+
+      body.collapsed .header,
+      body.collapsed .connection-banner,
+      body.collapsed .form-row,
+      body.collapsed #btn-connect,
+      body.collapsed #warning-box,
+      body.collapsed .footer-row,
+      body.collapsed #progress-container {
+        display: none !important;
+      }
+
+      body.collapsed .collapsed-bar {
+        display: flex !important;
+      }
+
+      /* Collapsed bar (hidden when expanded) */
+      .collapsed-bar {
+        display: none;
+        align-items: center;
+        gap: 8px;
+        height: 48px;
+        padding: 0 16px;
+        background-color: #171717;
+      }
+
+      .collapsed-bar .banner-icon {
+        width: 18px;
+        height: 18px;
+      }
+
+      .collapsed-bar-label {
+        font-size: 12px;
+        font-weight: 600;
+        color: #e6e6e6;
+        white-space: nowrap;
+      }
+
+      .collapsed-bar-peer {
+        font-size: 12px;
+        color: #bfe7d1;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        flex: 1;
+      }
+
+      .collapsed-bar .collapse-toggle {
+        width: 24px;
+        height: 24px;
+      }
+
+      /* Collapse/expand transition */
+      body {
+        transition: opacity 120ms ease;
+      }
+
+      /* Resize grip */
+      .resize-grip {
+        position: fixed;
+        top: 0;
+        right: 0;
+        width: 6px;
+        height: 100%;
+        cursor: col-resize;
+        z-index: 100;
+      }
+
+      .resize-grip::after {
+        content: "";
+        position: absolute;
+        top: 50%;
+        right: 1px;
+        transform: translateY(-50%);
+        width: 2px;
+        height: 24px;
+        border-radius: 1px;
+        background-color: #3a3a3a;
+        opacity: 0;
+        transition: opacity 0.15s;
+      }
+
+      .resize-grip:hover::after,
+      body.resizing .resize-grip::after {
+        opacity: 1;
+      }
+
+      body.resizing {
+        cursor: col-resize;
+        user-select: none;
+      }
     </style>
   </head>
 
   <body>
+    <div class="resize-grip" id="resize-grip"></div>
     <div class="container">
+
+      <!-- Collapsed bar (shown only when collapsed) -->
+      <div id="collapsed-bar" class="collapsed-bar">
+        <span id="collapsed-icon" class="banner-icon">✓</span>
+        <span id="collapsed-label" class="collapsed-bar-label">Connected</span>
+        <span id="collapsed-peer" class="collapsed-bar-peer"></span>
+        <button id="expand-toggle" class="collapse-toggle" title="Expand">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m7 15 5 5 5-5"/><path d="m7 9 5-5 5 5"/></svg>
+        </button>
+      </div>
 
       <!-- Header -->
       <div class="header">
-        <span class="header-title">Vibma</span>
-        <span class="version-chip" id="version-badge"></span>
+        <div style="display:flex;align-items:baseline;gap:8px;">
+          <span class="header-title">Vibma</span>
+          <span class="version-chip" id="version-badge"></span>
+        </div>
+        <button id="collapse-toggle" class="collapse-toggle" title="Collapse">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m7 20 5-5 5 5"/><path d="m7 4 5 5 5-5"/></svg>
+        </button>
       </div>
 
       <!-- Connection banner -->
@@ -720,6 +861,7 @@
               updateConnectionStatus(false, t("statusDisconnectedFromServer"));
             }
             state.lastError = null;
+            setCollapsed(false, true);
           };
 
           state.socket.onerror = (error) => {
@@ -728,6 +870,7 @@
             updateConnectionStatus(false, state.lastError);
             state.connected = false;
             state.socket = null;
+            setCollapsed(false, true);
           };
         } catch (error) {
           console.error("Connection error:", error);
@@ -972,6 +1115,7 @@
           case "restore-settings":
             if (message.serverPort) portInput.value = message.serverPort;
             if (message.channelName) channelInput.value = message.channelName;
+            if (message.uiWidth) currentWidth = message.uiWidth;
             applyLocale();
             break;
           case "connection-status":
@@ -995,6 +1139,99 @@
             break;
         }
       };
+
+      // ─── Resize Grip ─────────────────────────────────────────────
+      const resizeGrip = document.getElementById("resize-grip");
+      let currentWidth = 300;
+
+      resizeGrip.addEventListener("mousedown", (e) => {
+        e.preventDefault();
+        const offsetFromRight = window.innerWidth - e.clientX;
+        document.body.classList.add("resizing");
+
+        const onMouseMove = (e) => {
+          const newWidth = Math.max(260, Math.min(400, e.clientX + offsetFromRight));
+          currentWidth = newWidth;
+          const height = document.body.classList.contains("collapsed") ? 48 : 480;
+          parent.postMessage(
+            { pluginMessage: { type: "resize", width: newWidth, height } },
+            "*"
+          );
+        };
+
+        const onMouseUp = () => {
+          document.body.classList.remove("resizing");
+          window.removeEventListener("mousemove", onMouseMove);
+          window.removeEventListener("mouseup", onMouseUp);
+          parent.postMessage(
+            { pluginMessage: { type: "save-width", width: currentWidth } },
+            "*"
+          );
+        };
+
+        window.addEventListener("mousemove", onMouseMove);
+        window.addEventListener("mouseup", onMouseUp);
+      });
+
+      // ─── Collapse / Expand ──────────────────────────────────────
+      const collapseToggle = document.getElementById("collapse-toggle");
+      const expandToggle = document.getElementById("expand-toggle");
+      const collapsedIcon = document.getElementById("collapsed-icon");
+      const collapsedLabel = document.getElementById("collapsed-label");
+      const collapsedPeer = document.getElementById("collapsed-peer");
+
+      function updateCollapsedStatus() {
+        const isWarning = state.versionWarning;
+        collapsedIcon.textContent = isWarning ? "⚠" : "✓";
+        collapsedIcon.className = "banner-icon";
+        collapsedIcon.style.borderColor = isWarning ? "#b18b2e" : "#2f8c5c";
+        collapsedIcon.style.color = isWarning ? "#ffd36a" : "#5fd69a";
+        collapsedPeer.style.color = isWarning ? "#f3dca1" : "#bfe7d1";
+        collapsedLabel.textContent = t("statusBadgeConnected");
+        if (state.mcpPeer) {
+          const name = state.mcpPeer.name || "unknown";
+          const ver = state.mcpPeer.version ? ` (v${state.mcpPeer.version})` : "";
+          collapsedPeer.textContent = `${name}${ver}`;
+        } else {
+          collapsedPeer.textContent = "";
+        }
+      }
+
+      function setCollapsed(collapsed, instant) {
+        const height = collapsed ? 48 : 480;
+        if (instant) {
+          document.body.style.transition = "none";
+          document.body.classList.toggle("collapsed", collapsed);
+          if (collapsed) updateCollapsedStatus();
+          parent.postMessage(
+            { pluginMessage: { type: "resize", width: currentWidth, height } },
+            "*"
+          );
+          requestAnimationFrame(() => { document.body.style.transition = ""; });
+          return;
+        }
+
+        // Phase 1: fade out
+        document.body.style.opacity = "0";
+
+        setTimeout(() => {
+          // Phase 2: swap layout + resize
+          document.body.classList.toggle("collapsed", collapsed);
+          if (collapsed) updateCollapsedStatus();
+          parent.postMessage(
+            { pluginMessage: { type: "resize", width: currentWidth, height } },
+            "*"
+          );
+
+          // Phase 3: fade in
+          requestAnimationFrame(() => {
+            document.body.style.opacity = "1";
+          });
+        }, 120);
+      }
+
+      collapseToggle.addEventListener("click", () => setCollapsed(true));
+      expandToggle.addEventListener("click", () => setCollapsed(false));
 
       // Apply default locale on load
       applyLocale();

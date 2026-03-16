@@ -5,15 +5,20 @@ import { allFigmaHandlers } from "../handlers/registry";
 
 // ─── Plugin State ────────────────────────────────────────────────
 
+const DEFAULT_WIDTH = 300;
+const MIN_WIDTH = 260;
+const MAX_WIDTH = 400;
+
 const state = {
   serverPort: 3055,
   channelName: "",
   locale: "",
+  uiWidth: DEFAULT_WIDTH,
 };
 
 // ─── UI Setup ────────────────────────────────────────────────────
 
-figma.showUI(__html__, { width: 320, height: 480 });
+figma.showUI(__html__, { width: DEFAULT_WIDTH, height: 480 });
 
 // Send saved settings to UI on startup
 figma.clientStorage.getAsync("settings").then((saved: any) => {
@@ -21,8 +26,12 @@ figma.clientStorage.getAsync("settings").then((saved: any) => {
     if (saved.serverPort) state.serverPort = saved.serverPort;
     if (saved.channelName) state.channelName = saved.channelName;
     if (saved.locale) state.locale = saved.locale;
+    if (saved.uiWidth) {
+      state.uiWidth = Math.max(MIN_WIDTH, Math.min(MAX_WIDTH, saved.uiWidth));
+      figma.ui.resize(state.uiWidth, 480);
+    }
   }
-  figma.ui.postMessage({ type: "restore-settings", serverPort: state.serverPort, channelName: state.channelName, locale: state.locale || "en" });
+  figma.ui.postMessage({ type: "restore-settings", serverPort: state.serverPort, channelName: state.channelName, locale: state.locale || "en", uiWidth: state.uiWidth });
 });
 
 // ─── Auto-Focus ─────────────────────────────────────────────────
@@ -87,6 +96,21 @@ figma.ui.onmessage = async (msg: any) => {
     case "close-plugin":
       figma.closePlugin();
       break;
+    case "resize":
+      if (msg.width) {
+        state.uiWidth = Math.max(MIN_WIDTH, Math.min(MAX_WIDTH, msg.width));
+      }
+      figma.ui.resize(state.uiWidth, msg.height);
+      break;
+    case "save-width":
+      state.uiWidth = Math.max(MIN_WIDTH, Math.min(MAX_WIDTH, msg.width));
+      figma.clientStorage.setAsync("settings", {
+        serverPort: state.serverPort,
+        channelName: state.channelName,
+        locale: state.locale,
+        uiWidth: state.uiWidth,
+      });
+      break;
     case "execute-command":
       try {
         // Wait for any pending autoFocus from the previous command
@@ -145,6 +169,7 @@ function updateSettings(settings: any) {
     serverPort: state.serverPort,
     channelName: state.channelName,
     locale: state.locale,
+    uiWidth: state.uiWidth,
   });
 }
 
