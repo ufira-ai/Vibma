@@ -87,15 +87,6 @@ async function createInlineChildren(
       }
       hints.push(...colorHints);
 
-      if (child.textStyleName) {
-        const styles = await figma.getLocalTextStylesAsync();
-        const match = styles.find(s => s.name === child.textStyleName) ||
-          styles.find(s => s.name.toLowerCase().includes(child.textStyleName.toLowerCase()));
-        if (match) {
-          await (textNode as any).setTextStyleIdAsync(match.id);
-        }
-      }
-
       appendTo.appendChild(textNode);
 
       // Sizing: default FILL + HUG inside auto-layout parent
@@ -103,7 +94,7 @@ async function createInlineChildren(
       const effectiveH = child.layoutSizingHorizontal || (parentIsAL ? "FILL" : undefined);
       const effectiveV = child.layoutSizingVertical || (parentIsAL ? "HUG" : undefined);
 
-      // textAutoResize must be set before FILL sizing to avoid Figma errors
+      // textAutoResize must be set before text style (which changes font) and before FILL sizing
       if (child.textAutoResize) {
         textNode.textAutoResize = child.textAutoResize;
       } else if (effectiveH === "FILL" || effectiveH === "FIXED") {
@@ -114,6 +105,16 @@ async function createInlineChildren(
         layoutSizingHorizontal: effectiveH,
         layoutSizingVertical: effectiveV,
       }, hints);
+
+      // Text style applied after sizing — setTextStyleIdAsync loads its own font
+      if (child.textStyleName) {
+        const styles = await figma.getLocalTextStylesAsync();
+        const match = styles.find(s => s.name === child.textStyleName) ||
+          styles.find(s => s.name.toLowerCase().includes(child.textStyleName.toLowerCase()));
+        if (match) {
+          await (textNode as any).setTextStyleIdAsync(match.id);
+        }
+      }
 
       // Auto-create TEXT property and bind
       if (child.componentPropertyName) {
@@ -139,9 +140,11 @@ async function createInlineChildren(
 
       appendTo.appendChild(frame);
 
+      // Smart defaults: FILL + HUG inside auto-layout parent (same as text children)
+      const parentIsAL = appendTo.layoutMode && appendTo.layoutMode !== "NONE";
       applySizing(frame, appendTo, {
-        layoutSizingHorizontal: child.layoutSizingHorizontal,
-        layoutSizingVertical: child.layoutSizingVertical,
+        layoutSizingHorizontal: child.layoutSizingHorizontal || (parentIsAL ? "FILL" : undefined),
+        layoutSizingVertical: child.layoutSizingVertical || (parentIsAL ? "HUG" : undefined),
       }, hints);
 
       // Recurse for nested children — properties bind to the root component
@@ -315,6 +318,12 @@ async function combineSingle(p: any) {
   set.layoutMode = "NONE";
   set.fills = [];
   set.cornerRadius = 0;
+
+  // Default to HUG on both axes (same as createComponentSingle)
+  if (p.layoutMode && p.layoutMode !== "NONE") {
+    p.layoutSizingHorizontal ??= "HUG";
+    p.layoutSizingVertical ??= "HUG";
+  }
 
   const { hints } = await setupFrameNode(set as any, p);
 
