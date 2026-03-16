@@ -162,6 +162,12 @@ async function createInlineChildren(
 async function createComponentSingle(p: any) {
   if (!p.name) throw new Error("Missing name");
 
+  // Components are top-level containers — HUG on both axes by default
+  if (p.layoutMode && p.layoutMode !== "NONE") {
+    p.layoutSizingHorizontal ??= "HUG";
+    p.layoutSizingVertical ??= "HUG";
+  }
+
   const comp = figma.createComponent();
   try {
     comp.x = p.x ?? 0;
@@ -312,6 +318,12 @@ async function combineSingle(p: any) {
   set.layoutMode = "NONE";
   set.fills = [];
   set.cornerRadius = 0;
+
+  // Variant set containers — HUG on both axes by default
+  if (p.layoutMode && p.layoutMode !== "NONE") {
+    p.layoutSizingHorizontal ??= "HUG";
+    p.layoutSizingVertical ??= "HUG";
+  }
 
   const { hints } = await setupFrameNode(set as any, p);
 

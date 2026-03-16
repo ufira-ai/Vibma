@@ -26,13 +26,9 @@ export async function setupFrameNode(
   const {
     layoutMode = "NONE", layoutWrap = "NO_WRAP",
     primaryAxisAlignItems = "MIN", counterAxisAlignItems = "MIN",
+    layoutSizingHorizontal = "FIXED", layoutSizingVertical = "FIXED",
     parentId,
   } = p;
-  // Auto-layout containers default to HUG (shrink-to-fit); non-AL stays FIXED
-  const sizingDefault = layoutMode !== "NONE" ? "HUG" : "FIXED";
-  p.layoutSizingHorizontal ??= sizingDefault;
-  p.layoutSizingVertical ??= sizingDefault;
-  const { layoutSizingHorizontal, layoutSizingVertical } = p;
 
   const hints: Hint[] = [];
 
@@ -155,6 +151,9 @@ async function createSingleAutoLayout(p: any) {
       ...rest,
       name: p.name || "Auto Layout",
       layoutMode: p.layoutMode || "VERTICAL",
+      // Top-level auto_layout: default HUG. Child: let applySizing decide.
+      layoutSizingHorizontal: p.layoutSizingHorizontal || (p.parentId ? undefined : "HUG"),
+      layoutSizingVertical: p.layoutSizingVertical || (p.parentId ? undefined : "HUG"),
     });
   }
 
