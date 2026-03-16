@@ -34,7 +34,7 @@ Search variables within a collection
 
 **Response**
 
-<ParameterTable schema={{"type":"object","properties":{"totalCount":{"type":"number","description":"Total matching items"},"returned":{"type":"number","description":"Items in this page"},"offset":{"type":"number"},"limit":{"type":"number"},"items":{"type":"array","items":{"type":"object","properties":{"name":{"type":"string"},"type":{"description":"COLOR | FLOAT | STRING | BOOLEAN","type":"string"},"valuesByMode":{"description":"Values keyed by mode name","type":"object"},"scopes":{"type":"array","items":{"type":"string"}}}}}},"required":["totalCount","items"]}} fieldLabel="Field" hideRequired />
+<ParameterTable schema={{"type":"object","properties":{"totalCount":{"type":"number","description":"Total matching items"},"returned":{"type":"number","description":"Items in this page"},"offset":{"type":"number"},"limit":{"type":"number"},"items":{"type":"array","items":{"type":"object","properties":{"name":{"type":"string"},"type":{"description":"COLOR | FLOAT | STRING | BOOLEAN","type":"string"},"valuesByMode":{"description":"Values keyed by mode name","type":"object"},"scopes":{"type":"array","items":{"type":"string"}},"description":{"type":"string"}}}}},"required":["totalCount","items"]}} fieldLabel="Field" hideRequired />
 
 ## get
 

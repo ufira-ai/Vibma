@@ -48,6 +48,7 @@ methods:
           type: { type: string, optional: true, description: "COLOR | FLOAT | STRING | BOOLEAN" }
           valuesByMode: { type: object, optional: true, description: "Values keyed by mode name" }
           scopes: { type: "string[]", optional: true }
+          description: { type: string, optional: true }
 
   get:
     tier: read

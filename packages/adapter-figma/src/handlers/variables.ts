@@ -76,11 +76,12 @@ async function serializeVariable(v: any): Promise<Record<string, any>> {
     }
     valuesByMode[modeMap.get(modeId) ?? modeId] = value;
   }
-  return {
+  const result: Record<string, any> = {
     name: v.name, type: v.resolvedType,
-    collectionId: col?.name ?? v.variableCollectionId,
-    valuesByMode, description: v.description, scopes: v.scopes,
+    valuesByMode, scopes: v.scopes,
   };
+  if (v.description) result.description = v.description;
+  return result;
 }
 
 /** Serialize a collection as a full document (with all variables). */
@@ -317,7 +318,9 @@ async function getVariableFigma(params: any) {
   const collection = await requireCollection(params);
   const v = await findVariableByName(params.name, collection.name);
   if (!v) throw new Error(`Variable not found: ${params.name} in collection "${collection.name}"`);
-  return serializeVariable(v);
+  const result = await serializeVariable(v);
+  result.collectionId = collection.name;
+  return result;
 }
 
 async function listVariablesFigma(params: any) {
@@ -346,7 +349,7 @@ async function listVariablesFigma(params: any) {
   const items: any[] = [];
   for (const v of paged.items) {
     const full = await serializeVariable(v);
-    items.push(!fields?.length ? pickFields(full, ["type", "valuesByMode", "scopes"]) : pickFields(full, fields));
+    items.push(!fields?.length ? pickFields(full, ["valuesByMode", "scopes", "description"]) : pickFields(full, fields));
   }
   return { ...paged, items };
 }
