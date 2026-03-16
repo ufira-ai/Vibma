@@ -28,48 +28,24 @@ const CATEGORY_RULES: Record<string, readonly string[]> = {
 const RULE_META: Record<string, { severity: Severity; category: RuleCategory; fix: string }> = {
   "no-autolayout":        { severity: "heuristic", category: "composition", fix: "Convert to auto-layout. Use lint.fix or set layoutMode." },
   "shape-instead-of-frame": { severity: "style", category: "composition", fix: "Replace shape with a frame — shapes can't have children." },
-  "hardcoded-color":      { severity: "heuristic", category: "token", fix: "Bind to a color variable or paint style." },
-  "hardcoded-token":      { severity: "heuristic", category: "token", fix: "Bind to a FLOAT variable instead of a hardcoded number." },
-  "no-text-style":        { severity: "heuristic", category: "token", fix: "Apply a text style via textStyleName." },
+  "hardcoded-color":      { severity: "heuristic", category: "token", fix: "Bind to a color variable or paint style. guidelines(topic:\"token-discipline\") for details." },
+  "hardcoded-token":      { severity: "heuristic", category: "token", fix: "Bind to a FLOAT variable. guidelines(topic:\"token-discipline\") for details." },
+  "no-text-style":        { severity: "heuristic", category: "token", fix: "Apply a text style via textStyleName. guidelines(topic:\"token-discipline\") for details." },
   "fixed-in-autolayout":  { severity: "heuristic", category: "composition", fix: "Use FILL or HUG instead of FIXED inside auto-layout." },
   "default-name":         { severity: "style", category: "naming", fix: "Rename to something descriptive." },
   "empty-container":      { severity: "style", category: "composition", fix: "Delete if leftover, or add content." },
   "stale-text-name":      { severity: "style", category: "naming", fix: "Sync layer name with text content, or leave if intentional." },
-  "no-text-property":     { severity: "heuristic", category: "component", fix: "Expose as a TEXT component property so instances can edit it." },
-  "component-bindings":   { severity: "heuristic", category: "component", fix: "Bind text nodes to component properties or delete orphaned properties." },
+  "no-text-property":     { severity: "heuristic", category: "component", fix: "Expose as a TEXT component property. guidelines(topic:\"component-structure\") for details." },
+  "component-bindings":   { severity: "heuristic", category: "component", fix: "Bind text nodes to properties or delete orphaned ones. guidelines(topic:\"component-structure\") for details." },
   "overlapping-children": { severity: "heuristic", category: "composition", fix: "Set distinct x/y or convert parent to auto-layout." },
   "hug-cross-axis":       { severity: "heuristic", category: "composition", fix: "Set cross-axis sizing to FILL so content fills available space." },
-  "unbounded-hug":        { severity: "unsafe", category: "composition", fix: "Set a width + layoutSizingHorizontal:FIXED, or FILL if inside auto-layout." },
+  "unbounded-hug":        { severity: "unsafe", category: "composition", fix: "Set a width + layoutSizingHorizontal:FIXED, or FILL if inside auto-layout. guidelines(topic:\"responsive-designs\") for details." },
   "wcag-contrast":        { severity: "unsafe", category: "accessibility", fix: "Adjust text or background color to meet 4.5:1 (AA)." },
   "wcag-contrast-enhanced": { severity: "style", category: "accessibility", fix: "Adjust to meet 7:1 (AAA)." },
   "wcag-non-text-contrast": { severity: "heuristic", category: "accessibility", fix: "Adjust fill or background to meet 3:1 contrast." },
   "wcag-target-size":     { severity: "unsafe", category: "accessibility", fix: "Resize to at least 24x24px." },
   "wcag-text-size":       { severity: "unsafe", category: "accessibility", fix: "Increase to 12px minimum." },
   "wcag-line-height":     { severity: "style", category: "accessibility", fix: "Increase line height to 1.5x font size." },
-};
-
-/** Full fix instructions per rule — returned by lint(method:"help", topic:"rules"). */
-const RULE_GUIDE: Record<string, string> = {
-  "no-autolayout": 'Use lint(method:"fix", items:[{nodeId}]) to auto-convert, or frames(method:"update", items:[{id, layoutMode:"VERTICAL"}]).',
-  "shape-instead-of-frame": 'Delete the shape, create a frame with the same position/size/fill, then reparent overlapping siblings into it.',
-  "hardcoded-color": 'Check matchName/matchId for a suggested variable. Apply via fillVariableName/fillStyleName. If none exist, create with variables.create or styles.create first.',
-  "hardcoded-token": 'Pass a variable name string instead of a number for cornerRadius, padding, itemSpacing, strokeWeight, opacity. Create FLOAT variables with appropriate scopes first if needed.',
-  "no-text-style": 'Apply via textStyleName on frames.update or text.create. Create text styles with styles(method:"create", type:"text") if none exist.',
-  "fixed-in-autolayout": 'Set layoutSizingHorizontal/Vertical to FILL (stretch) or HUG (shrink to content) instead of FIXED.',
-  "default-name": 'Rename with frames(method:"update", items:[{id, name:"descriptive name"}]).',
-  "empty-container": 'Delete with frames(method:"delete") or add children.',
-  "stale-text-name": 'Sync with frames(method:"update", items:[{id, name:"..."}]) or leave if the layer name is semantic (e.g. "Title").',
-  "no-text-property": 'Add a TEXT property: components(method:"update", items:[{id, propertyName:"Label", action:"add", type:"TEXT", defaultValue:"..."}]).',
-  "component-bindings": 'Bind unbound text: frames(method:"update", items:[{id, componentPropertyName:"<name>"}]). Delete orphaned properties: components(method:"update", items:[{id, propertyName:"<key>", action:"delete"}]).',
-  "overlapping-children": 'Convert parent to auto-layout, or set distinct x/y on each child.',
-  "hug-cross-axis": 'Set the cross-axis sizing to FILL. Vertical container: layoutSizingHorizontal:"FILL". Horizontal: layoutSizingVertical:"FILL".',
-  "unbounded-hug": 'Set width + layoutSizingHorizontal:"FIXED" for root containers. Use FILL if inside an auto-layout parent. Text nodes: layoutSizingHorizontal:"FILL" + layoutSizingVertical:"HUG".',
-  "wcag-contrast": 'Adjust text color or background to meet AA ratio (4.5:1 normal, 3:1 large text).',
-  "wcag-contrast-enhanced": 'Adjust to meet AAA ratio (7:1 normal, 4.5:1 large text).',
-  "wcag-non-text-contrast": 'Adjust fill or background so the element has at least 3:1 contrast against its parent.',
-  "wcag-target-size": 'Resize to 24x24px minimum, or add padding.',
-  "wcag-text-size": 'Increase fontSize to 12 minimum.',
-  "wcag-line-height": 'Set lineHeight to at least 1.5x fontSize (e.g. {value:150, unit:"PERCENT"}).',
 };
 
 /** Collected issue: rule + nodeId + optional severity override for context-aware ranking. */
@@ -895,30 +871,7 @@ async function fixAutolayoutSingle(p: any) {
 /** Run lint on a node — used by frames.audit and as base for component audit. */
 export { lintNodeHandler as auditNode };
 
-/** Return fix guide for specific rules or all rules. */
-async function lintGuideHandler(params: any) {
-  const rules = params?.rules as string[] | undefined;
-  if (rules?.length) {
-    const result: Record<string, any> = {};
-    for (const rule of rules) {
-      const meta = RULE_META[rule];
-      const guide = RULE_GUIDE[rule];
-      if (meta && guide) {
-        result[rule] = { severity: meta.severity, category: meta.category, fix: meta.fix, guide };
-      }
-    }
-    return result;
-  }
-  // Return all rules
-  const result: Record<string, any> = {};
-  for (const [rule, meta] of Object.entries(RULE_META)) {
-    result[rule] = { severity: meta.severity, category: meta.category, fix: meta.fix, guide: RULE_GUIDE[rule] || "" };
-  }
-  return result;
-}
-
 export const figmaHandlers: Record<string, (params: any) => Promise<any>> = {
   lint_node: lintNodeHandler,
   lint_fix_autolayout: (p) => batchHandler(p, fixAutolayoutSingle),
-  lint_guide: lintGuideHandler,
 };

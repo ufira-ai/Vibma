@@ -639,7 +639,7 @@ async function auditComponentFigma(params: any) {
       severity: "heuristic",
       category: "component",
       count: bindingNodes.length,
-      fix: 'Bind text nodes to component properties or delete orphaned properties. lint(method:"guide", rules:["component-bindings"]) for details.',
+      fix: 'Bind text nodes to properties or delete orphaned ones. guidelines(topic:"component-structure") for details.',
       nodes: bindingNodes,
     });
   }
