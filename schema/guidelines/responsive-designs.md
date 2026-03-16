@@ -1,18 +1,14 @@
 # Responsive Sizing
 
-Agents consistently get FIXED/FILL/HUG wrong. This is the mental model.
-
-## The Rule
+## FIXED / FILL / HUG
 
 - **FIXED** — layout boundaries: page shell, sidebar width, modal max-width
 - **FILL** — children that adapt to parent: main content area, nav stacks, cards in columns, text that should wrap
 - **HUG** — content-sized leaves only: icons, badges, pills, button labels
 
-Never use HUG on structural containers. Never use FIXED on a child inside auto-layout just because it looked right at one width.
-
 ## Component Sizing
 
-Components describe behavior, not specimen dimensions. The component root should work with `FILL` when placed in a parent. Don't bake a specific pixel width into a reusable component.
+Component roots use `FILL` when placed in a parent — they adapt to context, not a fixed specimen width.
 
 Example sidebar item:
 - Instance: `FILL` in parent nav stack
@@ -26,4 +22,4 @@ Example sidebar item:
 - Single-line labels: `FILL` horizontal (truncates if needed)
 - Standalone headings: `HUG` is fine
 
-Inside auto-layout parents, text defaults to `FILL` horizontal + `HUG` vertical + `textAutoResize: HEIGHT`. Override only when needed.
+Inside auto-layout parents, text defaults to `FILL` horizontal + `HUG` vertical + `textAutoResize: HEIGHT`.

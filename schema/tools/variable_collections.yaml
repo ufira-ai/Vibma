@@ -70,7 +70,7 @@ methods:
   create:
     tier: create
     description: "Create a collection with modes and variables in one call"
-    example: 'variable_collections(method:"create", items:[{name:"Colors", modes:["Light","Dark"], variables:[{name:"bg/primary", type:"COLOR", valuesByMode:{"Light":"#FFF","Dark":"#111"}, scopes:["ALL_FILLS"]}]}])'
+    example: 'variable_collections(method:"create", items:[{name:"Tokens", modes:["Light","Dark"], variables:[{name:"bg/primary", type:"COLOR", valuesByMode:{"Light":"#FFF","Dark":"#111"}, scopes:["ALL_FILLS"]}, {name:"text/primary", type:"COLOR", valuesByMode:{"Light":"#111","Dark":"#F0F0F0"}, scopes:["TEXT_FILL"]}, {name:"space/16", type:"FLOAT", value:16, scopes:["GAP","WIDTH_HEIGHT"]}, {name:"radius/8", type:"FLOAT", value:8, scopes:["CORNER_RADIUS"]}]}])'
     params:
       items:
         type: array

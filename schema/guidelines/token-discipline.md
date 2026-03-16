@@ -35,6 +35,19 @@ Apply text styles by name — don't set fontSize/fontFamily/fontWeight manually.
 - `textStyleName:"Body/M"` on text.create or frames.update
 - Create styles with `styles(method:"create", type:"text", items:[{name:"Body/M", fontFamily:"Inter", fontSize:14, lineHeight:{value:20, unit:"PIXELS"}}])`
 
+## Common Scopes
+
+COLOR variables:
+- `ALL_FILLS` — background fills
+- `TEXT_FILL` — text color
+- `STROKE_COLOR` — borders and outlines
+
+FLOAT variables:
+- `GAP`, `WIDTH_HEIGHT` — spacing and padding
+- `CORNER_RADIUS` — border radius
+- `STROKE_FLOAT` — stroke weight
+- `OPACITY` — transparency
+
 ## Checking
 
-Lint rules `hardcoded-color`, `hardcoded-token`, `no-text-style` catch these. Run `audit` on any node to check.
+Lint rules `hardcoded-color`, `hardcoded-token`, `no-text-style` catch unbound values. Run `audit` on any node to check.
