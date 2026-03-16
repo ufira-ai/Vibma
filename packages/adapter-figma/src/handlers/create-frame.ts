@@ -1,4 +1,4 @@
-import { batchHandler, appendAndApplySizing, applySizing, checkOverlappingSiblings, applyFillWithAutoBind, applyStrokeWithAutoBind, applyCornerRadius, applyTokens, type Hint } from "./helpers";
+import { batchHandler, appendAndApplySizing, applySizing, checkOverlappingSiblings, applyFillWithAutoBind, applyStrokeWithAutoBind, applyCornerRadius, applyTokens, normalizeAliases, FRAME_ALIAS_KEYS, type Hint } from "./helpers";
 import { looksInteractive } from "@ufira/vibma/utils/wcag";
 import { framesCreateFrame, framesCreateAutoLayout } from "@ufira/vibma/guards";
 
@@ -6,6 +6,10 @@ import { framesCreateFrame, framesCreateAutoLayout } from "@ufira/vibma/guards";
  * Shared setup for frame-like nodes (Frame, Component).
  * Applies layout, fill, stroke, corner radius, opacity, min/max, WCAG checks.
  * Returns { parent, hints } so the caller can add type-specific logic.
+ *
+ * CONTRACT: `p` must have been through `normalizeAliases()` — `fills` and `strokes`
+ * must be in canonical form (not `fillColor`, `fontColor`, etc.).
+ * When called via batchHandler this is automatic; other callers must normalize first.
  */
 export async function setupFrameNode(
   node: FrameNode | ComponentNode,
@@ -187,6 +191,9 @@ async function createSingleAutoLayout(p: any) {
     if ("appendChild" in originalParent) (originalParent as any).appendChild(frame);
     for (const node of nodes) frame.appendChild(node);
 
+    // Normalize fill/stroke aliases — this path bypasses batchHandler's per-item normalization
+    normalizeAliases(p, FRAME_ALIAS_KEYS);
+
     // Apply all frame properties (layout, fill, stroke, etc.)
     const hints: Hint[] = [];
     await applyTokens(frame, { opacity: p.opacity }, hints);
@@ -213,6 +220,7 @@ async function createSingleAutoLayout(p: any) {
 
     await applyFillWithAutoBind(frame, p, hints);
     await applyStrokeWithAutoBind(frame, p, hints);
+    await applyCornerRadius(frame, p, hints);
 
     const result: any = { id: frame.id };
     if (hints.length > 0) result.hints = hints;
