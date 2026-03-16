@@ -513,8 +513,13 @@ async function walkNode(node: BaseNode, depth: number, issues: Issue[], ctx: Lin
             const large = isLargeText(fontSize as number, fontWeight);
             const result = checkContrastPair(composited, bgColor, large);
 
+            // Use variable names when bound, hex when hardcoded
+            const fgVar = await getFillVariableName(node);
+            const bgVar = await getBackgroundVariableName(node);
             const fgHex = rgbaToHex({ ...fgColor, a: effectiveAlpha });
             const bgHex = rgbaToHex({ r: bgColor.r, g: bgColor.g, b: bgColor.b, a: 1 });
+            const foreground = fgVar || fgHex;
+            const background = bgVar || bgHex;
 
             // AA check
             if (ctx.ruleSet.has("wcag-contrast") && !result.passesAA) {
@@ -526,8 +531,8 @@ async function walkNode(node: BaseNode, depth: number, issues: Issue[], ctx: Lin
                   ratio: result.ratio,
                   required: result.aaRequired,
                   level: "AA",
-                  foreground: fgHex,
-                  background: bgHex,
+                  foreground,
+                  background,
                   fontSize: fontSize as number,
                   fontWeight,
                   isLargeText: large,
@@ -546,8 +551,8 @@ async function walkNode(node: BaseNode, depth: number, issues: Issue[], ctx: Lin
                   ratio: result.ratio,
                   required: result.aaaRequired,
                   level: "AAA",
-                  foreground: fgHex,
-                  background: bgHex,
+                  foreground,
+                  background,
                   fontSize: fontSize as number,
                   fontWeight,
                   isLargeText: large,
@@ -571,18 +576,23 @@ async function walkNode(node: BaseNode, depth: number, issues: Issue[], ctx: Lin
         if (parentFill !== null) {
           const result = checkContrastPair(nodeFill, parentFill);
           if (result.ratio < 3.0) {
+            const fillVar = await getFillVariableName(node);
+            const bgVar = await getBackgroundVariableName(node);
             const nodeHex = rgbaToHex({ ...nodeFill, a: 1 });
             const parentHex = rgbaToHex({ r: parentFill.r, g: parentFill.g, b: parentFill.b, a: 1 });
+            // Both token-bound: downgrade to style (intentional surface hierarchy)
+            const bothBound = !!(fillVar && bgVar);
             issues.push({
               rule: "wcag-non-text-contrast",
               nodeId: node.id,
               nodeName: node.name,
+              severity: bothBound ? "style" : undefined,
               extra: {
                 ratio: result.ratio,
                 required: 3.0,
                 level: "AA",
-                fill: nodeHex,
-                background: parentHex,
+                fill: fillVar || nodeHex,
+                background: bgVar || parentHex,
               },
             });
             if (issues.length >= ctx.maxFindings) return;
@@ -752,6 +762,44 @@ function detectLayoutDirection(frame: FrameNode): "VERTICAL" | "HORIZONTAL" {
  * Get the effective foreground solid color of a text node.
  * Returns null if fills are mixed, empty, non-solid, or invisible.
  */
+/**
+ * Get the bound fill variable name for a node, or null if not bound.
+ * Checks boundVariables.fills for the first color binding.
+ */
+async function getFillVariableName(node: BaseNode): Promise<string | null> {
+  const bv = (node as any).boundVariables;
+  if (!bv?.fills) return null;
+  const fills = Array.isArray(bv.fills) ? bv.fills : [bv.fills];
+  for (const f of fills) {
+    if (f?.id) {
+      try {
+        const v = await figma.variables.getVariableByIdAsync(f.id);
+        if (v) return v.name;
+      } catch {}
+    }
+  }
+  return null;
+}
+
+/**
+ * Walk ancestors to find the nearest fill variable name for background.
+ * Returns the variable name if the background comes from a bound fill, or null.
+ */
+async function getBackgroundVariableName(node: BaseNode): Promise<string | null> {
+  let current = node.parent;
+  while (current) {
+    if ("fills" in current) {
+      const fills = (current as any).fills;
+      if (fills !== figma.mixed && Array.isArray(fills) && fills.length > 0) {
+        const hasFill = fills.some((f: any) => f.visible !== false && f.type === "SOLID");
+        if (hasFill) return getFillVariableName(current);
+      }
+    }
+    current = current.parent;
+  }
+  return null;
+}
+
 function getTextFillColor(node: any): SolidColor | null {
   const fills = node.fills;
   if (fills === figma.mixed) return null;
