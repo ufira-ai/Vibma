@@ -60,6 +60,67 @@ function sendBatchProgress(commandId: string, processed: number, total: number, 
   });
 }
 
+/** Minimal key set for normalizeAliases: text context (fills + fontColor aliases). */
+export const TEXT_ALIAS_KEYS: ReadonlySet<string> = new Set(["fills", "fontColor"]);
+/** Minimal key set for normalizeAliases: frame context (fills + strokes aliases). */
+export const FRAME_ALIAS_KEYS: ReadonlySet<string> = new Set(["fills", "strokes"]);
+
+/**
+ * Normalize user-facing param aliases to canonical forms. Mutates `p` in place.
+ * Idempotent — once `fills`/`strokes` is set, alias fields are deleted.
+ *
+ * - fontColor / fontColorVariableName / fontColorStyleName → fills (when keys has "fontColor")
+ * - fillColor / fillVariableName / fillStyleName / color / backgroundColor → fills (when keys has "fills")
+ * - strokeColor / strokeVariableName / strokeStyleName → strokes (when keys has "strokes")
+ *
+ * @param p    The item params object (mutated in place)
+ * @param keys Key set controlling which alias paths activate. Pass null to normalize all.
+ */
+export function normalizeAliases(p: Record<string, any>, keys: ReadonlySet<string> | null): void {
+  const hasFills = !keys || keys.has("fills");
+  const hasFontColor = !keys || keys.has("fontColor");
+  const hasStrokes = !keys || keys.has("strokes");
+
+  if (hasFills && !p.fills) {
+    const colorAlias = p.color !== undefined && !hasFontColor ? "color"
+      : p.backgroundColor !== undefined ? "backgroundColor"
+      : p.background !== undefined ? "background"
+      : null;
+    if (colorAlias) { p.fillColor = p[colorAlias]; delete p[colorAlias]; }
+    if (hasFontColor) {
+      if (p.fontColorVariableId !== undefined) {
+        p.fills = { _variableId: p.fontColorVariableId }; delete p.fontColorVariableId;
+      } else if (p.fontColorVariableName !== undefined) {
+        p.fills = { _variable: p.fontColorVariableName }; delete p.fontColorVariableName;
+      } else if (p.fontColorStyleName !== undefined) {
+        p.fills = { _style: p.fontColorStyleName }; delete p.fontColorStyleName;
+      } else if (p.fontColor !== undefined) {
+        const c = coerceColor(p.fontColor);
+        p.fills = c ? [solidPaint(c)] : p.fontColor; delete p.fontColor;
+      }
+    }
+    if (!p.fills && p.fillVariableName !== undefined) {
+      p.fills = { _variable: p.fillVariableName }; delete p.fillVariableName;
+    } else if (!p.fills && p.fillStyleName !== undefined) {
+      p.fills = { _style: p.fillStyleName }; delete p.fillStyleName;
+    } else if (!p.fills && p.fillColor !== undefined) {
+      const c = coerceColor(p.fillColor);
+      p.fills = c ? [solidPaint(c)] : p.fillColor; delete p.fillColor;
+    }
+  }
+
+  if (hasStrokes && !p.strokes) {
+    if (p.strokeVariableName !== undefined) {
+      p.strokes = { _variable: p.strokeVariableName }; delete p.strokeVariableName;
+    } else if (p.strokeStyleName !== undefined) {
+      p.strokes = { _style: p.strokeStyleName }; delete p.strokeStyleName;
+    } else if (p.strokeColor !== undefined) {
+      const c = coerceColor(p.strokeColor);
+      p.strokes = c ? [solidPaint(c)] : p.strokeColor; delete p.strokeColor;
+    }
+  }
+}
+
 export async function batchHandler<TItem, TResult>(
   params: { items?: TItem[]; depth?: number } & Record<string, unknown>,
   fn: (item: TItem) => Promise<TResult>,
@@ -77,61 +138,8 @@ export async function batchHandler<TItem, TResult>(
   for (let i = 0; i < items.length; i++) {
     try {
       if (guard) {
-        // Normalize aliases before guard check
-        const p = items[i] as any;
-        // Normalize all fill aliases → fills (canonical form, highest priority last)
-        if (guard.keys.has("fills") && !p.fills) {
-          // color/backgroundColor/background → fillColor first
-          const colorAlias = p.color !== undefined && !guard.keys.has("fontColor") ? "color"
-            : p.backgroundColor !== undefined ? "backgroundColor"
-            : p.background !== undefined ? "background"
-            : null;
-          if (colorAlias) { p.fillColor = p[colorAlias]; delete p[colorAlias]; }
-          // Text context: fontColor* → fills (when guard has both fills and fontColor)
-          if (guard.keys.has("fontColor")) {
-            if (p.fontColorVariableId !== undefined) {
-              p.fills = { _variableId: p.fontColorVariableId };
-              delete p.fontColorVariableId;
-            } else if (p.fontColorVariableName !== undefined) {
-              p.fills = { _variable: p.fontColorVariableName };
-              delete p.fontColorVariableName;
-            } else if (p.fontColorStyleName !== undefined) {
-              p.fills = { _style: p.fontColorStyleName };
-              delete p.fontColorStyleName;
-            } else if (p.fontColor !== undefined) {
-              const c = coerceColor(p.fontColor);
-              p.fills = c ? [solidPaint(c)] : p.fontColor;
-              delete p.fontColor;
-            }
-          }
-          // Resolve in priority order: fillVariableName > fillStyleName > fillColor
-          if (!p.fills && p.fillVariableName !== undefined) {
-            p.fills = { _variable: p.fillVariableName };
-            delete p.fillVariableName;
-          } else if (!p.fills && p.fillStyleName !== undefined) {
-            p.fills = { _style: p.fillStyleName };
-            delete p.fillStyleName;
-          } else if (!p.fills && p.fillColor !== undefined) {
-            const c = coerceColor(p.fillColor);
-            p.fills = c ? [solidPaint(c)] : p.fillColor;
-            delete p.fillColor;
-          }
-        }
-        // Normalize all stroke aliases → strokes (same pattern as fills)
-        if (guard.keys.has("strokes") && !p.strokes) {
-          if (p.strokeVariableName !== undefined) {
-            p.strokes = { _variable: p.strokeVariableName };
-            delete p.strokeVariableName;
-          } else if (p.strokeStyleName !== undefined) {
-            p.strokes = { _style: p.strokeStyleName };
-            delete p.strokeStyleName;
-          } else if (p.strokeColor !== undefined) {
-            const c = coerceColor(p.strokeColor);
-            p.strokes = c ? [solidPaint(c)] : p.strokeColor;
-            delete p.strokeColor;
-          }
-        }
-        rejectUnknownParams(p, guard.keys, guard.help);
+        normalizeAliases(items[i] as any, guard.keys);
+        rejectUnknownParams(items[i] as any, guard.keys, guard.help);
       }
       let result: any = await fn(items[i]);
       if (depth !== undefined && result?.id) {

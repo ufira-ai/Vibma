@@ -1,4 +1,4 @@
-import { batchHandler, appendAndApplySizing, checkOverlappingSiblings, applyTokens, resolveComponentPropertyKey, applyFillWithAutoBind, applySizing, type Hint } from "./helpers";
+import { batchHandler, appendAndApplySizing, checkOverlappingSiblings, applyTokens, resolveComponentPropertyKey, applyFillWithAutoBind, applySizing, normalizeAliases, TEXT_ALIAS_KEYS, FRAME_ALIAS_KEYS, type Hint } from "./helpers";
 import { setupFrameNode } from "./create-frame";
 import { createDispatcher, paginate, pickFields } from "@ufira/vibma/endpoint";
 import {
@@ -63,6 +63,9 @@ async function createInlineChildren(
 ): Promise<void> {
   for (const child of children) {
     if (child.type === "text") {
+      // Normalize color aliases to canonical fills form
+      normalizeAliases(child, TEXT_ALIAS_KEYS);
+
       const family = child.fontFamily || "Inter";
       const style = child.fontStyle || "Regular";
       const font = await resolveFontAsync(family, style);
@@ -76,18 +79,10 @@ async function createInlineChildren(
       await setCharacters(textNode, text);
       textNode.name = child.name || child.componentPropertyName || text;
 
-      // Color: normalize aliases the same way batchHandler does
-      let fills = child.fills;
-      if (!fills && child.fontColorVariableName) {
-        fills = { _variable: child.fontColorVariableName };
-      } else if (!fills && child.fontColorStyleName) {
-        fills = { _style: child.fontColorStyleName };
-      } else if (!fills && child.fontColor) {
-        fills = child.fontColor;
-      }
+      // Color: fills is now canonical (normalized above)
       const colorHints: Hint[] = [];
-      const colorSet = await applyFillWithAutoBind(textNode, { fills }, colorHints);
-      if (!colorSet && fills === undefined) {
+      const colorSet = await applyFillWithAutoBind(textNode, { fills: child.fills }, colorHints);
+      if (!colorSet && child.fills === undefined) {
         textNode.fills = [{ type: "SOLID", color: { r: 0, g: 0, b: 0 }, opacity: 1 }];
       }
       hints.push(...colorHints);
@@ -105,9 +100,19 @@ async function createInlineChildren(
 
       // Sizing: default FILL + HUG inside auto-layout parent
       const parentIsAL = appendTo.layoutMode && appendTo.layoutMode !== "NONE";
+      const effectiveH = child.layoutSizingHorizontal || (parentIsAL ? "FILL" : undefined);
+      const effectiveV = child.layoutSizingVertical || (parentIsAL ? "HUG" : undefined);
+
+      // textAutoResize must be set before FILL sizing to avoid Figma errors
+      if (child.textAutoResize) {
+        textNode.textAutoResize = child.textAutoResize;
+      } else if (effectiveH === "FILL" || effectiveH === "FIXED") {
+        textNode.textAutoResize = "HEIGHT";
+      }
+
       applySizing(textNode, appendTo, {
-        layoutSizingHorizontal: child.layoutSizingHorizontal || (parentIsAL ? "FILL" : undefined),
-        layoutSizingVertical: child.layoutSizingVertical || (parentIsAL ? "HUG" : undefined),
+        layoutSizingHorizontal: effectiveH,
+        layoutSizingVertical: effectiveV,
       }, hints);
 
       // Auto-create TEXT property and bind
@@ -122,6 +127,9 @@ async function createInlineChildren(
         }
       }
     } else if (child.type === "frame") {
+      // Normalize fill/stroke aliases to canonical form before setupFrameNode
+      normalizeAliases(child, FRAME_ALIAS_KEYS);
+
       const frame = figma.createFrame();
       frame.name = child.name || "Frame";
       frame.fills = [];
