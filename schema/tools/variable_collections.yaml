@@ -1,16 +1,17 @@
 endpoint: variable_collections
 domain: design-system
-description: "CRUD for variable collections and mode management."
-description_zh: "管理变量集合和模式。"
+description: "CRUD for variable collections — the document-level API for design tokens."
+description_zh: "管理变量集合——设计令牌的文档级 API。"
 
 notes: |
-  // Variable collections group related design tokens (variables) and define their modes.
-  // Modes represent different contexts (e.g. Light/Dark theme, Desktop/Mobile breakpoint). Each collection has 1+ modes.
-  // All ID params (id, collectionId, modeId) accept both IDs and display names. Use whichever you have.
+  // Variable collections group design tokens and define their modes (e.g. Light/Dark, Desktop/Mobile).
+  // All ID params accept both IDs and display names.
   // ---
-  // Workflow: create collection → add_mode for extra modes → create variables in the collection.
-  // Deleting a collection cascades — all variables inside it are also deleted.
-  // The default mode always exists and cannot be removed. Use add_mode/remove_mode for additional modes.
+  // valuesByMode: values keyed by mode name, e.g. {"Light": "#FFF", "Dark": "#111"}.
+  // Aliases: {type: "VARIABLE_ALIAS", name: "other/variable"}.
+  // scopes: see variables endpoint for full list.
+  // Deleting a collection deletes all variables inside it.
+  // The default mode cannot be removed. Use add_mode/remove_mode for additional modes.
 
 methods:
   list:
@@ -30,10 +31,12 @@ methods:
         properties:
           id: { type: string, required: true }
           name: { type: string, required: true }
+          modes: { type: "string[]", optional: true, description: "Mode names" }
+          variableCount: { type: number, optional: true, description: "Number of variables" }
 
   get:
     tier: read
-    description: Get collection detail
+    description: Get collection with all variables and values (full document)
     params:
       id:
         type: string
@@ -47,30 +50,60 @@ methods:
       properties:
         id: { type: string, required: true }
         name: { type: string, required: true }
-        modes:
+        modes: { type: "string[]", required: true, description: "Mode names (e.g. ['Light', 'Dark'])" }
+        variables:
           type: array
           required: true
+          description: "All variables in this collection"
           items:
             type: object
             properties:
-              modeId: { type: string, required: true }
               name: { type: string, required: true }
-        defaultModeId: { type: string, required: true }
-        variableNames: { type: "string[]", required: true }
+              type: { type: string, required: true, description: "COLOR | FLOAT | STRING | BOOLEAN" }
+              valuesByMode:
+                type: object
+                required: true
+                description: "Values keyed by mode name"
+              scopes: { type: "string[]", optional: true }
+              description: { type: string, optional: true }
 
   create:
     tier: create
-    description: Create variable collections
+    description: "Create a collection with modes and variables in one call"
+    example: 'variable_collections(method:"create", items:[{name:"Colors", modes:["Light","Dark"], variables:[{name:"bg/primary", type:"COLOR", valuesByMode:{"Light":"#FFF","Dark":"#111"}, scopes:["ALL_FILLS"]}]}])'
     params:
       items:
         type: array
         coerce: json
         required: true
-        description: "Array of {name}"
+        description: "Array of collection documents"
         items:
           type: object
           properties:
             name: { type: string, required: true, description: "Collection name" }
+            modes:
+              type: "string[]"
+              coerce: json
+              optional: true
+              description: "Mode names (e.g. ['Light', 'Dark']). Omit for single-mode collection."
+            variables:
+              type: array
+              coerce: json
+              optional: true
+              description: "Variables to create inside this collection"
+              items:
+                type: object
+                properties:
+                  name: { type: string, required: true, description: "Variable name (unique within collection)" }
+                  type: { type: enum, values: [COLOR, FLOAT, STRING, BOOLEAN], required: true, description: "Variable type" }
+                  value: { type: variable_value, optional: true, description: "Shorthand — sets the default mode value. Use valuesByMode for multi-mode." }
+                  valuesByMode:
+                    type: object
+                    coerce: json
+                    optional: true
+                    description: 'Values keyed by mode name (e.g. {"Light": "#FFF", "Dark": "#111"})'
+                  description: { type: string, optional: true }
+                  scopes: { type: "string[]", coerce: json, optional: true, description: "Restrict where variable can be applied (default: ALL_SCOPES)" }
     response:
       type: batch
       item: { id: { type: string } }

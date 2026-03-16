@@ -1,23 +1,24 @@
 ---
 title: "Variable Collections"
-description: "管理变量集合和模式。"
+description: "管理变量集合——设计令牌的文档级 API。"
 ---
 
 import ParameterTable from "../../../../components/ParameterTable.astro";
 
-管理变量集合和模式。
+管理变量集合——设计令牌的文档级 API。
 
 <details>
 <summary>Type reference</summary>
 
 ```ts
-// Variable collections group related design tokens (variables) and define their modes.
-// Modes represent different contexts (e.g. Light/Dark theme, Desktop/Mobile breakpoint). Each collection has 1+ modes.
-// All ID params (id, collectionId, modeId) accept both IDs and display names. Use whichever you have.
+// Variable collections group design tokens and define their modes (e.g. Light/Dark, Desktop/Mobile).
+// All ID params accept both IDs and display names.
 // ---
-// Workflow: create collection → add_mode for extra modes → create variables in the collection.
-// Deleting a collection cascades — all variables inside it are also deleted.
-// The default mode always exists and cannot be removed. Use add_mode/remove_mode for additional modes.
+// valuesByMode: values keyed by mode name, e.g. {"Light": "#FFF", "Dark": "#111"}.
+// Aliases: {type: "VARIABLE_ALIAS", name: "other/variable"}.
+// scopes: see variables endpoint for full list.
+// Deleting a collection deletes all variables inside it.
+// The default mode cannot be removed. Use add_mode/remove_mode for additional modes.
 ```
 
 </details>
@@ -32,25 +33,25 @@ List variable collections
 
 **Response**
 
-<ParameterTable schema={{"type":"object","properties":{"totalCount":{"type":"number","description":"Total matching items"},"returned":{"type":"number","description":"Items in this page"},"offset":{"type":"number"},"limit":{"type":"number"},"items":{"type":"array","items":{"type":"object","properties":{"id":{"type":"string"},"name":{"type":"string"}}}}},"required":["totalCount","items"]}} fieldLabel="Field" hideRequired />
+<ParameterTable schema={{"type":"object","properties":{"totalCount":{"type":"number","description":"Total matching items"},"returned":{"type":"number","description":"Items in this page"},"offset":{"type":"number"},"limit":{"type":"number"},"items":{"type":"array","items":{"type":"object","properties":{"id":{"type":"string"},"name":{"type":"string"},"modes":{"description":"Mode names","type":"array","items":{"type":"string"}},"variableCount":{"description":"Number of variables","type":"number"}}}}},"required":["totalCount","items"]}} fieldLabel="Field" hideRequired />
 
 ## get
 
-Get collection detail
+Get collection with all variables and values (full document)
 
 <ParameterTable schema={{"type":"object","properties":{"id":{"description":"Collection ID or name","type":"string"},"fields":{"description":"Property whitelist. Identity fields (id, name, type) always included. Omit for stubs on list, full on get. Pass [\"*\"] for all.","type":"array","items":{"type":"string"}}},"required":["id"]}} />
 
 **Response**
 
-<ParameterTable schema={{"type":"object","properties":{"id":{"type":"string"},"name":{"type":"string"},"modes":{"type":"array","items":{"type":"object","properties":{"modeId":{"type":"string"},"name":{"type":"string"}},"required":["modeId","name"]}},"defaultModeId":{"type":"string"},"variableNames":{"type":"array","items":{"type":"string"}}},"required":["id","name","modes","defaultModeId","variableNames"]}} fieldLabel="Field" hideRequired />
+<ParameterTable schema={{"type":"object","properties":{"id":{"type":"string"},"name":{"type":"string"},"modes":{"description":"Mode names (e.g. ['Light', 'Dark'])","type":"array","items":{"type":"string"}},"variables":{"description":"All variables in this collection","type":"array","items":{"type":"object","properties":{"name":{"type":"string"},"type":{"description":"COLOR | FLOAT | STRING | BOOLEAN","type":"string"},"valuesByMode":{"description":"Values keyed by mode name","type":"object"},"scopes":{"type":"array","items":{"type":"string"}},"description":{"type":"string"}},"required":["name","type","valuesByMode"]}}},"required":["id","name","modes","variables"]}} fieldLabel="Field" hideRequired />
 
 ## create
 
 **create**
 
-Create variable collections
+Create a collection with modes and variables in one call
 
-<ParameterTable schema={{"type":"object","properties":{"items":{"description":"Array of {name}","type":"array","items":{"type":"object","properties":{"name":{"description":"Collection name","type":"string"}},"required":["name"]}}},"required":["items"]}} />
+<ParameterTable schema={{"type":"object","properties":{"items":{"description":"Array of collection documents","type":"array","items":{"type":"object","properties":{"name":{"description":"Collection name","type":"string"},"modes":{"description":"Mode names (e.g. ['Light', 'Dark']). Omit for single-mode collection.","type":"array","items":{"type":"string"}},"variables":{"description":"Variables to create inside this collection","type":"array","items":{"type":"object","properties":{"name":{"description":"Variable name (unique within collection)","type":"string"},"type":{"description":"Variable type","type":"string","enum":["COLOR","FLOAT","STRING","BOOLEAN"]},"value":{"description":"Shorthand — sets the default mode value. Use valuesByMode for multi-mode.","type":"any"},"valuesByMode":{"description":"Values keyed by mode name (e.g. {\"Light\": \"#FFF\", \"Dark\": \"#111\"})","type":"object"},"description":{"type":"string"},"scopes":{"description":"Restrict where variable can be applied (default: ALL_SCOPES)","type":"array","items":{"type":"string"}}},"required":["name","type"]}}},"required":["name"]}}},"required":["items"]}} />
 
 **Response**
 

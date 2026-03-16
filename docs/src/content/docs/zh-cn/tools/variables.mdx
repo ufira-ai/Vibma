@@ -1,29 +1,25 @@
 ---
 title: "Variables"
-description: "管理设计变量（颜色、数值、字符串、布尔）。"
+description: "搜索和更新集合中的设计变量。"
 ---
 
 import ParameterTable from "../../../../components/ParameterTable.astro";
 
-管理设计变量（颜色、数值、字符串、布尔）。
+搜索和更新集合中的设计变量。
 
 <details>
 <summary>Type reference</summary>
 
 ```ts
-// Variables are design tokens — reusable values (colors, numbers, strings, booleans) that can be bound to node properties.
-// Variables are identified by name (unique within a collection). Use name to get/update/delete.
-// All ID params (collectionId, modeId) accept both IDs and display names. Use whichever you have.
-// Workflow: create a variable_collection first → then create variables inside it → bind to nodes via frames/text update PatchItem.bindings.
-// Multi-mode workflow: create sets ONE mode per variable. For Light/Dark: create all variables (default mode), then batch update with modeId for other modes.
-// list returns `items` (not `results`). get/create/update/delete use standard batch responses.
+// Search and update variables within a collection. collectionId is required on all methods.
+// Use variable_collections to create full token sets (collection + modes + variables in one call).
 // ---
-// Each variable has values per mode (e.g. Light/Dark). Use modeId when setting values for a specific mode.
-// valuesByMode keys are mode names (e.g. "Light", "Dark"), not IDs. Values match the variable's resolvedType.
-// Aliases: a variable can reference another variable by name via {type: "VARIABLE_ALIAS", name: "other/variable"}.
-// scopes: restrict where variables appear in the UI. Values: "ALL_SCOPES", "TEXT_CONTENT", "WIDTH_HEIGHT", "GAP",
-//   "CORNER_RADIUS", "ALL_FILLS", "FRAME_FILL", "SHAPE_FILL", "TEXT_FILL", "STROKE_COLOR", "STROKE_FLOAT",
-//   "EFFECT_FLOAT", "EFFECT_COLOR", "OPACITY", "FONT_FAMILY", "FONT_STYLE", "FONT_WEIGHT", "FONT_SIZE", "LINE_HEIGHT", "LETTER_SPACING", "PARAGRAPH_SPACING", "PARAGRAPH_INDENT"
+// query: prefix match first, then substring. "bg/" matches bg/canvas, bg/surface, etc.
+// valuesByMode: values keyed by mode name. value is shorthand for the default mode.
+// Aliases: {type: "VARIABLE_ALIAS", name: "other/variable"}.
+// scopes: ALL_SCOPES, TEXT_CONTENT, WIDTH_HEIGHT, GAP, CORNER_RADIUS, ALL_FILLS, FRAME_FILL, SHAPE_FILL,
+//   TEXT_FILL, STROKE_COLOR, STROKE_FLOAT, EFFECT_FLOAT, EFFECT_COLOR, OPACITY, FONT_FAMILY, FONT_STYLE,
+//   FONT_WEIGHT, FONT_SIZE, LINE_HEIGHT, LETTER_SPACING, PARAGRAPH_SPACING, PARAGRAPH_INDENT
 ```
 
 </details>
@@ -32,31 +28,31 @@ import ParameterTable from "../../../../components/ParameterTable.astro";
 
 ## list
 
-List variables with optional filters
+Search variables within a collection
 
-<ParameterTable schema={{"type":"object","properties":{"type":{"description":"Filter by variable type","type":"string","enum":["COLOR","FLOAT","STRING","BOOLEAN"]},"collectionId":{"description":"Filter by collection (ID or name)","type":"string"},"fields":{"description":"Property whitelist. Identity fields (id, name, type) always included. Omit for stubs on list, full on get. Pass [\"*\"] for all.","type":"array","items":{"type":"string"}},"offset":{"description":"Skip N items for pagination (default 0) (default: 0)","type":"number"},"limit":{"description":"Max items per page (default 100) (default: 100)","type":"number"}}}} />
+<ParameterTable schema={{"type":"object","properties":{"collectionId":{"description":"Collection ID or name","type":"string"},"query":{"description":"Search query — prefix match first, then substring fallback","type":"string"},"type":{"description":"Filter by variable type","type":"string","enum":["COLOR","FLOAT","STRING","BOOLEAN"]},"fields":{"description":"Property whitelist. Identity fields (id, name, type) always included. Omit for stubs on list, full on get. Pass [\"*\"] for all.","type":"array","items":{"type":"string"}},"offset":{"description":"Skip N items for pagination (default 0) (default: 0)","type":"number"},"limit":{"description":"Max items per page (default 100) (default: 100)","type":"number"}},"required":["collectionId"]}} />
 
 **Response**
 
-<ParameterTable schema={{"type":"object","properties":{"totalCount":{"type":"number","description":"Total matching items"},"returned":{"type":"number","description":"Items in this page"},"offset":{"type":"number"},"limit":{"type":"number"},"items":{"type":"array","items":{"type":"object","properties":{"name":{"type":"string"},"resolvedType":{"description":"Included in stubs by default","type":"string"},"collectionId":{"description":"Collection name. Included in stubs by default","type":"string"},"scopes":{"description":"Variable scopes. Included in stubs by default","type":"array","items":{"type":"string"}}}}}},"required":["totalCount","items"]}} fieldLabel="Field" hideRequired />
+<ParameterTable schema={{"type":"object","properties":{"totalCount":{"type":"number","description":"Total matching items"},"returned":{"type":"number","description":"Items in this page"},"offset":{"type":"number"},"limit":{"type":"number"},"items":{"type":"array","items":{"type":"object","properties":{"name":{"type":"string"},"type":{"description":"COLOR | FLOAT | STRING | BOOLEAN","type":"string"},"valuesByMode":{"description":"Values keyed by mode name","type":"object"},"scopes":{"type":"array","items":{"type":"string"}}}}}},"required":["totalCount","items"]}} fieldLabel="Field" hideRequired />
 
 ## get
 
 Get variable detail by name
 
-<ParameterTable schema={{"type":"object","properties":{"name":{"description":"Variable name (unique within collection)","type":"string"},"collectionId":{"description":"Collection ID or name (required if same variable name exists in multiple collections)","type":"string"},"fields":{"description":"Property whitelist. Identity fields (id, name, type) always included. Omit for stubs on list, full on get. Pass [\"*\"] for all.","type":"array","items":{"type":"string"}}},"required":["name"]}} />
+<ParameterTable schema={{"type":"object","properties":{"name":{"description":"Variable name (unique within collection)","type":"string"},"collectionId":{"description":"Collection ID or name","type":"string"},"fields":{"description":"Property whitelist. Identity fields (id, name, type) always included. Omit for stubs on list, full on get. Pass [\"*\"] for all.","type":"array","items":{"type":"string"}}},"required":["name","collectionId"]}} />
 
 **Response**
 
-<ParameterTable schema={{"type":"object","properties":{"name":{"type":"string"},"resolvedType":{"type":"string","enum":["COLOR","FLOAT","STRING","BOOLEAN"]},"collectionId":{"description":"Collection display name","type":"string"},"valuesByMode":{"description":"Values keyed by mode name (e.g. \"Light\", \"Dark\")","type":"object"},"description":{"description":"Variable description","type":"string"},"scopes":{"description":"Where this variable can be applied (e.g. CORNER_RADIUS, GAP, ALL_SCOPES)","type":"array","items":{"type":"string"}}},"required":["name","resolvedType","collectionId","valuesByMode"]}} fieldLabel="Field" hideRequired />
+<ParameterTable schema={{"type":"object","properties":{"name":{"type":"string"},"type":{"type":"string","enum":["COLOR","FLOAT","STRING","BOOLEAN"]},"collectionId":{"description":"Collection display name","type":"string"},"valuesByMode":{"description":"Values keyed by mode name (e.g. \"Light\", \"Dark\")","type":"object"},"description":{"description":"Variable description","type":"string"},"scopes":{"description":"Where this variable can be applied","type":"array","items":{"type":"string"}}},"required":["name","type","collectionId","valuesByMode"]}} fieldLabel="Field" hideRequired />
 
 ## create
 
 **create**
 
-Create variables. Each call creates ONE variable per item for ONE mode. For multi-mode: create with default value, then variables.update for other modes.
+Create variables in a collection. Use valuesByMode for multi-mode, or value for default mode only.
 
-<ParameterTable schema={{"type":"object","properties":{"items":{"description":"Array of {collectionId, name, resolvedType, value?, modeId?, description?, scopes?}. Each name must be unique — duplicates in the same batch will fail.","type":"array","items":{"type":"object","properties":{"collectionId":{"description":"Collection ID or name (e.g. \"Colors\")","type":"string"},"name":{"description":"Variable name (must be unique within collection)","type":"string"},"resolvedType":{"description":"Variable type","type":"string","enum":["COLOR","FLOAT","STRING","BOOLEAN"]},"value":{"description":"Initial value for one mode (default mode unless modeId specified). For other modes, use variables.update.","type":"any"},"modeId":{"description":"Mode ID or name (e.g. \"Dark\"). Default: collection's default mode","type":"string"},"description":{"description":"Variable description","type":"string"},"scopes":{"description":"Restrict where variable can be applied. FLOAT: CORNER_RADIUS, GAP, STROKE_FLOAT, WIDTH_HEIGHT, OPACITY, EFFECT_FLOAT, FONT_SIZE, LINE_HEIGHT, LETTER_SPACING, PARAGRAPH_SPACING, PARAGRAPH_INDENT. COLOR: ALL_FILLS, FRAME_FILL, SHAPE_FILL, TEXT_FILL, STROKE_COLOR, EFFECT_COLOR. Default: ALL_SCOPES.","type":"array","items":{"type":"string"}}},"required":["collectionId","name","resolvedType"]}}},"required":["items"]}} />
+<ParameterTable schema={{"type":"object","properties":{"collectionId":{"description":"Collection ID or name","type":"string"},"items":{"description":"Array of variables to create","type":"array","items":{"type":"object","properties":{"name":{"description":"Variable name (must be unique within collection)","type":"string"},"type":{"description":"Variable type","type":"string","enum":["COLOR","FLOAT","STRING","BOOLEAN"]},"value":{"description":"Shorthand — sets the default mode value. Use valuesByMode for multi-mode.","type":"any"},"valuesByMode":{"description":"Values keyed by mode name (e.g. {\"Light\": \"#FFF\", \"Dark\": \"#111\"}). Takes precedence over value.","type":"object"},"description":{"description":"Variable description","type":"string"},"scopes":{"description":"Restrict where variable can be applied (default: ALL_SCOPES)","type":"array","items":{"type":"string"}}},"required":["name","type"]}}},"required":["collectionId","items"]}} />
 
 **Response**
 
@@ -66,9 +62,9 @@ Create variables. Each call creates ONE variable per item for ONE mode. For mult
 
 **edit**
 
-Update variable metadata and/or set values per mode
+Update variable metadata and/or set values
 
-<ParameterTable schema={{"type":"object","properties":{"items":{"description":"Array of {name, collectionId?, rename?, description?, scopes?, modeId?, value?}","type":"array","items":{"type":"object","properties":{"name":{"description":"Variable name","type":"string"},"collectionId":{"description":"Collection ID or name (required if ambiguous)","type":"string"},"rename":{"description":"Rename the variable","type":"string"},"description":{"description":"Set description","type":"string"},"scopes":{"description":"Restrict where variable can be applied. FLOAT: CORNER_RADIUS, GAP, STROKE_FLOAT, WIDTH_HEIGHT, OPACITY, EFFECT_FLOAT, FONT_SIZE, LINE_HEIGHT, LETTER_SPACING, PARAGRAPH_SPACING, PARAGRAPH_INDENT. COLOR: ALL_FILLS, FRAME_FILL, SHAPE_FILL, TEXT_FILL, STROKE_COLOR, EFFECT_COLOR. Default: ALL_SCOPES.","type":"array","items":{"type":"string"}},"modeId":{"description":"Mode ID or name (e.g. \"Dark\"). Required when setting value.","type":"string"},"value":{"description":"New value. Must also pass modeId to specify which mode to update.","type":"any"}},"required":["name"]}}},"required":["items"]}} />
+<ParameterTable schema={{"type":"object","properties":{"collectionId":{"description":"Collection ID or name","type":"string"},"items":{"description":"Array of variable updates","type":"array","items":{"type":"object","properties":{"name":{"description":"Variable name","type":"string"},"rename":{"description":"Rename the variable","type":"string"},"description":{"description":"Set description","type":"string"},"scopes":{"description":"Update scopes","type":"array","items":{"type":"string"}},"value":{"description":"Shorthand — sets the default mode value. Use valuesByMode for multi-mode.","type":"any"},"valuesByMode":{"description":"Values keyed by mode name. Takes precedence over value.","type":"object"}},"required":["name"]}}},"required":["collectionId","items"]}} />
 
 **Response**
 
@@ -80,7 +76,7 @@ Update variable metadata and/or set values per mode
 
 Delete variables
 
-<ParameterTable schema={{"type":"object","properties":{"name":{"description":"Variable name","type":"string"},"collectionId":{"description":"Collection ID or name (required if ambiguous)","type":"string"},"items":{"description":"Batch: [{name, collectionId?}, ...]","type":"array","items":{"type":"object","properties":{"name":{"type":"string"},"collectionId":{"description":"Collection ID or name","type":"string"}},"required":["name"]}}}}} />
+<ParameterTable schema={{"type":"object","properties":{"collectionId":{"description":"Collection ID or name","type":"string"},"name":{"description":"Variable name","type":"string"},"items":{"description":"Batch: [{name}, ...]","type":"array","items":{"type":"object","properties":{"name":{"type":"string"}},"required":["name"]}}},"required":["collectionId"]}} />
 
 **Response**
 

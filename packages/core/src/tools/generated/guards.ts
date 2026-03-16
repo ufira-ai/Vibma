@@ -563,7 +563,7 @@ export const textCreate = new Set([
 export const textSetContent = new Set(["nodeId","text"]) as ReadonlySet<string>;
 
 /** variable_collections.create item params */
-export const variableCollectionsCreate = new Set(["name"]) as ReadonlySet<string>;
+export const variableCollectionsCreate = new Set(["modes","name","variables"]) as ReadonlySet<string>;
 
 /** variable_collections.update item params */
 export const variableCollectionsUpdate = new Set(["id","name"]) as ReadonlySet<string>;
@@ -581,29 +581,13 @@ export const variableCollectionsRenameMode = new Set(["collectionId","modeId","n
 export const variableCollectionsRemoveMode = new Set(["collectionId","modeId"]) as ReadonlySet<string>;
 
 /** variables.create item params */
-export const variablesCreate = new Set([
-  "collectionId",
-  "description",
-  "modeId",
-  "name",
-  "resolvedType",
-  "scopes",
-  "value",
-]) as ReadonlySet<string>;
+export const variablesCreate = new Set(["description","name","scopes","type","value","valuesByMode"]) as ReadonlySet<string>;
 
 /** variables.update item params */
-export const variablesUpdate = new Set([
-  "collectionId",
-  "description",
-  "modeId",
-  "name",
-  "rename",
-  "scopes",
-  "value",
-]) as ReadonlySet<string>;
+export const variablesUpdate = new Set(["description","name","rename","scopes","value","valuesByMode"]) as ReadonlySet<string>;
 
 /** variables.delete item params */
-export const variablesDelete = new Set(["collectionId","name"]) as ReadonlySet<string>;
+export const variablesDelete = new Set(["name"]) as ReadonlySet<string>;
 
 // ─── Mixin key groups ───────────────────────────────────────────
 

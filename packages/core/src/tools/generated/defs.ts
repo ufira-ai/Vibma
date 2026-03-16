@@ -826,7 +826,7 @@ export const tools: ToolDef[] = [
   },
   {
     name: "variable_collections",
-    description: "/** CRUD for variable collections and mode management. Use method \"help\" for detailed parameter docs. */\n  list      (fields?, offset?, limit?) → { totalCount, items }  // List variable collections\n  get       (id, fields?) → { id?, name?, modes?, defaultModeId?, variableNames? }  // Get collection detail\n  create    (items: { name: string }[]) → { results: {id}[] }  // Create variable collections\n  update    (items: { id: string; name: string }[]) → { results: (\"ok\" | {error})[] }  // Rename collections\n  delete    (id?, items?: { id: string }[]) → { results: \"ok\"[] }  // Delete collections\n  add_mode  (items: { collectionId: string; name: string }[]) → { results: {modeId}[] }  // Add a mode to a collection\n  rename_mode(items: { collectionId: string; modeId: string; name: string }[]) → { results: (\"ok\" | {error})[] }  // Rename a mode\n  remove_mode(items: { collectionId: string; modeId: string }[]) → { results: \"ok\"[] }  // Remove a mode from a collection\n// Variable collections group related design tokens (variables) and define their modes.\n// Modes represent different contexts (e.g. Light/Dark theme, Desktop/Mobile breakpoint). Each collection has 1+ modes.\n// All ID params (id, collectionId, modeId) accept both IDs and display names. Use whichever you have.",
+    description: "/** CRUD for variable collections — the document-level API for design tokens. Use method \"help\" for detailed parameter docs. */\n  list      (fields?, offset?, limit?) → { totalCount, items }  // List variable collections\n  get       (id, fields?) → { id?, name?, modes?, variables? }  // Get collection with all variables and values (full document)\n  create    (items: { name: string; modes?: string[]; variables?: { name: string; type: \"COLOR\" | \"FLOAT\" | \"STRING\" | \"BOOLEAN\"; value?: number | boolean | string | Color | {type: \"VARIABLE_ALIAS\", name: string}; valuesByMode?: Record<string, unknown>; description?: string; scopes?: string[] }[] }[]) → { results: {id}[] }  // Create a collection with modes and variables in one call\n  update    (items: { id: string; name: string }[]) → { results: (\"ok\" | {error})[] }  // Rename collections\n  delete    (id?, items?: { id: string }[]) → { results: \"ok\"[] }  // Delete collections\n  add_mode  (items: { collectionId: string; name: string }[]) → { results: {modeId}[] }  // Add a mode to a collection\n  rename_mode(items: { collectionId: string; modeId: string; name: string }[]) → { results: (\"ok\" | {error})[] }  // Rename a mode\n  remove_mode(items: { collectionId: string; modeId: string }[]) → { results: \"ok\"[] }  // Remove a mode from a collection\n// Variable collections group design tokens and define their modes (e.g. Light/Dark, Desktop/Mobile).\n// Create a collection with modes and variables in one call. Get returns the same shape.\n// All ID params accept both IDs and display names.\n// Shared types:\n// Color: hex \"#FF0000\" or {r: 0-1, g: 0-1, b: 0-1, a?: 0-1}",
     schema: (caps) => filterMethodsByTier({    method: z.enum(["list", "get", "create", "update", "delete", "add_mode", "rename_mode", "remove_mode", "help"]),
     fields: flexJson(z.array(z.string())).optional().describe("Property whitelist. Identity fields (id, name, type) always included. Omit for stubs on list, full on get. Pass [\"*\"] for all."),
     offset: z.coerce.number().optional().default(0).describe("Skip N items for pagination (default 0)"),
@@ -845,6 +845,8 @@ export const tools: ToolDef[] = [
       if (m === "create") {
         const itemSchema = z.object({
           name: z.string().describe("Collection name"),
+          modes: flexJson(z.array(z.string())).optional().describe("Mode names (e.g. ['Light', 'Dark']). Omit for single-mode collection."),
+          variables: flexJson(z.array(z.record(z.string(), z.unknown()))).optional().describe("Variables to create inside this collection"),
         }).passthrough();
         try { params.items = z.array(itemSchema).parse(params.items); }
         catch (e) { if (e instanceof z.ZodError) { throw new Error(e.issues.map(i => { const path = i.path.join("."); const shape = itemSchema instanceof z.ZodObject ? (itemSchema as any).shape : null; const desc = shape?.[i.path[1]]?.description; return path + ": " + i.message + (desc ? " (expected: " + desc + ")" : ""); }).join("; ")); } throw e; }
@@ -894,10 +896,11 @@ export const tools: ToolDef[] = [
   },
   {
     name: "variables",
-    description: "/** CRUD for design variables (COLOR, FLOAT, STRING, BOOLEAN). Use method \"help\" for detailed parameter docs. */\n  list      (type?: COLOR|FLOAT|STRING|BOOLEAN, collectionId?, fields?, offset?, limit?) → { totalCount, items }  // List variables with optional filters\n  get       (name, collectionId?, fields?) → { name, resolvedType, collectionId, valuesByMode: Record<string, number | boolean | string | Color | {type: \"VARIABLE_ALIAS\", name: string}>, description?, scopes? }  // Get variable detail by name\n  create    (items: VariableCreateItem[]) → { results: {name}[] }  // Create variables. Each call creates ONE variable per item for ONE mode. For multi-mode: create with default value, then variables.update for other modes.\n  update    (items: VariableUpdateItem[]) → { results: (\"ok\" | {error})[] }  // Update variable metadata and/or set values per mode\n  delete    (name?, collectionId?, items?: { name: string; collectionId?: string }[]) → { results: \"ok\"[] }  // Delete variables\n// Variables are design tokens — reusable values (colors, numbers, strings, booleans) that can be bound to node properties.\n// Variables are identified by name (unique within a collection). Use name to get/update/delete.\n// All ID params (collectionId, modeId) accept both IDs and display names. Use whichever you have.\n// Workflow: create a variable_collection first → then create variables inside it → bind to nodes via frames/text update PatchItem.bindings.\n// Multi-mode workflow: create sets ONE mode per variable. For Light/Dark: create all variables (default mode), then batch update with modeId for other modes.\n// list returns `items` (not `results`). get/create/update/delete use standard batch responses.\n// Shared types:\n// Color: hex \"#FF0000\" or {r: 0-1, g: 0-1, b: 0-1, a?: 0-1}",
+    description: "/** Search and update design variables within a collection. Use method \"help\" for detailed parameter docs. */\n  list      (collectionId, query?, type?: COLOR|FLOAT|STRING|BOOLEAN, fields?, offset?, limit?) → { totalCount, items }  // Search variables within a collection\n  get       (name, collectionId, fields?) → { name, type, collectionId, valuesByMode: Record<string, number | boolean | string | Color | {type: \"VARIABLE_ALIAS\", name: string}>, description?, scopes? }  // Get variable detail by name\n  create    (collectionId, items: VariableCreateItem[]) → { results: {name}[] }  // Create variables in a collection. Use valuesByMode for multi-mode, or value for default mode only.\n  update    (collectionId, items: VariableUpdateItem[]) → { results: (\"ok\" | {error})[] }  // Update variable metadata and/or set values\n  delete    (collectionId, name?, items?: { name: string }[]) → { results: \"ok\"[] }  // Delete variables\n// Search and update variables within a collection. collectionId is required on all methods.\n// Use variable_collections to create full token sets (collection + modes + variables in one call).\n// Shared types:\n// Color: hex \"#FF0000\" or {r: 0-1, g: 0-1, b: 0-1, a?: 0-1}",
     schema: (caps) => filterMethodsByTier({    method: z.enum(["list", "get", "create", "update", "delete", "help"]),
+    collectionId: z.string().optional().describe("Collection ID or name"),
+    query: z.string().optional().describe("Search query — prefix match first, then substring fallback"),
     type: z.enum(["COLOR", "FLOAT", "STRING", "BOOLEAN"]).optional().describe("Filter by variable type"),
-    collectionId: z.string().optional().describe("Filter by collection (ID or name)"),
     fields: flexJson(z.array(z.string())).optional().describe("Property whitelist. Identity fields (id, name, type) always included. Omit for stubs on list, full on get. Pass [\"*\"] for all."),
     offset: z.coerce.number().optional().default(0).describe("Skip N items for pagination (default 0)"),
     limit: z.coerce.number().optional().default(100).describe("Max items per page (default 100)"),
@@ -908,19 +911,31 @@ export const tools: ToolDef[] = [
     tier: "read" as const,
     validate: (params: any) => {
       const m = params.method;
+      if (m === "list") {
+        if (params.collectionId === undefined) throw new Error("list requires \"collectionId\"");
+      }
       if (m === "get") {
         if (params.name === undefined) throw new Error("get requires \"name\"");
+        if (params.collectionId === undefined) throw new Error("get requires \"collectionId\"");
+      }
+      if (m === "create") {
+        if (params.collectionId === undefined) throw new Error("create requires \"collectionId\"");
+      }
+      if (m === "update") {
+        if (params.collectionId === undefined) throw new Error("update requires \"collectionId\"");
+      }
+      if (m === "delete") {
+        if (params.collectionId === undefined) throw new Error("delete requires \"collectionId\"");
       }
       if (!params.items) return;
       if (m === "create") {
         const itemSchema = z.object({
-          collectionId: z.string().describe("Collection ID or name (e.g. \"Colors\")"),
           name: z.string().describe("Variable name (must be unique within collection)"),
-          resolvedType: z.enum(["COLOR", "FLOAT", "STRING", "BOOLEAN"]).describe("Variable type"),
-          value: S.variableValue.optional().describe("Initial value for one mode (default mode unless modeId specified). For other modes, use variables.update."),
-          modeId: z.string().optional().describe("Mode ID or name (e.g. \"Dark\"). Default: collection's default mode"),
+          type: z.enum(["COLOR", "FLOAT", "STRING", "BOOLEAN"]).describe("Variable type"),
+          value: S.variableValue.optional().describe("Shorthand — sets the default mode value. Use valuesByMode for multi-mode."),
+          valuesByMode: z.record(z.string(), z.unknown()).optional().describe("Values keyed by mode name (e.g. {\"Light\": \"#FFF\", \"Dark\": \"#111\"}). Takes precedence over value."),
           description: z.string().optional().describe("Variable description"),
-          scopes: flexJson(z.array(z.string())).optional().describe("Restrict where variable can be applied. FLOAT: CORNER_RADIUS, GAP, STROKE_FLOAT, WIDTH_HEIGHT, OPACITY, EFFECT_FLOAT, FONT_SIZE, LINE_HEIGHT, LETTER_SPACING, PARAGRAPH_SPACING, PARAGRAPH_INDENT. COLOR: ALL_FILLS, FRAME_FILL, SHAPE_FILL, TEXT_FILL, STROKE_COLOR, EFFECT_COLOR. Default: ALL_SCOPES."),
+          scopes: flexJson(z.array(z.string())).optional().describe("Restrict where variable can be applied (default: ALL_SCOPES)"),
         }).passthrough();
         try { params.items = z.array(itemSchema).parse(params.items); }
         catch (e) { if (e instanceof z.ZodError) { throw new Error(e.issues.map(i => { const path = i.path.join("."); const shape = itemSchema instanceof z.ZodObject ? (itemSchema as any).shape : null; const desc = shape?.[i.path[1]]?.description; return path + ": " + i.message + (desc ? " (expected: " + desc + ")" : ""); }).join("; ")); } throw e; }
@@ -928,12 +943,11 @@ export const tools: ToolDef[] = [
       if (m === "update") {
         const itemSchema = z.object({
           name: z.string().describe("Variable name"),
-          collectionId: z.string().optional().describe("Collection ID or name (required if ambiguous)"),
           rename: z.string().optional().describe("Rename the variable"),
           description: z.string().optional().describe("Set description"),
-          scopes: flexJson(z.array(z.string())).optional().describe("Restrict where variable can be applied. FLOAT: CORNER_RADIUS, GAP, STROKE_FLOAT, WIDTH_HEIGHT, OPACITY, EFFECT_FLOAT, FONT_SIZE, LINE_HEIGHT, LETTER_SPACING, PARAGRAPH_SPACING, PARAGRAPH_INDENT. COLOR: ALL_FILLS, FRAME_FILL, SHAPE_FILL, TEXT_FILL, STROKE_COLOR, EFFECT_COLOR. Default: ALL_SCOPES."),
-          modeId: z.string().optional().describe("Mode ID or name (e.g. \"Dark\"). Required when setting value."),
-          value: S.variableValue.optional().describe("New value. Must also pass modeId to specify which mode to update."),
+          scopes: flexJson(z.array(z.string())).optional().describe("Update scopes"),
+          value: S.variableValue.optional().describe("Shorthand — sets the default mode value. Use valuesByMode for multi-mode."),
+          valuesByMode: z.record(z.string(), z.unknown()).optional().describe("Values keyed by mode name. Takes precedence over value."),
         }).passthrough();
         try { params.items = z.array(itemSchema).parse(params.items); }
         catch (e) { if (e instanceof z.ZodError) { throw new Error(e.issues.map(i => { const path = i.path.join("."); const shape = itemSchema instanceof z.ZodObject ? (itemSchema as any).shape : null; const desc = shape?.[i.path[1]]?.description; return path + ": " + i.message + (desc ? " (expected: " + desc + ")" : ""); }).join("; ")); } throw e; }
@@ -941,7 +955,6 @@ export const tools: ToolDef[] = [
       if (m === "delete") {
         const itemSchema = z.object({
           name: z.string(),
-          collectionId: z.string().optional().describe("Collection ID or name"),
         }).passthrough();
         try { params.items = z.array(itemSchema).parse(params.items); }
         catch (e) { if (e instanceof z.ZodError) { throw new Error(e.issues.map(i => { const path = i.path.join("."); const shape = itemSchema instanceof z.ZodObject ? (itemSchema as any).shape : null; const desc = shape?.[i.path[1]]?.description; return path + ": " + i.message + (desc ? " (expected: " + desc + ")" : ""); }).join("; ")); } throw e; }
