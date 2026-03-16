@@ -76,10 +76,18 @@ async function createInlineChildren(
       await setCharacters(textNode, text);
       textNode.name = child.name || child.componentPropertyName || text;
 
-      // Color
+      // Color: normalize aliases the same way batchHandler does
+      let fills = child.fills;
+      if (!fills && child.fontColorVariableName) {
+        fills = { _variable: child.fontColorVariableName };
+      } else if (!fills && child.fontColorStyleName) {
+        fills = { _style: child.fontColorStyleName };
+      } else if (!fills && child.fontColor) {
+        fills = child.fontColor;
+      }
       const colorHints: Hint[] = [];
-      const colorSet = await applyFillWithAutoBind(textNode, { fills: child.fills, fontColor: child.fontColor, fontColorVariableName: child.fontColorVariableName }, colorHints);
-      if (!colorSet && !child.fills) {
+      const colorSet = await applyFillWithAutoBind(textNode, { fills }, colorHints);
+      if (!colorSet && fills === undefined) {
         textNode.fills = [{ type: "SOLID", color: { r: 0, g: 0, b: 0 }, opacity: 1 }];
       }
       hints.push(...colorHints);
