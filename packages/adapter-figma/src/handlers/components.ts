@@ -211,6 +211,14 @@ async function createComponentSingle(p: any) {
 
     warnUnboundText(comp, hints);
 
+    // Warn if component has text children but no width constraint
+    if (comp.layoutMode !== "NONE" && comp.layoutSizingHorizontal === "HUG" && comp.layoutSizingVertical === "HUG") {
+      const textNodes = findTextNodes(comp, true);
+      if (textNodes.length > 0 && textNodes.some(t => (t.characters?.length ?? 0) > 20)) {
+        hints.push({ type: "warn", message: `"${comp.name}" has text content but no width constraint — text won't wrap. Set a width and layoutSizingHorizontal:"FIXED".` });
+      }
+    }
+
     const result: any = { id: comp.id };
     if (hints.length > 0) result.hints = hints;
     return result;

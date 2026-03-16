@@ -19,6 +19,9 @@ notes: |
   // Property keys include a unique suffix like "Label#1:0". Call components.get(id) to discover exact keys before edit/delete.
   // ComponentItem accepts the same params as FrameItem (layout, fill, stroke, sizing, min/max).
   // A component IS a frame — create it directly with all layout properties, then add children.
+  // SIZING: Components with text need a width constraint — set width + layoutSizingHorizontal:"FIXED".
+  //   Without it, text won't wrap and the component grows unboundedly.
+  //   HUG on both axes is only correct for intrinsically-sized elements (buttons, badges, icons).
   // action: "add" (default) — requires type + defaultValue. "edit" — pass defaultValue to change value, name to rename property. "delete" — just propertyName#suffix.
   // action: "rename_variant" — renames a variant option VALUE (not the property). Pass defaultValue=current option name, name=new option name.
   // For VARIANT properties: "edit" with defaultValue reorders children to set the default variant.

@@ -12,9 +12,10 @@ notes: |
   // Stroke: pass strokes:[{type:"SOLID", color:"#hex"}] or [] to clear. Shorthand: strokeColor:"#000", strokeVariableName:"border/default".
   // Token fields (cornerRadius, opacity, itemSpacing, padding, strokeWeight): pass number for value, string for variable name/ID.
   // ---
-  // Smart defaults inside auto-layout parent: frame cross-axis defaults to FILL (not HUG), primary axis stays HUG.
-  //   Override with explicit layoutSizingHorizontal/layoutSizingVertical if needed.
-  // HUG and FILL only work inside an auto-layout parent. Use FIXED for top-level frames.
+  // SIZING: Always think about both axes. Containers with text need a width constraint — set width + layoutSizingHorizontal:"FIXED".
+  //   HUG/HUG is only correct for intrinsically-sized elements (buttons, badges, icons).
+  //   Smart defaults inside auto-layout parent: cross-axis defaults to FILL, primary axis stays HUG.
+  //   FILL only works inside an auto-layout parent. Use FIXED for top-level frames.
   // minWidth/maxWidth/minHeight/maxHeight: responsive constraints for auto-layout children.
   // clipsContent: true (default) clips children to the frame bounds. Set false for overflow-visible.
   // Sections are top-level organizers (like artboards) — they cannot be nested inside frames.

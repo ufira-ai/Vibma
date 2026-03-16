@@ -86,9 +86,20 @@ export async function setupFrameNode(
   // Overlapping children: detect sibling at same position in non-auto-layout parent
   checkOverlappingSiblings(node, parent, hints);
 
-  // Unbounded HUG: both axes HUG breaks responsiveness
+  // Context-aware HUG/HUG warning: only for containers that need a width constraint
   if (layoutMode !== "NONE" && node.layoutSizingHorizontal === "HUG" && node.layoutSizingVertical === "HUG") {
-    hints.push({ type: "warn", message: "HUG on both axes — content grows unboundedly and text won't wrap. Use FILL or FIXED width with HUG height for responsive layout." });
+    const isRoot = !parent || parent.type === "PAGE";
+    const children = "children" in node ? (node as any).children as SceneNode[] : [];
+    const hasTextChildren = children.some((c: any) => c.type === "TEXT");
+    const hasFillChildren = children.some((c: any) => c.layoutSizingHorizontal === "FILL");
+
+    if (isRoot && (hasTextChildren || hasFillChildren)) {
+      const name = node.name || "Frame";
+      hints.push({ type: "warn", message: `"${name}" has HUG on both axes with ${hasTextChildren ? "text" : "FILL"} children but no width constraint. Text won't wrap and FILL children collapse. Set a width and layoutSizingHorizontal:"FIXED".` });
+    } else if (!isRoot && hasFillChildren) {
+      hints.push({ type: "warn", message: `HUG on both axes but children use FILL — they need a constrained parent. Set layoutSizingHorizontal on this frame to FILL or FIXED with a width.` });
+    }
+    // Leaf containers (buttons, badges) with HUG/HUG: no warning — intentional
   }
 
   // HUG on cross-axis of constrained parent — child won't fill available space
