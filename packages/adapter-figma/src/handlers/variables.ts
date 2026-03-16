@@ -23,12 +23,6 @@ async function findCollection(idOrName: string | undefined): Promise<any> {
          all.find(c => c.name.toLowerCase() === idOrName.toLowerCase()) || null;
 }
 
-/** Get collection name by ID (cached per call via inline lookup). */
-async function getCollectionName(collectionId: string): Promise<string> {
-  const c = await findCollection(collectionId);
-  return c?.name ?? collectionId;
-}
-
 /**
  * Resolve a modeId that might be a mode name (e.g. "Dark") to the actual mode ID.
  * Agents don't know internal mode IDs — this lets them use human-readable names.
@@ -91,10 +85,7 @@ async function serializeCollectionFull(c: any): Promise<Record<string, any>> {
   const colVars = allVars.filter((v: any) => v.variableCollectionId === c.id);
   const variables: any[] = [];
   for (const v of colVars) {
-    const s = await serializeVariable(v);
-    // Strip collectionId from per-variable — redundant inside collection document
-    const { collectionId: _, ...rest } = s;
-    variables.push(rest);
+    variables.push(await serializeVariable(v));
   }
   return { id: c.id, name: c.name, modes, variables };
 }
@@ -478,7 +469,10 @@ export const figmaHandlers: Record<string, (params: any) => Promise<any>> = {
     get: getCollectionFigma,
     list: listCollectionsFigma,
     update: (p) => batchHandler(p, renameCollectionSingle, { keys: variableCollectionsUpdate, help: 'variable_collections(method: "help", topic: "update")' }),
-    delete: (p) => batchHandler(p, deleteCollectionSingle, { keys: variableCollectionsDelete, help: 'variable_collections(method: "help", topic: "delete")' }),
+    delete: (p) => {
+      if (p.id && !p.items) { p.items = [{ id: p.id }]; }
+      return batchHandler(p, deleteCollectionSingle, { keys: variableCollectionsDelete, help: 'variable_collections(method: "help", topic: "delete")' });
+    },
     add_mode: (p) => batchHandler(p, addModeSingle, { keys: variableCollectionsAddMode, help: 'variable_collections(method: "help", topic: "add_mode")' }),
     rename_mode: (p) => batchHandler(p, renameModeSingle, { keys: variableCollectionsRenameMode, help: 'variable_collections(method: "help", topic: "rename_mode")' }),
     remove_mode: (p) => batchHandler(p, removeModeSingle, { keys: variableCollectionsRemoveMode, help: 'variable_collections(method: "help", topic: "remove_mode")' }),
@@ -496,6 +490,8 @@ export const figmaHandlers: Record<string, (params: any) => Promise<any>> = {
     },
     delete: async (p) => {
       const collection = await requireCollection(p);
+      // Normalize single-name delete to items (prevents batchHandler from wrapping entire params as item)
+      if (p.name && !p.items) { p.items = [{ name: p.name }]; }
       return batchHandler(p, (item) => deleteVariableSingle(item, collection), { keys: variablesDelete, help: 'variables(method: "help", topic: "delete")' });
     },
   }),
