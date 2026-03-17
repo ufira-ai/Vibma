@@ -11,6 +11,7 @@ certs/
 packages/adapter-figma/src/plugin/code.js
 docs/public/tools-manifest.json
 docs/src/content/docs/tools/
+docs/src/content/docs/zh-cn/tools/
 docs/dist/
 docs/.astro/
 docs/node_modules/
