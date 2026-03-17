@@ -758,6 +758,9 @@
 
         renderBanner(visualState, infoHtml, labelText);
 
+        // Keep collapsed bar in sync
+        if (document.body.classList.contains("collapsed")) updateCollapsedStatus();
+
         connectButton.textContent = isConnected ? t("btnDisconnect") : t("btnConnect");
         connectButton.className = isConnected ? "secondary" : "";
         portInput.disabled = isConnected;
@@ -861,7 +864,7 @@
               updateConnectionStatus(false, t("statusDisconnectedFromServer"));
             }
             state.lastError = null;
-            setCollapsed(false, true);
+            if (document.body.classList.contains("collapsed")) updateCollapsedStatus();
           };
 
           state.socket.onerror = (error) => {
@@ -870,7 +873,7 @@
             updateConnectionStatus(false, state.lastError);
             state.connected = false;
             state.socket = null;
-            setCollapsed(false, true);
+            if (document.body.classList.contains("collapsed")) updateCollapsedStatus();
           };
         } catch (error) {
           console.error("Connection error:", error);
@@ -1181,20 +1184,32 @@
       const collapsedPeer = document.getElementById("collapsed-peer");
 
       function updateCollapsedStatus() {
-        const isWarning = state.versionWarning;
-        collapsedIcon.textContent = isWarning ? "⚠" : "✓";
-        collapsedIcon.className = "banner-icon";
-        collapsedIcon.style.borderColor = isWarning ? "#b18b2e" : "#2f8c5c";
-        collapsedIcon.style.color = isWarning ? "#ffd36a" : "#5fd69a";
-        collapsedPeer.style.color = isWarning ? "#f3dca1" : "#bfe7d1";
-        collapsedLabel.textContent = t("statusBadgeConnected");
-        if (state.mcpPeer) {
+        if (state.connected && state.mcpPeer) {
+          const isWarning = state.versionWarning;
+          collapsedIcon.textContent = isWarning ? "⚠" : "✓";
+          collapsedIcon.style.borderColor = isWarning ? "#b18b2e" : "#2f8c5c";
+          collapsedIcon.style.color = isWarning ? "#ffd36a" : "#5fd69a";
+          collapsedPeer.style.color = isWarning ? "#f3dca1" : "#bfe7d1";
+          collapsedLabel.textContent = t("statusBadgeConnected");
           const name = state.mcpPeer.name || "unknown";
           const ver = state.mcpPeer.version ? ` (v${state.mcpPeer.version})` : "";
           collapsedPeer.textContent = `${name}${ver}`;
+        } else if (state.connected || state.socket) {
+          collapsedIcon.textContent = "✓";
+          collapsedIcon.style.borderColor = "#2f8c5c";
+          collapsedIcon.style.color = "#5fd69a";
+          collapsedPeer.style.color = "#bfe7d1";
+          collapsedLabel.textContent = "Waiting for connection";
+          collapsedPeer.textContent = "";
         } else {
+          collapsedIcon.textContent = "✕";
+          collapsedIcon.style.borderColor = "#6b6b6b";
+          collapsedIcon.style.color = "#999";
+          collapsedPeer.style.color = "#999";
+          collapsedLabel.textContent = t("statusBadgeDisconnected") || "Disconnected";
           collapsedPeer.textContent = "";
         }
+        collapsedIcon.className = "banner-icon";
       }
 
       function setCollapsed(collapsed, instant) {
