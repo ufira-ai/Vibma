@@ -9,7 +9,7 @@ import { nodeUpdate, mixinTextParams } from "@ufira/vibma/guards";
 
 // ─── Sub-dispatch groups (handler-level concern, not schema validation) ────
 
-const SIMPLE_PROPS = ["name", "visible", "locked", "rotation", "blendMode", "layoutPositioning"] as const;
+const SIMPLE_PROPS = ["name", "visible", "locked", "rotation", "blendMode", "layoutPositioning", "overflowDirection"] as const;
 
 const FILL_KEYS = ["fills", "fillColor", "fillStyleName", "fillVariableName", "clearFill"] as const;
 

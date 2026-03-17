@@ -20,6 +20,8 @@ export const generatedResponseSchemas: Record<string, Record<string, unknown>> =
   },
   "lint": {
   },
+  "prototyping": {
+  },
   "selection": {
     "get": {"example":{"results":[{"id":"1:2","name":"Button","type":"COMPONENT"}]}},
     "set": {"example":{"count":2,"selectedNodes":[{"name":"Button","id":"1:2"},{"name":"Card","id":"3:4"}]}},

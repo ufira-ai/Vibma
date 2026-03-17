@@ -299,6 +299,33 @@ async function combineSingle(p: any) {
     if (node.type !== "COMPONENT") throw new Error(`Node ${id} is not a COMPONENT`);
     comps.push(node as ComponentNode);
   }
+  // Pre-flight: check for stale property references that cause combineAsVariants to produce errored sets
+  for (const comp of comps) {
+    try {
+      const defs = comp.componentPropertyDefinitions;
+      for (const [key, def] of Object.entries(defs) as [string, any][]) {
+        if (def.type === "TEXT") {
+          // Verify the referenced text node still exists by checking property references
+          let bound = false;
+          const walk = (n: SceneNode) => {
+            if ("componentPropertyReferences" in n) {
+              const refs = (n as any).componentPropertyReferences;
+              if (refs && Object.values(refs).includes(key)) bound = true;
+            }
+            if ("children" in n) (n as any).children.forEach(walk);
+          };
+          walk(comp);
+          if (!bound) {
+            throw new Error(`Component "${comp.name}" has stale TEXT property "${key.split("#")[0]}" — no text node references it. Delete it first: components(method:"update", items:[{id:"${comp.id}", action:"delete", propertyName:"${key.split("#")[0]}"}])`);
+          }
+        }
+      }
+    } catch (e: any) {
+      if (e.message.includes("stale TEXT property")) throw e;
+      // componentPropertyDefinitions may throw on variant components — skip
+    }
+  }
+
   const parent = comps[0].parent && comps.every(c => c.parent === comps[0].parent)
     ? comps[0].parent : figma.currentPage;
   const set = figma.combineAsVariants(comps, parent as any);

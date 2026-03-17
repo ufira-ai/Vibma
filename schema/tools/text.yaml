@@ -41,6 +41,7 @@ methods:
               description: "Layer name"
             x: { type: number }
             y: { type: number }
+            width: { type: number, optional: true, description: "Fixed width in px — implies layoutSizingHorizontal: FIXED and textAutoResize: HEIGHT" }
             parentId:
               type: string
               description: "Parent node ID. Omit to place on current page."

@@ -7,7 +7,7 @@ import {
 
 
 // Handler-level extensions: params accepted by handler but not in YAML schema
-const SVG_KEYS = new Set([...framesCreateSvg, "fillVariableId"]) as ReadonlySet<string>;
+const SVG_KEYS = new Set([...framesCreateSvg, "fillVariableId", "strokeVariableId"]) as ReadonlySet<string>;
 const LINE_KEYS = new Set([...framesCreateLine, "strokeVariableId", "strokeStyleName"]) as ReadonlySet<string>;
 
 // ─── Figma Handlers ──────────────────────────────────────────────
@@ -74,6 +74,42 @@ async function createSingleSvg(p: any) {
         if (match) {
           for (const vec of vectors) {
             try { await (vec as any).setFillStyleIdAsync(match.id); } catch {}
+          }
+        }
+      }
+    }
+
+    // Bind stroke style/variable to all vector children
+    if (p.strokeStyleName || p.strokeVariableId || p.strokeVariableName) {
+      const vectors: SceneNode[] = [];
+      const collect = (n: SceneNode) => {
+        if (n.type === "VECTOR" || n.type === "BOOLEAN_OPERATION" || n.type === "STAR" || n.type === "LINE" || n.type === "ELLIPSE" || n.type === "POLYGON") vectors.push(n);
+        if ("children" in n) (n as any).children.forEach(collect);
+      };
+      collect(node);
+
+      let variable: any = null;
+      if (p.strokeVariableId) {
+        variable = await findVariableById(p.strokeVariableId);
+      } else if (p.strokeVariableName) {
+        variable = await findColorVariableByName(p.strokeVariableName);
+      }
+
+      if (variable) {
+        for (const vec of vectors) {
+          if ("strokes" in vec && (vec as any).strokes.length > 0) {
+            const paints = (vec as any).strokes.slice();
+            paints[0] = figma.variables.setBoundVariableForPaint(paints[0], "color", variable);
+            (vec as any).strokes = paints;
+          }
+        }
+      } else if (p.strokeStyleName) {
+        const styles = await figma.getLocalPaintStylesAsync();
+        const exact = styles.find(s => s.name === p.strokeStyleName);
+        const match = exact || styles.find(s => s.name.toLowerCase().includes(p.strokeStyleName.toLowerCase()));
+        if (match) {
+          for (const vec of vectors) {
+            try { await (vec as any).setStrokeStyleIdAsync(match.id); } catch {}
           }
         }
       }

@@ -146,6 +146,8 @@ methods:
             clearFill: { type: boolean, optional: true, description: "Remove all fills" }
             # strokeWeight expanded via geometry_params mixin ($expand: stroke)
             effects: { type: array, optional: true, description: "Effect array (DROP_SHADOW, INNER_SHADOW, LAYER_BLUR, BACKGROUND_BLUR)", items: { type: object } }
+            # --- prototyping ---
+            overflowDirection: { type: enum, values: [NONE, HORIZONTAL, VERTICAL, BOTH], optional: true, description: "Scroll overflow in prototype (default: NONE)" }
             # --- advanced ---
             constraints: { type: object, optional: true, properties: { horizontal: { type: enum, values: [MIN, CENTER, MAX, STRETCH, SCALE] }, vertical: { type: enum, values: [MIN, CENTER, MAX, STRETCH, SCALE] } } }
             bindings: { type: array, optional: true, description: "Bind variables to properties. field path examples: 'fills/0/color', 'strokes/0/color', 'opacity', 'width', 'cornerRadius', 'itemSpacing'.", items: { type: object, properties: { field: { type: string, required: true }, variableName: { type: string }, variableId: { type: string } } } }

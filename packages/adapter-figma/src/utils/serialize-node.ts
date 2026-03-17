@@ -155,15 +155,17 @@ export async function serializeNode(
   // ── Component / Component Set ──────────────────────────────────
   if (node.type === "COMPONENT" || node.type === "COMPONENT_SET") {
     const comp = node as any;
+    const isVariant = node.type === "COMPONENT" && node.parent?.type === "COMPONENT_SET";
     if (comp.description) out.description = comp.description;
-    if (comp.componentPropertyDefinitions) {
+    // componentPropertyDefinitions throws on variant components — defs live on the parent set
+    if (!isVariant && comp.componentPropertyDefinitions) {
       out.propertyDefinitions = comp.componentPropertyDefinitions;
     }
     if (node.type === "COMPONENT_SET") {
       if (comp.variantGroupProperties) out.variantGroupProperties = comp.variantGroupProperties;
       if ("children" in comp) out.variantCount = comp.children.length;
     }
-    if (node.type === "COMPONENT" && comp.variantProperties) {
+    if (isVariant && comp.variantProperties) {
       out.variantProperties = comp.variantProperties;
     }
   }
@@ -278,6 +280,27 @@ export async function serializeNode(
   }
   if ("layoutSizingVertical" in node) {
     out.layoutSizingVertical = (node as any).layoutSizingVertical;
+  }
+
+  // ── Overflow & scroll ────────────────────────────────────────────
+  if ("overflowDirection" in node) {
+    const od = (node as any).overflowDirection;
+    if (od && od !== "NONE") out.overflowDirection = od;
+  }
+  // ── Overlay settings (verbose only, read-only in Figma API) ────
+  if (verbose && "overlayPositionType" in node) {
+    const n = node as any;
+    if (n.overlayPositionType && n.overlayPositionType !== "CENTER") out.overlayPositionType = n.overlayPositionType;
+    if (n.overlayBackground) out.overlayBackground = n.overlayBackground;
+    if (n.overlayBackgroundInteraction && n.overlayBackgroundInteraction !== "NONE") out.overlayBackgroundInteraction = n.overlayBackgroundInteraction;
+  }
+
+  // ── Reactions (verbose only) ───────────────────────────────────
+  if (verbose && "reactions" in node) {
+    const reactions = (node as any).reactions;
+    if (Array.isArray(reactions) && reactions.length > 0) {
+      out.reactions = reactions.map(serializeReaction);
+    }
   }
 
   // ── Min/max dimensions ─────────────────────────────────────────
@@ -398,6 +421,38 @@ export async function serializeNode(
 }
 
 // ── Paint serialization ───────────────────────────────────────────
+
+function serializeReactionAction(a: any): any {
+  const act: any = { type: a.type };
+  if (a.destinationId) act.destinationId = a.destinationId;
+  if (a.navigation) act.navigation = a.navigation;
+  if (a.transition) {
+    const t: any = { type: a.transition.type };
+    if (a.transition.duration !== undefined) t.duration = a.transition.duration;
+    if (a.transition.easing) t.easing = a.transition.easing.type || a.transition.easing;
+    if (a.transition.direction) t.direction = a.transition.direction;
+    if (a.transition.matchLayers) t.matchLayers = true;
+    act.transition = t;
+  }
+  if (a.url) act.url = a.url;
+  if (a.variableCollectionId) act.variableCollectionId = a.variableCollectionId;
+  if (a.variableModeId) act.variableModeId = a.variableModeId;
+  if (a.variableId) act.variableId = a.variableId;
+  if (a.variableValue !== undefined) act.variableValue = a.variableValue;
+  if (a.resetScrollPosition === false) act.resetScrollPosition = false;
+  if (a.overlayPositionType) act.overlayPositionType = a.overlayPositionType;
+  if (a.overlayRelativePosition) act.overlayRelativePosition = a.overlayRelativePosition;
+  return act;
+}
+
+function serializeReaction(r: any): any {
+  const out: any = {};
+  if (r.trigger) out.trigger = r.trigger;
+  if (r.actions && Array.isArray(r.actions)) {
+    out.actions = r.actions.map(serializeReactionAction);
+  }
+  return out;
+}
 
 function serializePaint(paint: any): any {
   const p: any = { type: paint.type };

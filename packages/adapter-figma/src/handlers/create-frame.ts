@@ -41,6 +41,7 @@ export async function setupFrameNode(
   if (p.rotation !== undefined) (node as any).rotation = p.rotation;
   if (p.blendMode) (node as any).blendMode = p.blendMode;
   if (p.layoutPositioning === "ABSOLUTE") (node as any).layoutPositioning = "ABSOLUTE";
+  if (p.overflowDirection && p.overflowDirection !== "NONE") (node as any).overflowDirection = p.overflowDirection;
 
   // Auto-layout
   if (layoutMode !== "NONE") {

@@ -19,6 +19,7 @@ import { figmaHandlers as stylesHandlers } from "./styles";
 import { figmaHandlers as variablesHandlers } from "./variables";
 import { figmaHandlers as lintHandlers, auditNode } from "./lint";
 import { figmaHandlers as versionHistoryHandlers } from "./version-history";
+import { figmaHandlers as prototypingHandlers } from "./prototyping";
 
 /** Merged dispatch map: command name → handler function */
 export const allFigmaHandlers: Record<string, (params: any) => Promise<any>> = {
@@ -41,6 +42,7 @@ export const allFigmaHandlers: Record<string, (params: any) => Promise<any>> = {
   ...variablesHandlers,
   ...lintHandlers,
   ...versionHistoryHandlers,
+  ...prototypingHandlers,
 
   // ─── Endpoint-style command aliases (generated endpoints use {endpoint}.{method}) ───
   // connection endpoint
@@ -204,4 +206,10 @@ export const allFigmaHandlers: Record<string, (params: any) => Promise<any>> = {
 
   // ─── version_history endpoint ───
   "version_history.save": versionHistoryHandlers.save_version_history,
+
+  // ─── prototyping endpoint ───
+  "prototyping.get": prototypingHandlers.get_reactions,
+  "prototyping.add": prototypingHandlers.add_reaction,
+  "prototyping.set": prototypingHandlers.set_reactions,
+  "prototyping.remove": prototypingHandlers.remove_reaction,
 };

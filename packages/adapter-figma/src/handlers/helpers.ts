@@ -576,6 +576,8 @@ export async function applyFillWithAutoBind(
   if (p.fills?._variableId) {
     const v = await findVariableById(p.fills._variableId);
     if (v) {
+      // Clear any existing paint style — it overrides variable bindings in Figma
+      if ("fillStyleId" in node && node.fillStyleId) try { await node.setFillStyleIdAsync(""); } catch {}
       node.fills = [solidPaint({ r: 0, g: 0, b: 0 })];
       const bound = figma.variables.setBoundVariableForPaint(node.fills[0] as SolidPaint, "color", v);
       node.fills = [bound];
@@ -590,6 +592,8 @@ export async function applyFillWithAutoBind(
     const name = p.fills._variable;
     const v = await findColorVariableByName(name);
     if (v) {
+      // Clear any existing paint style — it overrides variable bindings in Figma
+      if ("fillStyleId" in node && node.fillStyleId) try { await node.setFillStyleIdAsync(""); } catch {}
       node.fills = [solidPaint({ r: 0, g: 0, b: 0 })];
       const bound = figma.variables.setBoundVariableForPaint(node.fills[0] as SolidPaint, "color", v);
       node.fills = [bound];
@@ -699,6 +703,8 @@ export async function applyStrokeWithAutoBind(
     if (p.strokes?._variableId) {
       const v = await findVariableById(p.strokes._variableId);
       if (v) {
+        // Clear any existing paint style — it overrides variable bindings in Figma
+        if ("strokeStyleId" in node && node.strokeStyleId) try { await node.setStrokeStyleIdAsync(""); } catch {}
         node.strokes = [solidPaint({ r: 0, g: 0, b: 0 })];
         const bound = figma.variables.setBoundVariableForPaint(node.strokes[0] as SolidPaint, "color", v);
         node.strokes = [bound];
@@ -711,6 +717,8 @@ export async function applyStrokeWithAutoBind(
       const name = p.strokes._variable;
       const v = await findColorVariableByName(name);
       if (v) {
+        // Clear any existing paint style — it overrides variable bindings in Figma
+        if ("strokeStyleId" in node && node.strokeStyleId) try { await node.setStrokeStyleIdAsync(""); } catch {}
         node.strokes = [solidPaint({ r: 0, g: 0, b: 0 })];
         const bound = figma.variables.setBoundVariableForPaint(node.strokes[0] as SolidPaint, "color", v);
         node.strokes = [bound];

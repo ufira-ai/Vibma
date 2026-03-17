@@ -171,6 +171,7 @@ async function createTextSingle(p: any, ctx: CreateTextContext) {
     textAlignHorizontal, textAlignVertical,
     layoutSizingHorizontal, layoutSizingVertical, textAutoResize,
     componentPropertyName, componentId,
+    width,
   } = p;
 
   const textNode = figma.createText();
@@ -262,10 +263,16 @@ async function createTextSingle(p: any, ctx: CreateTextContext) {
       hints.push({ type: "suggest", message: "WCAG: Min 12px text recommended." });
     }
 
+    // Apply explicit width — implies FIXED sizing and HEIGHT auto-resize
+    if (width !== undefined) {
+      textNode.resize(width, textNode.height);
+    }
+
     const parentIsAL = textNode.parent && "layoutMode" in textNode.parent && (textNode.parent as any).layoutMode !== "NONE";
 
     // Smart defaults for text inside auto-layout: FILL width + HUG height (text wraps)
-    const effectiveH = layoutSizingHorizontal || (parentIsAL ? "FILL" : undefined);
+    // Explicit width overrides to FIXED
+    const effectiveH = layoutSizingHorizontal || (width !== undefined ? "FIXED" : (parentIsAL ? "FILL" : undefined));
     const effectiveV = layoutSizingVertical || (parentIsAL ? "HUG" : undefined);
 
     if (textAutoResize) {

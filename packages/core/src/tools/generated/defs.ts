@@ -32,6 +32,7 @@ export const commandMap: Record<string, Record<string, string>> = {
   "frames": {"get":"frames.get","list":"frames.list","update":"frames.update","delete":"frames.delete","clone":"frames.clone","audit":"frames.audit","reparent":"frames.reparent","create":"frames.create","export":"frames.export"},
   "instances": {"list":"instances.list","delete":"instances.delete","clone":"instances.clone","audit":"instances.audit","reparent":"instances.reparent","get":"instances.get","create":"instances.create","update":"instances.update","swap":"instances.swap","detach":"instances.detach","reset_overrides":"instances.reset_overrides"},
   "lint": {"check":"lint.check","fix":"lint.fix"},
+  "prototyping": {"get":"prototyping.get","add":"prototyping.add","set":"prototyping.set","remove":"prototyping.remove"},
   "selection": {"get":"selection.get","set":"selection.set"},
   "styles": {"list":"styles.list","get":"styles.get","create":"styles.create","update":"styles.update","delete":"styles.delete"},
   "text": {"get":"text.get","list":"text.list","update":"text.update","delete":"text.delete","clone":"text.clone","audit":"text.audit","reparent":"text.reparent","create":"text.create","set_content":"text.set_content","scan":"text.scan"},
@@ -129,6 +130,7 @@ export const tools: ToolDef[] = [
             maxWidth: z.coerce.number().optional().describe("Max width for responsive auto-layout"),
             minHeight: z.coerce.number().optional().describe("Min height for responsive auto-layout"),
             maxHeight: z.coerce.number().optional().describe("Max height for responsive auto-layout"),
+            overflowDirection: z.enum(["NONE", "HORIZONTAL", "VERTICAL", "BOTH"]).optional().describe("Scroll overflow in prototype (default: NONE)"),
             description: z.string().optional().describe("Component description (shown in Figma's component panel)"),
             children: flexJson(z.array(z.record(z.string(), z.unknown()))).optional().describe("Inline child nodes. Text: {type:\"text\", text, componentPropertyName?, fontFamily?, fontSize?, fontColor?}. Frame: {type:\"frame\", name?, layoutMode?, fillColor?, children?}. Text with componentPropertyName auto-creates and binds a TEXT property — no need to add it to properties separately."),
             properties: flexJson(z.array(z.record(z.string(), z.unknown()))).optional().describe("Component properties to define at creation: [{propertyName, type, defaultValue}]. TEXT properties for inline children with componentPropertyName are created automatically."),
@@ -188,6 +190,7 @@ export const tools: ToolDef[] = [
             maxWidth: z.coerce.number().optional().describe("Max width for responsive auto-layout"),
             minHeight: z.coerce.number().optional().describe("Min height for responsive auto-layout"),
             maxHeight: z.coerce.number().optional().describe("Max height for responsive auto-layout"),
+            overflowDirection: z.enum(["NONE", "HORIZONTAL", "VERTICAL", "BOTH"]).optional().describe("Scroll overflow in prototype (default: NONE)"),
             componentIds: flexJson(z.array(z.string())).describe("Component IDs to combine (min 2)"),
             variantPropertyName: z.string().optional().describe("Rename the auto-generated variant property (default: 'Property 1')"),
           }).passthrough(),
@@ -341,6 +344,7 @@ export const tools: ToolDef[] = [
             maxWidth: z.coerce.number().optional().describe("Max width for responsive auto-layout"),
             minHeight: z.coerce.number().optional().describe("Min height for responsive auto-layout"),
             maxHeight: z.coerce.number().optional().describe("Max height for responsive auto-layout"),
+            overflowDirection: z.enum(["NONE", "HORIZONTAL", "VERTICAL", "BOTH"]).optional().describe("Scroll overflow in prototype (default: NONE)"),
             clipsContent: flexBool(z.boolean()).optional(),
           }).passthrough(),
           "auto_layout": z.object({
@@ -394,6 +398,7 @@ export const tools: ToolDef[] = [
             maxWidth: z.coerce.number().optional().describe("Max width for responsive auto-layout"),
             minHeight: z.coerce.number().optional().describe("Min height for responsive auto-layout"),
             maxHeight: z.coerce.number().optional().describe("Max height for responsive auto-layout"),
+            overflowDirection: z.enum(["NONE", "HORIZONTAL", "VERTICAL", "BOTH"]).optional().describe("Scroll overflow in prototype (default: NONE)"),
             clipsContent: flexBool(z.boolean()).optional(),
             nodeIds: flexJson(z.array(z.string())).optional().describe("Existing node IDs to wrap into auto-layout"),
           }).passthrough(),
@@ -485,6 +490,8 @@ export const tools: ToolDef[] = [
             y: z.coerce.number().optional().describe("Y position (default: 0)"),
             fillStyleName: z.string().optional().describe("Paint style to apply to vector fills"),
             fillVariableName: z.string().optional().describe("Color variable by name for vector fills"),
+            strokeStyleName: z.string().optional().describe("Paint style to apply to vector strokes"),
+            strokeVariableName: z.string().optional().describe("Color variable by name for vector strokes"),
           }).passthrough(),
         };
         const s = params.type && schemas[params.type];
@@ -690,6 +697,52 @@ export const tools: ToolDef[] = [
     commandMap: {"check":"lint.check","fix":"lint.fix"},
   },
   {
+    name: "prototyping",
+    description: "/** Manage prototype interactions, reactions, and navigation flows. Use method \"help\" for detailed parameter docs. */\n  get       (id) → { reactions?, overflowDirection? }  // Get reactions and overflow direction on a node\n  add       (id, trigger: ON_CLICK|ON_HOVER|ON_PRESS|ON_DRAG|AFTER_TIMEOUT|MOUSE_ENTER|MOUSE_LEAVE|ON_KEY_DOWN, triggerDelay?, triggerKeyCodes?, triggerDevice?: KEYBOARD|XBOX_ONE|PS4|SWITCH_PRO, destination?, navigation?: NAVIGATE|SWAP|OVERLAY|SCROLL_TO|CHANGE_TO, transition?: DISSOLVE|SMART_ANIMATE|MOVE_IN|MOVE_OUT|PUSH|SLIDE_IN|SLIDE_OUT|INSTANT, transitionDirection?: LEFT|RIGHT|TOP|BOTTOM, duration?, easing?: EASE_IN|EASE_OUT|EASE_IN_AND_OUT|LINEAR|GENTLE|QUICK|BOUNCY|SLOW, actionType?: NODE|BACK|CLOSE|URL|SET_VARIABLE_MODE, url?, collectionName?, modeName?, resetScrollPosition?, actions?) → { results: \"ok\"[] }  // Add a prototype reaction to a node\n  set       (id, reactions) → { results: \"ok\"[] }  // Replace all reactions on a node (raw reactions array)\n  remove    (id, index) → { results: \"ok\"[] }  // Remove a reaction from a node by index\n// Reactions wire up interactions: trigger (ON_CLICK, ON_HOVER, ...) → action (navigate, swap, overlay).\n// Common patterns: button ON_CLICK → NAVIGATE to detail frame; card ON_HOVER → CHANGE_TO hover variant.\n// Multi-action: pass actions[] array to run multiple actions on one trigger (e.g. navigate + set variable mode).",
+    schema: (caps) => filterMethodsByTier({    method: z.enum(["get", "add", "set", "remove", "help"]),
+    id: z.string().optional().describe("Node ID"),
+    trigger: z.enum(["ON_CLICK", "ON_HOVER", "ON_PRESS", "ON_DRAG", "AFTER_TIMEOUT", "MOUSE_ENTER", "MOUSE_LEAVE", "ON_KEY_DOWN"]).optional().describe("Trigger type"),
+    triggerDelay: z.coerce.number().optional().describe("Delay in ms for AFTER_TIMEOUT / MOUSE_ENTER / MOUSE_LEAVE triggers"),
+    triggerKeyCodes: z.unknown().optional().describe("Key codes for ON_KEY_DOWN trigger"),
+    triggerDevice: z.enum(["KEYBOARD", "XBOX_ONE", "PS4", "SWITCH_PRO"]).optional().describe("Device for ON_KEY_DOWN (default: KEYBOARD)"),
+    destination: z.string().optional().describe("Target node ID (required for NODE actions)"),
+    navigation: z.enum(["NAVIGATE", "SWAP", "OVERLAY", "SCROLL_TO", "CHANGE_TO"]).optional().describe("Navigation type (default: NAVIGATE)"),
+    transition: z.enum(["DISSOLVE", "SMART_ANIMATE", "MOVE_IN", "MOVE_OUT", "PUSH", "SLIDE_IN", "SLIDE_OUT", "INSTANT"]).optional().describe("Transition animation (default: DISSOLVE). INSTANT = no animation."),
+    transitionDirection: z.enum(["LEFT", "RIGHT", "TOP", "BOTTOM"]).optional().describe("Direction for MOVE_IN, MOVE_OUT, PUSH, SLIDE_IN, SLIDE_OUT"),
+    duration: z.coerce.number().optional().describe("Transition duration in seconds (default: 0.3)"),
+    easing: z.enum(["EASE_IN", "EASE_OUT", "EASE_IN_AND_OUT", "LINEAR", "GENTLE", "QUICK", "BOUNCY", "SLOW"]).optional().describe("Easing function (default: EASE_OUT)"),
+    actionType: z.enum(["NODE", "BACK", "CLOSE", "URL", "SET_VARIABLE_MODE"]).optional().describe("Action type (default: NODE). SET_VARIABLE_MODE switches a variable collection mode."),
+    url: z.string().optional().describe("URL for URL action type"),
+    collectionName: z.string().optional().describe("Variable collection name (for SET_VARIABLE_MODE)"),
+    modeName: z.string().optional().describe("Mode name to switch to (for SET_VARIABLE_MODE)"),
+    resetScrollPosition: flexBool(z.boolean()).optional().describe("Reset scroll position on navigate (default: true)"),
+    actions: flexJson(z.array(z.record(z.string(), z.unknown()))).optional().describe("Multi-action: [{actionType, destination?, navigation?, collectionName?, modeName?, ...}]. Overrides single-action params."),
+    reactions: flexJson(z.array(z.record(z.string(), z.unknown()))).optional().describe("Full reactions array — [{trigger:{type}, actions:[{type, destinationId, navigation, transition}]}]"),
+    index: z.coerce.number().optional().describe("Reaction index (0-based)"),
+    topic: z.string().optional().describe("Help topic — method name for endpoint help, e.g. \"create\""),
+    }, caps, {"get":"read","add":"edit","set":"edit","remove":"edit","help":"read"}),
+    tier: "read" as const,
+    validate: (params: any) => {
+      const m = params.method;
+      if (m === "get") {
+        if (params.id === undefined) throw new Error("get requires \"id\"");
+      }
+      if (m === "add") {
+        if (params.id === undefined) throw new Error("add requires \"id\"");
+        if (params.trigger === undefined) throw new Error("add requires \"trigger\"");
+      }
+      if (m === "set") {
+        if (params.id === undefined) throw new Error("set requires \"id\"");
+        if (params.reactions === undefined) throw new Error("set requires \"reactions\"");
+      }
+      if (m === "remove") {
+        if (params.id === undefined) throw new Error("remove requires \"id\"");
+        if (params.index === undefined) throw new Error("remove requires \"index\"");
+      }
+    },
+    commandMap: {"get":"prototyping.get","add":"prototyping.add","set":"prototyping.set","remove":"prototyping.remove"},
+  },
+  {
     name: "selection",
     description: "/** Read and set the current Figma selection. Use method \"help\" for detailed parameter docs. */\n  get       (depth?, verbose?) → { results, _truncated?, _notice? }  // Get the current selection\n  set       (nodeIds) → { count, selectedNodes, notFoundIds? }  // Set selection to nodes and scroll viewport to show them\n// Selection is the set of nodes currently highlighted in the Figma canvas.\n// get returns the current selection. Without depth, returns stubs ({id, name, type}). With depth=0, returns full properties.\n// _truncated: true when the response was cut short due to node budget limits. Use depth=0 or specific fields to reduce payload.\n// set replaces the entire selection AND scrolls the viewport to show the selected nodes.",
     schema: (caps) => filterMethodsByTier({    method: z.enum(["get", "set", "help"]),
@@ -832,6 +885,7 @@ export const tools: ToolDef[] = [
           name: z.string().optional().describe("Layer name"),
           x: z.number().optional(),
           y: z.number().optional(),
+          width: z.number().optional().describe("Fixed width in px — implies layoutSizingHorizontal: FIXED and textAutoResize: HEIGHT"),
           parentId: z.string().optional().describe("Parent node ID. Omit to place on current page."),
           fontFamily: z.string().optional().describe("Font family (default: Inter). Use fonts.list to find installed fonts."),
           fontStyle: z.string().optional().describe("Font variant e.g. \"Bold\", \"Italic\" — overrides fontWeight"),

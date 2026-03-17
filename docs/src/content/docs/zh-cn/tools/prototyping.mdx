@@ -1,0 +1,73 @@
+---
+title: "Prototyping"
+description: "管理原型交互、反应和导航流程。"
+---
+
+import ParameterTable from "../../../../components/ParameterTable.astro";
+
+管理原型交互、反应和导航流程。
+
+<details>
+<summary>Type reference</summary>
+
+```ts
+// Reactions wire up interactions: trigger (ON_CLICK, ON_HOVER, ...) → action (navigate, swap, overlay).
+// Common patterns: button ON_CLICK → NAVIGATE to detail frame; card ON_HOVER → CHANGE_TO hover variant.
+// Multi-action: pass actions[] array to run multiple actions on one trigger (e.g. navigate + set variable mode).
+// ---
+// TRIGGERS: ON_CLICK | ON_HOVER | ON_PRESS | ON_DRAG | AFTER_TIMEOUT(timeout) | MOUSE_ENTER(delay) | MOUSE_LEAVE(delay) | ON_KEY_DOWN(keyCodes)
+// NAVIGATION: NAVIGATE (go to frame) | SWAP (swap overlay) | OVERLAY (show overlay) | SCROLL_TO | CHANGE_TO (swap component variant)
+// TRANSITIONS: DISSOLVE | SMART_ANIMATE | MOVE_IN | MOVE_OUT | PUSH | SLIDE_IN | SLIDE_OUT (+ direction for directional)
+// EASING: EASE_IN | EASE_OUT | EASE_IN_AND_OUT | LINEAR | GENTLE | QUICK | BOUNCY | SLOW
+// ACTIONS: NODE (navigate/swap) | BACK (go back) | CLOSE (close overlay) | URL (open link) | SET_VARIABLE_MODE (switch theme/mode)
+```
+
+</details>
+
+4 methods available.
+
+## get
+
+Get reactions and overflow direction on a node
+
+<ParameterTable schema={{"type":"object","properties":{"id":{"description":"Node ID","type":"string"}},"required":["id"]}} />
+
+**Response**
+
+<ParameterTable schema={{"type":"object","properties":{"reactions":{"description":"Reactions on this node","type":"array"},"overflowDirection":{"description":"Overflow scroll direction (NONE, HORIZONTAL, VERTICAL, BOTH)","type":"string"}}}} fieldLabel="Field" hideRequired />
+
+## add
+
+**edit**
+
+Add a prototype reaction to a node
+
+<ParameterTable schema={{"type":"object","properties":{"id":{"description":"Node ID","type":"string"},"trigger":{"description":"Trigger type","type":"string","enum":["ON_CLICK","ON_HOVER","ON_PRESS","ON_DRAG","AFTER_TIMEOUT","MOUSE_ENTER","MOUSE_LEAVE","ON_KEY_DOWN"]},"triggerDelay":{"description":"Delay in ms for AFTER_TIMEOUT / MOUSE_ENTER / MOUSE_LEAVE triggers","type":"number"},"triggerKeyCodes":{"description":"Key codes for ON_KEY_DOWN trigger","type":"number[]"},"triggerDevice":{"description":"Device for ON_KEY_DOWN (default: KEYBOARD)","type":"string","enum":["KEYBOARD","XBOX_ONE","PS4","SWITCH_PRO"]},"destination":{"description":"Target node ID (required for NODE actions)","type":"string"},"navigation":{"description":"Navigation type (default: NAVIGATE)","type":"string","enum":["NAVIGATE","SWAP","OVERLAY","SCROLL_TO","CHANGE_TO"]},"transition":{"description":"Transition animation (default: DISSOLVE). INSTANT = no animation.","type":"string","enum":["DISSOLVE","SMART_ANIMATE","MOVE_IN","MOVE_OUT","PUSH","SLIDE_IN","SLIDE_OUT","INSTANT"]},"transitionDirection":{"description":"Direction for MOVE_IN, MOVE_OUT, PUSH, SLIDE_IN, SLIDE_OUT","type":"string","enum":["LEFT","RIGHT","TOP","BOTTOM"]},"duration":{"description":"Transition duration in seconds (default: 0.3)","type":"number"},"easing":{"description":"Easing function (default: EASE_OUT)","type":"string","enum":["EASE_IN","EASE_OUT","EASE_IN_AND_OUT","LINEAR","GENTLE","QUICK","BOUNCY","SLOW"]},"actionType":{"description":"Action type (default: NODE). SET_VARIABLE_MODE switches a variable collection mode.","type":"string","enum":["NODE","BACK","CLOSE","URL","SET_VARIABLE_MODE"]},"url":{"description":"URL for URL action type","type":"string"},"collectionName":{"description":"Variable collection name (for SET_VARIABLE_MODE)","type":"string"},"modeName":{"description":"Mode name to switch to (for SET_VARIABLE_MODE)","type":"string"},"resetScrollPosition":{"description":"Reset scroll position on navigate (default: true)","type":"boolean"},"actions":{"description":"Multi-action: [{actionType, destination?, navigation?, collectionName?, modeName?, ...}]. Overrides single-action params.","type":"array"}},"required":["id","trigger"]}} />
+
+**Response**
+
+<ParameterTable schema={{"type":"object","properties":{"results":{"type":"array","description":"Array of \"ok\" per item","items":{"type":"string"}}}}} fieldLabel="Field" hideRequired />
+
+## set
+
+**edit**
+
+Replace all reactions on a node (raw reactions array)
+
+<ParameterTable schema={{"type":"object","properties":{"id":{"description":"Node ID","type":"string"},"reactions":{"description":"Full reactions array — [{trigger:{type}, actions:[{type, destinationId, navigation, transition}]}]","type":"array"}},"required":["id","reactions"]}} />
+
+**Response**
+
+<ParameterTable schema={{"type":"object","properties":{"results":{"type":"array","description":"Array of \"ok\" per item","items":{"type":"string"}}}}} fieldLabel="Field" hideRequired />
+
+## remove
+
+**edit**
+
+Remove a reaction from a node by index
+
+<ParameterTable schema={{"type":"object","properties":{"id":{"description":"Node ID","type":"string"},"index":{"description":"Reaction index (0-based)","type":"number"}},"required":["id","index"]}} />
+
+**Response**
+
+<ParameterTable schema={{"type":"object","properties":{"results":{"type":"array","description":"Array of \"ok\" per item","items":{"type":"string"}}}}} fieldLabel="Field" hideRequired />
