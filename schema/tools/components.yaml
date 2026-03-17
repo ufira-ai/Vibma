@@ -16,7 +16,7 @@ notes: |
   // text.create accepts componentPropertyName to bind on creation — walks up ancestors to find the nearest component.
   //   For nested text (text inside frames inside a component), componentPropertyName resolves via ancestor walk. Alternatively, pass componentId explicitly.
   //   For existing nodes with many text children, prefer components(method:"create", type:"from_node", exposeText:true) — it auto-discovers, creates TEXT properties, and binds all text nodes in one operation.
-  // Property keys include a unique suffix like "Label#1:0". Call components.get(id) to discover exact keys before edit/delete.
+  // Property keys: read returns clean names ("Label"), write requires the #suffix ("Label#1:0"). Call components.get(id) to discover exact keys before edit/delete.
   // ComponentItem accepts the same params as FrameItem (layout, fill, stroke, sizing, min/max).
   // A component IS a frame — create it directly with all layout properties, then add children.
   // SIZING: Components with text need a width constraint — set width + layoutSizingHorizontal:"FIXED".
@@ -29,52 +29,55 @@ notes: |
 methods:
   list:
     tier: read
-    description: List components and component sets
+    description: "List local component names (variant sets as single entries)"
     params:
       query:
         type: string
         optional: true
         description: "Name search query (case-insensitive substring match)"
-      setsOnly:
-        type: boolean
-        coerce: true
-        optional: true
-        description: "If true, return only COMPONENT_SET nodes"
-      fields:
-        $ref: fields
       offset:
         $ref: offset
       limit:
         $ref: limit
     response:
       type: paginated
-      item:
-        type: object
-        properties:
-          id: { type: string, required: true }
-          name: { type: string, required: true }
-          type: { type: string, required: true }
-          pageId: { type: string, optional: true, description: "Page ID the component lives on" }
-          pageName: { type: string, optional: true, description: "Page name the component lives on" }
-          variantCount: { type: number, optional: true, description: "Number of variants (COMPONENT_SET only)" }
+      item: { type: string, description: "Component name" }
 
   get:
     tier: read
-    description: Get component or component set detail
+    description: "Get component detail — property definitions + ID for instances.create"
     params:
       id:
         type: string
-        required: true
+        optional: true
         description: "Component or component set ID"
-      fields:
-        $ref: fields
+      names:
+        type: string[]
+        coerce: json
+        optional: true
+        description: "Batch lookup by name (case-insensitive). Either id or names is required."
     response:
       type: object
       properties:
-        id: { type: string }
-        name: { type: string }
-        type: { type: string }
-        propertyDefinitions: { type: object }
+        results:
+          type: array
+          description: "Component summaries with id, name, properties, description"
+          items:
+            type: object
+            properties:
+              id: { type: string }
+              name: { type: string }
+              description: { type: string }
+              properties: { type: object, description: "Property definitions — {name: {type, defaultValue, options?}}" }
+      required: [results]
+      example:
+        results:
+          - id: "1:23"
+            name: "Push Button"
+            properties:
+              Label: { type: TEXT, defaultValue: "Button" }
+              Style: { type: VARIANT, defaultValue: "Primary", options: ["Primary", "Secondary"] }
+              Size: { type: VARIANT, defaultValue: "Medium", options: ["Small", "Medium", "Large"] }
 
   create:
     tier: create
@@ -87,6 +90,7 @@ methods:
         params:
           $mixin: frame_params
           name: { type: string, required: true, description: Component name }
+          description: { type: string, optional: true, description: "Component description (shown in Figma's component panel)" }
           children:
             type: array
             coerce: json

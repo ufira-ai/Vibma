@@ -55,6 +55,10 @@ methods:
         $ref: fields
       depth:
         $ref: depth
+      verbose:
+        type: boolean
+        optional: true
+        description: "Include all properties (bounding box, constraints, text style details). Default false — returns slim, actionable output."
     response:
       type: object
       description: Serialized node tree. Shape depends on depth parameter.

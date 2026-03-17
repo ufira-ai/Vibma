@@ -11,4 +11,6 @@ geometry_params:
   strokeStyleName: { type: string, optional: true, description: "Paint style name for stroke" }
   strokeVariableName: { type: string, optional: true, description: "Color variable by name for stroke" }
   strokeWeight: { $expand: stroke, type: token }
+  strokeAlign: { type: enum, values: [INSIDE, OUTSIDE, CENTER], optional: true, description: "Stroke position (default: INSIDE)" }
+  strokesIncludedInLayout: { type: boolean, coerce: true, optional: true, description: "Include stroke width in layout measurements (default: false)" }
   cornerRadius: { $expand: corners, type: token }

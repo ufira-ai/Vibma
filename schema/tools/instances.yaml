@@ -9,18 +9,18 @@ notes: |
   // Overrides: instance-level changes (text, fills, visibility) that differ from the component. Shown in overrides array.
   // variantProperties: when creating from a component set, pick which variant e.g. {"Style":"Secondary","Size":"Large"}.
   // ---
-  // Property keys include a unique suffix like "Label#1:0". Call instances.get(id) or components.get(id) to discover exact keys before update.
+  // Property keys: read returns clean names ("Label"), write requires the #suffix ("Label#1:0"). Call instances.get(id) to discover exact keys before update.
   // swap: change which component an instance points to while preserving compatible overrides.
   // detach: permanently converts an instance to a regular frame, breaking the component link.
   // reset_overrides: reverts all instance overrides to match the main component.
-  // Workflow: components.list → instances.create with componentId → instances.update to set properties.
+  // Workflow: components.list → instances.create with componentId + properties (one call). No separate update needed for text/boolean overrides.
   // Instances support frame-level overrides: layoutSizingHorizontal/Vertical (FIXED, FILL, HUG), opacity, width/height, min/max.
   // Use layoutSizingHorizontal: "FILL" to make instances stretch in auto-layout parents.
 
 methods:
   get:
     tier: read
-    description: Get instance properties, overrides, and main component
+    description: Get instance detail with component properties and overrides
     params:
       id:
         type: string
@@ -30,17 +30,21 @@ methods:
         $ref: fields
       depth:
         $ref: depth
+      verbose:
+        type: boolean
+        optional: true
+        description: "Include all properties (bounding box, constraints, text style details). Default false — returns slim, actionable output."
     response:
       type: object
       properties:
-        mainComponentId: { type: string }
-        componentProperties: { type: object }
-        overrides: { type: array }
+        results: { type: array, description: "Serialized node(s) with componentProperties, overrides" }
+        _truncated: { type: boolean }
+      required: [results]
 
   create:
     tier: create
     description: Create component instances
-    example: 'instances(method:"create", items:[{componentId:"1:23", variantProperties:{"Size":"Large"}, parentId:"2:45", layoutSizingHorizontal:"FILL"}])'
+    example: 'instances(method:"create", items:[{componentId:"1:23", variantProperties:{"Size":"Large"}, properties:{"Label":"Click me"}, parentId:"2:45", layoutSizingHorizontal:"FILL"}])'
     params:
       items:
         type: array
@@ -54,6 +58,7 @@ methods:
             $mixin: [blend_params, sizing_params]
             componentId: { type: string, required: true, description: "Component or component set ID", aliases: [id] }
             variantProperties: { type: object, coerce: json, optional: true, description: 'Pick variant e.g. {"Style":"Secondary"}' }
+            properties: { type: object, coerce: json, optional: true, description: 'Set component properties inline e.g. {"Label":"Click me", "ShowIcon":true}. Same as instances.update properties.' }
             name: { type: string, optional: true, description: "Instance layer name" }
             x: { type: number, coerce: true, optional: true }
             y: { type: number, coerce: true, optional: true }

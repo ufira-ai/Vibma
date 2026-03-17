@@ -3,6 +3,7 @@
 /** Runtime JSON Schema + example for each endpoint's response, per method. */
 export const generatedResponseSchemas: Record<string, Record<string, unknown>> = {
   "components": {
+    "get": {"example":{"results":[{"id":"1:23","name":"Push Button","properties":{"Label":{"type":"TEXT","defaultValue":"Button"},"Style":{"type":"VARIANT","defaultValue":"Primary","options":["Primary","Secondary"]},"Size":{"type":"VARIANT","defaultValue":"Medium","options":["Small","Medium","Large"]}}}]}},
   },
   "connection": {
     "create": {"example":"Joined channel \"vibma\" on port 3055. Call connection(method: \"get\") to verify the Figma plugin is connected."},
@@ -20,7 +21,7 @@ export const generatedResponseSchemas: Record<string, Record<string, unknown>> =
   "lint": {
   },
   "selection": {
-    "get": {"example":{"selectionCount":1,"selection":[{"id":"1:2","name":"Button","type":"COMPONENT"}]}},
+    "get": {"example":{"results":[{"id":"1:2","name":"Button","type":"COMPONENT"}]}},
     "set": {"example":{"count":2,"selectedNodes":[{"name":"Button","id":"1:2"},{"name":"Card","id":"3:4"}]}},
   },
   "styles": {

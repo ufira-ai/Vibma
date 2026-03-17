@@ -23,6 +23,7 @@ async function getNodeInfo(params: any) {
   const nodeIds: string[] = params.nodeIds || (params.nodeId ? [params.nodeId] : []);
   const depth = params.depth;
   const fields = params.fields;
+  const verbose = params.verbose === true;
 
   // Build fields whitelist (always include identity keys). "*" means all fields.
   const keep = fields?.length
@@ -37,7 +38,7 @@ async function getNodeInfo(params: any) {
     const node = await figma.getNodeByIdAsync(nodeId);
     if (!node) { results.push({ nodeId, error: `Node not found: ${nodeId}` }); continue; }
 
-    let serialized = await serializeNode(node, depth !== undefined ? depth : -1, 0, budget);
+    let serialized = await serializeNode(node, depth !== undefined ? depth : -1, 0, budget, verbose);
 
     if (keep && serialized) serialized = pickFields(serialized, keep);
 

@@ -1,5 +1,25 @@
 import { rgbaToHex } from "@ufira/vibma/utils/color";
 
+/** Strip Figma's internal hash suffix from property keys: "Label#1:0" → "Label" */
+function cleanPropKey(key: string): string {
+  const idx = key.indexOf("#");
+  return idx > 0 ? key.slice(0, idx) : key;
+}
+
+/** Compact componentProperties: strip hash keys, drop empties, flatten to value where possible */
+export function serializeComponentProperties(cp: Record<string, any>): Record<string, any> {
+  const out: Record<string, any> = {};
+  for (const [key, prop] of Object.entries(cp)) {
+    const clean = cleanPropKey(key);
+    if (prop.type === "VARIANT" || prop.type === "TEXT" || prop.type === "BOOLEAN") {
+      out[clean] = prop.value;
+    } else if (prop.type === "INSTANCE_SWAP") {
+      out[clean] = { type: "INSTANCE_SWAP", value: prop.value };
+    }
+  }
+  return out;
+}
+
 /**
  * Return a variable name that's safe to pass back to findVariableByName.
  * Prefixes with "CollectionName/" when the name exists in multiple collections.
@@ -28,6 +48,7 @@ export async function serializeNode(
   depth: number = -1,
   currentDepth: number = 0,
   budget: { remaining: number } = { remaining: DEFAULT_NODE_BUDGET },
+  verbose: boolean = false,
 ): Promise<any> {
   if (budget.remaining <= 0) {
     return { id: node.id, name: node.name, type: node.type, _truncated: true };
@@ -70,7 +91,7 @@ export async function serializeNode(
   // ── Corner radius ─────────────────────────────────────────────
   if ("cornerRadius" in node) {
     const cr = (node as any).cornerRadius;
-    if (cr !== undefined && cr !== figma.mixed) {
+    if (cr !== undefined && cr !== figma.mixed && cr > 0) {
       out.cornerRadius = cr;
     } else if (cr === figma.mixed && "topLeftRadius" in node) {
       out.topLeftRadius = (node as any).topLeftRadius;
@@ -83,25 +104,27 @@ export async function serializeNode(
   // ── Stroke weight ────────────────────────────────────────────
   if ("strokeWeight" in node) {
     const sw = (node as any).strokeWeight;
-    if (sw !== undefined && sw !== figma.mixed && sw > 0) out.strokeWeight = sw;
+    if (sw !== undefined && sw !== figma.mixed && sw > 0 && (verbose || out.strokes)) out.strokeWeight = sw;
   }
 
   // ── Bounding box ──────────────────────────────────────────────
-  if ("absoluteBoundingBox" in node && (node as any).absoluteBoundingBox) {
-    out.absoluteBoundingBox = (node as any).absoluteBoundingBox;
-  } else if ("absoluteTransform" in node && "width" in node) {
-    const t = (node as any).absoluteTransform;
-    if (t) {
-      out.absoluteBoundingBox = {
-        x: t[0][2], y: t[1][2],
-        width: (node as any).width,
-        height: (node as any).height,
-      };
+  if (verbose) {
+    if ("absoluteBoundingBox" in node && (node as any).absoluteBoundingBox) {
+      out.absoluteBoundingBox = (node as any).absoluteBoundingBox;
+    } else if ("absoluteTransform" in node && "width" in node) {
+      const t = (node as any).absoluteTransform;
+      if (t) {
+        out.absoluteBoundingBox = {
+          x: t[0][2], y: t[1][2],
+          width: (node as any).width,
+          height: (node as any).height,
+        };
+      }
     }
   }
 
   // ── Clips content ────────────────────────────────────────────
-  if ("clipsContent" in node) {
+  if (verbose && "clipsContent" in node) {
     out.clipsContent = (node as any).clipsContent;
   }
 
@@ -115,15 +138,34 @@ export async function serializeNode(
     const inst = node as InstanceNode;
     try {
       const main = await inst.getMainComponentAsync();
-      if (main) {
-        out.componentId = main.id;
-        out.componentName = main.name;
-      }
+      if (main && !main.remote) out.componentId = main.id;
     } catch {
       // mainComponent unavailable (e.g. remote library not loaded)
     }
     const cp = (inst as any).componentProperties;
-    if (cp && typeof cp === "object" && Object.keys(cp).length > 0) out.componentProperties = cp;
+    if (cp && typeof cp === "object" && Object.keys(cp).length > 0) {
+      out.componentProperties = serializeComponentProperties(cp);
+    }
+    const overrides = (inst as any).overrides || [];
+    if (overrides.length > 0) {
+      out.overrides = overrides.map((o: any) => ({ id: o.id, fields: o.overriddenFields }));
+    }
+  }
+
+  // ── Component / Component Set ──────────────────────────────────
+  if (node.type === "COMPONENT" || node.type === "COMPONENT_SET") {
+    const comp = node as any;
+    if (comp.description) out.description = comp.description;
+    if (comp.componentPropertyDefinitions) {
+      out.propertyDefinitions = comp.componentPropertyDefinitions;
+    }
+    if (node.type === "COMPONENT_SET") {
+      if (comp.variantGroupProperties) out.variantGroupProperties = comp.variantGroupProperties;
+      if ("children" in comp) out.variantCount = comp.children.length;
+    }
+    if (node.type === "COMPONENT" && comp.variantProperties) {
+      out.variantProperties = comp.variantProperties;
+    }
   }
 
   // ── Component property references ──────────────────────────────
@@ -135,23 +177,25 @@ export async function serializeNode(
   // ── Text style ────────────────────────────────────────────────
   if (node.type === "TEXT") {
     const t = node as TextNode;
-    const style: any = {};
-    if (t.fontName !== figma.mixed) {
-      style.fontFamily = (t.fontName as FontName).family;
-      style.fontStyle = (t.fontName as FontName).style;
+    if (verbose) {
+      const style: any = {};
+      if (t.fontName !== figma.mixed) {
+        style.fontFamily = (t.fontName as FontName).family;
+        style.fontStyle = (t.fontName as FontName).style;
+      }
+      if (t.fontSize !== figma.mixed) style.fontSize = t.fontSize;
+      if (t.textAlignHorizontal) style.textAlignHorizontal = t.textAlignHorizontal;
+      if (t.letterSpacing !== figma.mixed) {
+        const ls = t.letterSpacing as LetterSpacing;
+        style.letterSpacing = ls.unit === "PIXELS" ? ls.value : ls;
+      }
+      if (t.lineHeight !== figma.mixed) {
+        const lh = t.lineHeight as LineHeight;
+        if (lh.unit === "PIXELS") style.lineHeightPx = lh.value;
+        else if (lh.unit !== "AUTO") style.lineHeight = lh;
+      }
+      if (Object.keys(style).length > 0) out.style = style;
     }
-    if (t.fontSize !== figma.mixed) style.fontSize = t.fontSize;
-    if (t.textAlignHorizontal) style.textAlignHorizontal = t.textAlignHorizontal;
-    if (t.letterSpacing !== figma.mixed) {
-      const ls = t.letterSpacing as LetterSpacing;
-      style.letterSpacing = ls.unit === "PIXELS" ? ls.value : ls;
-    }
-    if (t.lineHeight !== figma.mixed) {
-      const lh = t.lineHeight as LineHeight;
-      if (lh.unit === "PIXELS") style.lineHeightPx = lh.value;
-      else if (lh.unit !== "AUTO") style.lineHeight = lh;
-    }
-    if (Object.keys(style).length > 0) out.style = style;
     if (t.textAutoResize) out.textAutoResize = t.textAutoResize;
   }
 
@@ -186,7 +230,7 @@ export async function serializeNode(
   }
   if ("itemSpacing" in node) {
     const is = (node as any).itemSpacing;
-    if (is !== undefined) out.itemSpacing = is;
+    if (is !== undefined && is > 0) out.itemSpacing = is;
   }
   if ("paddingLeft" in node) {
     const n = node as any;
@@ -203,8 +247,8 @@ export async function serializeNode(
     const op = (node as any).opacity;
     if (op !== undefined && op !== 1) out.opacity = op;
   }
-  if ("visible" in node) {
-    out.visible = (node as any).visible;
+  if ("visible" in node && !(node as any).visible) {
+    out.visible = false;
   }
   if ("locked" in node && (node as any).locked) {
     out.locked = true;
@@ -246,13 +290,12 @@ export async function serializeNode(
   }
 
   // ── Applied styles ──────────────────────────────────────────
-  // Resolve style IDs to names so agents can reference them
   if ("fillStyleId" in node) {
     const id = (node as any).fillStyleId;
     if (id && id !== "" && id !== figma.mixed) {
       try {
         const s = await figma.getStyleByIdAsync(id);
-        if (s) out.fillStyleName = s.name;
+        if (s && !s.remote) out.fillStyleName = s.name;
       } catch {}
     }
   }
@@ -261,7 +304,7 @@ export async function serializeNode(
     if (id && id !== "") {
       try {
         const s = await figma.getStyleByIdAsync(id);
-        if (s) out.strokeStyleName = s.name;
+        if (s && !s.remote) out.strokeStyleName = s.name;
       } catch {}
     }
   }
@@ -270,7 +313,7 @@ export async function serializeNode(
     if (id && id !== "") {
       try {
         const s = await figma.getStyleByIdAsync(id);
-        if (s) out.effectStyleName = s.name;
+        if (s && !s.remote) out.effectStyleName = s.name;
       } catch {}
     }
   }
@@ -279,7 +322,7 @@ export async function serializeNode(
     if (id && id !== "" && id !== figma.mixed) {
       try {
         const s = await figma.getStyleByIdAsync(id);
-        if (s) out.textStyleName = s.name;
+        if (s && !s.remote) out.textStyleName = s.name;
       } catch {}
     }
   }
@@ -294,11 +337,11 @@ export async function serializeNode(
           for (const v of val) {
             if (!v?.id) continue;
             const resolved = await figma.variables.getVariableByIdAsync(v.id);
-            if (resolved) bindings[field] = await disambiguatedVarName(resolved);
+            if (resolved && !resolved.remote) bindings[field] = await disambiguatedVarName(resolved);
           }
         } else if (val && typeof val === "object" && (val as any).id) {
           const resolved = await figma.variables.getVariableByIdAsync((val as any).id);
-          if (resolved) bindings[field] = await disambiguatedVarName(resolved);
+          if (resolved && !resolved.remote) bindings[field] = await disambiguatedVarName(resolved);
         }
       }
       if (Object.keys(bindings).length > 0) out.boundVariables = bindings;
@@ -314,7 +357,7 @@ export async function serializeNode(
   }
 
   // ── Constraints ───────────────────────────────────────────────
-  if ("constraints" in node) {
+  if (verbose && "constraints" in node) {
     out.constraints = (node as any).constraints;
   }
 
@@ -323,15 +366,29 @@ export async function serializeNode(
     const children = (node as any).children as readonly BaseNode[];
     if ((depth >= 0 && currentDepth >= depth) || budget.remaining <= 0) {
       // Stubs only (depth limit reached or budget exhausted)
-      out.children = children.map((c: BaseNode) => ({
-        id: c.id, name: c.name, type: c.type,
-        ...(budget.remaining <= 0 ? { _truncated: true } : {}),
-      }));
+      const stubs: any[] = [];
+      for (const c of children) {
+        const stub: any = { id: c.id, name: c.name, type: c.type };
+        if (budget.remaining <= 0) stub._truncated = true;
+        if (c.type === "INSTANCE") {
+          const inst = c as InstanceNode;
+          try {
+            const main = await inst.getMainComponentAsync();
+            if (main && !main.remote) stub.componentId = main.id;
+          } catch {}
+          const cp = inst.componentProperties;
+          if (cp && Object.keys(cp).length > 0) {
+            stub.componentProperties = serializeComponentProperties(cp);
+          }
+        }
+        stubs.push(stub);
+      }
+      out.children = stubs;
     } else {
       // Sequential to keep budget counter deterministic (shared mutable ref)
       const serialized: any[] = [];
       for (const c of children) {
-        serialized.push(await serializeNode(c, depth, currentDepth + 1, budget));
+        serialized.push(await serializeNode(c, depth, currentDepth + 1, budget, verbose));
       }
       out.children = serialized;
     }
@@ -344,9 +401,9 @@ export async function serializeNode(
 
 function serializePaint(paint: any): any {
   const p: any = { type: paint.type };
-  if (paint.visible !== undefined) p.visible = paint.visible;
-  if (paint.opacity !== undefined) p.opacity = paint.opacity;
-  if (paint.blendMode) p.blendMode = paint.blendMode;
+  if (paint.visible === false) p.visible = false;
+  if (paint.opacity !== undefined && paint.opacity !== 1) p.opacity = paint.opacity;
+  if (paint.blendMode && paint.blendMode !== "NORMAL") p.blendMode = paint.blendMode;
   if (paint.color) {
     // Plugin API: color = {r,g,b}, opacity separate. Merge for hex.
     p.color = rgbaToHex({ ...paint.color, a: paint.opacity ?? 1 });

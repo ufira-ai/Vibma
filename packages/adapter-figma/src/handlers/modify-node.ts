@@ -32,8 +32,14 @@ async function deleteSingle(p: any) {
 }
 
 async function cloneSingle(p: any) {
-  const node = await figma.getNodeByIdAsync(p.nodeId);
+  let node = await figma.getNodeByIdAsync(p.nodeId);
   if (!node) throw new Error(`Node not found: ${p.nodeId}`);
+  if (node.type === "INSTANCE") {
+    const inst = node as InstanceNode;
+    const main = await inst.getMainComponentAsync();
+    if (!main) throw new Error(`Cannot resolve source component for instance "${inst.name}"`);
+    node = (main.parent?.type === "COMPONENT_SET") ? main.parent : main;
+  }
   const clone = (node as any).clone();
   if (p.x !== undefined && "x" in clone) { clone.x = p.x; clone.y = p.y; }
   if (p.parentId) {

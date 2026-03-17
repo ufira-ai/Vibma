@@ -25,19 +25,18 @@ import ParameterTable from "../../../../components/ParameterTable.astro";
 
 Get the current selection
 
-<ParameterTable schema={{"type":"object","properties":{"depth":{"description":"Child recursion depth. Omit for stubs only, 0=selected nodes' properties, -1=unlimited.","type":"number"}}}} />
+<ParameterTable schema={{"type":"object","properties":{"depth":{"description":"Child recursion depth. Omit for stubs only, 0=selected nodes' properties, -1=unlimited.","type":"number"},"verbose":{"description":"Include all properties (bounding box, constraints, text style details). Default false — returns slim, actionable output.","type":"boolean"}}}} />
 
 **Response**
 
-<ParameterTable schema={{"type":"object","properties":{"selectionCount":{"type":"number"},"selection":{"type":"array","items":{"type":"object","properties":{"id":{"type":"string"},"name":{"type":"string"},"type":{"type":"string"}},"required":["id","name","type"]}},"_truncated":{"type":"boolean"},"_notice":{"type":"string"}}}} fieldLabel="Field" hideRequired />
+<ParameterTable schema={{"type":"object","properties":{"results":{"type":"array","items":{"type":"object","properties":{"id":{"type":"string"},"name":{"type":"string"},"type":{"type":"string"}},"required":["id","name","type"]}},"_truncated":{"type":"boolean"},"_notice":{"type":"string"}}}} fieldLabel="Field" hideRequired />
 
 <details>
 <summary>Example response</summary>
 
 ```json
 {
-  "selectionCount": 1,
-  "selection": [
+  "results": [
     {
       "id": "1:2",
       "name": "Button",

@@ -4,6 +4,7 @@
 sizing_params:
   layoutSizingHorizontal: { type: enum, values: [FIXED, HUG, FILL], optional: true }
   layoutSizingVertical: { type: enum, values: [FIXED, HUG, FILL], optional: true }
+  layoutPositioning: { type: enum, values: [AUTO, ABSOLUTE], optional: true, description: "ABSOLUTE = floating inside auto-layout parent" }
   minWidth: { type: number, coerce: true, optional: true, description: "Min width for responsive auto-layout" }
   maxWidth: { type: number, coerce: true, optional: true, description: "Max width for responsive auto-layout" }
   minHeight: { type: number, coerce: true, optional: true, description: "Min height for responsive auto-layout" }

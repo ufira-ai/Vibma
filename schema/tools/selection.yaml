@@ -17,11 +17,14 @@ methods:
       depth:
         $ref: depth
         description: "Child recursion depth. Omit for stubs only, 0=selected nodes' properties, -1=unlimited."
+      verbose:
+        type: boolean
+        optional: true
+        description: "Include all properties (bounding box, constraints, text style details). Default false — returns slim, actionable output."
     response:
       type: object
       properties:
-        selectionCount: { type: number }
-        selection:
+        results:
           type: array
           items:
             type: object
@@ -32,10 +35,9 @@ methods:
               type: { type: string, required: true }
         _truncated: { type: boolean }
         _notice: { type: string }
-      required: [selectionCount, selection]
+      required: [results]
       example:
-        selectionCount: 1
-        selection:
+        results:
           - { id: "1:2", name: Button, type: COMPONENT }
 
   set:

@@ -36,6 +36,11 @@ export async function setupFrameNode(
   await applyCornerRadius(node, p, hints);
   // Opacity
   await applyTokens(node, { opacity: p.opacity }, hints);
+  if (p.visible === false) node.visible = false;
+  if (p.locked === true) node.locked = true;
+  if (p.rotation !== undefined) (node as any).rotation = p.rotation;
+  if (p.blendMode) (node as any).blendMode = p.blendMode;
+  if (p.layoutPositioning === "ABSOLUTE") (node as any).layoutPositioning = "ABSOLUTE";
 
   // Auto-layout
   if (layoutMode !== "NONE") {
@@ -59,6 +64,8 @@ export async function setupFrameNode(
   // Fill & stroke
   await applyFillWithAutoBind(node, p, hints);
   await applyStrokeWithAutoBind(node, p, hints);
+  if (p.strokeAlign) node.strokeAlign = p.strokeAlign;
+  if (p.strokesIncludedInLayout !== undefined) (node as any).strokesIncludedInLayout = p.strokesIncludedInLayout;
 
   // Effect style
   if (p.effectStyleName) {
@@ -162,8 +169,8 @@ async function createSingleAutoLayout(p: any) {
       name: p.name || "Auto Layout",
       layoutMode: p.layoutMode || "VERTICAL",
       // Top-level auto_layout: default HUG. Child: let applySizing decide.
-      layoutSizingHorizontal: p.layoutSizingHorizontal || (p.parentId ? undefined : "HUG"),
-      layoutSizingVertical: p.layoutSizingVertical || (p.parentId ? undefined : "HUG"),
+      layoutSizingHorizontal: p.layoutSizingHorizontal || (p.width !== undefined ? "FIXED" : p.parentId ? undefined : "HUG"),
+      layoutSizingVertical: p.layoutSizingVertical || (p.height !== undefined ? "FIXED" : p.parentId ? undefined : "HUG"),
     });
   }
 

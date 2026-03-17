@@ -56,6 +56,8 @@ export async function setStrokeSingle(p: any): Promise<any> {
     strokeLeftWeight: p.strokeLeftWeight,
     strokeRightWeight: p.strokeRightWeight,
   }, hints);
+  if (p.strokeAlign && "strokeAlign" in node) (node as any).strokeAlign = p.strokeAlign;
+  if (p.strokesIncludedInLayout !== undefined && "strokesIncludedInLayout" in node) (node as any).strokesIncludedInLayout = p.strokesIncludedInLayout;
 
   const result: any = {};
   if (hints.length > 0) result.hints = hints;

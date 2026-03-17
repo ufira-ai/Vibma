@@ -27,26 +27,6 @@ function warnUnboundText(comp: ComponentNode, hints: Hint[]) {
   }
 }
 
-// -- Serializer --
-
-function serializeComponent(node: any): Record<string, any> {
-  const r: any = { id: node.id, name: node.name, type: node.type };
-  if ("description" in node) r.description = node.description;
-  if (node.parent) { r.parentId = node.parent.id; r.parentName = node.parent.name; }
-  if ("componentPropertyDefinitions" in node) r.propertyDefinitions = node.componentPropertyDefinitions;
-  if (node.type === "COMPONENT_SET" && "variantGroupProperties" in node) r.variantGroupProperties = node.variantGroupProperties;
-  if (node.type === "COMPONENT" && "variantProperties" in node) r.variantProperties = node.variantProperties;
-  if ("children" in node && node.children) {
-    if (node.type === "COMPONENT_SET") {
-      r.variantCount = node.children.length;
-      r.children = node.children.map((c: any) => ({ id: c.id, name: c.name, type: c.type }));
-    } else {
-      r.children = node.children.map((c: any) => ({ id: c.id, name: c.name, type: c.type }));
-    }
-  }
-  return r;
-}
-
 // -- inline children --
 
 import { resolveFontAsync, clearFontCache } from "./create-text";
@@ -175,6 +155,7 @@ async function createComponentSingle(p: any) {
     comp.y = p.y ?? 0;
     comp.resize(p.width ?? 100, p.height ?? 100);
     comp.name = p.name;
+    if (p.description) comp.description = p.description;
     comp.fills = [];
 
     const { hints } = await setupFrameNode(comp, p);
@@ -382,34 +363,65 @@ async function createComponentDispatch(params: any) {
 }
 
 async function getComponentFigma(params: any) {
+  // Support lookup by id (single) or names (batch by name)
+  const names: string[] | undefined = params.names;
+  if (names?.length) {
+    await figma.loadAllPagesAsync();
+    const all = figma.root.findAllWithCriteria({ types: ["COMPONENT", "COMPONENT_SET"] as any })
+      .filter((c: any) => !c.remote)
+      .filter((c: any) => !(c.type === "COMPONENT" && c.parent?.type === "COMPONENT_SET"));
+    const results: any[] = [];
+    for (const name of names) {
+      const nameLower = name.toLowerCase();
+      const match = all.find((c: any) => c.name.toLowerCase() === nameLower)
+        || all.find((c: any) => c.name.toLowerCase().includes(nameLower));
+      if (!match) { results.push({ name, error: `Not found` }); continue; }
+      results.push(serializeComponentSummary(match));
+    }
+    return { results };
+  }
+
   const node = await figma.getNodeByIdAsync(params.id);
   if (!node) throw new Error(`Component not found: ${params.id}`);
   if (node.type !== "COMPONENT" && node.type !== "COMPONENT_SET") throw new Error(`Not a component: ${node.type}`);
-  return serializeComponent(node);
+  if ((node as any).remote) throw new Error(`Component "${node.name}" is from an external library. To customize: components(method:"clone", id:"<instanceId>") to clone the library component into a local copy, then edit the new local component.`);
+  return { results: [serializeComponentSummary(node)] };
+}
+
+function serializeComponentSummary(node: any): any {
+  const out: any = { id: node.id, name: node.name };
+  if (node.description) out.description = node.description;
+  const defs = node.componentPropertyDefinitions;
+  if (defs && Object.keys(defs).length > 0) {
+    const props: Record<string, any> = {};
+    for (const [key, def] of Object.entries(defs) as [string, any][]) {
+      const clean = key.indexOf("#") > 0 ? key.slice(0, key.indexOf("#")) : key;
+      const p: any = { type: def.type };
+      if (def.defaultValue !== undefined) p.defaultValue = def.defaultValue;
+      if (def.type === "VARIANT" && def.variantOptions) p.options = def.variantOptions;
+      props[clean] = p;
+    }
+    out.properties = props;
+  }
+  return out;
 }
 
 async function listComponentsFigma(params: any) {
   await figma.loadAllPagesAsync();
-  const setsOnly = params?.setsOnly;
-  const types = setsOnly ? ["COMPONENT_SET"] : ["COMPONENT", "COMPONENT_SET"];
-  let components = figma.root.findAllWithCriteria({ types: types as any });
+  let components = figma.root.findAllWithCriteria({ types: ["COMPONENT", "COMPONENT_SET"] as any })
+    .filter((c: any) => !c.remote)
+    .filter((c: any) => {
+      if (c.type === "COMPONENT" && c.parent?.type === "COMPONENT_SET") return false;
+      if (c.name.startsWith("_")) return false;
+      return true;
+    });
   const nameFilter = params?.query ?? params?.name;
   if (nameFilter) {
     const f = nameFilter.toLowerCase();
     components = components.filter((c: any) => c.name.toLowerCase().includes(f));
   }
   const paged = paginate(components, params.offset, params.limit);
-  const fields = params.fields;
-  const items = paged.items.map((c: any) => {
-    const stub: any = { id: c.id, name: c.name, type: c.type };
-    if (c.type === "COMPONENT_SET" && "children" in c) stub.variantCount = c.children.length;
-    if (c.description) stub.description = c.description;
-    let p = c.parent;
-    while (p && p.type !== "PAGE") p = p.parent;
-    if (p) { stub.pageId = p.id; stub.pageName = p.name; }
-    if (fields?.length) return pickFields(stub, fields);
-    return stub;
-  });
+  const items = paged.items.map((c: any) => c.name);
   return { ...paged, items };
 }
 
@@ -417,6 +429,7 @@ async function updateComponentPropertySingle(p: any) {
   const node = await figma.getNodeByIdAsync(p.id);
   if (!node) throw new Error(`Node not found: ${p.id}`);
   if (node.type !== "COMPONENT" && node.type !== "COMPONENT_SET") throw new Error(`Node ${p.id} is a ${node.type}, not a COMPONENT or COMPONENT_SET.`);
+  if ((node as any).remote) throw new Error(`Component "${node.name}" is from an external library. Clone it first with components(method:"clone", id:"<instanceId>") to get a local copy.`);
   const comp = node as any;
 
   // Resolve property name with prefix matching (agents may omit the #suffix)
@@ -709,22 +722,28 @@ async function instanceCreateSingle(p: any) {
   const parent = await appendAndApplySizing(inst, p, hints, false);
   checkOverlappingSiblings(inst, parent, hints);
 
+  const props = p.properties ?? p.componentProperties;
+  if (props && typeof props === "object" && Object.keys(props).length > 0) {
+    await instanceUpdateComponentProps(inst, props);
+  }
+
   const result: any = { id: inst.id };
   if (hints.length > 0) result.hints = hints;
   return result;
 }
 
 async function instanceGetFigma(params: any) {
-  const inst: any = await figma.getNodeByIdAsync(params.id);
-  if (!inst) throw new Error(`Instance not found: ${params.id}`);
-  if (inst.type !== "INSTANCE") throw new Error("Node is not an instance");
-  const overrides = inst.overrides || [];
-  const main = await inst.getMainComponentAsync();
-  return {
-    mainComponentId: main?.id,
-    componentProperties: inst.componentProperties,
-    overrides: overrides.map((o: any) => ({ id: o.id, fields: o.overriddenFields })),
-  };
+  const { serializeNode, DEFAULT_NODE_BUDGET } = await import("../utils/serialize-node");
+  const node = await figma.getNodeByIdAsync(params.id);
+  if (!node) throw new Error(`Instance not found: ${params.id}`);
+  if (node.type !== "INSTANCE") throw new Error("Node is not an instance");
+  const depth = params.depth !== undefined ? params.depth : 0;
+  const verbose = params.verbose === true;
+  const budget = { remaining: DEFAULT_NODE_BUDGET };
+  const serialized = await serializeNode(node, depth, 0, budget, verbose);
+  const out: any = { results: [serialized] };
+  if (budget.remaining <= 0) { out._truncated = true; }
+  return out;
 }
 
 /** Update component properties on an instance (key→value map). Exported for combined handler. */

@@ -16,7 +16,12 @@ frame_params:
   y: { $ref: yPos }
   width: { type: number, coerce: true, optional: true, description: "Width (default: 100)" }
   height: { type: number, coerce: true, optional: true, description: "Height (default: 100)" }
+  rotation: { type: number, coerce: true, optional: true, description: "Rotation in degrees (0-360)" }
   opacity: { type: token, optional: true, description: "Opacity (0-1) or variable name" }
+  visible: { type: boolean, coerce: true, optional: true, description: "Show/hide (default true)" }
+  locked: { type: boolean, coerce: true, optional: true, description: "Lock/unlock (default false)" }
+  blendMode: { type: enum, values: [PASS_THROUGH, NORMAL, DARKEN, MULTIPLY, LINEAR_BURN, COLOR_BURN, LIGHTEN, SCREEN, LINEAR_DODGE, COLOR_DODGE, OVERLAY, SOFT_LIGHT, HARD_LIGHT, DIFFERENCE, EXCLUSION, HUE, SATURATION, COLOR, LUMINOSITY], optional: true }
+  layoutPositioning: { type: enum, values: [AUTO, ABSOLUTE], optional: true, description: "ABSOLUTE = floating inside auto-layout parent" }
   fills: { type: array, optional: true, description: "Fill paints array — e.g. [{type: 'SOLID', color: '#hex'}] or [] for transparent. Primary way to set fills." }
   fillColor: { $ref: color, optional: true, description: "Shorthand — sets a single solid fill (auto-binds to matching variable/style)" }
   fillStyleName: { type: string, optional: true, description: "Paint style name for fill" }
@@ -26,6 +31,8 @@ frame_params:
   strokeStyleName: { type: string, optional: true, description: "Paint style name for stroke" }
   strokeVariableName: { type: string, optional: true, description: "Color variable by name for stroke" }
   strokeWeight: { $expand: stroke, type: token }
+  strokeAlign: { type: enum, values: [INSIDE, OUTSIDE, CENTER], optional: true, description: "Stroke position (default: INSIDE)" }
+  strokesIncludedInLayout: { type: boolean, coerce: true, optional: true, description: "Include stroke width in layout measurements (default: false)" }
   cornerRadius: { $expand: corners, type: token }
   effectStyleName: { type: string, optional: true, description: "Effect style name (e.g. 'Shadow/Card') for shadows, blurs" }
   layoutMode: { type: enum, values: [NONE, HORIZONTAL, VERTICAL], optional: true, description: "Layout direction (default: NONE)" }

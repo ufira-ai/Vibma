@@ -253,6 +253,8 @@ async function createTextSingle(p: any, ctx: CreateTextContext) {
           const available = textProps.map(k => k.split("#")[0]);
           hints.push({ type: "warn", message: `Text "${textNode.name}" added to component "${comp.name}" but not bound to any TEXT property. Pass componentPropertyName on text.create or text/frames(method:"update") to bind, or rename to match an existing property: [${available.join(", ")}].` });
         }
+      } else {
+        hints.push({ type: "warn", message: `Text "${textNode.name}" inside component "${comp.name}" is not exposed as a property — instances cannot override this text. Pass componentPropertyName to bind it.` });
       }
     }
 

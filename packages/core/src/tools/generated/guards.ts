@@ -5,12 +5,14 @@ export const nodeReparent = new Set(["id","index","parentId"]) as ReadonlySet<st
 
 /** components create type="component" */
 export const componentsCreateComponent = new Set([
+  "blendMode",
   "bottomLeftRadius",
   "bottomRightRadius",
   "children",
   "cornerRadius",
   "counterAxisAlignItems",
   "counterAxisSpacing",
+  "description",
   "effectStyleName",
   "fillColor",
   "fillStyleName",
@@ -19,9 +21,11 @@ export const componentsCreateComponent = new Set([
   "height",
   "itemSpacing",
   "layoutMode",
+  "layoutPositioning",
   "layoutSizingHorizontal",
   "layoutSizingVertical",
   "layoutWrap",
+  "locked",
   "maxHeight",
   "maxWidth",
   "minHeight",
@@ -36,6 +40,8 @@ export const componentsCreateComponent = new Set([
   "parentId",
   "primaryAxisAlignItems",
   "properties",
+  "rotation",
+  "strokeAlign",
   "strokeBottomWeight",
   "strokeColor",
   "strokeLeftWeight",
@@ -45,8 +51,10 @@ export const componentsCreateComponent = new Set([
   "strokeVariableName",
   "strokeWeight",
   "strokes",
+  "strokesIncludedInLayout",
   "topLeftRadius",
   "topRightRadius",
+  "visible",
   "width",
   "x",
   "y",
@@ -57,6 +65,7 @@ export const componentsCreateFromNode = new Set(["exposeText","nodeId"]) as Read
 
 /** components create type="variant_set" */
 export const componentsCreateVariantSet = new Set([
+  "blendMode",
   "bottomLeftRadius",
   "bottomRightRadius",
   "componentIds",
@@ -71,9 +80,11 @@ export const componentsCreateVariantSet = new Set([
   "height",
   "itemSpacing",
   "layoutMode",
+  "layoutPositioning",
   "layoutSizingHorizontal",
   "layoutSizingVertical",
   "layoutWrap",
+  "locked",
   "maxHeight",
   "maxWidth",
   "minHeight",
@@ -87,6 +98,8 @@ export const componentsCreateVariantSet = new Set([
   "paddingTop",
   "parentId",
   "primaryAxisAlignItems",
+  "rotation",
+  "strokeAlign",
   "strokeBottomWeight",
   "strokeColor",
   "strokeLeftWeight",
@@ -96,9 +109,11 @@ export const componentsCreateVariantSet = new Set([
   "strokeVariableName",
   "strokeWeight",
   "strokes",
+  "strokesIncludedInLayout",
   "topLeftRadius",
   "topRightRadius",
   "variantPropertyName",
+  "visible",
   "width",
   "x",
   "y",
@@ -164,6 +179,7 @@ export const nodeUpdate = new Set([
   "primaryAxisAlignItems",
   "properties",
   "rotation",
+  "strokeAlign",
   "strokeBottomWeight",
   "strokeColor",
   "strokeLeftWeight",
@@ -173,6 +189,7 @@ export const nodeUpdate = new Set([
   "strokeVariableName",
   "strokeWeight",
   "strokes",
+  "strokesIncludedInLayout",
   "textAlignHorizontal",
   "textAlignVertical",
   "textAutoResize",
@@ -191,6 +208,7 @@ export const nodeDelete = new Set(["id"]) as ReadonlySet<string>;
 
 /** frames create type="frame" */
 export const framesCreateFrame = new Set([
+  "blendMode",
   "bottomLeftRadius",
   "bottomRightRadius",
   "clipsContent",
@@ -205,9 +223,11 @@ export const framesCreateFrame = new Set([
   "height",
   "itemSpacing",
   "layoutMode",
+  "layoutPositioning",
   "layoutSizingHorizontal",
   "layoutSizingVertical",
   "layoutWrap",
+  "locked",
   "maxHeight",
   "maxWidth",
   "minHeight",
@@ -221,6 +241,8 @@ export const framesCreateFrame = new Set([
   "paddingTop",
   "parentId",
   "primaryAxisAlignItems",
+  "rotation",
+  "strokeAlign",
   "strokeBottomWeight",
   "strokeColor",
   "strokeLeftWeight",
@@ -230,8 +252,10 @@ export const framesCreateFrame = new Set([
   "strokeVariableName",
   "strokeWeight",
   "strokes",
+  "strokesIncludedInLayout",
   "topLeftRadius",
   "topRightRadius",
+  "visible",
   "width",
   "x",
   "y",
@@ -239,6 +263,7 @@ export const framesCreateFrame = new Set([
 
 /** frames create type="auto_layout" */
 export const framesCreateAutoLayout = new Set([
+  "blendMode",
   "bottomLeftRadius",
   "bottomRightRadius",
   "clipsContent",
@@ -253,9 +278,11 @@ export const framesCreateAutoLayout = new Set([
   "height",
   "itemSpacing",
   "layoutMode",
+  "layoutPositioning",
   "layoutSizingHorizontal",
   "layoutSizingVertical",
   "layoutWrap",
+  "locked",
   "maxHeight",
   "maxWidth",
   "minHeight",
@@ -270,6 +297,8 @@ export const framesCreateAutoLayout = new Set([
   "paddingTop",
   "parentId",
   "primaryAxisAlignItems",
+  "rotation",
+  "strokeAlign",
   "strokeBottomWeight",
   "strokeColor",
   "strokeLeftWeight",
@@ -279,8 +308,10 @@ export const framesCreateAutoLayout = new Set([
   "strokeVariableName",
   "strokeWeight",
   "strokes",
+  "strokesIncludedInLayout",
   "topLeftRadius",
   "topRightRadius",
+  "visible",
   "width",
   "x",
   "y",
@@ -382,11 +413,14 @@ export const framesCreateSvg = new Set([
 
 /** instances.create item params */
 export const instancesCreate = new Set([
+  "blendMode",
   "componentId",
   "effectStyleName",
   "height",
+  "layoutPositioning",
   "layoutSizingHorizontal",
   "layoutSizingVertical",
+  "locked",
   "maxHeight",
   "maxWidth",
   "minHeight",
@@ -394,7 +428,9 @@ export const instancesCreate = new Set([
   "name",
   "opacity",
   "parentId",
+  "properties",
   "variantProperties",
+  "visible",
   "width",
   "x",
   "y",
@@ -450,6 +486,7 @@ export const instancesUpdate = new Set([
   "primaryAxisAlignItems",
   "properties",
   "rotation",
+  "strokeAlign",
   "strokeBottomWeight",
   "strokeColor",
   "strokeLeftWeight",
@@ -459,6 +496,7 @@ export const instancesUpdate = new Set([
   "strokeVariableName",
   "strokeWeight",
   "strokes",
+  "strokesIncludedInLayout",
   "textAlignHorizontal",
   "textAlignVertical",
   "textAutoResize",
@@ -607,10 +645,11 @@ export const mixinAutoLayoutParams = new Set([
 ]) as ReadonlySet<string>;
 
 /** blend_params */
-export const mixinBlendParams = new Set(["effectStyleName","opacity"]) as ReadonlySet<string>;
+export const mixinBlendParams = new Set(["blendMode","effectStyleName","locked","opacity","visible"]) as ReadonlySet<string>;
 
 /** frame_params */
 export const mixinFrameParams = new Set([
+  "blendMode",
   "bottomLeftRadius",
   "bottomRightRadius",
   "cornerRadius",
@@ -624,9 +663,11 @@ export const mixinFrameParams = new Set([
   "height",
   "itemSpacing",
   "layoutMode",
+  "layoutPositioning",
   "layoutSizingHorizontal",
   "layoutSizingVertical",
   "layoutWrap",
+  "locked",
   "maxHeight",
   "maxWidth",
   "minHeight",
@@ -640,6 +681,8 @@ export const mixinFrameParams = new Set([
   "paddingTop",
   "parentId",
   "primaryAxisAlignItems",
+  "rotation",
+  "strokeAlign",
   "strokeBottomWeight",
   "strokeColor",
   "strokeLeftWeight",
@@ -649,8 +692,10 @@ export const mixinFrameParams = new Set([
   "strokeVariableName",
   "strokeWeight",
   "strokes",
+  "strokesIncludedInLayout",
   "topLeftRadius",
   "topRightRadius",
+  "visible",
   "width",
   "x",
   "y",
@@ -665,6 +710,7 @@ export const mixinGeometryParams = new Set([
   "fillStyleName",
   "fillVariableName",
   "fills",
+  "strokeAlign",
   "strokeBottomWeight",
   "strokeColor",
   "strokeLeftWeight",
@@ -674,12 +720,21 @@ export const mixinGeometryParams = new Set([
   "strokeVariableName",
   "strokeWeight",
   "strokes",
+  "strokesIncludedInLayout",
   "topLeftRadius",
   "topRightRadius",
 ]) as ReadonlySet<string>;
 
 /** sizing_params */
-export const mixinSizingParams = new Set(["layoutSizingHorizontal","layoutSizingVertical","maxHeight","maxWidth","minHeight","minWidth"]) as ReadonlySet<string>;
+export const mixinSizingParams = new Set([
+  "layoutPositioning",
+  "layoutSizingHorizontal",
+  "layoutSizingVertical",
+  "maxHeight",
+  "maxWidth",
+  "minHeight",
+  "minWidth",
+]) as ReadonlySet<string>;
 
 /** text_params */
 export const mixinTextParams = new Set([

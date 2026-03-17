@@ -225,14 +225,14 @@ export async function appendToParent(node: SceneNode, parentId?: string): Promis
 export function applySizing(
   node: SceneNode,
   parent: BaseNode | null,
-  p: { layoutSizingHorizontal?: string; layoutSizingVertical?: string },
+  p: { layoutSizingHorizontal?: string; layoutSizingVertical?: string; width?: number; height?: number },
   hints: Hint[],
   autoDefault = true,
 ): void {
   const parentIsAL = parent && "layoutMode" in parent && (parent as any).layoutMode !== "NONE";
   const axes = [
-    { field: "layoutSizingHorizontal" as const, value: p.layoutSizingHorizontal },
-    { field: "layoutSizingVertical" as const, value: p.layoutSizingVertical },
+    { field: "layoutSizingHorizontal" as const, value: p.layoutSizingHorizontal ?? (p.width !== undefined ? "FIXED" : undefined) },
+    { field: "layoutSizingVertical" as const, value: p.layoutSizingVertical ?? (p.height !== undefined ? "FIXED" : undefined) },
   ];
   for (const { field, value } of axes) {
     if (!value || !(field in node)) continue;

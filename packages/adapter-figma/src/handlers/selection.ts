@@ -3,16 +3,16 @@
 async function getSelection(params: any) {
   const sel = figma.currentPage.selection;
   if (sel.length === 0) {
-    return { selectionCount: 0, selection: [] };
+    return { results: [] };
   }
 
   const depth = params?.depth;
+  const verbose = params?.verbose === true;
 
   // No depth -> return stubs
   if (depth === undefined || depth === null) {
     return {
-      selectionCount: sel.length,
-      selection: sel.map((node) => ({
+      results: sel.map((node) => ({
         id: node.id,
         name: node.name,
         type: node.type,
@@ -23,15 +23,14 @@ async function getSelection(params: any) {
   // With depth -> return full serialized trees
   const { serializeNode, DEFAULT_NODE_BUDGET } = await import("../utils/serialize-node");
   const budget = { remaining: DEFAULT_NODE_BUDGET };
-  const selection: any[] = [];
+  const results: any[] = [];
   for (const node of sel) {
-    selection.push(await serializeNode(node, depth !== undefined ? depth : -1, 0, budget));
+    results.push(await serializeNode(node, depth, 0, budget, verbose));
   }
-  const out: any = { selectionCount: selection.length, selection };
+  const out: any = { results };
   if (budget.remaining <= 0) {
     out._truncated = true;
-    out._notice = "Result was truncated (node budget exceeded). Nodes with _truncated: true are stubs. "
-      + "To inspect them, call get_node_info with their IDs directly, or use a shallower depth.";
+    out._notice = "Result was truncated (node budget exceeded). Use a shallower depth or read specific node IDs.";
   }
   return out;
 }
