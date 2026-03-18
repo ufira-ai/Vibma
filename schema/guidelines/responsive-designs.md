@@ -4,7 +4,7 @@
 
 Build layouts from the outside in:
 
-1. **Set the container first.** Every container needs an explicit width — either `width` + `layoutSizingHorizontal:"FIXED"` or `layoutSizingHorizontal:"FILL"` inside an auto-layout parent. Set `layoutMode` (VERTICAL or HORIZONTAL) and spacing/padding.
+1. **Set the container first.** Every container needs an explicit width — either `width` + `layoutSizingHorizontal:"FIXED"` for shells and bounded panels, or `layoutSizingHorizontal:"FILL"` inside an auto-layout parent. Set `layoutMode` (VERTICAL or HORIZONTAL) and spacing/padding.
 2. **Children fill the container.** Use `layoutSizingHorizontal:"FILL"` on children so they stretch to the available space. Use `layoutSizingVertical:"HUG"` so height follows content.
 3. **Only leaves use HUG on both axes.** Buttons, badges, icons — elements with short, predictable content that should shrink-wrap.
 
@@ -14,8 +14,8 @@ Always set BOTH axes explicitly on every node. Omitting sizing leads to unintend
 
 ## FIXED / FILL / HUG
 
-- **FIXED** — layout boundaries: page shell, sidebar width, modal max-width
-- **FILL** — children that adapt to parent: main content area, nav stacks, cards in columns, text that should wrap
+- **FIXED** — explicit bounded widths: page shell, sidebar, modal max-width, specimen frames
+- **FILL** — children that adapt to parent: cards, rows, panels, nav stacks, text that should wrap. Use `minWidth`/`maxWidth` for responsive constraints.
 - **HUG** — content-sized leaves only: icons, badges, pills, button labels
 
 ## Anti-patterns: HUG/HUG
@@ -28,7 +28,7 @@ HUG on both axes is the most common cause of broken layouts. It means "shrink to
 
 2. **Layouts don't adapt.** HUG/HUG containers ignore their parent's width. A card inside a responsive column won't stretch to fill available space — it stays at its content width, leaving gaps or overflowing.
 
-3. **FILL children collapse.** If a child has `layoutSizingHorizontal:"FILL"` inside a HUG-width parent, it collapses to zero — FILL means "take remaining space" but HUG means "there is no remaining space."
+3. **FILL children become under-constrained.** A child with `layoutSizingHorizontal:"FILL"` inside a HUG-width parent has no space to fill — the parent defers its width to its children, but the FILL child defers its width to the parent. The result is under-constrained sizing that produces unpredictable or collapsed layouts.
 
 4. **Cascading failures.** One HUG/HUG container at the top of a tree forces every child to resolve its own width. The entire layout becomes rigid and content-dependent instead of responsive.
 
@@ -38,13 +38,13 @@ HUG on both axes is the most common cause of broken layouts. It means "shrink to
 - Inline tags and status indicators
 
 **For everything else, set at least one axis to FIXED or FILL:**
-- Cards, panels, list rows → `width` + `layoutSizingHorizontal:"FIXED"`, vertical `HUG`
-- Containers inside auto-layout → `layoutSizingHorizontal:"FILL"`, vertical `HUG`
+- Cards, panels, list rows → `layoutSizingHorizontal:"FILL"`, vertical `HUG`. Add `minWidth`/`maxWidth` for responsive bounds.
+- Shells, sidebars, modals → `width` + `layoutSizingHorizontal:"FIXED"`, vertical `FILL` or `HUG`
 - Full-width sections → `layoutSizingHorizontal:"FILL"`, `layoutSizingVertical:"HUG"`
 
 ## Component Sizing
 
-Component roots use `FILL` when placed in a parent — they adapt to context, not a fixed specimen width.
+Component roots use `FILL` when placed in a parent — they adapt to context, not a fixed specimen width. Use `FIXED` only for the specimen (the component definition itself when it needs a specific preview width).
 
 Example sidebar item:
 - Instance: `FILL` in parent nav stack
@@ -54,16 +54,16 @@ Example sidebar item:
 
 ## Text Sizing
 
-- Body text inside containers: `FILL` width, `HUG` height (auto-wraps)
-- Single-line labels: `FILL` horizontal (truncates if needed)
+- Body text inside containers: prefer `FILL` width, `HUG` height (auto-wraps)
+- Single-line labels: prefer `FILL` horizontal (truncates if needed)
 - Standalone headings: `HUG` is fine
 
-Inside auto-layout parents, text defaults to `FILL` horizontal + `HUG` vertical + `textAutoResize: HEIGHT`.
+Inside auto-layout parents, prefer `FILL` horizontal + `HUG` vertical + `textAutoResize: HEIGHT` for text that should wrap.
 
 ## Checklist
 
 Before finalizing a layout, verify:
 1. No container with text has HUG on the horizontal axis (unless it's a button/badge)
-2. Children inside auto-layout parents use FILL on the cross-axis (not FIXED or HUG)
+2. Children use FILL on the axis that should absorb available space — not blindly on both axes. Compact controls in horizontal rows often stay HUG vertically.
 3. Top-level containers have an explicit width (FIXED) or stretch to their parent (FILL)
-4. Run `audit(rules:["composition"])` to catch overflow-parent, unbounded-hug, and fixed-in-autolayout issues
+4. Run `frames(method:"audit", id:"<nodeId>", rules:["composition"])` to catch overflow-parent, unbounded-hug, and fixed-in-autolayout issues
