@@ -341,19 +341,22 @@ export function applySizing(
     }
   }
 
-  // ── HUG resize: shrink container axes without explicit dimensions to 1px ──
-  // HUG means "shrink to content" — 1px is the correct starting size (grows when children are added).
-  // Without this, empty HUG frames sit at Figma's default 100×100.
-  // Only for frame-like containers (have layoutMode). Text/shapes have intrinsic content — HUG
-  // works automatically via Figma without needing a resize.
+  // ── HUG resize: fallback 1px for empty containers ──
+  // HUG means "shrink to content". Containers with children (existing or inline) will
+  // auto-size from content — no resize needed. Only truly empty containers need the 1px
+  // fallback to avoid sitting at Figma's default 100×100.
   if ("resize" in node && nodeHasLayoutMode) {
-    const hugH = (node as any).layoutSizingHorizontal === "HUG" && p.width === undefined;
-    const hugV = (node as any).layoutSizingVertical === "HUG" && p.height === undefined;
-    if (hugH || hugV) {
-      (node as any).resize(
-        hugH ? 1 : (node as any).width,
-        hugV ? 1 : (node as any).height,
-      );
+    const hasChildren = "children" in node && (node as any).children.length > 0;
+    const willGetChildren = Array.isArray((p as any).children) && (p as any).children.length > 0;
+    if (!hasChildren && !willGetChildren) {
+      const hugH = (node as any).layoutSizingHorizontal === "HUG" && p.width === undefined;
+      const hugV = (node as any).layoutSizingVertical === "HUG" && p.height === undefined;
+      if (hugH || hugV) {
+        (node as any).resize(
+          hugH ? 1 : (node as any).width,
+          hugV ? 1 : (node as any).height,
+        );
+      }
     }
   }
 
