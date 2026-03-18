@@ -1,7 +1,7 @@
 {
   "name": "@ufira/vibma",
   "description": "Vibma — Vibe Design meets Figma. AI-powered MCP bridge for designing in Figma.",
-  "version": "1.0.0-rc1",
+  "version": "1.0.0-rc2",
   "license": "MIT",
   "author": "ufira <https://github.com/ufira-ai>",
   "homepage": "https://github.com/ufira-ai/vibma",
