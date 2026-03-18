@@ -19,7 +19,7 @@ const WCAG_RULES = [
 /** Category meta-rules: expand "component" → component rules, etc. */
 const CATEGORY_RULES: Record<string, readonly string[]> = {
   component: ["no-text-property", "component-bindings"],
-  composition: ["no-autolayout", "overlapping-children", "shape-instead-of-frame", "fixed-in-autolayout", "unbounded-hug", "hug-cross-axis", "empty-container"],
+  composition: ["no-autolayout", "overlapping-children", "shape-instead-of-frame", "fixed-in-autolayout", "overflow-parent", "unbounded-hug", "hug-cross-axis", "empty-container"],
   token: ["hardcoded-color", "hardcoded-token", "no-text-style"],
   naming: ["default-name", "stale-text-name"],
 };
@@ -32,6 +32,7 @@ const RULE_META: Record<string, { severity: Severity; category: RuleCategory; fi
   "hardcoded-token":      { severity: "heuristic", category: "token", fix: "Bind to a FLOAT variable. guidelines(topic:\"token-discipline\") for details." },
   "no-text-style":        { severity: "heuristic", category: "token", fix: "Apply a text style via textStyleName. guidelines(topic:\"token-discipline\") for details." },
   "fixed-in-autolayout":  { severity: "heuristic", category: "composition", fix: "Use FILL or HUG instead of FIXED inside auto-layout." },
+  "overflow-parent":      { severity: "unsafe", category: "composition", fix: "Child exceeds parent's available inner space. Fix: use layoutSizingHorizontal/Vertical:'FILL' on children, reduce the fixed dimension, or set overflowDirection on the parent for scrollable overflow." },
   "default-name":         { severity: "style", category: "naming", fix: "Rename to something descriptive." },
   "empty-container":      { severity: "style", category: "composition", fix: "Delete if leftover, or add content." },
   "stale-text-name":      { severity: "style", category: "naming", fix: "Sync layer name with text content, or leave if intentional." },
@@ -40,12 +41,12 @@ const RULE_META: Record<string, { severity: Severity; category: RuleCategory; fi
   "overlapping-children": { severity: "heuristic", category: "composition", fix: "Set distinct x/y or convert parent to auto-layout." },
   "hug-cross-axis":       { severity: "heuristic", category: "composition", fix: "Set cross-axis sizing to FILL so content fills available space." },
   "unbounded-hug":        { severity: "unsafe", category: "composition", fix: "Set a width + layoutSizingHorizontal:FIXED, or FILL if inside auto-layout. guidelines(topic:\"responsive-designs\") for details." },
-  "wcag-contrast":        { severity: "unsafe", category: "accessibility", fix: "Adjust text or background color to meet 4.5:1 (AA)." },
-  "wcag-contrast-enhanced": { severity: "style", category: "accessibility", fix: "Adjust to meet 7:1 (AAA)." },
-  "wcag-non-text-contrast": { severity: "heuristic", category: "accessibility", fix: "Adjust fill or background to meet 3:1 contrast." },
-  "wcag-target-size":     { severity: "unsafe", category: "accessibility", fix: "Resize to at least 24x24px." },
-  "wcag-text-size":       { severity: "unsafe", category: "accessibility", fix: "Increase to 12px minimum." },
-  "wcag-line-height":     { severity: "style", category: "accessibility", fix: "Increase line height to 1.5x font size." },
+  "wcag-contrast":        { severity: "verbose", category: "accessibility", fix: "Adjust text or background color to meet 4.5:1 (AA)." },
+  "wcag-contrast-enhanced": { severity: "verbose", category: "accessibility", fix: "Adjust to meet 7:1 (AAA)." },
+  "wcag-non-text-contrast": { severity: "verbose", category: "accessibility", fix: "Adjust fill or background to meet 3:1 contrast." },
+  "wcag-target-size":     { severity: "verbose", category: "accessibility", fix: "Resize to at least 24x24px." },
+  "wcag-text-size":       { severity: "verbose", category: "accessibility", fix: "Increase to 12px minimum." },
+  "wcag-line-height":     { severity: "verbose", category: "accessibility", fix: "Increase line height to 1.5x font size." },
 };
 
 /** Collected issue: rule + nodeId + optional severity override for context-aware ranking. */
@@ -74,6 +75,8 @@ async function lintNodeHandler(params: any) {
   const runWcag = WCAG_RULES.some(r => ruleSet.has(r));
   const maxDepth = params?.maxDepth ?? 10;
   const maxFindings = params?.maxFindings ?? 50;
+  const minSeverity = params?.minSeverity as string | undefined;
+  const skipInstances = params?.skipInstances ?? true;
 
   // Get root node
   let root: BaseNode;
@@ -124,7 +127,7 @@ async function lintNodeHandler(params: any) {
   }
 
   const issues: Issue[] = [];
-  const ctx: LintCtx = { runAll, ruleSet, maxDepth, maxFindings, localPaintStyleIds, localTextStyleIds, hasPaintStyles: localPaintStyleIds.size > 0, hasTextStyles: localTextStyleIds.size > 0, hasColorVars: colorVarEntries.length > 0, paintStyleEntries, colorVarEntries, hasFloatVars, runWcag };
+  const ctx: LintCtx = { runAll, ruleSet, maxDepth, maxFindings, localPaintStyleIds, localTextStyleIds, hasPaintStyles: localPaintStyleIds.size > 0, hasTextStyles: localTextStyleIds.size > 0, hasColorVars: colorVarEntries.length > 0, paintStyleEntries, colorVarEntries, hasFloatVars, runWcag, skipInstances };
 
   await walkNode(root, 0, issues, ctx);
 
@@ -137,12 +140,18 @@ async function lintNodeHandler(params: any) {
     grouped[issue.rule].push(issue);
   }
 
+  // Filter by minSeverity: drop rules below the threshold
+  const SEV_ORDER: Record<string, number> = { error: 0, unsafe: 1, heuristic: 2, style: 3, verbose: 4 };
+  const minSevLevel = minSeverity ? (SEV_ORDER[minSeverity] ?? 2) : 3; // default: up to style (excludes verbose)
+
   const categories: any[] = [];
   for (const [rule, ruleIssues] of Object.entries(grouped)) {
     const meta = RULE_META[rule];
+    const sev = meta?.severity || "heuristic";
+    if ((SEV_ORDER[sev] ?? 2) > minSevLevel) continue; // below threshold
     categories.push({
       rule,
-      severity: meta?.severity || "heuristic",
+      severity: sev,
       category: meta?.category || "composition",
       count: ruleIssues.length,
       fix: meta?.fix || "Review and fix manually.",
@@ -154,8 +163,6 @@ async function lintNodeHandler(params: any) {
       }),
     });
   }
-  // Sort by severity: error > unsafe > heuristic > style
-  const SEV_ORDER: Record<string, number> = { error: 0, unsafe: 1, heuristic: 2, style: 3 };
   categories.sort((a, b) => (SEV_ORDER[a.severity] ?? 2) - (SEV_ORDER[b.severity] ?? 2));
 
   const result: any = { nodeId: root.id, nodeName: root.name, categories };
@@ -183,6 +190,7 @@ interface LintCtx {
   colorVarEntries: ColorEntry[];
   hasFloatVars: boolean;
   runWcag: boolean;
+  skipInstances: boolean;
 }
 
 async function walkNode(node: BaseNode, depth: number, issues: Issue[], ctx: LintCtx) {
@@ -419,7 +427,85 @@ async function walkNode(node: BaseNode, depth: number, issues: Issue[], ctx: Lin
         if (issues.length >= ctx.maxFindings) break;
         if (!("layoutSizingHorizontal" in child)) continue;
         if (child.layoutSizingHorizontal === "FIXED" && child.layoutSizingVertical === "FIXED") {
-          issues.push({ rule: "fixed-in-autolayout", nodeId: child.id, nodeName: child.name, extra: { parentId: node.id, axis: node.layoutMode === "HORIZONTAL" ? "horizontal" : "vertical" } });
+          issues.push({ rule: "fixed-in-autolayout", nodeId: child.id, nodeName: child.name, extra: { parentId: node.id, parentName: node.name, axis: node.layoutMode === "HORIZONTAL" ? "horizontal" : "vertical" } });
+        }
+      }
+      if (issues.length >= ctx.maxFindings) return;
+    }
+  }
+
+  // -- Rule: overflow-parent --
+  // Detect children whose fixed dimensions exceed the parent's available inner space.
+  // Skip containers with prototype overflow (scrollable) — overflow is intentional.
+  if (ctx.runAll || ctx.ruleSet.has("overflow-parent")) {
+    const overflow = (node as any).overflowDirection;
+    if (isFrame(node) && node.layoutMode !== "NONE" && "children" in node && (!overflow || overflow === "NONE")) {
+      const pW = node.width;
+      const pH = node.height;
+      const padL = (node as any).paddingLeft || 0;
+      const padR = (node as any).paddingRight || 0;
+      const padT = (node as any).paddingTop || 0;
+      const padB = (node as any).paddingBottom || 0;
+      const innerW = pW - padL - padR;
+      const innerH = pH - padT - padB;
+      const isH = node.layoutMode === "HORIZONTAL";
+
+      const children = (node as any).children as any[];
+      const spacing = (node as any).itemSpacing || 0;
+
+      // Per-child: check cross-axis overflow
+      for (const child of children) {
+        if (issues.length >= ctx.maxFindings) break;
+        if (!("width" in child) || !("height" in child)) continue;
+
+        const crossOverflow = isH
+          ? (child.layoutSizingVertical === "FIXED" && child.height > innerH && innerH > 0)
+          : (child.layoutSizingHorizontal === "FIXED" && child.width > innerW && innerW > 0);
+
+        if (crossOverflow) {
+          const axis = isH ? "height" : "width";
+          const childDim = isH ? child.height : child.width;
+          const available = isH ? innerH : innerW;
+          const padDesc = isH ? `padding ${padT}+${padB}` : `padding ${padL}+${padR}`;
+          const sizingProp = isH ? "layoutSizingVertical" : "layoutSizingHorizontal";
+          issues.push({
+            rule: "overflow-parent",
+            nodeId: child.id,
+            nodeName: child.name,
+            extra: {
+              message: `${child.name} ${axis} ${Math.round(childDim)} exceeds available inner ${axis} ${Math.round(available)} in parent ${node.name} (${axis === "width" ? "width" : "height"} ${Math.round(isH ? pH : pW)}, ${padDesc}). Use ${sizingProp}:"FILL".`,
+              parentId: node.id,
+              parentName: node.name,
+            },
+          });
+        }
+      }
+
+      // Primary-axis cumulative: sum non-FILL children's actual dimensions + spacing vs inner space.
+      // FILL children are elastic (they compress), but FIXED and HUG children take concrete space.
+      if (issues.length < ctx.maxFindings) {
+        const primaryInner = isH ? innerW : innerH;
+        const primarySizing = isH ? "layoutSizingHorizontal" : "layoutSizingVertical";
+        const concreteChildren = children.filter((c: any) =>
+          "width" in c && (isH ? c.layoutSizingHorizontal : c.layoutSizingVertical) !== "FILL"
+        );
+        if (concreteChildren.length > 0 && primaryInner > 0) {
+          const totalConcrete = concreteChildren.reduce((sum: number, c: any) => sum + (isH ? c.width : c.height), 0);
+          const totalSpacing = (children.length - 1) * spacing;
+          const totalUsed = totalConcrete + totalSpacing;
+          if (totalUsed > primaryInner) {
+            const axis = isH ? "width" : "height";
+            const padDesc = isH ? `padding ${padL}+${padR}` : `padding ${padT}+${padB}`;
+            const childDescs = concreteChildren.map((c: any) => `${c.name} (${Math.round(isH ? c.width : c.height)})`).join(", ");
+            issues.push({
+              rule: "overflow-parent",
+              nodeId: node.id,
+              nodeName: node.name,
+              extra: {
+                message: `Combined children ${axis}: ${childDescs} + spacing ${Math.round(totalSpacing)} = ${Math.round(totalUsed)} exceeds available inner ${axis} ${Math.round(primaryInner)} in ${node.name} (${axis} ${Math.round(isH ? pW : pH)}, ${padDesc}). Set ${primarySizing}:"FILL" on some children, or increase parent ${axis}.`,
+              },
+            });
+          }
         }
       }
       if (issues.length >= ctx.maxFindings) return;
@@ -686,8 +772,11 @@ async function walkNode(node: BaseNode, depth: number, issues: Issue[], ctx: Lin
     }
   }
 
-  // Recurse into children
+  // Recurse into children.
+  // Instance nodes are visited (rules like overflow-parent check their children),
+  // but we don't recurse INTO instance internals — those are owned by the component.
   if ("children" in node) {
+    if (ctx.skipInstances && node.type === "INSTANCE") return;
     for (const child of (node as any).children) {
       if (issues.length >= ctx.maxFindings) break;
       await walkNode(child, depth + 1, issues, ctx);
@@ -709,7 +798,7 @@ function findColorMatch(r: number, g: number, b: number, a: number, ctx: LintCtx
 }
 
 function isFrame(node: BaseNode): node is FrameNode {
-  return node.type === "FRAME" || node.type === "COMPONENT" || node.type === "COMPONENT_SET";
+  return node.type === "FRAME" || node.type === "COMPONENT" || node.type === "COMPONENT_SET" || node.type === "INSTANCE";
 }
 
 function isInsideComponent(node: BaseNode): boolean {

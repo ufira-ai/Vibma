@@ -341,24 +341,6 @@ export function applySizing(
     }
   }
 
-  // ── HUG resize: fallback 1px for empty containers ──
-  // HUG means "shrink to content". Containers with children (existing or inline) will
-  // auto-size from content — no resize needed. Only truly empty containers need the 1px
-  // fallback to avoid sitting at Figma's default 100×100.
-  if ("resize" in node && nodeHasLayoutMode) {
-    const hasChildren = "children" in node && (node as any).children.length > 0;
-    const willGetChildren = Array.isArray((p as any).children) && (p as any).children.length > 0;
-    if (!hasChildren && !willGetChildren) {
-      const hugH = (node as any).layoutSizingHorizontal === "HUG" && p.width === undefined;
-      const hugV = (node as any).layoutSizingVertical === "HUG" && p.height === undefined;
-      if (hugH || hugV) {
-        (node as any).resize(
-          hugH ? 1 : (node as any).width,
-          hugV ? 1 : (node as any).height,
-        );
-      }
-    }
-  }
 
   // ── Post-apply: warn about FIXED/FIXED inside auto-layout ─────
   if (parentIsAL) {

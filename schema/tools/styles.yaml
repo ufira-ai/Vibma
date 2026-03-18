@@ -82,8 +82,8 @@ methods:
         description: Paint/color style
         params:
           name: { type: string, required: true, description: Style name }
-          color: { $ref: color, required: true, description: Color value }
-          colorVariableName: { type: string, optional: true, description: "Bind to a COLOR variable by name (style tracks the variable)" }
+          color: { $ref: color, optional: true, description: "Color value. Optional when colorVariableName is provided." }
+          colorVariableName: { type: string, optional: true, description: "Bind to a COLOR variable by name (style tracks the variable). Can be used alone — color is resolved from the variable." }
           description: { type: string, optional: true, description: "Style description" }
       text:
         description: Text style

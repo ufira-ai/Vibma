@@ -52,7 +52,18 @@ inlineChildren:
   type: array
   coerce: json
   optional: true
-  description: 'Inline child nodes. Text: {type:"text", text, fontFamily?, fontSize?, fontColor?}. Frame: {type:"frame", name?, layoutMode?, fillColor?, children?}. Instance: {type:"instance", componentId, variantProperties?, properties?}. Component: {type:"component", name, children?}. Inside components: add componentPropertyName to auto-bind TEXT or INSTANCE_SWAP properties.'
+  description: >
+    Inline child nodes — build nested trees in one call. Types:
+    text: {type:"text", text, fontFamily?, fontSize?, fontColor?, layoutSizingHorizontal?}.
+    frame: {type:"frame", name?, layoutMode?, fillColor?, width?, layoutSizingHorizontal?, children?}.
+    instance: {type:"instance", componentId, variantProperties?, properties?}.
+    component: {type:"component", name, children?}.
+    All params from text/frame endpoints are supported on their respective types.
+    Always set layoutSizingHorizontal + layoutSizingVertical on children inside auto-layout parents (FILL, HUG, or FIXED).
+    Example: children:[{type:"text", text:"Title", fontSize:20, layoutSizingHorizontal:"FILL", layoutSizingVertical:"HUG"},
+    {type:"frame", name:"Row", layoutMode:"HORIZONTAL", layoutSizingHorizontal:"FILL", layoutSizingVertical:"HUG", itemSpacing:8,
+    children:[{type:"instance", componentId:"1:2", layoutSizingHorizontal:"FILL", layoutSizingVertical:"HUG"}]}]
+    Inside components: add componentPropertyName to auto-bind TEXT or INSTANCE_SWAP properties.
   items:
     type: object
 
@@ -60,7 +71,19 @@ inlineChildrenComponent:
   type: array
   coerce: json
   optional: true
-  description: 'Inline child nodes. Text: {type:"text", text, componentPropertyName?, fontFamily?, fontSize?, fontColor?}. Frame: {type:"frame", name?, layoutMode?, fillColor?, children?}. Instance: {type:"instance", componentId, componentPropertyName?, variantProperties?, properties?}. Component: {type:"component", name, children?}. componentPropertyName auto-creates and binds a TEXT (text) or INSTANCE_SWAP (instance) property.'
+  description: >
+    Inline child nodes — build nested trees in one call. Types:
+    text: {type:"text", text, componentPropertyName?, fontFamily?, fontSize?, fontColor?, layoutSizingHorizontal?}.
+    frame: {type:"frame", name?, layoutMode?, fillColor?, width?, layoutSizingHorizontal?, children?}.
+    instance: {type:"instance", componentId, componentPropertyName?, variantProperties?, properties?}.
+    component: {type:"component", name, children?}.
+    All params from text/frame endpoints are supported on their respective types.
+    componentPropertyName auto-creates and binds a TEXT (text) or INSTANCE_SWAP (instance) property.
+    Always set layoutSizingHorizontal + layoutSizingVertical on children inside auto-layout parents (FILL, HUG, or FIXED).
+    Example: children:[{type:"text", text:"Label", componentPropertyName:"Label", fontSize:14,
+    fontColorVariableName:"text/primary", layoutSizingHorizontal:"FILL", layoutSizingVertical:"HUG"},
+    {type:"frame", name:"Actions", layoutMode:"HORIZONTAL", layoutSizingHorizontal:"FILL", layoutSizingVertical:"HUG", itemSpacing:8,
+    children:[{type:"instance", componentId:"1:2", componentPropertyName:"Action", layoutSizingHorizontal:"FILL", layoutSizingVertical:"HUG"}]}]
   items:
     type: object
 

@@ -84,6 +84,16 @@ async function buildAction(a: any): Promise<any> {
 
   // Default: NODE
   if (!a.destination) throw new Error("destination (node ID) is required for NODE action");
+
+  // Validate destination is a top-level frame (direct child of a page).
+  // Figma silently rejects reactions targeting nested frames with "Reaction was invalid".
+  const destNode = await figma.getNodeByIdAsync(a.destination);
+  if (!destNode) throw new Error(`Destination node not found: ${a.destination}`);
+  if (!destNode.parent || destNode.parent.type !== "PAGE") {
+    const parentDesc = destNode.parent ? `inside "${destNode.parent.name}" (${destNode.parent.type})` : "with no parent";
+    throw new Error(`Destination "${destNode.name}" (${a.destination}) is not a top-level frame — it is nested ${parentDesc}. Prototype navigation requires the destination to be a direct child of a page. Move it to the page root or use a top-level frame as the target.`);
+  }
+
   return {
     type: "NODE",
     destinationId: a.destination,
@@ -100,12 +110,13 @@ async function buildReaction(p: any): Promise<any> {
   if (Array.isArray(p.actions)) {
     const actions: any[] = [];
     for (const a of p.actions) actions.push(await buildAction(a));
-    return { trigger, actions };
+    // Provide both `action` (deprecated, for older API compat) and `actions`
+    return { trigger, action: actions[0], actions };
   }
 
   // Single action from flat params
   const action = await buildAction(p);
-  return { trigger, actions: [action] };
+  return { trigger, action, actions: [action] };
 }
 
 function serializeAction(a: any): any {
@@ -177,7 +188,7 @@ async function addReaction(params: any) {
   if (!node) throw new Error(`Node not found: ${id}`);
   if (!("reactions" in node)) throw new Error(`Node ${node.type} does not support reactions`);
 
-  const existing = [...((node as any).reactions || [])];
+  const existing = JSON.parse(JSON.stringify((node as any).reactions || []));
   const newReaction = await buildReaction(params);
   existing.push(newReaction);
 

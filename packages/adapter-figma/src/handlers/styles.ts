@@ -147,25 +147,44 @@ async function removeStyleSingle(p: any) {
 }
 
 async function createPaintStyleSingle(p: any) {
-  const c = coerceColor(p.color);
-  if (!c) throw new Error(`Invalid color for paint style "${p.name}": ${JSON.stringify(p.color)}`);
+  // Resolve color: explicit color, or from variable, or error
+  let c = p.color ? coerceColor(p.color) : null;
+  let resolvedVariable: Variable | null = null;
+
+  if (p.colorVariableName) {
+    resolvedVariable = await findColorVariableByName(p.colorVariableName);
+    if (!resolvedVariable) {
+      const colorVars = await figma.variables.getLocalVariablesAsync("COLOR");
+      const names = colorVars.map(v => v.name).slice(0, 20);
+      throw new Error(`colorVariableName '${p.colorVariableName}' not found. Available: [${names.join(", ")}]`);
+    }
+    // Variable-only: resolve initial color from the variable's default mode value
+    if (!c) {
+      const collection = await figma.variables.getVariableCollectionByIdAsync(resolvedVariable.variableCollectionId);
+      if (collection) {
+        const modeId = collection.modes[0].modeId;
+        const val = resolvedVariable.valuesByMode[modeId] as any;
+        if (val && typeof val === "object" && "r" in val) {
+          c = { r: val.r, g: val.g, b: val.b, a: val.a ?? 1 };
+        }
+      }
+      if (!c) c = { r: 0, g: 0, b: 0, a: 1 }; // fallback black
+    }
+  }
+
+  if (!c) throw new Error(`Paint style "${p.name}" requires either color or colorVariableName.`);
+
   const style = figma.createPaintStyle();
   try {
     style.name = p.name;
     if (p.description) style.description = p.description;
     style.paints = [{ type: "SOLID", color: { r: c.r, g: c.g, b: c.b }, opacity: c.a }];
     const result: any = { id: style.id };
-    if (p.colorVariableName) {
-      const v = await findColorVariableByName(p.colorVariableName);
-      if (v) {
-        const bound = figma.variables.setBoundVariableForPaint(style.paints[0] as SolidPaint, "color", v);
-        style.paints = [bound];
-        result.boundVariable = v.name;
-      } else {
-        const colorVars = await figma.variables.getLocalVariablesAsync("COLOR");
-        const names = colorVars.map(v => v.name).slice(0, 20);
-        throw new Error(`colorVariableName '${p.colorVariableName}' not found. Available: [${names.join(", ")}]`);
-      }
+
+    if (resolvedVariable) {
+      const bound = figma.variables.setBoundVariableForPaint(style.paints[0] as SolidPaint, "color", resolvedVariable);
+      style.paints = [bound];
+      result.boundVariable = resolvedVariable.name;
     } else {
       // Auto-bind: find matching color variable
       const match = await suggestStyleForColor(c, "colorVariableName", "ALL_FILLS");
@@ -244,12 +263,46 @@ async function createEffectStyleSingle(p: any) {
   }
 }
 
+/** Validate and coerce LayoutGrid objects to match Figma API shape. */
+function mapLayoutGrids(grids: any[]): any[] {
+  return grids.map((g: any, i: number) => {
+    if (!g.pattern) throw new Error(`layoutGrids[${i}]: "pattern" is required (ROWS, COLUMNS, or GRID)`);
+    const grid: any = { pattern: g.pattern, visible: g.visible ?? true };
+
+    // Color: coerce hex string → RGBA object
+    if (g.color) {
+      const c = coerceColor(g.color);
+      if (c) grid.color = { r: c.r, g: c.g, b: c.b, a: c.a };
+      else throw new Error(`layoutGrids[${i}]: invalid color "${g.color}"`);
+    } else {
+      grid.color = { r: 1, g: 0, b: 0, a: 0.1 }; // Figma default: red 10%
+    }
+
+    if (g.pattern === "GRID") {
+      grid.sectionSize = g.sectionSize ?? 10;
+    } else {
+      // ROWS / COLUMNS
+      const validAlignments = ["MIN", "MAX", "STRETCH", "CENTER"];
+      if (g.alignment && !validAlignments.includes(g.alignment)) {
+        throw new Error(`layoutGrids[${i}]: invalid alignment "${g.alignment}". Use: ${validAlignments.join(", ")}`);
+      }
+      grid.alignment = g.alignment || "STRETCH";
+      grid.gutterSize = g.gutterSize ?? 20;
+      grid.count = g.count ?? 12;
+      if (g.sectionSize !== undefined) grid.sectionSize = g.sectionSize;
+      if (g.offset !== undefined) grid.offset = g.offset;
+    }
+    return grid;
+  });
+}
+
 async function createGridStyleSingle(p: any) {
+  const grids = mapLayoutGrids(p.layoutGrids);
   const style = figma.createGridStyle();
   try {
     style.name = p.name;
     if (p.description) style.description = p.description;
-    style.layoutGrids = p.layoutGrids;
+    style.layoutGrids = grids;
     return { id: style.id };
   } catch (e) {
     style.remove();

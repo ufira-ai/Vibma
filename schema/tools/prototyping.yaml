@@ -8,6 +8,9 @@ notes: |
   // Common patterns: button ON_CLICK → NAVIGATE to detail frame; card ON_HOVER → CHANGE_TO hover variant.
   // Multi-action: pass actions[] array to run multiple actions on one trigger (e.g. navigate + set variable mode).
   // ---
+  // IMPORTANT: destination must be a top-level frame (direct child of a page). Nested frames cannot be prototype targets.
+  // If your screens are nested inside a wrapper frame, move them to the page root first.
+  // ---
   // TRIGGERS: ON_CLICK | ON_HOVER | ON_PRESS | ON_DRAG | AFTER_TIMEOUT(timeout) | MOUSE_ENTER(delay) | MOUSE_LEAVE(delay) | ON_KEY_DOWN(keyCodes)
   // NAVIGATION: NAVIGATE (go to frame) | SWAP (swap overlay) | OVERLAY (show overlay) | SCROLL_TO | CHANGE_TO (swap component variant)
   // TRANSITIONS: DISSOLVE | SMART_ANIMATE | MOVE_IN | MOVE_OUT | PUSH | SLIDE_IN | SLIDE_OUT (+ direction for directional)
@@ -58,7 +61,7 @@ methods:
       destination:
         type: string
         optional: true
-        description: "Target node ID (required for NODE actions)"
+        description: "Target node ID (required for NODE actions). Must be a top-level frame (direct child of a page)."
       navigation:
         type: enum
         values: [NAVIGATE, SWAP, OVERLAY, SCROLL_TO, CHANGE_TO]
