@@ -58,7 +58,7 @@ Example sidebar item:
 - Single-line labels: prefer `FILL` horizontal (truncates if needed)
 - Standalone headings: `HUG` is fine
 
-Inside auto-layout parents, prefer `FILL` horizontal + `HUG` vertical + `textAutoResize: HEIGHT` for text that should wrap.
+Inside auto-layout parents, target `layoutSizingHorizontal:"FILL"` + `layoutSizingVertical:"HUG"` + `textAutoResize:"HEIGHT"` for text that should wrap. These are not auto-applied — set them explicitly on text.create or text.update.
 
 ## Checklist
 
@@ -66,4 +66,4 @@ Before finalizing a layout, verify:
 1. No container with text has HUG on the horizontal axis (unless it's a button/badge)
 2. Children use FILL on the axis that should absorb available space — not blindly on both axes. Compact controls in horizontal rows often stay HUG vertically.
 3. Top-level containers have an explicit width (FIXED) or stretch to their parent (FILL)
-4. Run `frames(method:"audit", id:"<nodeId>", rules:["composition"])` to catch overflow-parent, unbounded-hug, and fixed-in-autolayout issues
+4. Run `lint(method:"check", nodeId:"<rootId>", rules:["composition"])` to catch overflow-parent, unbounded-hug, and fixed-in-autolayout issues

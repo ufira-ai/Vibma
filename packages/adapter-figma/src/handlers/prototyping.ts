@@ -85,19 +85,32 @@ async function buildAction(a: any): Promise<any> {
   // Default: NODE
   if (!a.destination) throw new Error("destination (node ID) is required for NODE action");
 
-  // Validate destination is a top-level frame (direct child of a page).
-  // Figma silently rejects reactions targeting nested frames with "Reaction was invalid".
+  const nav = a.navigation || "NAVIGATE";
   const destNode = await figma.getNodeByIdAsync(a.destination);
   if (!destNode) throw new Error(`Destination node not found: ${a.destination}`);
-  if (!destNode.parent || destNode.parent.type !== "PAGE") {
-    const parentDesc = destNode.parent ? `inside "${destNode.parent.name}" (${destNode.parent.type})` : "with no parent";
-    throw new Error(`Destination "${destNode.name}" (${a.destination}) is not a top-level frame — it is nested ${parentDesc}. Prototype navigation requires the destination to be a direct child of a page. Move it to the page root or use a top-level frame as the target.`);
+
+  if (nav === "CHANGE_TO") {
+    // CHANGE_TO swaps to a variant within the same component set.
+    // Destination must be a COMPONENT inside a COMPONENT_SET.
+    if (destNode.type !== "COMPONENT" || !destNode.parent || destNode.parent.type !== "COMPONENT_SET") {
+      throw new Error(
+        `CHANGE_TO destination "${destNode.name}" (${a.destination}) must be a variant (COMPONENT inside a COMPONENT_SET). ` +
+        `Got ${destNode.type}${destNode.parent ? ` inside ${destNode.parent.type}` : ""}.`
+      );
+    }
+  } else {
+    // NAVIGATE / SWAP / OVERLAY / SCROLL_TO: destination must be a top-level frame.
+    // Figma silently rejects reactions targeting nested frames with "Reaction was invalid".
+    if (!destNode.parent || destNode.parent.type !== "PAGE") {
+      const parentDesc = destNode.parent ? `inside "${destNode.parent.name}" (${destNode.parent.type})` : "with no parent";
+      throw new Error(`Destination "${destNode.name}" (${a.destination}) is not a top-level frame — it is nested ${parentDesc}. Prototype navigation requires the destination to be a direct child of a page. Move it to the page root or use a top-level frame as the target.`);
+    }
   }
 
   return {
     type: "NODE",
     destinationId: a.destination,
-    navigation: a.navigation || "NAVIGATE",
+    navigation: nav,
     transition: buildTransition(a.transition, a.transitionDirection, a.duration, a.easing),
     resetScrollPosition: a.resetScrollPosition ?? true,
   };

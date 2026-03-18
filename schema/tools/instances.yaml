@@ -57,6 +57,7 @@ methods:
           properties:
             $mixin: [blend_params, sizing_params]
             componentId: { type: string, required: true, description: "Component or component set ID", aliases: [id] }
+            sizing: { type: enum, values: [contextual], optional: true, description: "\"contextual\": infer FILL/HUG from parent layout (e.g. FILL horizontally in a VERTICAL auto-layout parent). Omit to inherit sizing from the component definition." }
             variantProperties: { type: object, coerce: json, optional: true, description: 'Pick variant e.g. {"Style":"Secondary"}' }
             properties: { type: object, coerce: json, optional: true, description: 'Set component properties inline e.g. {"Label":"Click me", "ShowIcon":true}. Same as instances.update properties.' }
             name: { type: string, optional: true, description: "Instance layer name" }

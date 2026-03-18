@@ -27,6 +27,11 @@ const LAYOUT_KEYS = ["layoutMode", "layoutWrap", "padding",
   "layoutSizingHorizontal", "layoutSizingVertical",
   "itemSpacing", "counterAxisSpacing"] as const;
 
+// Layout keys excluding sizing — for TEXT nodes, sizing is owned by the text handler
+const LAYOUT_KEYS_NO_SIZING = LAYOUT_KEYS.filter(
+  k => k !== "layoutSizingHorizontal" && k !== "layoutSizingVertical"
+);
+
 export const TEXT_KEYS = [...mixinTextParams] as string[];
 
 // Validation set: schema-generated + handler-level extensions
@@ -166,7 +171,12 @@ export async function patchSingleNode(item: any, textCtx: TextPropsContext | nul
   }
 
   // 12. Layout (flat: layoutMode, layoutWrap, paddingTop, ..., layoutSizingHorizontal, itemSpacing, ...)
-  if (hasLayout) {
+  // For TEXT nodes, sizing is owned by the text handler (step 13) — strip it from layout dispatch.
+  const isText = textCtx && textCtx.nodeMap.has(item.nodeId);
+  const layoutH = isText ? undefined : item.layoutSizingHorizontal;
+  const layoutV = isText ? undefined : item.layoutSizingVertical;
+  const hasLayoutForDispatch = isText ? hasAny(item, LAYOUT_KEYS_NO_SIZING) : hasLayout;
+  if (hasLayoutForDispatch) {
     const r = await updateFrameSingle({
       nodeId: item.nodeId,
       layoutMode: item.layoutMode,
@@ -177,8 +187,8 @@ export async function patchSingleNode(item: any, textCtx: TextPropsContext | nul
       paddingLeft: item.paddingLeft,
       primaryAxisAlignItems: item.primaryAxisAlignItems,
       counterAxisAlignItems: item.counterAxisAlignItems,
-      layoutSizingHorizontal: item.layoutSizingHorizontal,
-      layoutSizingVertical: item.layoutSizingVertical,
+      layoutSizingHorizontal: layoutH,
+      layoutSizingVertical: layoutV,
       itemSpacing: item.itemSpacing,
       counterAxisSpacing: item.counterAxisSpacing,
     });
@@ -191,10 +201,10 @@ export async function patchSingleNode(item: any, textCtx: TextPropsContext | nul
   }
 
   // 13. Text (flat: fontSize, fontFamily, fontStyle, fontWeight, fills, ...)
-  // Guard: only dispatch to text handler if the node is actually a TEXT node.
-  // TEXT_KEYS overlap with general node keys (e.g. fills) — key presence alone is not enough.
-  const hasText = hasAny(item, TEXT_KEYS);
-  if (hasText && textCtx && textCtx.nodeMap.has(item.nodeId)) {
+  // Guard: only dispatch to text handler if the node is TEXT AND has text or sizing params.
+  const hasTextOrSizing = hasAny(item, TEXT_KEYS) ||
+    item.layoutSizingHorizontal !== undefined || item.layoutSizingVertical !== undefined;
+  if (isText && hasTextOrSizing) {
     const r = await setTextPropertiesSingle({
       nodeId: item.nodeId,
       fontSize: item.fontSize,
@@ -207,6 +217,9 @@ export async function patchSingleNode(item: any, textCtx: TextPropsContext | nul
       textAlignHorizontal: item.textAlignHorizontal,
       textAlignVertical: item.textAlignVertical,
       textAutoResize: item.textAutoResize,
+      // Sizing on TEXT nodes: handled here, not by updateFrameSingle (which rejects TEXT)
+      layoutSizingHorizontal: item.layoutSizingHorizontal,
+      layoutSizingVertical: item.layoutSizingVertical,
     }, textCtx);
     collectHints(r);
   }
@@ -303,9 +316,12 @@ export async function patchSingleNode(item: any, textCtx: TextPropsContext | nul
 async function patchNodesBatch(params: any) {
   const items = params.items || [params];
 
-  // Phase 1: Prep text context if any items have text params
+  // Phase 1: Prep text context if any items have text or sizing params.
+  // Sizing on TEXT nodes is handled by the text handler, so we need to resolve
+  // node types to route correctly (prepSetTextProperties builds a nodeMap of TEXT nodes).
   let textCtx: TextPropsContext | null = null;
-  const textItems = items.filter((item: any) => hasAny(item, TEXT_KEYS));
+  const SIZING_KEYS = ["layoutSizingHorizontal", "layoutSizingVertical"] as const;
+  const textItems = items.filter((item: any) => hasAny(item, TEXT_KEYS) || hasAny(item, SIZING_KEYS));
   if (textItems.length > 0) {
     const syntheticItems = textItems.map((item: any) => ({
       nodeId: item.nodeId,

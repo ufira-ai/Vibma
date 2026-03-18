@@ -855,8 +855,10 @@ async function instanceCreateSingle(p: any) {
   if (p.minHeight !== undefined) (inst as any).minHeight = p.minHeight;
   if (p.maxHeight !== undefined) (inst as any).maxHeight = p.maxHeight;
 
-  // Instances inherit sizing from component — warn about issues but don't auto-default
-  const parent = await appendAndApplySizing(inst, p, hints, false);
+  // sizing:"contextual" → infer FILL/HUG from parent context (like frames do)
+  // Default: inherit from component (no auto-default) for backward compat
+  const autoSizing = p.sizing === "contextual";
+  const parent = await appendAndApplySizing(inst, p, hints, autoSizing);
   checkOverlappingSiblings(inst, parent, hints);
 
   const props = p.properties ?? p.componentProperties;

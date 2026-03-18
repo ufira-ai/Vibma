@@ -439,6 +439,7 @@ export const instancesCreate = new Set([
   "opacity",
   "parentId",
   "properties",
+  "sizing",
   "variantProperties",
   "visible",
   "width",
