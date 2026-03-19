@@ -47,6 +47,16 @@ async function cloneSingle(p: any) {
     const parent = await figma.getNodeByIdAsync(p.parentId);
     if (!parent || !("appendChild" in parent)) throw new Error(`Invalid parent: ${p.parentId}`);
 
+    // Cross-page clone: Figma requires the target page to be loaded before appendChild.
+    // Without loadAsync, the clone silently stays on the source page.
+    if (parent.type === "PAGE") {
+      await (parent as PageNode).loadAsync();
+    } else {
+      let targetPage: BaseNode | null = parent;
+      while (targetPage && targetPage.type !== "PAGE") targetPage = targetPage.parent;
+      if (targetPage?.type === "PAGE") await (targetPage as PageNode).loadAsync();
+    }
+
     // Pre-validate: cloning a component into a component set with a duplicate name silently
     // corrupts the set (Figma accepts the append but properties become unreadable).
     if (parent.type === "COMPONENT_SET" && clone.type === "COMPONENT") {
@@ -88,9 +98,10 @@ async function cloneSingle(p: any) {
       };
       copyRefs(node, clone);
     }
-  } else if (node.parent) {
-    (node.parent as any).appendChild(clone);
+
   } else {
+    // No parentId: place on current page (not source's page).
+    // clone() attaches to source's parent — reparent to current page.
     figma.currentPage.appendChild(clone);
   }
   return { id: clone.id };

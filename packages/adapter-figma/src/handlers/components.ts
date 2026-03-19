@@ -1,6 +1,8 @@
 import { batchHandler, appendAndApplySizing, checkOverlappingSiblings, applyTokens, resolveComponentPropertyKey, normalizeAliases, TEXT_ALIAS_KEYS, FRAME_ALIAS_KEYS, type Hint } from "./helpers";
 import { setupFrameNode } from "./create-frame";
 import { auditNode } from "./lint";
+import { validateAndFixInlineChildren, formatDiff, buildCorrectedPayload } from "./inline-tree";
+import { createStageContainer } from "./stage";
 import { createDispatcher, paginate, pickFields } from "@ufira/vibma/endpoint";
 import {
   componentsCreateComponent, componentsCreateFromNode, componentsCreateVariantSet,
@@ -196,16 +198,62 @@ export async function createInlineChildren(
 async function createComponentSingle(p: any) {
   if (!p.name) throw new Error("Missing name");
 
+  const hints: Hint[] = [];
+
+  // Validate inline children BEFORE creating any Figma nodes.
+  if (p.children?.length) {
+    const originalParams = p._originalParams;
+    delete p._originalParams;
+
+    normalizeInlineChildTypes(p.children);
+    const validation = validateAndFixInlineChildren(p, hints);
+
+    if (validation.hasAmbiguity) {
+      const diff = formatDiff(validation.inferences);
+      const correctedPayload = buildCorrectedPayload(p, originalParams);
+      const canEdit = p._caps?.edit;
+
+      // Edit-tier: auto-stage
+      if (canEdit) {
+        const stageFrame = await createStageContainer(p, p.name);
+        try {
+          const stagedP = { ...p, parentId: stageFrame.id, x: undefined, y: undefined };
+          const comp = figma.createComponent();
+          comp.name = p.name;
+          if (p.description) comp.description = p.description;
+          const { hints: setupHints } = await setupFrameNode(comp, stagedP);
+          hints.push(...setupHints);
+          if (p.children?.length) {
+            const textChildren = collectTextChildren(p.children);
+            const textCtx = await prepCreateText({ items: textChildren });
+            await createInlineChildren(comp, comp, p.children, hints, textCtx);
+          }
+          return { id: stageFrame.id, status: "staged", diff, correctedPayload, hints };
+        } catch (e) {
+          stageFrame.remove();
+          throw e;
+        }
+      }
+
+      // Create-tier: reject
+      return {
+        error: `Ambiguous layout intent detected — review the diff and re-create with the corrected payload.`,
+        diff,
+        correctedPayload,
+      };
+    }
+  }
+
   const comp = figma.createComponent();
   try {
     comp.name = p.name;
     if (p.description) comp.description = p.description;
 
-    const { hints } = await setupFrameNode(comp, p);
+    const { hints: setupHints } = await setupFrameNode(comp, p);
+    hints.push(...setupHints);
 
-    // Create inline children if provided (before explicit properties so auto-created TEXT props don't conflict)
+    // Create inline children after setup (Figma node is now configured)
     if (p.children?.length) {
-      normalizeInlineChildTypes(p.children);
       const textChildren = collectTextChildren(p.children);
       const textCtx = await prepCreateText({ items: textChildren });
       await createInlineChildren(comp, comp, p.children, hints, textCtx);
@@ -356,12 +404,16 @@ function validateVariantChildren(children: any[]): void {
     throw new Error(`All variant components require a name.`);
   }
 
-  // Validate consistent child shape across variants
+  // Validate consistent child shape across variants.
+  // Shape = sorted set of {type, name} — uses explicit name or componentPropertyName,
+  // NOT text content (which varies between variants and would always mismatch).
   function childShape(c: any): string {
     const kids = c.children || [];
     const shape = kids.map((k: any) => {
       const type = k.type || "unknown";
-      const name = k.name || k.componentPropertyName || k.text || "";
+      // For shape matching: explicit name > componentPropertyName > positional type.
+      // Deliberately exclude k.text — text content differs between variants by design.
+      const name = k.name || k.componentPropertyName || type;
       return `${type}:${name}`;
     }).sort();
     return shape.join("|");
@@ -371,7 +423,11 @@ function validateVariantChildren(children: any[]): void {
   const firstShape = shapes[0].shape;
   const mismatched = shapes.filter(s => s.shape !== firstShape);
   if (mismatched.length > 0) {
-    throw new Error(`Variant components must have the same child structure. "${shapes[0].name}" has [${firstShape.replace(/\|/g, ", ")}] but "${mismatched[0].name}" has [${mismatched[0].shape.replace(/\|/g, ", ")}]. Ensure all variants define the same children in the same order.`);
+    throw new Error(
+      `Variant components must have the same child structure. "${shapes[0].name}" has [${firstShape.replace(/\|/g, ", ")}] but "${mismatched[0].name}" has [${mismatched[0].shape.replace(/\|/g, ", ")}]. ` +
+      `Ensure all variants define the same children with the same names. ` +
+      `Tip: set explicit "name" on each child, or use "componentPropertyName" — text content alone is not used for matching.`
+    );
   }
 }
 

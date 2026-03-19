@@ -137,6 +137,12 @@ export async function batchHandler<TItem, TResult>(
   const allHints: Hint[] = [];
   for (let i = 0; i < items.length; i++) {
     try {
+      // Propagate session capabilities to each item for tier-aware branching
+      if ((params as any)._caps) (items[i] as any)._caps = (params as any)._caps;
+      // Snapshot original params before alias normalization for correctedPayload
+      if (guard && (items[i] as any).children?.length) {
+        (items[i] as any)._originalParams = JSON.parse(JSON.stringify(items[i]));
+      }
       if (guard) {
         normalizeAliases(items[i] as any, guard.keys);
         rejectUnknownParams(items[i] as any, guard.keys, guard.help);

@@ -99,6 +99,7 @@ methods:
           $mixin: frame_params
           name: { type: string, required: true, description: Component name }
           description: { type: string, optional: true, description: "Component description (shown in Figma's component panel)" }
+          children: { $ref: inlineChildrenComponent }
           properties:
             type: array
             coerce: json
@@ -122,6 +123,17 @@ methods:
           $mixin: frame_params
           componentIds: { type: "string[]", coerce: json, optional: true, description: "Existing component IDs to combine (min 2). Alternative to children.", aliases: [nodeIds] }
           variantPropertyName: { type: string, optional: true, description: "Rename the auto-generated variant property (default: 'Property 1')" }
+          children: { $ref: inlineVariants }
+    response:
+      type: batch
+      item: { id: { type: string } }
+
+  commit:
+    tier: edit
+    description: "Commit a staged component — unwraps from [STAGED] container into the original target location."
+    example: 'components(method:"commit", id:"1:234")'
+    params:
+      id: { type: string, required: true, description: "Staged node ID to commit" }
     response:
       type: batch
       item: { id: { type: string } }

@@ -25,11 +25,11 @@ function filterMethodsByTier(
  * For discriminated methods (create with type), the value is a sub-map: type → command.
  */
 export const commandMap: Record<string, Record<string, string>> = {
-  "components": {"clone":"components.clone","audit":"components.audit","reparent":"components.reparent","list":"components.list","get":"components.get","create":"components.create","update":"components.update","delete":"components.delete"},
+  "components": {"clone":"components.clone","audit":"components.audit","reparent":"components.reparent","list":"components.list","get":"components.get","create":"components.create","commit":"components.commit","update":"components.update","delete":"components.delete"},
   "connection": {"create":"connection.create","get":"connection.get","list":"connection.list","delete":"connection.delete"},
   "document": {"get":"document.get","list":"document.list","set":"document.set","create":"document.create","update":"document.update"},
   "fonts": {"list":"fonts.list"},
-  "frames": {"get":"frames.get","list":"frames.list","update":"frames.update","delete":"frames.delete","clone":"frames.clone","audit":"frames.audit","reparent":"frames.reparent","create":"frames.create","export":"frames.export"},
+  "frames": {"get":"frames.get","list":"frames.list","update":"frames.update","delete":"frames.delete","clone":"frames.clone","audit":"frames.audit","reparent":"frames.reparent","create":"frames.create","commit":"frames.commit","export":"frames.export"},
   "instances": {"list":"instances.list","delete":"instances.delete","clone":"instances.clone","audit":"instances.audit","reparent":"instances.reparent","get":"instances.get","create":"instances.create","update":"instances.update","swap":"instances.swap","detach":"instances.detach","reset_overrides":"instances.reset_overrides"},
   "lint": {"check":"lint.check","fix":"lint.fix"},
   "prototyping": {"get":"prototyping.get","add":"prototyping.add","set":"prototyping.set","remove":"prototyping.remove"},
@@ -49,11 +49,11 @@ export const inlineMethods: Record<string, Record<string, boolean>> = {
 export const tools: ToolDef[] = [
   {
     name: "components",
-    description: "/** Create and manage reusable components and variant sets. Use method \"help\" for detailed parameter docs. */\n  clone     (id?, name?, parentId?, x?, y?, items?: { id: string; name?: string; parentId?: string; x?: number; y?: number }[], depth?) → { results: {id}[] }  // Duplicate nodes\n  audit     (id, rules?, maxDepth?, maxFindings?, minSeverity?: error|unsafe|heuristic|style|verbose, skipInstances?) → { nodeId?, nodeName?, categories? }  // Run lint on a node — returns severity-ranked findings\n  reparent  (items: { id: string; parentId: string; index?: number }[]) → { results: \"ok\"[] }  // Move nodes into a new parent\n  list      (query?, offset?, limit?) → { totalCount, items }  // List local component names (variant sets as single entries)\n  get       (id?, names?, depth?, verbose?) → { results, _truncated? }  // Get component detail — property definitions + optional node tree for structural inspection\n  create    (type: component|from_node|variant_set, items: (ComponentItem | FromNodeItem | VariantSetItem)[]) → { results: {id}[] }  // Create components\n  update    (items: UpdatePropertyItem[], depth?) → { results: (\"ok\" | {error})[] }  // Add, edit, or delete component properties\n  delete    (id) → { results: \"ok\"[] }  // Delete components or component sets\n// depth: omit → id+name stubs | 0 → props + child stubs | N → recurse N | -1 → full tree\n// fields: whitelist e.g. [\"fills\",\"opacity\"] — id, name, type always included. Pass [\"*\"] for all.\n// layoutSizingHorizontal/Vertical: FIXED | HUG | FILL — how the node sizes within auto-layout.\n// Colors: fillVariableName/strokeVariableName bind by name — preferred over raw color values.\n// Note: node-based endpoints (frames, text, instances, components) use `results` as the list key.\n//   Standalone endpoints (styles, variables, variable_collections) use `items`. Components.list uses `items` (catalog view).",
-    schema: (caps) => filterMethodsByTier({    method: z.enum(["clone", "audit", "reparent", "list", "get", "create", "update", "delete", "help"]),
+    description: "/** Create and manage reusable components and variant sets. Use method \"help\" for detailed parameter docs. */\n  clone     (id?, name?, parentId?, x?, y?, items?: { id: string; name?: string; parentId?: string; x?: number; y?: number }[], depth?) → { results: {id}[] }  // Duplicate nodes\n  audit     (id, rules?, maxDepth?, maxFindings?, minSeverity?: error|unsafe|heuristic|style|verbose, skipInstances?) → { nodeId?, nodeName?, categories? }  // Run lint on a node — returns severity-ranked findings\n  reparent  (items: { id: string; parentId: string; index?: number }[]) → { results: \"ok\"[] }  // Move nodes into a new parent\n  list      (query?, offset?, limit?) → { totalCount, items }  // List local component names (variant sets as single entries)\n  get       (id?, names?, depth?, verbose?) → { results, _truncated? }  // Get component detail — property definitions + optional node tree for structural inspection\n  create    (type: component|from_node|variant_set, items: (ComponentItem | FromNodeItem | VariantSetItem)[]) → { results: {id}[] }  // Create components\n  commit    (id) → { results: {id}[] }  // Commit a staged component — unwraps from [STAGED] container into the original target location.\n  update    (items: UpdatePropertyItem[], depth?) → { results: (\"ok\" | {error})[] }  // Add, edit, or delete component properties\n  delete    (id) → { results: \"ok\"[] }  // Delete components or component sets\n// depth: omit → id+name stubs | 0 → props + child stubs | N → recurse N | -1 → full tree\n// fields: whitelist e.g. [\"fills\",\"opacity\"] — id, name, type always included. Pass [\"*\"] for all.\n// layoutSizingHorizontal/Vertical: FIXED | HUG | FILL — how the node sizes within auto-layout.\n// Colors: fillVariableName/strokeVariableName bind by name — preferred over raw color values.\n// Note: node-based endpoints (frames, text, instances, components) use `results` as the list key.\n//   Standalone endpoints (styles, variables, variable_collections) use `items`. Components.list uses `items` (catalog view).",
+    schema: (caps) => filterMethodsByTier({    method: z.enum(["clone", "audit", "reparent", "list", "get", "create", "commit", "update", "delete", "help"]),
     id: z.string().optional().describe("Node ID"),
     name: z.string().optional().describe("Rename the clone (set before appending to parent — required when cloning a variant into its component set to avoid duplicate names)"),
-    parentId: z.string().optional().describe("Parent node ID. Omit to place on current page."),
+    parentId: z.string().optional().describe("Parent node ID. Omit to place at current page root."),
     x: z.coerce.number().optional().describe("X position (default: 0)"),
     y: z.coerce.number().optional().describe("Y position (default: 0)"),
     items: flexJson(z.array(z.record(z.string(), z.unknown()))).optional().describe("Array of {id, ...properties} to clone/reparent/update"),
@@ -70,10 +70,13 @@ export const tools: ToolDef[] = [
     verbose: z.boolean().optional().describe("Include all properties (bounding box, constraints, text style details). Default false — returns slim, actionable output."),
     type: z.enum(["component", "from_node", "variant_set"]).optional().describe("Discriminant for create method"),
     topic: z.string().optional().describe("Help topic — method name for endpoint help, e.g. \"create\""),
-    }, caps, {"clone":"create","audit":"read","reparent":"edit","list":"read","get":"read","create":"create","update":"edit","delete":"edit","help":"read"}),
+    }, caps, {"clone":"create","audit":"read","reparent":"edit","list":"read","get":"read","create":"create","commit":"edit","update":"edit","delete":"edit","help":"read"}),
     tier: "read" as const,
     validate: (params: any) => {
       const m = params.method;
+      if (m === "commit") {
+        if (params.id === undefined) throw new Error("commit requires \"id\"");
+      }
       if (m === "delete") {
         if (params.id === undefined) throw new Error("delete requires \"id\"");
       }
@@ -85,7 +88,7 @@ export const tools: ToolDef[] = [
         const schemas: Record<string, z.ZodTypeAny> = {
           "component": z.object({
             name: z.string().describe("Component name"),
-            parentId: z.string().optional().describe("Parent node ID. Omit to place on current page."),
+            parentId: z.string().optional().describe("Parent node ID. Omit to place at current page root."),
             x: z.coerce.number().optional().describe("X position (default: 0)"),
             y: z.coerce.number().optional().describe("Y position (default: 0)"),
             width: z.coerce.number().optional().describe("Width in px (omit to shrink-to-content via HUG)"),
@@ -136,6 +139,7 @@ export const tools: ToolDef[] = [
             maxHeight: z.coerce.number().optional().describe("Max height for responsive auto-layout"),
             overflowDirection: z.enum(["NONE", "HORIZONTAL", "VERTICAL", "BOTH"]).optional().describe("Scroll overflow in prototype (default: NONE)"),
             description: z.string().optional().describe("Component description (shown in Figma's component panel)"),
+            children: flexJson(z.array(z.record(z.string(), z.unknown()))).optional().describe("Inline child nodes — build nested trees in one call. Types: text: {type:\"text\", text, componentPropertyName?, fontFamily?, fontSize?, fontWeight?, fontStyle?, fontColor?, layoutSizingHorizontal?}. frame: {type:\"frame\", name?, layoutMode?, fillColor?, width?, layoutSizingHorizontal?, children?}. instance: {type:\"instance\", componentId, componentPropertyName?, variantProperties?, properties?}. component: {type:\"component\", name, children?}. All params from text/frame endpoints are supported on their respective types. componentPropertyName auto-creates and binds a TEXT (text) or INSTANCE_SWAP (instance) property. Always set layoutSizingHorizontal + layoutSizingVertical on children inside auto-layout parents (FILL, HUG, or FIXED). Example: children:[{type:\"text\", text:\"Label\", componentPropertyName:\"Label\", fontSize:14, fontColorVariableName:\"text/primary\", layoutSizingHorizontal:\"FILL\", layoutSizingVertical:\"HUG\"}, {type:\"frame\", name:\"Actions\", layoutMode:\"HORIZONTAL\", layoutSizingHorizontal:\"FILL\", layoutSizingVertical:\"HUG\", itemSpacing:8, children:[{type:\"instance\", componentId:\"1:2\", componentPropertyName:\"Action\", layoutSizingHorizontal:\"FILL\", layoutSizingVertical:\"HUG\"}]}]\n"),
             properties: flexJson(z.array(z.record(z.string(), z.unknown()))).optional().describe("Component properties to define at creation: [{propertyName, type, defaultValue}]. TEXT properties for inline children with componentPropertyName are created automatically."),
           }).passthrough(),
           "from_node": z.object({
@@ -144,7 +148,7 @@ export const tools: ToolDef[] = [
           }).passthrough(),
           "variant_set": z.object({
             name: z.string().optional().describe("Node name"),
-            parentId: z.string().optional().describe("Parent node ID. Omit to place on current page."),
+            parentId: z.string().optional().describe("Parent node ID. Omit to place at current page root."),
             x: z.coerce.number().optional().describe("X position (default: 0)"),
             y: z.coerce.number().optional().describe("Y position (default: 0)"),
             width: z.coerce.number().optional().describe("Width in px (omit to shrink-to-content via HUG)"),
@@ -196,6 +200,7 @@ export const tools: ToolDef[] = [
             overflowDirection: z.enum(["NONE", "HORIZONTAL", "VERTICAL", "BOTH"]).optional().describe("Scroll overflow in prototype (default: NONE)"),
             componentIds: flexJson(z.array(z.string())).optional().describe("Existing component IDs to combine (min 2). Alternative to children."),
             variantPropertyName: z.string().optional().describe("Rename the auto-generated variant property (default: 'Property 1')"),
+            children: flexJson(z.array(z.record(z.string(), z.unknown()))).optional().describe("Inline variant components. Each must be {type:\"component\", name, children?, ...frame_params}. All variants must share the same child structure. Alternative to componentIds — do not combine both."),
           }).passthrough(),
         };
         const s = params.type && schemas[params.type];
@@ -218,7 +223,7 @@ export const tools: ToolDef[] = [
         catch (e) { if (e instanceof z.ZodError) { throw new Error(e.issues.map(i => { const path = i.path.join("."); const shape = itemSchema instanceof z.ZodObject ? (itemSchema as any).shape : null; const desc = shape?.[i.path[1]]?.description; return path + ": " + i.message + (desc ? " (expected: " + desc + ")" : ""); }).join("; ")); } throw e; }
       }
     },
-    commandMap: {"clone":"components.clone","audit":"components.audit","reparent":"components.reparent","list":"components.list","get":"components.get","create":"components.create","update":"components.update","delete":"components.delete"},
+    commandMap: {"clone":"components.clone","audit":"components.audit","reparent":"components.reparent","list":"components.list","get":"components.get","create":"components.create","commit":"components.commit","update":"components.update","delete":"components.delete"},
   },
   {
     name: "connection",
@@ -265,8 +270,8 @@ export const tools: ToolDef[] = [
   },
   {
     name: "frames",
-    description: "/** Create and manage frames, shapes, auto-layout containers, sections, and SVG nodes. Use method \"help\" for detailed parameter docs. */\n  get       (id, fields?, depth?, verbose?) → { results: Node[], _truncated?, _notice? }  // Get serialized node data\n  list      (query?, types?, parentId?, fields?, offset?, limit?) → { totalCount, returned?, offset?, limit?, results }  // Search for nodes (returns stubs only — use get with depth for full properties)\n  update    (items: PatchItem[]) → { results: (\"ok\" | {error})[] }  // Patch node properties\n  delete    (id?, items?: { id?: string }[]) → { results: \"ok\"[] }  // Delete nodes\n  clone     (id?, name?, parentId?, x?, y?, items?: { id: string; name?: string; parentId?: string; x?: number; y?: number }[], depth?) → { results: {id}[] }  // Duplicate nodes\n  audit     (id, rules?, maxDepth?, maxFindings?, minSeverity?: error|unsafe|heuristic|style|verbose, skipInstances?) → { nodeId?, nodeName?, categories? }  // Run lint on a node — returns severity-ranked findings\n  reparent  (items: { id: string; parentId: string; index?: number }[]) → { results: \"ok\"[] }  // Move nodes into a new parent\n  create    (type: frame|auto_layout|section|rectangle|ellipse|line|group|boolean_operation|svg, items: (FrameItem | AutoLayoutItem | SectionItem | RectangleItem | EllipseItem | LineItem | GroupItem | BooleanOperationItem | SvgItem)[]) → { results: {id}[] }  // Create frame-like containers\n  export    (id, format?: PNG|JPG|SVG|SVG_STRING|PDF, scale?) → { imageData?, mimeType? }  // Export a node as PNG, JPG, SVG, SVG_STRING, or PDF\n// depth: omit → id+name stubs | 0 → props + child stubs | N → recurse N | -1 → full tree\n// fields: whitelist e.g. [\"fills\",\"opacity\"] — id, name, type always included. Pass [\"*\"] for all.\n// layoutSizingHorizontal/Vertical: FIXED | HUG | FILL — how the node sizes within auto-layout.\n// Colors: fillVariableName/strokeVariableName bind by name — preferred over raw color values.\n// Note: node-based endpoints (frames, text, instances, components) use `results` as the list key.\n//   Standalone endpoints (styles, variables, variable_collections) use `items`. Components.list uses `items` (catalog view).",
-    schema: (caps) => filterMethodsByTier({    method: z.enum(["get", "list", "update", "delete", "clone", "audit", "reparent", "create", "export", "help"]),
+    description: "/** Create and manage frames, shapes, auto-layout containers, sections, and SVG nodes. Use method \"help\" for detailed parameter docs. */\n  get       (id, fields?, depth?, verbose?) → { results: Node[], _truncated?, _notice? }  // Get serialized node data\n  list      (query?, types?, parentId?, fields?, offset?, limit?) → { totalCount, returned?, offset?, limit?, results }  // Search for nodes (returns stubs only — use get with depth for full properties)\n  update    (items: PatchItem[]) → { results: (\"ok\" | {error})[] }  // Patch node properties\n  delete    (id?, items?: { id?: string }[]) → { results: \"ok\"[] }  // Delete nodes\n  clone     (id?, name?, parentId?, x?, y?, items?: { id: string; name?: string; parentId?: string; x?: number; y?: number }[], depth?) → { results: {id}[] }  // Duplicate nodes\n  audit     (id, rules?, maxDepth?, maxFindings?, minSeverity?: error|unsafe|heuristic|style|verbose, skipInstances?) → { nodeId?, nodeName?, categories? }  // Run lint on a node — returns severity-ranked findings\n  reparent  (items: { id: string; parentId: string; index?: number }[]) → { results: \"ok\"[] }  // Move nodes into a new parent\n  create    (type: frame|auto_layout|section|rectangle|ellipse|line|group|boolean_operation|svg, items: (FrameItem | AutoLayoutItem | SectionItem | RectangleItem | EllipseItem | LineItem | GroupItem | BooleanOperationItem | SvgItem)[]) → { results: {id}[] }  // Create frame-like containers\n  commit    (id) → { results: {id}[] }  // Commit a staged node — unwraps from [STAGED] container into the original target location.\n  export    (id, format?: PNG|JPG|SVG|SVG_STRING|PDF, scale?) → { imageData?, mimeType? }  // Export a node as PNG, JPG, SVG, SVG_STRING, or PDF\n// depth: omit → id+name stubs | 0 → props + child stubs | N → recurse N | -1 → full tree\n// fields: whitelist e.g. [\"fills\",\"opacity\"] — id, name, type always included. Pass [\"*\"] for all.\n// layoutSizingHorizontal/Vertical: FIXED | HUG | FILL — how the node sizes within auto-layout.\n// Colors: fillVariableName/strokeVariableName bind by name — preferred over raw color values.\n// Note: node-based endpoints (frames, text, instances, components) use `results` as the list key.\n//   Standalone endpoints (styles, variables, variable_collections) use `items`. Components.list uses `items` (catalog view).",
+    schema: (caps) => filterMethodsByTier({    method: z.enum(["get", "list", "update", "delete", "clone", "audit", "reparent", "create", "commit", "export", "help"]),
     id: z.string().optional().describe("Node ID"),
     fields: flexJson(z.array(z.string())).optional().describe("Property whitelist. Identity fields (id, name, type) always included. Omit for stubs on list, full on get. Pass [\"*\"] for all."),
     depth: z.coerce.number().optional().describe("Response detail: omit for id+name only. 0=properties + child stubs. N=recurse N levels. -1=unlimited."),
@@ -289,10 +294,13 @@ export const tools: ToolDef[] = [
     format: z.enum(["PNG", "JPG", "SVG", "SVG_STRING", "PDF"]).optional().describe("Export format (default: PNG). SVG_STRING returns raw SVG text."),
     scale: z.coerce.number().optional().describe("Export scale (default: 1, only for PNG/JPG)"),
     topic: z.string().optional().describe("Help topic — method name for endpoint help, e.g. \"create\""),
-    }, caps, {"get":"read","list":"read","update":"edit","delete":"edit","clone":"create","audit":"read","reparent":"edit","create":"create","export":"read","help":"read"}),
+    }, caps, {"get":"read","list":"read","update":"edit","delete":"edit","clone":"create","audit":"read","reparent":"edit","create":"create","commit":"edit","export":"read","help":"read"}),
     tier: "read" as const,
     validate: (params: any) => {
       const m = params.method;
+      if (m === "commit") {
+        if (params.id === undefined) throw new Error("commit requires \"id\"");
+      }
       if (m === "export") {
         if (params.id === undefined) throw new Error("export requires \"id\"");
       }
@@ -301,7 +309,7 @@ export const tools: ToolDef[] = [
         const schemas: Record<string, z.ZodTypeAny> = {
           "frame": z.object({
             name: z.string().optional().describe("Node name"),
-            parentId: z.string().optional().describe("Parent node ID. Omit to place on current page."),
+            parentId: z.string().optional().describe("Parent node ID. Omit to place at current page root."),
             x: z.coerce.number().optional().describe("X position (default: 0)"),
             y: z.coerce.number().optional().describe("Y position (default: 0)"),
             width: z.coerce.number().optional().describe("Width in px (omit to shrink-to-content via HUG)"),
@@ -352,10 +360,11 @@ export const tools: ToolDef[] = [
             maxHeight: z.coerce.number().optional().describe("Max height for responsive auto-layout"),
             overflowDirection: z.enum(["NONE", "HORIZONTAL", "VERTICAL", "BOTH"]).optional().describe("Scroll overflow in prototype (default: NONE)"),
             clipsContent: flexBool(z.boolean()).optional(),
+            children: flexJson(z.array(z.record(z.string(), z.unknown()))).optional().describe("Inline child nodes — build nested trees in one call. Types: text: {type:\"text\", text, fontFamily?, fontSize?, fontWeight?, fontStyle?, fontColor?, layoutSizingHorizontal?}. frame: {type:\"frame\", name?, layoutMode?, fillColor?, width?, layoutSizingHorizontal?, children?}. instance: {type:\"instance\", componentId, variantProperties?, properties?}. component: {type:\"component\", name, children?}. All params from text/frame endpoints are supported on their respective types. Always set layoutSizingHorizontal + layoutSizingVertical on children inside auto-layout parents (FILL, HUG, or FIXED). Example: children:[{type:\"text\", text:\"Title\", fontSize:20, layoutSizingHorizontal:\"FILL\", layoutSizingVertical:\"HUG\"}, {type:\"frame\", name:\"Row\", layoutMode:\"HORIZONTAL\", layoutSizingHorizontal:\"FILL\", layoutSizingVertical:\"HUG\", itemSpacing:8, children:[{type:\"instance\", componentId:\"1:2\", layoutSizingHorizontal:\"FILL\", layoutSizingVertical:\"HUG\"}]}] Inside components: add componentPropertyName to auto-bind TEXT or INSTANCE_SWAP properties.\n"),
           }).passthrough(),
           "auto_layout": z.object({
             name: z.string().optional().describe("Node name"),
-            parentId: z.string().optional().describe("Parent node ID. Omit to place on current page."),
+            parentId: z.string().optional().describe("Parent node ID. Omit to place at current page root."),
             x: z.coerce.number().optional().describe("X position (default: 0)"),
             y: z.coerce.number().optional().describe("Y position (default: 0)"),
             width: z.coerce.number().optional().describe("Width in px (omit to shrink-to-content via HUG)"),
@@ -407,10 +416,11 @@ export const tools: ToolDef[] = [
             overflowDirection: z.enum(["NONE", "HORIZONTAL", "VERTICAL", "BOTH"]).optional().describe("Scroll overflow in prototype (default: NONE)"),
             clipsContent: flexBool(z.boolean()).optional(),
             nodeIds: flexJson(z.array(z.string())).optional().describe("Existing node IDs to wrap into auto-layout"),
+            children: flexJson(z.array(z.record(z.string(), z.unknown()))).optional().describe("Inline child nodes — build nested trees in one call. Types: text: {type:\"text\", text, fontFamily?, fontSize?, fontWeight?, fontStyle?, fontColor?, layoutSizingHorizontal?}. frame: {type:\"frame\", name?, layoutMode?, fillColor?, width?, layoutSizingHorizontal?, children?}. instance: {type:\"instance\", componentId, variantProperties?, properties?}. component: {type:\"component\", name, children?}. All params from text/frame endpoints are supported on their respective types. Always set layoutSizingHorizontal + layoutSizingVertical on children inside auto-layout parents (FILL, HUG, or FIXED). Example: children:[{type:\"text\", text:\"Title\", fontSize:20, layoutSizingHorizontal:\"FILL\", layoutSizingVertical:\"HUG\"}, {type:\"frame\", name:\"Row\", layoutMode:\"HORIZONTAL\", layoutSizingHorizontal:\"FILL\", layoutSizingVertical:\"HUG\", itemSpacing:8, children:[{type:\"instance\", componentId:\"1:2\", layoutSizingHorizontal:\"FILL\", layoutSizingVertical:\"HUG\"}]}] Inside components: add componentPropertyName to auto-bind TEXT or INSTANCE_SWAP properties.\n"),
           }).passthrough(),
           "section": z.object({
             name: z.string().describe("Section name"),
-            parentId: z.string().optional().describe("Parent node ID. Omit to place on current page."),
+            parentId: z.string().optional().describe("Parent node ID. Omit to place at current page root."),
             x: z.coerce.number().optional().describe("X position (default: 0)"),
             y: z.coerce.number().optional().describe("Y position (default: 0)"),
             width: z.coerce.number().optional().describe("Width (default: 500)"),
@@ -422,7 +432,7 @@ export const tools: ToolDef[] = [
           }).passthrough(),
           "rectangle": z.object({
             name: z.string().optional().describe("Layer name (default: 'Rectangle')"),
-            parentId: z.string().optional().describe("Parent node ID. Omit to place on current page."),
+            parentId: z.string().optional().describe("Parent node ID. Omit to place at current page root."),
             x: z.coerce.number().optional().describe("X position (default: 0)"),
             y: z.coerce.number().optional().describe("Y position (default: 0)"),
             width: z.coerce.number().optional().describe("Width in px (default: 100)"),
@@ -446,7 +456,7 @@ export const tools: ToolDef[] = [
           }).passthrough(),
           "ellipse": z.object({
             name: z.string().optional().describe("Layer name (default: 'Ellipse')"),
-            parentId: z.string().optional().describe("Parent node ID. Omit to place on current page."),
+            parentId: z.string().optional().describe("Parent node ID. Omit to place at current page root."),
             x: z.coerce.number().optional().describe("X position (default: 0)"),
             y: z.coerce.number().optional().describe("Y position (default: 0)"),
             width: z.coerce.number().optional().describe("Width in px (default: 100)"),
@@ -465,7 +475,7 @@ export const tools: ToolDef[] = [
           }).passthrough(),
           "line": z.object({
             name: z.string().optional().describe("Layer name (default: 'Line')"),
-            parentId: z.string().optional().describe("Parent node ID. Omit to place on current page."),
+            parentId: z.string().optional().describe("Parent node ID. Omit to place at current page root."),
             x: z.coerce.number().optional().describe("X position (default: 0)"),
             y: z.coerce.number().optional().describe("Y position (default: 0)"),
             length: z.coerce.number().optional().describe("Line length in px (default: 100)"),
@@ -480,18 +490,18 @@ export const tools: ToolDef[] = [
           "group": z.object({
             nodeIds: z.array(z.string()).describe("Node IDs to group (min 1)"),
             name: z.string().optional().describe("Group name"),
-            parentId: z.string().optional().describe("Parent node ID. Omit to place on current page."),
+            parentId: z.string().optional().describe("Parent node ID. Omit to place at current page root."),
           }).passthrough(),
           "boolean_operation": z.object({
             operation: z.enum(["UNION", "SUBTRACT", "INTERSECT", "EXCLUDE"]).describe("Boolean operation type"),
             nodeIds: z.array(z.string()).describe("Node IDs to combine (min 2, first node is the base for SUBTRACT)"),
             name: z.string().optional().describe("Result node name"),
-            parentId: z.string().optional().describe("Parent node ID. Omit to place on current page."),
+            parentId: z.string().optional().describe("Parent node ID. Omit to place at current page root."),
           }).passthrough(),
           "svg": z.object({
             svg: z.string().describe("SVG markup string"),
             name: z.string().optional().describe("Layer name (default: 'SVG')"),
-            parentId: z.string().optional().describe("Parent node ID. Omit to place on current page."),
+            parentId: z.string().optional().describe("Parent node ID. Omit to place at current page root."),
             x: z.coerce.number().optional().describe("X position (default: 0)"),
             y: z.coerce.number().optional().describe("Y position (default: 0)"),
             fillStyleName: z.string().optional().describe("Paint style to apply to vector fills"),
@@ -507,7 +517,7 @@ export const tools: ToolDef[] = [
         }
       }
     },
-    commandMap: {"get":"frames.get","list":"frames.list","update":"frames.update","delete":"frames.delete","clone":"frames.clone","audit":"frames.audit","reparent":"frames.reparent","create":"frames.create","export":"frames.export"},
+    commandMap: {"get":"frames.get","list":"frames.list","update":"frames.update","delete":"frames.delete","clone":"frames.clone","audit":"frames.audit","reparent":"frames.reparent","create":"frames.create","commit":"frames.commit","export":"frames.export"},
   },
   {
     name: "instances",
@@ -566,7 +576,7 @@ export const tools: ToolDef[] = [
           y: z.coerce.number().optional(),
           width: z.coerce.number().optional().describe("Override width (resize)"),
           height: z.coerce.number().optional().describe("Override height (resize)"),
-          parentId: z.string().optional().describe("Parent node ID. Omit to place on current page."),
+          parentId: z.string().optional().describe("Parent node ID. Omit to place at current page root."),
         }).passthrough();
         try { params.items = z.array(itemSchema).parse(params.items); }
         catch (e) { if (e instanceof z.ZodError) { throw new Error(e.issues.map(i => { const path = i.path.join("."); const shape = itemSchema instanceof z.ZodObject ? (itemSchema as any).shape : null; const desc = shape?.[i.path[1]]?.description; return path + ": " + i.message + (desc ? " (expected: " + desc + ")" : ""); }).join("; ")); } throw e; }
@@ -899,7 +909,7 @@ export const tools: ToolDef[] = [
           x: z.number().optional(),
           y: z.number().optional(),
           width: z.number().optional().describe("Fixed width in px — implies layoutSizingHorizontal: FIXED and textAutoResize: HEIGHT"),
-          parentId: z.string().optional().describe("Parent node ID. Omit to place on current page."),
+          parentId: z.string().optional().describe("Parent node ID. Omit to place at current page root."),
           fontFamily: z.string().optional().describe("Font family (default: Inter). Use fonts.list to find installed fonts."),
           fontStyle: z.string().optional().describe("Font variant e.g. \"Bold\", \"Italic\" — overrides fontWeight"),
           fontSize: z.number().optional().describe("Font size (default: 14)"),

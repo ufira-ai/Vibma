@@ -13,6 +13,8 @@ Components with text content need a width — otherwise text never wraps.
 
 Every text node inside a component should be bound to a TEXT property so instances can edit the content.
 
+- On creation: `children:[{type:"text", text:"Title", componentPropertyName:"Title"}]` auto-creates and binds
+- On creation: `children:[{type:"text", text:"Title", componentPropertyName:"Title"}]` auto-creates and binds
 - After creation: `frames(method:"update", items:[{id:"<textNodeId>", componentPropertyName:"<propName>"}])`
 - For existing nodes with many text children: `components(method:"create", type:"from_node", exposeText:true)`
 

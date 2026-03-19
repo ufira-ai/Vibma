@@ -35,6 +35,7 @@ methods:
         params:
           $mixin: frame_params
           clipsContent: { type: boolean, coerce: true, optional: true }
+          children: { $ref: inlineChildren }
       auto_layout:
         description: Auto-layout frame that arranges children automatically
         params:
@@ -42,6 +43,7 @@ methods:
           layoutMode: { type: enum, values: [HORIZONTAL, VERTICAL], required: true, description: Primary axis direction }
           clipsContent: { type: boolean, coerce: true, optional: true }
           nodeIds: { type: "string[]", coerce: json, optional: true, description: "Existing node IDs to wrap into auto-layout" }
+          children: { $ref: inlineChildren }
       section:
         description: Figma section (top-level organizer)
         params:
@@ -146,6 +148,16 @@ methods:
           fillVariableName: { type: string, optional: true, description: "Color variable by name for vector fills" }
           strokeStyleName: { type: string, optional: true, description: "Paint style to apply to vector strokes" }
           strokeVariableName: { type: string, optional: true, description: "Color variable by name for vector strokes" }
+    response:
+      type: batch
+      item: { id: { type: string } }
+
+  commit:
+    tier: edit
+    description: "Commit a staged node — unwraps from [STAGED] container into the original target location."
+    example: 'frames(method:"commit", id:"1:234")'
+    params:
+      id: { type: string, required: true, description: "Staged node ID to commit" }
     response:
       type: batch
       item: { id: { type: string } }

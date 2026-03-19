@@ -103,7 +103,18 @@ async function buildAction(a: any): Promise<any> {
     // Figma silently rejects reactions targeting nested frames with "Reaction was invalid".
     if (!destNode.parent || destNode.parent.type !== "PAGE") {
       const parentDesc = destNode.parent ? `inside "${destNode.parent.name}" (${destNode.parent.type})` : "with no parent";
-      throw new Error(`Destination "${destNode.name}" (${a.destination}) is not a top-level frame — it is nested ${parentDesc}. Prototype navigation requires the destination to be a direct child of a page. Move it to the page root or use a top-level frame as the target.`);
+      const pageId = destNode.parent ? (() => { let p: BaseNode | null = destNode; while (p && p.type !== "PAGE") p = p.parent; return p?.id; })() : null;
+      const fix = pageId ? ` Quick fix: frames(method:"clone", id:"${a.destination}", parentId:"${pageId}", name:"${destNode.name}")` : "";
+      throw new Error(`Destination "${destNode.name}" (${a.destination}) is not a top-level frame — it is nested ${parentDesc}. Prototype navigation requires the destination to be a direct child of a page.${fix}`);
+    }
+    // Cross-page check: source and destination must be on the same page.
+    // Figma silently rejects cross-page reactions with "Reaction at index N was invalid".
+    if (a._sourcePageId && destNode.parent.id !== a._sourcePageId) {
+      throw new Error(
+        `Destination "${destNode.name}" (${a.destination}) is on page "${destNode.parent.name}" but the source node is on a different page. ` +
+        `Prototype interactions only work within the same page. ` +
+        `Quick fix: frames(method:"clone", id:"${a.destination}", parentId:"${a._sourcePageId}", name:"${destNode.name}")`
+      );
     }
   }
 
@@ -122,7 +133,10 @@ async function buildReaction(p: any): Promise<any> {
   // Multi-action: if `actions` array provided, build each
   if (Array.isArray(p.actions)) {
     const actions: any[] = [];
-    for (const a of p.actions) actions.push(await buildAction(a));
+    for (const a of p.actions) {
+      if (p._sourcePageId) a._sourcePageId = p._sourcePageId;
+      actions.push(await buildAction(a));
+    }
     // Provide both `action` (deprecated, for older API compat) and `actions`
     return { trigger, action: actions[0], actions };
   }
@@ -201,7 +215,14 @@ async function addReaction(params: any) {
   if (!node) throw new Error(`Node not found: ${id}`);
   if (!("reactions" in node)) throw new Error(`Node ${node.type} does not support reactions`);
 
+  // Find source page ID for cross-page validation
+  let cursor: BaseNode | null = node;
+  while (cursor && cursor.type !== "PAGE") cursor = cursor.parent;
+  const sourcePageId = cursor?.id;
+
   const existing = JSON.parse(JSON.stringify((node as any).reactions || []));
+  // Inject source page ID so buildAction can detect cross-page targets
+  params._sourcePageId = sourcePageId;
   const newReaction = await buildReaction(params);
   existing.push(newReaction);
 
@@ -218,6 +239,31 @@ async function setReactions(params: any) {
   if (!node) throw new Error(`Node not found: ${id}`);
   if (!("reactions" in node)) throw new Error(`Node ${node.type} does not support reactions`);
 
+  // Validate cross-page destinations in all reactions before applying
+  let sourcePage: BaseNode | null = node;
+  while (sourcePage && sourcePage.type !== "PAGE") sourcePage = sourcePage.parent;
+  if (sourcePage) {
+    for (const reaction of params.reactions) {
+      const actions = reaction.actions || (reaction.action ? [reaction.action] : []);
+      for (const action of actions) {
+        if (action.type === "NODE" && action.destinationId) {
+          const dest = await figma.getNodeByIdAsync(action.destinationId);
+          if (dest) {
+            let destPage: BaseNode | null = dest;
+            while (destPage && destPage.type !== "PAGE") destPage = destPage.parent;
+            if (destPage && destPage.id !== sourcePage.id) {
+              throw new Error(
+                `Destination "${dest.name}" (${action.destinationId}) is on page "${(destPage as any).name}" but the source node is on page "${(sourcePage as any).name}". ` +
+                `Prototype interactions only work within the same page. ` +
+                `Quick fix: frames(method:"clone", id:"${action.destinationId}", parentId:"${sourcePage.id}", name:"${dest.name}")`
+              );
+            }
+          }
+        }
+      }
+    }
+  }
+
   await (node as any).setReactionsAsync(params.reactions);
   return "ok";
 }
@@ -231,13 +277,22 @@ async function removeReaction(params: any) {
   if (!node) throw new Error(`Node not found: ${id}`);
   if (!("reactions" in node)) throw new Error(`Node ${node.type} does not support reactions`);
 
-  const existing = [...((node as any).reactions || [])];
+  // Deep clone reactions — Figma returns frozen objects, shallow copy causes
+  // setReactionsAsync to silently keep the old reaction data.
+  const existing = JSON.parse(JSON.stringify((node as any).reactions || []));
   if (params.index < 0 || params.index >= existing.length) {
     throw new Error(`Index ${params.index} out of range (${existing.length} reactions)`);
   }
 
   existing.splice(params.index, 1);
   await (node as any).setReactionsAsync(existing);
+
+  // Verify the reaction was actually removed — Figma can silently fail
+  const after = (node as any).reactions || [];
+  if (after.length !== existing.length) {
+    throw new Error(`Reaction removal failed — expected ${existing.length} reactions after removal, got ${after.length}. Try prototyping(method:"set", id:"${id}", reactions:[]) to clear all, then re-add the ones you want.`);
+  }
+
   return "ok";
 }
 

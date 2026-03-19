@@ -3,6 +3,8 @@ import { looksInteractive } from "@ufira/vibma/utils/wcag";
 import { framesCreateFrame, framesCreateAutoLayout } from "@ufira/vibma/guards";
 import { createInlineChildren, collectTextChildren, normalizeInlineChildTypes } from "./components";
 import { prepCreateText } from "./create-text";
+import { validateAndFixInlineChildren, formatDiff, buildCorrectedPayload } from "./inline-tree";
+import { createStageContainer } from "./stage";
 
 /**
  * Resolve the effective layoutMode from params.
@@ -209,15 +211,63 @@ export async function setupFrameNode(
 // ─── Figma Handlers ──────────────────────────────────────────────
 
 async function createSingleFrame(p: any) {
+  const hints: Hint[] = [];
+
+  // Validate inline children BEFORE creating any Figma nodes.
+  // May promote p.layoutMode, fix child sizing. Returns inference tracking.
+  if (p.children?.length) {
+    // _originalParams captured by batchHandler BEFORE alias normalization
+    const originalParams = p._originalParams;
+    delete p._originalParams;
+
+    normalizeInlineChildTypes(p.children);
+    const validation = validateAndFixInlineChildren(p, hints);
+
+    if (validation.hasAmbiguity) {
+      const diff = formatDiff(validation.inferences);
+      const correctedPayload = buildCorrectedPayload(p, originalParams);
+      const canEdit = p._caps?.edit;
+
+      // Edit-tier: auto-stage — create in stage container, return staged result
+      if (canEdit) {
+        const stageFrame = await createStageContainer(p, p.name || "Frame");
+        try {
+          // Build the tree inside the stage container
+          const stagedP = { ...p, parentId: stageFrame.id, x: undefined, y: undefined };
+          const frame = figma.createFrame();
+          frame.name = p.name || "Frame";
+          const { hints: setupHints } = await setupFrameNode(frame, stagedP);
+          hints.push(...setupHints);
+          if (p.children?.length) {
+            const textChildren = collectTextChildren(p.children);
+            const textCtx = await prepCreateText({ items: textChildren });
+            await createInlineChildren(frame, null, p.children, hints, textCtx);
+          }
+          return { id: stageFrame.id, status: "staged", diff, correctedPayload, hints };
+        } catch (e) {
+          stageFrame.remove();
+          throw e;
+        }
+      }
+
+      // Create-tier: reject with structured learning payload
+      return {
+        error: `Ambiguous layout intent detected — review the diff and re-create with the corrected payload.`,
+        diff,
+        correctedPayload,
+      };
+    }
+  }
+
   const frame = figma.createFrame();
   try {
     frame.name = p.name || "Frame";
 
-    const { hints } = await setupFrameNode(frame, p);
+    const { hints: setupHints } = await setupFrameNode(frame, p);
+    hints.push(...setupHints);
 
-    // Create inline children if provided (frames only — no component property binding)
+    // Create inline children after setup (Figma node is now configured)
     if (p.children?.length) {
-      normalizeInlineChildTypes(p.children);
       const textChildren = collectTextChildren(p.children);
       const textCtx = await prepCreateText({ items: textChildren });
       await createInlineChildren(frame, null, p.children, hints, textCtx);
