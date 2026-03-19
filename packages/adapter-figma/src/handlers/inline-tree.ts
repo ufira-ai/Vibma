@@ -296,18 +296,47 @@ export function formatDiff(inferences: Inference[]): string {
 }
 
 /**
- * Build a corrected payload from the mutated params.
- * Deep clones and strips internal fields.
- * Call AFTER validateAndFixInlineChildren but BEFORE setupFrameNode
- * (so the payload is in authoring-schema form, not internal form).
+ * Build a corrected payload in authoring-schema form.
+ *
+ * Takes two params:
+ * - `mutatedParams`: params after validateAndFixInlineChildren (has inferred fields)
+ * - `originalParams`: optional pre-mutation snapshot (preserves authoring aliases like fillColor)
+ *
+ * If `originalParams` is provided, we start from it and overlay only the fields that
+ * were changed by the opinion engine (layoutMode, layoutSizingH/V on children).
+ * This keeps the payload in the form the agent authored (fillColor stays fillColor,
+ * not the expanded fills array).
  */
-export function buildCorrectedPayload(mutatedParams: any): any {
-  const clone = JSON.parse(JSON.stringify(mutatedParams));
-  stripInternalFields(clone);
-  return clone;
+export function buildCorrectedPayload(mutatedParams: any, originalParams?: any): any {
+  if (!originalParams) {
+    const clone = JSON.parse(JSON.stringify(mutatedParams));
+    stripInternalFields(clone);
+    return clone;
+  }
+
+  const base = JSON.parse(JSON.stringify(originalParams));
+  // Overlay inferred fields from mutated onto original
+  applyInferredFields(base, mutatedParams);
+  stripInternalFields(base);
+  return base;
 }
 
-const INTERNAL_FIELDS = new Set(["_skipOverlapCheck", "_inlineHints"]);
+/** Fields that the opinion engine may set/change. */
+const INFERRED_FIELDS = ["layoutMode", "layoutSizingHorizontal", "layoutSizingVertical"];
+
+function applyInferredFields(target: any, source: any): void {
+  for (const field of INFERRED_FIELDS) {
+    if (source[field] !== undefined) target[field] = source[field];
+  }
+  // Recurse into children
+  if (Array.isArray(target.children) && Array.isArray(source.children)) {
+    for (let i = 0; i < target.children.length && i < source.children.length; i++) {
+      applyInferredFields(target.children[i], source.children[i]);
+    }
+  }
+}
+
+const INTERNAL_FIELDS = new Set(["_skipOverlapCheck", "_inlineHints", "_originalParams"]);
 
 function stripInternalFields(obj: any): void {
   if (!obj || typeof obj !== "object") return;

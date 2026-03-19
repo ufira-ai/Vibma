@@ -1,7 +1,7 @@
 import { batchHandler, appendAndApplySizing, checkOverlappingSiblings, applyTokens, resolveComponentPropertyKey, normalizeAliases, TEXT_ALIAS_KEYS, FRAME_ALIAS_KEYS, type Hint } from "./helpers";
 import { setupFrameNode } from "./create-frame";
 import { auditNode } from "./lint";
-import { validateAndFixInlineChildren } from "./inline-tree";
+import { validateAndFixInlineChildren, formatDiff, buildCorrectedPayload } from "./inline-tree";
 import { createDispatcher, paginate, pickFields } from "@ufira/vibma/endpoint";
 import {
   componentsCreateComponent, componentsCreateFromNode, componentsCreateVariantSet,
@@ -197,18 +197,31 @@ export async function createInlineChildren(
 async function createComponentSingle(p: any) {
   if (!p.name) throw new Error("Missing name");
 
+  const hints: Hint[] = [];
+
+  // Validate inline children BEFORE creating any Figma nodes.
+  if (p.children?.length) {
+    const originalParams = p._originalParams;
+    delete p._originalParams;
+
+    normalizeInlineChildTypes(p.children);
+    const validation = validateAndFixInlineChildren(p, hints);
+
+    if (validation.hasAmbiguity) {
+      const diff = formatDiff(validation.inferences);
+      const correctedPayload = buildCorrectedPayload(p, originalParams);
+      return {
+        error: `Ambiguous layout intent detected — review the diff and re-create with the corrected payload.`,
+        diff,
+        correctedPayload,
+      };
+    }
+  }
+
   const comp = figma.createComponent();
   try {
     comp.name = p.name;
     if (p.description) comp.description = p.description;
-    const hints: Hint[] = [];
-
-    // Validate inline children BEFORE setup — may promote p.layoutMode from NONE to VERTICAL
-    // Phase 2 will use validation.hasAmbiguity to decide stage vs create
-    if (p.children?.length) {
-      normalizeInlineChildTypes(p.children);
-      const _validation = validateAndFixInlineChildren(p, hints);
-    }
 
     const { hints: setupHints } = await setupFrameNode(comp, p);
     hints.push(...setupHints);

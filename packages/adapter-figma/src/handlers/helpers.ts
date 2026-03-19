@@ -137,6 +137,10 @@ export async function batchHandler<TItem, TResult>(
   const allHints: Hint[] = [];
   for (let i = 0; i < items.length; i++) {
     try {
+      // Snapshot original params before alias normalization for correctedPayload
+      if (guard && (items[i] as any).children?.length) {
+        (items[i] as any)._originalParams = JSON.parse(JSON.stringify(items[i]));
+      }
       if (guard) {
         normalizeAliases(items[i] as any, guard.keys);
         rejectUnknownParams(items[i] as any, guard.keys, guard.help);

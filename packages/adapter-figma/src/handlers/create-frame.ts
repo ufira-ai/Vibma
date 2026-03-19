@@ -3,7 +3,7 @@ import { looksInteractive } from "@ufira/vibma/utils/wcag";
 import { framesCreateFrame, framesCreateAutoLayout } from "@ufira/vibma/guards";
 import { createInlineChildren, collectTextChildren, normalizeInlineChildTypes } from "./components";
 import { prepCreateText } from "./create-text";
-import { validateAndFixInlineChildren } from "./inline-tree";
+import { validateAndFixInlineChildren, formatDiff, buildCorrectedPayload } from "./inline-tree";
 
 /**
  * Resolve the effective layoutMode from params.
@@ -210,17 +210,34 @@ export async function setupFrameNode(
 // ─── Figma Handlers ──────────────────────────────────────────────
 
 async function createSingleFrame(p: any) {
+  const hints: Hint[] = [];
+
+  // Validate inline children BEFORE creating any Figma nodes.
+  // May promote p.layoutMode, fix child sizing. Returns inference tracking.
+  if (p.children?.length) {
+    // _originalParams captured by batchHandler BEFORE alias normalization
+    const originalParams = p._originalParams;
+    delete p._originalParams;
+
+    normalizeInlineChildTypes(p.children);
+    const validation = validateAndFixInlineChildren(p, hints);
+
+    // Ambiguous inferences: return structured reject with diff + corrected payload.
+    // correctedPayload uses original authoring form (fillColor not fills).
+    if (validation.hasAmbiguity) {
+      const diff = formatDiff(validation.inferences);
+      const correctedPayload = buildCorrectedPayload(p, originalParams);
+      return {
+        error: `Ambiguous layout intent detected — review the diff and re-create with the corrected payload.`,
+        diff,
+        correctedPayload,
+      };
+    }
+  }
+
   const frame = figma.createFrame();
   try {
     frame.name = p.name || "Frame";
-    const hints: Hint[] = [];
-
-    // Validate inline children BEFORE setup — may promote p.layoutMode from NONE to VERTICAL
-    // Phase 2 will use validation.hasAmbiguity to decide stage vs create
-    if (p.children?.length) {
-      normalizeInlineChildTypes(p.children);
-      const _validation = validateAndFixInlineChildren(p, hints);
-    }
 
     const { hints: setupHints } = await setupFrameNode(frame, p);
     hints.push(...setupHints);
