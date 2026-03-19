@@ -1,43 +1,31 @@
 /**
  * Inline Children Tree Model — validates parent-child sizing before Figma node creation.
  *
- * ## Rule Set
+ * Each inference is tagged with a confidence level:
+ * - **deterministic**: one obvious Vibma rule, applied silently
+ * - **ambiguous**: multiple plausible trees, triggers staging (edit-tier) or reject (create-tier)
+ * - **conflict**: contradictory signals, always reject
  *
- * ### Level 1: Parent Layout Resolution
- * | Parent state                              | Children FILL/HUG? | Action                                           |
- * |-------------------------------------------|--------------------|--------------------------------------------------|
- * | Explicit layoutMode                       | —                  | Use as-is                                        |
- * | Has AL params (padding/spacing/alignment) | —                  | Already inferred VERTICAL by resolveLayoutMode   |
- * | width+height, no layoutMode               | Yes                | Promote to VERTICAL (fixed-size AL container)    |
- * | No dimensions, no layoutMode              | Yes                | Promote to VERTICAL (HUG — L2 warns on FILL)    |
- * | Explicit layoutMode:"NONE"                | Yes                | REJECT                                           |
- *
- * ### Level 2: Per-Axis Sizing (child vs resolved parent)
- * | Parent sizing | Child sizing | Action                   |
- * |---------------|-------------|---------------------------|
- * | HUG           | FILL        | WARN (Figma resolves via widest sibling) |
- * | FIXED/FILL    | FILL        | Pass                      |
- * | Any           | HUG         | Pass                      |
- * | Any           | FIXED       | Pass (see Level 3)        |
- *
- * ### Level 3: Child Sizing Inference (direction-aware, inside AL)
- * Axis roles: VERTICAL parent → H=cross, V=primary. HORIZONTAL → H=primary, V=cross.
- *
- * | Axis role | Dimension? | Sizing   | Action                                   |
- * |-----------|-----------|----------|------------------------------------------|
- * | Cross     | No        | omitted  | Default FILL (parent constrained) or HUG |
- * | Cross     | No        | FILL     | Allow                                    |
- * | Cross     | No        | FIXED    | Warn → FILL                              |
- * | Cross     | Yes       | FILL     | REJECT (conflict)                        |
- * | Cross     | Yes       | omit/FIX | Allow                                    |
- * | Primary   | No        | omitted  | Default HUG                              |
- * | Primary   | No        | FILL     | Allow                                    |
- * | Primary   | No        | FIXED    | Warn → HUG                               |
- * | Primary   | Yes       | FILL     | REJECT (conflict)                        |
- * | Primary   | Yes       | omit/FIX | Allow                                    |
+ * See ARCHITECTURE-stage-create.md for the full rule set and two-path authoring model.
  */
 
 import type { Hint } from "./helpers";
+
+// ─── Inference Tracking ─────────────────────────────────────────
+
+export interface Inference {
+  path: string;                              // "Card > Title"
+  field: string;                             // "layoutMode"
+  from: any;                                 // original value (undefined if missing)
+  to: any;                                   // resolved value
+  confidence: "deterministic" | "ambiguous";
+  reason: string;
+}
+
+export interface ValidationResult {
+  hasAmbiguity: boolean;
+  inferences: Inference[];
+}
 
 // ─── Tree Model ─────────────────────────────────────────────────
 
@@ -52,6 +40,7 @@ interface InlineNode {
   raw: any;
   type: string;
   name: string;
+  path: string;            // "Card > Title" for inference messages
   parent: ParentContext;
   layoutMode: string;
   explicitNone: boolean;
@@ -89,16 +78,22 @@ function childHasFillOrHug(child: any): boolean {
   return h === "FILL" || h === "HUG" || v === "FILL" || v === "HUG";
 }
 
+/** Check if parent has explicit dimensions (fixed-size container). */
+function parentHasDimensions(p: any): boolean {
+  return p.width !== undefined && p.height !== undefined;
+}
+
 // ─── Build Tree ─────────────────────────────────────────────────
 
-function buildInlineTree(children: any[], parentCtx: ParentContext): InlineNode[] {
+function buildInlineTree(children: any[], parentCtx: ParentContext, parentPath: string): InlineNode[] {
   return children.map(child => {
     const type = child.type || "unknown";
     const name = childName(child);
+    const path = parentPath ? `${parentPath} > ${name}` : name;
 
     // Leaf nodes (text, instance) have no layout mode
     if (type === "text" || type === "instance" || type === "unknown") {
-      return { raw: child, type, name, parent: parentCtx, layoutMode: "NONE", explicitNone: false, children: [] };
+      return { raw: child, type, name, path, parent: parentCtx, layoutMode: "NONE", explicitNone: false, children: [] };
     }
 
     // Frame/component children: resolve their own layout mode
@@ -111,21 +106,28 @@ function buildInlineTree(children: any[], parentCtx: ParentContext): InlineNode[
     };
 
     const nested = child.children?.length
-      ? buildInlineTree(child.children, childCtx)
+      ? buildInlineTree(child.children, childCtx, path)
       : [];
 
-    return { raw: child, type, name, parent: parentCtx, layoutMode: mode, explicitNone, children: nested };
+    return { raw: child, type, name, path, parent: parentCtx, layoutMode: mode, explicitNone, children: nested };
   });
 }
 
 // ─── Validate Tree ──────────────────────────────────────────────
 
-function validateInlineTree(nodes: InlineNode[], parentRaw: any, hints: Hint[]): void {
+function validateInlineTree(
+  nodes: InlineNode[],
+  parentRaw: any,
+  parentPath: string,
+  hints: Hint[],
+  inferences: Inference[],
+): void {
   // ── Level 1: Parent layout promotion ──
   const parentIsNone = (parentRaw.layoutMode || "NONE") === "NONE" && !parentRaw.layoutMode;
   const parentExplicitNone = parentRaw.layoutMode === "NONE";
   const anyChildNeedsAL = nodes.some(n => childHasFillOrHug(n.raw));
 
+  // Conflict: explicit NONE + children need AL
   if (anyChildNeedsAL && parentExplicitNone) {
     const culprit = nodes.find(n => childHasFillOrHug(n.raw))!;
     throw new Error(
@@ -134,13 +136,26 @@ function validateInlineTree(nodes: InlineNode[], parentRaw: any, hints: Hint[]):
     );
   }
 
+  // Promote static parent to AL when children need it
   if (anyChildNeedsAL && parentIsNone) {
-    parentRaw.layoutMode = "VERTICAL";
+    const hasDims = parentHasDimensions(parentRaw);
     const culprit = nodes.find(n => childHasFillOrHug(n.raw))!;
+
+    // Confidence: deterministic if parent has dimensions (clear container intent), ambiguous otherwise
+    const confidence = hasDims ? "deterministic" as const : "ambiguous" as const;
+    const reason = hasDims
+      ? "Fixed-size parent with FILL/HUG children — container intent"
+      : "No dimensions — container size unknown, promoted to VERTICAL";
+
+    const from = parentRaw.layoutMode;
+    parentRaw.layoutMode = "VERTICAL";
+
+    inferences.push({ path: parentPath || "(root)", field: "layoutMode", from, to: "VERTICAL", confidence, reason });
     hints.push({
       type: "confirm",
       message: `Promoted to auto-layout (VERTICAL) because child '${culprit.name}' uses FILL/HUG sizing.`,
     });
+
     // Update parent context in all nodes to reflect promotion
     const updatedCtx: ParentContext = {
       layoutMode: "VERTICAL",
@@ -153,13 +168,12 @@ function validateInlineTree(nodes: InlineNode[], parentRaw: any, hints: Hint[]):
 
   // ── Level 2 + 3: Per-node, per-axis validation ──
   for (const node of nodes) {
-    const { parent, raw } = node;
+    const { parent, raw, path } = node;
 
-    // Skip validation for non-AL parents (after potential promotion, if still NONE it means no children needed AL)
+    // Skip validation for non-AL parents
     if (parent.layoutMode === "NONE") {
-      // Recurse into frame/component children (they have their own context)
       if (node.children.length) {
-        validateInlineTree(node.children, raw, hints);
+        validateInlineTree(node.children, raw, path, hints, inferences);
       }
       continue;
     }
@@ -193,35 +207,46 @@ function validateInlineTree(nodes: InlineNode[], parentRaw: any, hints: Hint[]):
       const { field, role, dimension, sizing, parentSizing } = axis;
       const dimName = field === "layoutSizingHorizontal" ? "width" : "height";
 
-      // Level 2: HUG parent + FILL child — warn but allow.
-      // Figma resolves this: widest content determines parent width, FILL children stretch to match.
-      // Valid for top-level containers (buttons, cards) but may surprise for deeply nested layouts.
+      // Level 2: HUG parent + FILL child — ambiguous, warn but allow.
+      // Figma resolves: widest content determines parent width, FILL children stretch to match.
       if (parentSizing === "HUG" && sizing === "FILL") {
+        inferences.push({
+          path, field, from: "FILL", to: "FILL", confidence: "ambiguous",
+          reason: `FILL inside HUG parent — siblings determine width`,
+        });
         hints.push({
           type: "warn",
           message: `Child '${node.name}' has ${field}:'FILL' inside HUG parent — FILL children adopt the width of the widest sibling. Set ${dimName} on parent for explicit sizing.`,
         });
       }
 
-      // Level 3: Direction-aware inference
+      // Conflict: FILL + explicit dimension
       if (sizing === "FILL" && dimension !== undefined) {
-        // FILL + explicit dimension = conflict
         throw new Error(
           `Child '${node.name}' has both ${field}:'FILL' and ${dimName} — these conflict. ` +
           `Use FILL to stretch to parent, or set ${dimName} with ${field}:'FIXED'.`
         );
       }
 
+      // Level 3: FIXED without dimension — deterministic inference from axis role
       if (sizing === "FIXED" && dimension === undefined) {
-        // FIXED without dimension — infer from axis role
+        const from = "FIXED";
         if (role === "cross") {
           raw[field] = "FILL";
+          inferences.push({
+            path, field, from, to: "FILL", confidence: "deterministic",
+            reason: "FIXED on cross-axis without dimension — stretch to parent",
+          });
           hints.push({
             type: "confirm",
             message: `Child '${node.name}' has ${field}:'FIXED' on cross-axis without ${dimName} — using FILL to stretch to parent.`,
           });
         } else {
           raw[field] = "HUG";
+          inferences.push({
+            path, field, from, to: "HUG", confidence: "deterministic",
+            reason: "FIXED on primary axis without dimension — content-size",
+          });
           hints.push({
             type: "confirm",
             message: `Child '${node.name}' has ${field}:'FIXED' on primary axis without ${dimName} — using HUG to content-size.`,
@@ -232,8 +257,65 @@ function validateInlineTree(nodes: InlineNode[], parentRaw: any, hints: Hint[]):
 
     // Recurse into frame/component children
     if (node.children.length) {
-      validateInlineTree(node.children, raw, hints);
+      validateInlineTree(node.children, raw, path, hints, inferences);
     }
+  }
+}
+
+// ─── Diff & Payload Helpers ─────────────────────────────────────
+
+/**
+ * Format ambiguous inferences as a git-style diff string.
+ * Only includes ambiguous decisions — deterministic inferences are silent.
+ */
+export function formatDiff(inferences: Inference[]): string {
+  const ambiguous = inferences.filter(i => i.confidence === "ambiguous");
+  if (ambiguous.length === 0) return "";
+
+  // Group by path
+  const byPath = new Map<string, Inference[]>();
+  for (const inf of ambiguous) {
+    const group = byPath.get(inf.path) || [];
+    group.push(inf);
+    byPath.set(inf.path, group);
+  }
+
+  const lines: string[] = [];
+  for (const [path, infs] of byPath) {
+    lines.push(path);
+    for (const inf of infs) {
+      const fromStr = inf.from === undefined ? "(not set)" : JSON.stringify(inf.from);
+      const toStr = JSON.stringify(inf.to);
+      lines.push(`- ${inf.field}: ${fromStr}`);
+      lines.push(`+ ${inf.field}: ${toStr}  # ${inf.reason}`);
+    }
+    lines.push("");
+  }
+
+  return lines.join("\n").trimEnd();
+}
+
+/**
+ * Build a corrected payload from the mutated params.
+ * Deep clones and strips internal fields.
+ * Call AFTER validateAndFixInlineChildren but BEFORE setupFrameNode
+ * (so the payload is in authoring-schema form, not internal form).
+ */
+export function buildCorrectedPayload(mutatedParams: any): any {
+  const clone = JSON.parse(JSON.stringify(mutatedParams));
+  stripInternalFields(clone);
+  return clone;
+}
+
+const INTERNAL_FIELDS = new Set(["_skipOverlapCheck", "_inlineHints"]);
+
+function stripInternalFields(obj: any): void {
+  if (!obj || typeof obj !== "object") return;
+  for (const key of INTERNAL_FIELDS) {
+    delete obj[key];
+  }
+  if (Array.isArray(obj.children)) {
+    for (const child of obj.children) stripInternalFields(child);
   }
 }
 
@@ -241,11 +323,16 @@ function validateInlineTree(nodes: InlineNode[], parentRaw: any, hints: Hint[]):
 
 /**
  * Validate and fix inline children before Figma node creation.
- * Builds an annotated tree model, then applies sizing rules.
- * Mutates `parentParams` (may promote layoutMode) and `parentParams.children` (may fix sizing).
- * Throws on unresolvable conflicts.
+ * Builds an annotated tree model, applies sizing rules, tracks inferences.
+ *
+ * Always applies all fixes (deterministic + ambiguous). Returns:
+ * - `hasAmbiguity`: true if any inference was ambiguous (caller decides: stage or reject)
+ * - `inferences`: full list with confidence tags, for diff/payload generation
+ *
+ * Mutates `parentParams` (may promote layoutMode) and children (may fix sizing).
+ * Throws on conflicts (FILL+dimension, explicit NONE+FILL/HUG).
  */
-export function validateAndFixInlineChildren(parentParams: any, hints: Hint[]): void {
+export function validateAndFixInlineChildren(parentParams: any, hints: Hint[]): ValidationResult {
   const parentLM = parentParams.layoutMode || "";
   const explicitNone = parentParams.layoutMode === "NONE";
   const parentCtx: ParentContext = {
@@ -254,6 +341,11 @@ export function validateAndFixInlineChildren(parentParams: any, hints: Hint[]): 
     sizingH: resolveEffectiveSizing(parentParams, "H"),
     sizingV: resolveEffectiveSizing(parentParams, "V"),
   };
-  const tree = buildInlineTree(parentParams.children, parentCtx);
-  validateInlineTree(tree, parentParams, hints);
+  const parentName = parentParams.name || "(root)";
+  const inferences: Inference[] = [];
+  const tree = buildInlineTree(parentParams.children, parentCtx, parentName);
+  validateInlineTree(tree, parentParams, parentName, hints, inferences);
+
+  const hasAmbiguity = inferences.some(i => i.confidence === "ambiguous");
+  return { hasAmbiguity, inferences };
 }

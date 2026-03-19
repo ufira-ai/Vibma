@@ -216,9 +216,10 @@ async function createSingleFrame(p: any) {
     const hints: Hint[] = [];
 
     // Validate inline children BEFORE setup — may promote p.layoutMode from NONE to VERTICAL
+    // Phase 2 will use validation.hasAmbiguity to decide stage vs create
     if (p.children?.length) {
       normalizeInlineChildTypes(p.children);
-      validateAndFixInlineChildren(p, hints);
+      const _validation = validateAndFixInlineChildren(p, hints);
     }
 
     const { hints: setupHints } = await setupFrameNode(frame, p);
