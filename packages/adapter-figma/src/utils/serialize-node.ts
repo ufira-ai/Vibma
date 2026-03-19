@@ -153,20 +153,29 @@ export async function serializeNode(
   }
 
   // ── Component / Component Set ──────────────────────────────────
+  // Figma throws on corrupted component sets (duplicate variant names, stale properties).
+  // Wrap all property reads in try/catch so the rest of the node data is still returned.
   if (node.type === "COMPONENT" || node.type === "COMPONENT_SET") {
     const comp = node as any;
     const isVariant = node.type === "COMPONENT" && node.parent?.type === "COMPONENT_SET";
     if (comp.description) out.description = comp.description;
-    // componentPropertyDefinitions throws on variant components — defs live on the parent set
-    if (!isVariant && comp.componentPropertyDefinitions) {
-      out.propertyDefinitions = comp.componentPropertyDefinitions;
-    }
-    if (node.type === "COMPONENT_SET") {
-      if (comp.variantGroupProperties) out.variantGroupProperties = comp.variantGroupProperties;
-      if ("children" in comp) out.variantCount = comp.children.length;
-    }
-    if (isVariant && comp.variantProperties) {
-      out.variantProperties = comp.variantProperties;
+    try {
+      // componentPropertyDefinitions throws on variant components — defs live on the parent set
+      if (!isVariant && comp.componentPropertyDefinitions) {
+        out.propertyDefinitions = comp.componentPropertyDefinitions;
+      }
+      if (node.type === "COMPONENT_SET") {
+        if (comp.variantGroupProperties) out.variantGroupProperties = comp.variantGroupProperties;
+        if ("children" in comp) out.variantCount = comp.children.length;
+      }
+      if (isVariant && comp.variantProperties) {
+        out.variantProperties = comp.variantProperties;
+      }
+    } catch {
+      out._error = "Component set has duplicate variant value combinations — property definitions unavailable.";
+      if (node.type === "COMPONENT_SET" && "children" in comp) {
+        out.variantCount = comp.children.length;
+      }
     }
   }
 

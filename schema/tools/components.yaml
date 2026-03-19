@@ -99,7 +99,6 @@ methods:
           $mixin: frame_params
           name: { type: string, required: true, description: Component name }
           description: { type: string, optional: true, description: "Component description (shown in Figma's component panel)" }
-          children: { $ref: inlineChildrenComponent }
           properties:
             type: array
             coerce: json
@@ -123,7 +122,6 @@ methods:
           $mixin: frame_params
           componentIds: { type: "string[]", coerce: json, optional: true, description: "Existing component IDs to combine (min 2). Alternative to children.", aliases: [nodeIds] }
           variantPropertyName: { type: string, optional: true, description: "Rename the auto-generated variant property (default: 'Property 1')" }
-          children: { $ref: inlineVariants }
     response:
       type: batch
       item: { id: { type: string } }

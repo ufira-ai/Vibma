@@ -529,7 +529,10 @@ async function getComponentFigma(params: any) {
 
   // Without depth: return property summary (backward compatible)
   if (depth === undefined) {
-    const results = targets.map(t => t.node ? serializeComponentSummary(t.node) : { name: t.name, error: t.error });
+    const results = targets.map(t => {
+      if (!t.node) return { name: t.name, error: t.error };
+      return serializeComponentSummary(t.node);
+    });
     return { results };
   }
 
@@ -539,11 +542,22 @@ async function getComponentFigma(params: any) {
   const results: any[] = [];
   for (const t of targets) {
     if (!t.node) { results.push({ name: t.name, error: t.error }); continue; }
-    const serialized = await serializeNode(t.node, depth, 0, budget, verbose);
-    // Merge component property definitions into the serialized tree
-    const summary = serializeComponentSummary(t.node);
-    if (summary.properties) serialized.properties = summary.properties;
-    results.push(serialized);
+    try {
+      const serialized = await serializeNode(t.node, depth, 0, budget, verbose);
+      // Merge component property definitions into the serialized tree (may fail on corrupted sets)
+      const summary = serializeComponentSummary(t.node);
+      if (summary.properties) serialized.properties = summary.properties;
+      if (summary._error) serialized._error = summary._error;
+      results.push(serialized);
+    } catch {
+      // Corrupted component set — return degraded result with what we can read
+      const degraded: any = { id: t.node.id, name: t.node.name, type: t.node.type };
+      if ("children" in t.node) {
+        degraded.children = (t.node as any).children.map((c: any) => ({ id: c.id, name: c.name, type: c.type }));
+      }
+      degraded._error = `Component set has duplicate variant value combinations — property definitions unavailable.`;
+      results.push(degraded);
+    }
   }
   const out: any = { results };
   if (budget.remaining <= 0) { out._truncated = true; }
@@ -553,17 +567,21 @@ async function getComponentFigma(params: any) {
 function serializeComponentSummary(node: any): any {
   const out: any = { id: node.id, name: node.name };
   if (node.description) out.description = node.description;
-  const defs = node.componentPropertyDefinitions;
-  if (defs && Object.keys(defs).length > 0) {
-    const props: Record<string, any> = {};
-    for (const [key, def] of Object.entries(defs) as [string, any][]) {
-      const clean = key.indexOf("#") > 0 ? key.slice(0, key.indexOf("#")) : key;
-      const p: any = { type: def.type };
-      if (def.defaultValue !== undefined) p.defaultValue = def.defaultValue;
-      if (def.type === "VARIANT" && def.variantOptions) p.options = def.variantOptions;
-      props[clean] = p;
+  try {
+    const defs = node.componentPropertyDefinitions;
+    if (defs && Object.keys(defs).length > 0) {
+      const props: Record<string, any> = {};
+      for (const [key, def] of Object.entries(defs) as [string, any][]) {
+        const clean = key.indexOf("#") > 0 ? key.slice(0, key.indexOf("#")) : key;
+        const p: any = { type: def.type };
+        if (def.defaultValue !== undefined) p.defaultValue = def.defaultValue;
+        if (def.type === "VARIANT" && def.variantOptions) p.options = def.variantOptions;
+        props[clean] = p;
+      }
+      out.properties = props;
     }
-    out.properties = props;
+  } catch {
+    out._error = `Component set "${node.name}" has duplicate variant value combinations — Figma's Plugin API cannot read property definitions in this state. Fix the conflicting variant names in Figma to restore access.`;
   }
   return out;
 }
