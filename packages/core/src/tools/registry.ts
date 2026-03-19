@@ -50,6 +50,8 @@ export function registerTools(
 
         if (tool.validate) tool.validate(params);
         const command = resolveCommand(tool, params);
+        // Inject session capabilities so adapter-side handlers can branch on tier
+        params._caps = caps;
         const result = await sendCommand(command, params, timeout);
         const format = (tool.methodFormatters?.[params.method]) ?? defaultFormat;
         return format(result);

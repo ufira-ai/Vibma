@@ -152,6 +152,16 @@ methods:
       type: batch
       item: { id: { type: string } }
 
+  commit:
+    tier: edit
+    description: "Commit a staged node — unwraps from [STAGED] container into the original target location."
+    example: 'frames(method:"commit", id:"1:234")'
+    params:
+      id: { type: string, required: true, description: "Staged node ID to commit" }
+    response:
+      type: batch
+      item: { id: { type: string } }
+
   export:
     tier: read
     description: "Export a node as PNG, JPG, SVG, SVG_STRING, or PDF"

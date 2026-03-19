@@ -2,6 +2,7 @@ import { batchHandler, appendAndApplySizing, checkOverlappingSiblings, applyToke
 import { setupFrameNode } from "./create-frame";
 import { auditNode } from "./lint";
 import { validateAndFixInlineChildren, formatDiff, buildCorrectedPayload } from "./inline-tree";
+import { createStageContainer } from "./stage";
 import { createDispatcher, paginate, pickFields } from "@ufira/vibma/endpoint";
 import {
   componentsCreateComponent, componentsCreateFromNode, componentsCreateVariantSet,
@@ -210,6 +211,31 @@ async function createComponentSingle(p: any) {
     if (validation.hasAmbiguity) {
       const diff = formatDiff(validation.inferences);
       const correctedPayload = buildCorrectedPayload(p, originalParams);
+      const canEdit = p._caps?.edit;
+
+      // Edit-tier: auto-stage
+      if (canEdit) {
+        const stageFrame = await createStageContainer(p, p.name);
+        try {
+          const stagedP = { ...p, parentId: stageFrame.id, x: undefined, y: undefined };
+          const comp = figma.createComponent();
+          comp.name = p.name;
+          if (p.description) comp.description = p.description;
+          const { hints: setupHints } = await setupFrameNode(comp, stagedP);
+          hints.push(...setupHints);
+          if (p.children?.length) {
+            const textChildren = collectTextChildren(p.children);
+            const textCtx = await prepCreateText({ items: textChildren });
+            await createInlineChildren(comp, comp, p.children, hints, textCtx);
+          }
+          return { id: stageFrame.id, status: "staged", diff, correctedPayload, hints };
+        } catch (e) {
+          stageFrame.remove();
+          throw e;
+        }
+      }
+
+      // Create-tier: reject
       return {
         error: `Ambiguous layout intent detected — review the diff and re-create with the corrected payload.`,
         diff,

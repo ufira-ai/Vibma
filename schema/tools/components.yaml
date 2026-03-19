@@ -128,6 +128,16 @@ methods:
       type: batch
       item: { id: { type: string } }
 
+  commit:
+    tier: edit
+    description: "Commit a staged component — unwraps from [STAGED] container into the original target location."
+    example: 'components(method:"commit", id:"1:234")'
+    params:
+      id: { type: string, required: true, description: "Staged node ID to commit" }
+    response:
+      type: batch
+      item: { id: { type: string } }
+
   update:
     tier: edit
     description: "Add, edit, or delete component properties"

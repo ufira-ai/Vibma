@@ -336,7 +336,7 @@ function applyInferredFields(target: any, source: any): void {
   }
 }
 
-const INTERNAL_FIELDS = new Set(["_skipOverlapCheck", "_inlineHints", "_originalParams"]);
+const INTERNAL_FIELDS = new Set(["_skipOverlapCheck", "_inlineHints", "_originalParams", "_caps"]);
 
 function stripInternalFields(obj: any): void {
   if (!obj || typeof obj !== "object") return;

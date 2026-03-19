@@ -20,6 +20,7 @@ import { figmaHandlers as variablesHandlers } from "./variables";
 import { figmaHandlers as lintHandlers, auditNode } from "./lint";
 import { figmaHandlers as versionHistoryHandlers } from "./version-history";
 import { figmaHandlers as prototypingHandlers } from "./prototyping";
+import { figmaHandlers as stageHandlers } from "./stage";
 
 // ─── Shared adapters for inherited node base methods ──────────────
 // Single source of truth for param → handler item mapping.
@@ -100,6 +101,7 @@ export const allFigmaHandlers: Record<string, (params: any) => Promise<any>> = {
   "frames.reparent": reparentAdapter,
   "frames.export": nodeInfoHandlers.export_node_as_image,
   "frames.audit": auditAdapter,
+  "frames.commit": stageHandlers.commit,
 
   // ─── document endpoint ───
   "document.get": documentHandlers.get_current_page,
@@ -147,9 +149,10 @@ export const allFigmaHandlers: Record<string, (params: any) => Promise<any>> = {
   "components.audit": componentsHandlers.components,
   "components.delete": componentsHandlers.components,
 
-  // components endpoint — inherited node base methods
+  // components endpoint — inherited node base methods + commit
   "components.clone": cloneAdapter,
   "components.reparent": reparentAdapter,
+  "components.commit": stageHandlers.commit,
 
   // ─── instances endpoint — own methods ───
   "instances.get": componentsHandlers.instances,
