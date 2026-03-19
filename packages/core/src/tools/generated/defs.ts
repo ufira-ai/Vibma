@@ -53,7 +53,7 @@ export const tools: ToolDef[] = [
     schema: (caps) => filterMethodsByTier({    method: z.enum(["clone", "audit", "reparent", "list", "get", "create", "commit", "update", "delete", "help"]),
     id: z.string().optional().describe("Node ID"),
     name: z.string().optional().describe("Rename the clone (set before appending to parent — required when cloning a variant into its component set to avoid duplicate names)"),
-    parentId: z.string().optional().describe("Parent node ID. Omit to place on current page."),
+    parentId: z.string().optional().describe("Parent node ID. Omit to place at current page root."),
     x: z.coerce.number().optional().describe("X position (default: 0)"),
     y: z.coerce.number().optional().describe("Y position (default: 0)"),
     items: flexJson(z.array(z.record(z.string(), z.unknown()))).optional().describe("Array of {id, ...properties} to clone/reparent/update"),
@@ -88,7 +88,7 @@ export const tools: ToolDef[] = [
         const schemas: Record<string, z.ZodTypeAny> = {
           "component": z.object({
             name: z.string().describe("Component name"),
-            parentId: z.string().optional().describe("Parent node ID. Omit to place on current page."),
+            parentId: z.string().optional().describe("Parent node ID. Omit to place at current page root."),
             x: z.coerce.number().optional().describe("X position (default: 0)"),
             y: z.coerce.number().optional().describe("Y position (default: 0)"),
             width: z.coerce.number().optional().describe("Width in px (omit to shrink-to-content via HUG)"),
@@ -139,7 +139,7 @@ export const tools: ToolDef[] = [
             maxHeight: z.coerce.number().optional().describe("Max height for responsive auto-layout"),
             overflowDirection: z.enum(["NONE", "HORIZONTAL", "VERTICAL", "BOTH"]).optional().describe("Scroll overflow in prototype (default: NONE)"),
             description: z.string().optional().describe("Component description (shown in Figma's component panel)"),
-            children: flexJson(z.array(z.record(z.string(), z.unknown()))).optional().describe("Inline child nodes — build nested trees in one call. Types: text: {type:\"text\", text, componentPropertyName?, fontFamily?, fontSize?, fontColor?, layoutSizingHorizontal?}. frame: {type:\"frame\", name?, layoutMode?, fillColor?, width?, layoutSizingHorizontal?, children?}. instance: {type:\"instance\", componentId, componentPropertyName?, variantProperties?, properties?}. component: {type:\"component\", name, children?}. All params from text/frame endpoints are supported on their respective types. componentPropertyName auto-creates and binds a TEXT (text) or INSTANCE_SWAP (instance) property. Always set layoutSizingHorizontal + layoutSizingVertical on children inside auto-layout parents (FILL, HUG, or FIXED). Example: children:[{type:\"text\", text:\"Label\", componentPropertyName:\"Label\", fontSize:14, fontColorVariableName:\"text/primary\", layoutSizingHorizontal:\"FILL\", layoutSizingVertical:\"HUG\"}, {type:\"frame\", name:\"Actions\", layoutMode:\"HORIZONTAL\", layoutSizingHorizontal:\"FILL\", layoutSizingVertical:\"HUG\", itemSpacing:8, children:[{type:\"instance\", componentId:\"1:2\", componentPropertyName:\"Action\", layoutSizingHorizontal:\"FILL\", layoutSizingVertical:\"HUG\"}]}]\n"),
+            children: flexJson(z.array(z.record(z.string(), z.unknown()))).optional().describe("Inline child nodes — build nested trees in one call. Types: text: {type:\"text\", text, componentPropertyName?, fontFamily?, fontSize?, fontWeight?, fontStyle?, fontColor?, layoutSizingHorizontal?}. frame: {type:\"frame\", name?, layoutMode?, fillColor?, width?, layoutSizingHorizontal?, children?}. instance: {type:\"instance\", componentId, componentPropertyName?, variantProperties?, properties?}. component: {type:\"component\", name, children?}. All params from text/frame endpoints are supported on their respective types. componentPropertyName auto-creates and binds a TEXT (text) or INSTANCE_SWAP (instance) property. Always set layoutSizingHorizontal + layoutSizingVertical on children inside auto-layout parents (FILL, HUG, or FIXED). Example: children:[{type:\"text\", text:\"Label\", componentPropertyName:\"Label\", fontSize:14, fontColorVariableName:\"text/primary\", layoutSizingHorizontal:\"FILL\", layoutSizingVertical:\"HUG\"}, {type:\"frame\", name:\"Actions\", layoutMode:\"HORIZONTAL\", layoutSizingHorizontal:\"FILL\", layoutSizingVertical:\"HUG\", itemSpacing:8, children:[{type:\"instance\", componentId:\"1:2\", componentPropertyName:\"Action\", layoutSizingHorizontal:\"FILL\", layoutSizingVertical:\"HUG\"}]}]\n"),
             properties: flexJson(z.array(z.record(z.string(), z.unknown()))).optional().describe("Component properties to define at creation: [{propertyName, type, defaultValue}]. TEXT properties for inline children with componentPropertyName are created automatically."),
           }).passthrough(),
           "from_node": z.object({
@@ -148,7 +148,7 @@ export const tools: ToolDef[] = [
           }).passthrough(),
           "variant_set": z.object({
             name: z.string().optional().describe("Node name"),
-            parentId: z.string().optional().describe("Parent node ID. Omit to place on current page."),
+            parentId: z.string().optional().describe("Parent node ID. Omit to place at current page root."),
             x: z.coerce.number().optional().describe("X position (default: 0)"),
             y: z.coerce.number().optional().describe("Y position (default: 0)"),
             width: z.coerce.number().optional().describe("Width in px (omit to shrink-to-content via HUG)"),
@@ -309,7 +309,7 @@ export const tools: ToolDef[] = [
         const schemas: Record<string, z.ZodTypeAny> = {
           "frame": z.object({
             name: z.string().optional().describe("Node name"),
-            parentId: z.string().optional().describe("Parent node ID. Omit to place on current page."),
+            parentId: z.string().optional().describe("Parent node ID. Omit to place at current page root."),
             x: z.coerce.number().optional().describe("X position (default: 0)"),
             y: z.coerce.number().optional().describe("Y position (default: 0)"),
             width: z.coerce.number().optional().describe("Width in px (omit to shrink-to-content via HUG)"),
@@ -360,11 +360,11 @@ export const tools: ToolDef[] = [
             maxHeight: z.coerce.number().optional().describe("Max height for responsive auto-layout"),
             overflowDirection: z.enum(["NONE", "HORIZONTAL", "VERTICAL", "BOTH"]).optional().describe("Scroll overflow in prototype (default: NONE)"),
             clipsContent: flexBool(z.boolean()).optional(),
-            children: flexJson(z.array(z.record(z.string(), z.unknown()))).optional().describe("Inline child nodes — build nested trees in one call. Types: text: {type:\"text\", text, fontFamily?, fontSize?, fontColor?, layoutSizingHorizontal?}. frame: {type:\"frame\", name?, layoutMode?, fillColor?, width?, layoutSizingHorizontal?, children?}. instance: {type:\"instance\", componentId, variantProperties?, properties?}. component: {type:\"component\", name, children?}. All params from text/frame endpoints are supported on their respective types. Always set layoutSizingHorizontal + layoutSizingVertical on children inside auto-layout parents (FILL, HUG, or FIXED). Example: children:[{type:\"text\", text:\"Title\", fontSize:20, layoutSizingHorizontal:\"FILL\", layoutSizingVertical:\"HUG\"}, {type:\"frame\", name:\"Row\", layoutMode:\"HORIZONTAL\", layoutSizingHorizontal:\"FILL\", layoutSizingVertical:\"HUG\", itemSpacing:8, children:[{type:\"instance\", componentId:\"1:2\", layoutSizingHorizontal:\"FILL\", layoutSizingVertical:\"HUG\"}]}] Inside components: add componentPropertyName to auto-bind TEXT or INSTANCE_SWAP properties.\n"),
+            children: flexJson(z.array(z.record(z.string(), z.unknown()))).optional().describe("Inline child nodes — build nested trees in one call. Types: text: {type:\"text\", text, fontFamily?, fontSize?, fontWeight?, fontStyle?, fontColor?, layoutSizingHorizontal?}. frame: {type:\"frame\", name?, layoutMode?, fillColor?, width?, layoutSizingHorizontal?, children?}. instance: {type:\"instance\", componentId, variantProperties?, properties?}. component: {type:\"component\", name, children?}. All params from text/frame endpoints are supported on their respective types. Always set layoutSizingHorizontal + layoutSizingVertical on children inside auto-layout parents (FILL, HUG, or FIXED). Example: children:[{type:\"text\", text:\"Title\", fontSize:20, layoutSizingHorizontal:\"FILL\", layoutSizingVertical:\"HUG\"}, {type:\"frame\", name:\"Row\", layoutMode:\"HORIZONTAL\", layoutSizingHorizontal:\"FILL\", layoutSizingVertical:\"HUG\", itemSpacing:8, children:[{type:\"instance\", componentId:\"1:2\", layoutSizingHorizontal:\"FILL\", layoutSizingVertical:\"HUG\"}]}] Inside components: add componentPropertyName to auto-bind TEXT or INSTANCE_SWAP properties.\n"),
           }).passthrough(),
           "auto_layout": z.object({
             name: z.string().optional().describe("Node name"),
-            parentId: z.string().optional().describe("Parent node ID. Omit to place on current page."),
+            parentId: z.string().optional().describe("Parent node ID. Omit to place at current page root."),
             x: z.coerce.number().optional().describe("X position (default: 0)"),
             y: z.coerce.number().optional().describe("Y position (default: 0)"),
             width: z.coerce.number().optional().describe("Width in px (omit to shrink-to-content via HUG)"),
@@ -416,11 +416,11 @@ export const tools: ToolDef[] = [
             overflowDirection: z.enum(["NONE", "HORIZONTAL", "VERTICAL", "BOTH"]).optional().describe("Scroll overflow in prototype (default: NONE)"),
             clipsContent: flexBool(z.boolean()).optional(),
             nodeIds: flexJson(z.array(z.string())).optional().describe("Existing node IDs to wrap into auto-layout"),
-            children: flexJson(z.array(z.record(z.string(), z.unknown()))).optional().describe("Inline child nodes — build nested trees in one call. Types: text: {type:\"text\", text, fontFamily?, fontSize?, fontColor?, layoutSizingHorizontal?}. frame: {type:\"frame\", name?, layoutMode?, fillColor?, width?, layoutSizingHorizontal?, children?}. instance: {type:\"instance\", componentId, variantProperties?, properties?}. component: {type:\"component\", name, children?}. All params from text/frame endpoints are supported on their respective types. Always set layoutSizingHorizontal + layoutSizingVertical on children inside auto-layout parents (FILL, HUG, or FIXED). Example: children:[{type:\"text\", text:\"Title\", fontSize:20, layoutSizingHorizontal:\"FILL\", layoutSizingVertical:\"HUG\"}, {type:\"frame\", name:\"Row\", layoutMode:\"HORIZONTAL\", layoutSizingHorizontal:\"FILL\", layoutSizingVertical:\"HUG\", itemSpacing:8, children:[{type:\"instance\", componentId:\"1:2\", layoutSizingHorizontal:\"FILL\", layoutSizingVertical:\"HUG\"}]}] Inside components: add componentPropertyName to auto-bind TEXT or INSTANCE_SWAP properties.\n"),
+            children: flexJson(z.array(z.record(z.string(), z.unknown()))).optional().describe("Inline child nodes — build nested trees in one call. Types: text: {type:\"text\", text, fontFamily?, fontSize?, fontWeight?, fontStyle?, fontColor?, layoutSizingHorizontal?}. frame: {type:\"frame\", name?, layoutMode?, fillColor?, width?, layoutSizingHorizontal?, children?}. instance: {type:\"instance\", componentId, variantProperties?, properties?}. component: {type:\"component\", name, children?}. All params from text/frame endpoints are supported on their respective types. Always set layoutSizingHorizontal + layoutSizingVertical on children inside auto-layout parents (FILL, HUG, or FIXED). Example: children:[{type:\"text\", text:\"Title\", fontSize:20, layoutSizingHorizontal:\"FILL\", layoutSizingVertical:\"HUG\"}, {type:\"frame\", name:\"Row\", layoutMode:\"HORIZONTAL\", layoutSizingHorizontal:\"FILL\", layoutSizingVertical:\"HUG\", itemSpacing:8, children:[{type:\"instance\", componentId:\"1:2\", layoutSizingHorizontal:\"FILL\", layoutSizingVertical:\"HUG\"}]}] Inside components: add componentPropertyName to auto-bind TEXT or INSTANCE_SWAP properties.\n"),
           }).passthrough(),
           "section": z.object({
             name: z.string().describe("Section name"),
-            parentId: z.string().optional().describe("Parent node ID. Omit to place on current page."),
+            parentId: z.string().optional().describe("Parent node ID. Omit to place at current page root."),
             x: z.coerce.number().optional().describe("X position (default: 0)"),
             y: z.coerce.number().optional().describe("Y position (default: 0)"),
             width: z.coerce.number().optional().describe("Width (default: 500)"),
@@ -432,7 +432,7 @@ export const tools: ToolDef[] = [
           }).passthrough(),
           "rectangle": z.object({
             name: z.string().optional().describe("Layer name (default: 'Rectangle')"),
-            parentId: z.string().optional().describe("Parent node ID. Omit to place on current page."),
+            parentId: z.string().optional().describe("Parent node ID. Omit to place at current page root."),
             x: z.coerce.number().optional().describe("X position (default: 0)"),
             y: z.coerce.number().optional().describe("Y position (default: 0)"),
             width: z.coerce.number().optional().describe("Width in px (default: 100)"),
@@ -456,7 +456,7 @@ export const tools: ToolDef[] = [
           }).passthrough(),
           "ellipse": z.object({
             name: z.string().optional().describe("Layer name (default: 'Ellipse')"),
-            parentId: z.string().optional().describe("Parent node ID. Omit to place on current page."),
+            parentId: z.string().optional().describe("Parent node ID. Omit to place at current page root."),
             x: z.coerce.number().optional().describe("X position (default: 0)"),
             y: z.coerce.number().optional().describe("Y position (default: 0)"),
             width: z.coerce.number().optional().describe("Width in px (default: 100)"),
@@ -475,7 +475,7 @@ export const tools: ToolDef[] = [
           }).passthrough(),
           "line": z.object({
             name: z.string().optional().describe("Layer name (default: 'Line')"),
-            parentId: z.string().optional().describe("Parent node ID. Omit to place on current page."),
+            parentId: z.string().optional().describe("Parent node ID. Omit to place at current page root."),
             x: z.coerce.number().optional().describe("X position (default: 0)"),
             y: z.coerce.number().optional().describe("Y position (default: 0)"),
             length: z.coerce.number().optional().describe("Line length in px (default: 100)"),
@@ -490,18 +490,18 @@ export const tools: ToolDef[] = [
           "group": z.object({
             nodeIds: z.array(z.string()).describe("Node IDs to group (min 1)"),
             name: z.string().optional().describe("Group name"),
-            parentId: z.string().optional().describe("Parent node ID. Omit to place on current page."),
+            parentId: z.string().optional().describe("Parent node ID. Omit to place at current page root."),
           }).passthrough(),
           "boolean_operation": z.object({
             operation: z.enum(["UNION", "SUBTRACT", "INTERSECT", "EXCLUDE"]).describe("Boolean operation type"),
             nodeIds: z.array(z.string()).describe("Node IDs to combine (min 2, first node is the base for SUBTRACT)"),
             name: z.string().optional().describe("Result node name"),
-            parentId: z.string().optional().describe("Parent node ID. Omit to place on current page."),
+            parentId: z.string().optional().describe("Parent node ID. Omit to place at current page root."),
           }).passthrough(),
           "svg": z.object({
             svg: z.string().describe("SVG markup string"),
             name: z.string().optional().describe("Layer name (default: 'SVG')"),
-            parentId: z.string().optional().describe("Parent node ID. Omit to place on current page."),
+            parentId: z.string().optional().describe("Parent node ID. Omit to place at current page root."),
             x: z.coerce.number().optional().describe("X position (default: 0)"),
             y: z.coerce.number().optional().describe("Y position (default: 0)"),
             fillStyleName: z.string().optional().describe("Paint style to apply to vector fills"),
@@ -576,7 +576,7 @@ export const tools: ToolDef[] = [
           y: z.coerce.number().optional(),
           width: z.coerce.number().optional().describe("Override width (resize)"),
           height: z.coerce.number().optional().describe("Override height (resize)"),
-          parentId: z.string().optional().describe("Parent node ID. Omit to place on current page."),
+          parentId: z.string().optional().describe("Parent node ID. Omit to place at current page root."),
         }).passthrough();
         try { params.items = z.array(itemSchema).parse(params.items); }
         catch (e) { if (e instanceof z.ZodError) { throw new Error(e.issues.map(i => { const path = i.path.join("."); const shape = itemSchema instanceof z.ZodObject ? (itemSchema as any).shape : null; const desc = shape?.[i.path[1]]?.description; return path + ": " + i.message + (desc ? " (expected: " + desc + ")" : ""); }).join("; ")); } throw e; }
@@ -909,7 +909,7 @@ export const tools: ToolDef[] = [
           x: z.number().optional(),
           y: z.number().optional(),
           width: z.number().optional().describe("Fixed width in px — implies layoutSizingHorizontal: FIXED and textAutoResize: HEIGHT"),
-          parentId: z.string().optional().describe("Parent node ID. Omit to place on current page."),
+          parentId: z.string().optional().describe("Parent node ID. Omit to place at current page root."),
           fontFamily: z.string().optional().describe("Font family (default: Inter). Use fonts.list to find installed fonts."),
           fontStyle: z.string().optional().describe("Font variant e.g. \"Bold\", \"Italic\" — overrides fontWeight"),
           fontSize: z.number().optional().describe("Font size (default: 14)"),

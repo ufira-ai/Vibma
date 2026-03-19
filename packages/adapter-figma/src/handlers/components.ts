@@ -404,12 +404,16 @@ function validateVariantChildren(children: any[]): void {
     throw new Error(`All variant components require a name.`);
   }
 
-  // Validate consistent child shape across variants
+  // Validate consistent child shape across variants.
+  // Shape = sorted set of {type, name} — uses explicit name or componentPropertyName,
+  // NOT text content (which varies between variants and would always mismatch).
   function childShape(c: any): string {
     const kids = c.children || [];
     const shape = kids.map((k: any) => {
       const type = k.type || "unknown";
-      const name = k.name || k.componentPropertyName || k.text || "";
+      // For shape matching: explicit name > componentPropertyName > positional type.
+      // Deliberately exclude k.text — text content differs between variants by design.
+      const name = k.name || k.componentPropertyName || type;
       return `${type}:${name}`;
     }).sort();
     return shape.join("|");
@@ -419,7 +423,11 @@ function validateVariantChildren(children: any[]): void {
   const firstShape = shapes[0].shape;
   const mismatched = shapes.filter(s => s.shape !== firstShape);
   if (mismatched.length > 0) {
-    throw new Error(`Variant components must have the same child structure. "${shapes[0].name}" has [${firstShape.replace(/\|/g, ", ")}] but "${mismatched[0].name}" has [${mismatched[0].shape.replace(/\|/g, ", ")}]. Ensure all variants define the same children in the same order.`);
+    throw new Error(
+      `Variant components must have the same child structure. "${shapes[0].name}" has [${firstShape.replace(/\|/g, ", ")}] but "${mismatched[0].name}" has [${mismatched[0].shape.replace(/\|/g, ", ")}]. ` +
+      `Ensure all variants define the same children with the same names. ` +
+      `Tip: set explicit "name" on each child, or use "componentPropertyName" — text content alone is not used for matching.`
+    );
   }
 }
 

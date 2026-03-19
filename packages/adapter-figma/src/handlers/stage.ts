@@ -1,18 +1,22 @@
 /**
  * Stage container and commit logic for the two-path authoring model.
  *
- * Stage containers live on the same page as the target, mimicking the target's
- * layout constraints with FIXED dimensions. Commit unwraps into the original target.
+ * Stage containers are sibling frames on the same page (never inside the target parent).
+ * They mimic the target parent's auto-layout constraints so sizing resolves correctly.
+ * Commit unwraps into the original target and removes the stage container.
  */
 
-import { serializeNode, DEFAULT_NODE_BUDGET } from "../utils/serialize-node";
 import type { Hint } from "./helpers";
 
 // ─── Stage Container ────────────────────────────────────────────
 
 /**
  * Create a stage container that mimics the target parent's constraints.
- * Returns the stage frame. Caller creates the tree inside it.
+ * Placed as a sibling on the same page — never inside the target parent.
+ *
+ * The stage container replicates the target parent's layoutMode, sizing,
+ * and dimensions so that children built inside it experience the same
+ * sizing context (FILL, HUG, etc.) as they would in the real target.
  */
 export async function createStageContainer(
   p: any,
@@ -22,44 +26,53 @@ export async function createStageContainer(
   stage.name = `[STAGED] ${name}`;
   stage.fills = [];
 
-  // Resolve target parent
-  const targetParent = p.parentId
-    ? await figma.getNodeByIdAsync(p.parentId)
-    : figma.currentPage;
-
-  // Capture stage metadata for commit
+  // Capture commit metadata: where this node should land on commit
   const meta: any = {
     targetParentId: p.parentId || null,
+    targetPageId: figma.currentPage.id,   // remember the page for page-root stages
     targetX: p.x ?? 0,
     targetY: p.y ?? 0,
   };
 
-  // Position stage near the target location
-  stage.x = (p.x ?? 0) + 50;
-  stage.y = (p.y ?? 0) + 50;
+  // Resolve target parent to read its constraints
+  const targetParent = p.parentId
+    ? await figma.getNodeByIdAsync(p.parentId)
+    : null;
 
-  // Mimic target parent constraints with FIXED dimensions
+  // Mimic target parent's auto-layout constraints on the stage container
+  // so children experience the same sizing context (FILL resolves correctly, etc.)
   if (targetParent && "layoutMode" in targetParent && (targetParent as any).layoutMode !== "NONE") {
     const tp = targetParent as FrameNode;
-    // Resolve pixel dimensions (FILL → current size, HUG → current size)
+    stage.layoutMode = tp.layoutMode;
+    // Use FIXED dimensions resolved to current pixel size
+    // (if parent was FILL/HUG, resolve to its current rendered dimensions)
     stage.resize(tp.width, tp.height);
-    meta.targetLayoutMode = tp.layoutMode;
-    meta.targetWidth = tp.width;
-    meta.targetHeight = tp.height;
+    stage.layoutSizingHorizontal = "FIXED";
+    stage.layoutSizingVertical = "FIXED";
+    // Copy spacing/padding so child layout matches
+    if (tp.itemSpacing) stage.itemSpacing = tp.itemSpacing;
+    if (tp.paddingTop) stage.paddingTop = tp.paddingTop;
+    if (tp.paddingRight) stage.paddingRight = tp.paddingRight;
+    if (tp.paddingBottom) stage.paddingBottom = tp.paddingBottom;
+    if (tp.paddingLeft) stage.paddingLeft = tp.paddingLeft;
+    if (tp.primaryAxisAlignItems) stage.primaryAxisAlignItems = tp.primaryAxisAlignItems;
+    if (tp.counterAxisAlignItems) stage.counterAxisAlignItems = tp.counterAxisAlignItems;
   } else if (p.width && p.height) {
     stage.resize(p.width, p.height);
   } else {
-    // Page-level or no constraints — use reasonable default
     stage.resize(p.width || 400, p.height || 400);
   }
 
-  // Store metadata on the stage frame for commit to read
+  // Position stage offset from target location (visible but distinct)
+  stage.x = (p.x ?? 0) + 50;
+  stage.y = (p.y ?? 0) + 50;
+
+  // Store metadata for commit
   stage.setPluginData("_stageMetadata", JSON.stringify(meta));
 
-  // Append to same parent as target (or page)
-  if (targetParent && "appendChild" in targetParent && targetParent.type !== "PAGE") {
-    (targetParent as any).appendChild(stage);
-  }
+  // Always place on the current page as a top-level sibling — never inside the target parent.
+  // This prevents the stage from affecting the target parent's layout.
+  figma.currentPage.appendChild(stage);
 
   return stage;
 }
@@ -68,7 +81,7 @@ export async function createStageContainer(
 
 /**
  * Commit a staged node: unwrap from stage container into the original target.
- * Returns the committed node ID.
+ * Locked to the original parentId and page captured at stage time.
  */
 export async function commitStaged(stagedId: string): Promise<{ id: string; hints: Hint[] }> {
   const hints: Hint[] = [];
@@ -81,7 +94,6 @@ export async function commitStaged(stagedId: string): Promise<{ id: string; hint
 
   if (node.type === "FRAME" && node.name.startsWith("[STAGED]")) {
     stageContainer = node as FrameNode;
-    // The first child is the actual content
     if ("children" in stageContainer && stageContainer.children.length > 0) {
       contentNode = stageContainer.children[0];
     }
@@ -99,12 +111,23 @@ export async function commitStaged(stagedId: string): Promise<{ id: string; hint
   if (!metaStr) throw new Error("Stage container missing metadata — cannot determine commit target.");
   const meta = JSON.parse(metaStr);
 
-  // Reparent content to original target
-  const targetParent = meta.targetParentId
-    ? await figma.getNodeByIdAsync(meta.targetParentId)
-    : figma.currentPage;
-
-  if (!targetParent) throw new Error(`Original target parent not found: ${meta.targetParentId}`);
+  // Resolve target: use stored parentId, or fall back to the stored page (not current page)
+  let targetParent: BaseNode | null;
+  if (meta.targetParentId) {
+    targetParent = await figma.getNodeByIdAsync(meta.targetParentId);
+    if (!targetParent) throw new Error(`Original target parent not found: ${meta.targetParentId}`);
+  } else {
+    // Page-root: use the page that was current at stage time
+    targetParent = await figma.getNodeByIdAsync(meta.targetPageId);
+    if (!targetParent) {
+      // Fallback: page may have been deleted — use current page
+      targetParent = figma.currentPage;
+    }
+    // Load the target page if it's not the current one
+    if (targetParent.type === "PAGE" && targetParent.id !== figma.currentPage.id) {
+      await (targetParent as PageNode).loadAsync();
+    }
+  }
 
   if ("appendChild" in targetParent) {
     (targetParent as any).appendChild(contentNode);
@@ -119,7 +142,8 @@ export async function commitStaged(stagedId: string): Promise<{ id: string; hint
   // Clean up stage container
   stageContainer.remove();
 
-  hints.push({ type: "confirm", message: `Committed staged node to ${meta.targetParentId ? `parent ${meta.targetParentId}` : "page"}.` });
+  const targetDesc = meta.targetParentId ? `parent ${meta.targetParentId}` : "page";
+  hints.push({ type: "confirm", message: `Committed staged node to ${targetDesc}.` });
 
   return { id: contentNode.id, hints };
 }

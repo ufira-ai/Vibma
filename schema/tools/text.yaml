@@ -44,7 +44,7 @@ methods:
             width: { type: number, optional: true, description: "Fixed width in px — implies layoutSizingHorizontal: FIXED and textAutoResize: HEIGHT" }
             parentId:
               type: string
-              description: "Parent node ID. Omit to place on current page."
+              description: "Parent node ID. Omit to place at current page root."
             fontFamily:
               type: string
               description: "Font family (default: Inter). Use fonts.list to find installed fonts."

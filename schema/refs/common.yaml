@@ -7,7 +7,7 @@ nodeId:
 parentId:
   type: string
   optional: true
-  description: "Parent node ID. Omit to place on current page."
+  description: "Parent node ID. Omit to place at current page root."
 
 depth:
   type: number
@@ -54,7 +54,7 @@ inlineChildren:
   optional: true
   description: >
     Inline child nodes — build nested trees in one call. Types:
-    text: {type:"text", text, fontFamily?, fontSize?, fontColor?, layoutSizingHorizontal?}.
+    text: {type:"text", text, fontFamily?, fontSize?, fontWeight?, fontStyle?, fontColor?, layoutSizingHorizontal?}.
     frame: {type:"frame", name?, layoutMode?, fillColor?, width?, layoutSizingHorizontal?, children?}.
     instance: {type:"instance", componentId, variantProperties?, properties?}.
     component: {type:"component", name, children?}.
@@ -73,7 +73,7 @@ inlineChildrenComponent:
   optional: true
   description: >
     Inline child nodes — build nested trees in one call. Types:
-    text: {type:"text", text, componentPropertyName?, fontFamily?, fontSize?, fontColor?, layoutSizingHorizontal?}.
+    text: {type:"text", text, componentPropertyName?, fontFamily?, fontSize?, fontWeight?, fontStyle?, fontColor?, layoutSizingHorizontal?}.
     frame: {type:"frame", name?, layoutMode?, fillColor?, width?, layoutSizingHorizontal?, children?}.
     instance: {type:"instance", componentId, componentPropertyName?, variantProperties?, properties?}.
     component: {type:"component", name, children?}.
