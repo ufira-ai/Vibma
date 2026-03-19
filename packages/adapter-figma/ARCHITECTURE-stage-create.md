@@ -1,121 +1,87 @@
-# Two-Path Authoring Model: Create / Stage / Commit
+# Two-Path Authoring Model: Create / Commit
 
 ## Context
-Vibma has a structural opinion engine (inline-tree.ts) that resolves incomplete tree input into concrete Figma layout. This design separates deterministic inferences (always applied silently) from material ambiguity (requires agent review via staging).
+Vibma has a structural opinion engine (inline-tree.ts) that resolves incomplete tree input into concrete Figma layout. This design separates deterministic inferences (always applied silently) from material ambiguity (triggers per-item staging with a diff and corrected payload for agent learning).
 
-## Core Concept: Inference Confidence
-
-Each rule in the opinion engine is tagged:
+## Inference Confidence
 
 | Confidence | Definition | Examples |
 |---|---|---|
-| **deterministic** | One obvious Vibma rule applies. Applied silently on all paths. | Fixed-size parent + FILL children → promote to AL; FIXED without dim on cross → FILL; padding → infer VERTICAL; FIXED without dim on primary → HUG |
-| **ambiguous** | Multiple structurally different plausible trees. Triggers staging. | FILL vs FIXED choice; inventing a width constraint; container vs decoration role; HUG parent + FILL child (who constrains?) |
-| **conflict** | Contradictory signals — always reject. | FILL + explicit dimension; explicit NONE + FILL/HUG children |
+| **deterministic** | One obvious Vibma rule. Applied silently on all paths. | Fixed-size parent + FILL children → promote to AL; FIXED without dim on cross → FILL; padding → infer VERTICAL |
+| **ambiguous** | Multiple structurally different plausible trees. Triggers staging. | Inventing a width constraint; container vs decoration; HUG parent + FILL child |
+| **conflict** | Contradictory. Always reject. | FILL + explicit dimension; explicit NONE + FILL/HUG children |
 
-## Create Behavior (auto mode, default)
+## Methods
 
-`create` applies all deterministic inferences silently and succeeds. If any ambiguous inference is needed, it auto-stages instead of failing.
+### `create` (tier: create) — auto behavior
+- Applies deterministic inferences silently
+- Per-item: if ambiguous → auto-stage that item; if deterministic-only → create directly
+- Mixed batches: each item independently resolves to `created` or `staged`
+- `correctedPayload` returned only on staged items (not on successful direct creates unless opt-in via `returnPayload: true`)
 
-### No ambiguity → direct create
-```
-frames(method:"create", type:"auto_layout", items:[{
-  name: "Card", width: 320, height: 200, fillColor: "#FFF",
-  children: [{type:"text", text:"Title", layoutSizingHorizontal:"FILL"}]
-}])
+### `commit` (tier: edit)
+- Takes staged node ID — commits to the parentId captured at stage time
+- No fresh parentId allowed — commit is locked to the original target context
+- Unwraps from stage container into the real target parent
+- Returns `{ status: "created", id }`
+- Edit-tier because only edit-tier agents materialize stages
 
-→ {
-  status: "created",
-  results: [{ id: "1:234" }],
-  correctedPayload: { ... full payload with all inferences applied ... },
-  warnings: [...]
-}
-```
-
-Deterministic inferences (like promoting layoutMode, inferring layoutSizingVertical:"HUG") are applied silently. `correctedPayload` teaches the agent the fully-specified form for next time.
-
-### Ambiguity detected → auto-stage
-```
-frames(method:"create", type:"frame", items:[{
-  name: "Card", fillColor: "#FFF",
-  children: [{type:"text", text:"Title", layoutSizingHorizontal:"FILL"}]
-}])
-
-→ {
-  status: "staged",
-  results: [{ id: "1:234" }],
-  diff: "Card\n- layoutMode: (not set)\n+ layoutMode: \"VERTICAL\"  # ambiguous: no dimensions, container size unknown\n\nCard > Title\n- layoutSizingVertical: (not set)\n+ layoutSizingVertical: \"HUG\"  # primary axis default",
-  correctedPayload: {
-    "name": "Card",
-    "layoutMode": "VERTICAL",
-    "fillColor": "#FFF",
-    "children": [{ "type": "text", "text": "Title", "layoutSizingHorizontal": "FILL", "layoutSizingVertical": "HUG" }]
-  },
-  warnings: [...]
-}
-```
-
-- `diff`: git-style string showing only the ambiguous decisions Vibma made. Agent scans to verify intent.
-- `correctedPayload`: the exact payload that would pass through create with zero inferences. Agent can use this verbatim next time.
-- The staged node is materialized in Figma (in a stage container on the same page) for visual review.
-
-## Three Methods
-
-### `create` (tier: create) — default, auto behavior
-- Applies deterministic inferences silently → creates directly
-- If ambiguous inference needed → auto-stages
-- Response discriminated: `status: "created"` vs `status: "staged"`
-- Always returns `correctedPayload` — teaches the fully-specified form
-- Staged response additionally includes `diff` (ambiguous decisions only)
-
-### `stage` (tier: create) — explicit staging
-- Forces all trees through staging, even if fully deterministic
-- Same response shape as auto-staged: `status: "staged"` + `diff` + `correctedPayload`
-- For agents that want to preview before committing, regardless of ambiguity
-
-### `commit` (tier: create, NOT edit)
-- Takes staged node ID + target parentId, x, y
-- Unwraps node from stage container into the real target
-- No re-inference — exact staged tree is committed
-- Returns `status: "created"` + `{ id }` at final location
-- **Tier: create** — critical for access tier safety
-
-## Stage Container Design
-
-**Problem (from audit)**: Staging on a separate page breaks the review guarantee — parent-context-dependent sizing (HUG+FILL, cross-axis inference) will reflow when reparented to a different context.
-
-**Solution**: Stage containers live on the **same page**, near the target location. The stage container mimics the target context:
-- If `parentId` is provided at stage/create time: inspect the target parent's constraints (layoutMode, sizing, width/height)
-- Create a staging frame with equivalent constraints: width and height normalized to FIXED (if parent was FILL, resolve to current pixel value)
-- Build the staged tree inside this container
-- On `commit`: reparent children from stage container into the real target parent, remove stage container
-
-Stage container naming: `[STAGED] {name}` — visually distinct in Figma's layer panel.
+Note: an explicit `stage` method (force-preview regardless of ambiguity) is deferred for v1. Auto on create covers the learning path. No stage schema work in v1.
 
 ## Response Shape
 
+### Per-item in batch results
+
 ```ts
-// Direct create (no ambiguity)
+// Direct create (no ambiguity, or deterministic-only)
+{ id: string, status: "created" }
+
+// Staged — edit-tier agents only
 {
-  status: "created",
-  results: [{ id: string }],
-  correctedPayload: object,       // exact payload that would pass with zero inferences
-  warnings?: string[]
+  id: string,                     // staged node ID
+  status: "staged",
+  diff: string,                   // git-style, ambiguous decisions only
+  correctedPayload: object        // authoring-schema payload, zero-inference form
 }
 
-// Staged (ambiguity detected, or explicit stage call)
+// Rejected for ambiguity — create-tier agents (no staging)
+// IMPORTANT: returned as a structured result object, NOT thrown.
+// batchHandler collapses thrown errors to { error: string }, which loses
+// the learning payload. The per-item handler must return this directly.
 {
-  status: "staged",
-  results: [{ id: string }],       // staged node ID
-  diff: string,                    // git-style diff of ambiguous decisions only
-  correctedPayload: object,        // exact payload with all inferences applied
-  warnings?: string[]
+  error: string,                  // description of ambiguous decisions
+  diff: string,                   // same diff format — teaches what was ambiguous
+  correctedPayload: object        // agent can re-call create with this payload
+}
+
+// Rejected for conflict — all tiers (thrown, collapsed by batchHandler)
+{ error: string }
+```
+
+**Contract note**: The per-item result union (`created | staged | ambiguity-rejected | error`) extends beyond the standard Vibma batch-create contract (`{ id }` only). This endpoint needs a custom response schema — it should not be treated as a normal batch-create response by the compiler or endpoint typing.
+
+### Batch envelope
+
+```ts
+{
+  results: Array<CreatedResult | StagedResult | ErrorResult>,
+  warnings?: string[]             // standard batch warnings (tokens, styles, etc.)
 }
 ```
 
+### Opt-in correctedPayload on direct creates
+
+```
+frames(method:"create", ..., returnPayload: true)
+
+→ results: [{ id: "1:234", status: "created", correctedPayload: {...} }]
+```
+
+Only for agents that want to learn even when the create succeeded. Not returned by default to keep response size minimal.
+
 ## Diff Format
 
-Only ambiguous decisions appear in the diff. Deterministic inferences are silent (but reflected in `correctedPayload`).
+Only ambiguous decisions. Deterministic inferences are silent.
 
 ```
 Card
@@ -127,30 +93,60 @@ Card > Title
 + layoutSizingHorizontal: "FILL"  # HUG parent + FILL child — siblings determine width
 ```
 
-Unchanged fields are omitted. The `#` comment is the reason for the ambiguous decision. Path uses `>` separator matching the Figma layer hierarchy.
+Path uses `>` separator. `#` comment is the reason. Unchanged fields omitted.
+
+## correctedPayload
+
+The corrected payload is in the **authoring schema** — what the agent sends to the MCP, not internal form. Captured after `validateAndFixInlineChildren` mutates params but **before** `setupFrameNode`'s alias expansion, padding shorthand normalization, and fill/stroke resolution.
+
+This means: if the agent passes `correctedPayload` back to `create`, it arrives in the same form and goes through the same pipeline — but with zero inferences needed.
+
+Internal fields (`_skipOverlapCheck`, etc.) are stripped.
+
+## Stage Container
+
+Staged nodes live on the **same page** as the target, in a sibling stage container that mimics the target's constraints.
+
+### Stage flow
+1. Inspect target parent (from `parentId`): read its layoutMode, sizing, width/height
+2. Create `[STAGED] {name}` frame nearby with equivalent fixed constraints
+3. Build the tree inside the stage container
+4. Return staged node ID
+
+### Commit flow
+1. Lookup staged node — validate it's in a `[STAGED]` container
+2. Reparent children into the **original** target parent (captured at stage time)
+3. Remove the stage container
+4. Return final node ID
+
+### Context fidelity
+- Stage container normalizes parent sizing to FIXED pixel values (if parent was FILL, resolve to current dimensions)
+- Commit is locked to the original parentId — no re-targeting
+- If the target parent was resized between stage and commit, the committed tree may reflow. This is acceptable — the agent reviewed the layout at stage time, and any parent changes are external.
 
 ## Access Tier Safety
 
-| Action | Tier | Why |
+| Action | Tier | Behavior |
 |---|---|---|
-| create (auto) | create | Produces new nodes, may auto-stage |
-| stage | create | Produces new nodes in stage container |
-| commit | create | Moves staged nodes to target (specialized create) |
-| update (patch staged) | edit | Modifying existing nodes |
-| delete (discard stage) | edit | Removing nodes |
+| create (auto, no ambiguity) | create | Direct create |
+| create (auto, ambiguous) | create | Reject with diff + correctedPayload |
+| create (auto, ambiguous) | edit | Auto-stage, return `{ status: "staged", diff, correctedPayload }` |
+| commit | edit | Accept staged tree into original target |
+| update (patch staged) | edit | Modify staged nodes |
+| delete (discard stage) | edit | Remove staged nodes |
 
-Create-only agents can: create → auto-stage → review → commit (accept) or just create (if no ambiguity).
-Create-only agents cannot: patch staged nodes. They'd need edit tier.
+**Edit-tier agents**: ambiguous → auto-stage → patch → commit.
+**Create-tier agents**: ambiguous → reject with `{ error, diff, correctedPayload }`. Agent re-calls create with corrected payload. No staging materialized — create-only agents learn from the error response.
 
-## Opinion Engine Refactor
+## Opinion Engine Changes
 
-### inline-tree.ts changes
+### inline-tree.ts
 
 ```ts
 interface Inference {
   path: string;                              // "Card > Title"
   field: string;                             // "layoutMode"
-  from: any;                                 // original value (undefined if missing)
+  from: any;                                 // original value
   to: any;                                   // resolved value
   confidence: "deterministic" | "ambiguous";
   reason: string;
@@ -162,65 +158,57 @@ function validateAndFixInlineChildren(
 ): { hasAmbiguity: boolean; inferences: Inference[] }
 ```
 
-Each rule is tagged. The function always applies all fixes (deterministic and ambiguous). The caller decides what to do based on `hasAmbiguity`:
-- `create`: if `hasAmbiguity` → stage; else → create directly
-- `stage`: always stage regardless
+Always applies all fixes. Returns `hasAmbiguity` flag — caller decides whether to stage or create.
 
 ### Confidence classification
 
-| Rule | Confidence | Rationale |
-|---|---|---|
-| Fixed-size parent + FILL children → promote to AL | deterministic | width+height = container, children need AL |
-| AL params present → infer VERTICAL | deterministic | padding/spacing only makes sense with AL |
-| FIXED without dim on cross-axis → FILL | deterministic | One obvious cross-axis behavior |
-| FIXED without dim on primary-axis → HUG | deterministic | One obvious primary-axis behavior |
-| No dims, no layoutMode + children need AL → promote | ambiguous | Container size unknown |
-| HUG parent + FILL child | ambiguous | Multiple plausible trees |
+| Rule | Confidence |
+|---|---|
+| Fixed-size parent + FILL children → promote to AL | deterministic |
+| AL params present → infer VERTICAL | deterministic |
+| FIXED without dim on cross-axis → FILL | deterministic |
+| FIXED without dim on primary-axis → HUG | deterministic |
+| No dims, no layoutMode + children need AL → promote | ambiguous |
+| HUG parent + FILL child | ambiguous |
 
-### Diff generation
-
-```ts
-function formatDiff(inferences: Inference[]): string {
-  // Group by path, filter to ambiguous only, format as git-style diff
-  const ambiguous = inferences.filter(i => i.confidence === "ambiguous");
-  // ... format
-}
-```
-
-### Corrected payload generation
+### Helpers
 
 ```ts
-function buildCorrectedPayload(originalParams: any): object {
-  // After validateAndFixInlineChildren mutates params in-place,
-  // deep-clone the mutated params = correctedPayload
-  // Strip internal fields (_skipOverlapCheck, etc.)
-}
+function formatDiff(inferences: Inference[]): string
+// Filter to ambiguous, format as git-style diff
+
+function buildCorrectedPayload(mutatedParams: any): object
+// Deep clone mutated params, strip internal fields
+// Snapshot BEFORE setupFrameNode alias/shorthand expansion
 ```
 
 ## Implementation Phases
 
-### Phase 1: Confidence tagging (inline-tree.ts)
-- Add `Inference` type, tag each rule
-- `validateAndFixInlineChildren` returns `{ hasAmbiguity, inferences }`
-- Add `formatDiff()` and `buildCorrectedPayload()` helpers
-- Current create path unchanged (ignores the return value for now)
+### Phase 1: Confidence tagging
+- Tag each rule in `validateInlineTree` with confidence
+- Return `{ hasAmbiguity, inferences }` from `validateAndFixInlineChildren`
+- Add `formatDiff()` and `buildCorrectedPayload()`
+- Current create path: ignore return value (no behavior change yet)
 
 ### Phase 2: Auto-stage on create
 - `createSingleFrame` / `createComponentSingle` check `hasAmbiguity`
-- If ambiguous: create in stage container, return `{ status: "staged", diff, correctedPayload }`
-- If not: create directly, return `{ status: "created", correctedPayload }`
-- Stage container: create sibling frame `[STAGED] {name}` with target context constraints
+- Ambiguous: create stage container, build tree inside, return `{ status: "staged", diff, correctedPayload }`
+- Not ambiguous: create directly, return `{ status: "created", id }`
+- `returnPayload: true` opt-in for correctedPayload on direct creates
+- batchHandler already handles per-item isolation — each item independently created or staged
 
-### Phase 3: Stage + commit methods
-- `stage`: force-stage path (same as auto-stage but always stages)
-- `commit`: unwrap from stage container into target parent
-- Schema (frames.yaml, components.yaml) + registry
+### Phase 3: Commit method
+- `commit`: unwrap from stage container, locked to original parentId
+- Schema (frames.yaml, components.yaml): add commit method (tier: edit)
+- Registry: register commit handler
+- Explicit `stage` method deferred for v1
 
 ### Key Files
 1. `packages/adapter-figma/src/handlers/inline-tree.ts` — confidence tags, Inference, formatDiff, buildCorrectedPayload
-2. `packages/adapter-figma/src/handlers/create-frame.ts` — auto-stage logic in createSingleFrame
-3. `packages/adapter-figma/src/handlers/components.ts` — auto-stage logic in createComponentSingle
-4. **New**: `packages/adapter-figma/src/handlers/stage.ts` — stage + commit handlers
-5. `packages/adapter-figma/src/handlers/registry.ts` — register new handlers
-6. `schema/tools/frames.yaml` — stage, commit method definitions
-7. `schema/tools/components.yaml` — stage, commit method definitions
+2. `packages/adapter-figma/src/handlers/create-frame.ts` — auto-stage in createSingleFrame (edit-tier), ambiguity reject (create-tier)
+3. `packages/adapter-figma/src/handlers/components.ts` — same for createComponentSingle
+4. `packages/adapter-figma/src/handlers/helpers.ts` — batchHandler needs to pass through structured ambiguity-reject results (not collapse to `{ error }`)
+5. **New**: `packages/adapter-figma/src/handlers/commit.ts` — commit handler
+6. `packages/adapter-figma/src/handlers/registry.ts` — register commit handler
+7. `schema/tools/frames.yaml` — commit method (tier: edit)
+8. `schema/tools/components.yaml` — commit method (tier: edit)
