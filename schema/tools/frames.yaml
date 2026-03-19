@@ -35,6 +35,7 @@ methods:
         params:
           $mixin: frame_params
           clipsContent: { type: boolean, coerce: true, optional: true }
+          children: { $ref: inlineChildren }
       auto_layout:
         description: Auto-layout frame that arranges children automatically
         params:
@@ -42,6 +43,7 @@ methods:
           layoutMode: { type: enum, values: [HORIZONTAL, VERTICAL], required: true, description: Primary axis direction }
           clipsContent: { type: boolean, coerce: true, optional: true }
           nodeIds: { type: "string[]", coerce: json, optional: true, description: "Existing node IDs to wrap into auto-layout" }
+          children: { $ref: inlineChildren }
       section:
         description: Figma section (top-level organizer)
         params:

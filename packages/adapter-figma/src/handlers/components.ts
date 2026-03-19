@@ -1,6 +1,7 @@
 import { batchHandler, appendAndApplySizing, checkOverlappingSiblings, applyTokens, resolveComponentPropertyKey, normalizeAliases, TEXT_ALIAS_KEYS, FRAME_ALIAS_KEYS, type Hint } from "./helpers";
 import { setupFrameNode } from "./create-frame";
 import { auditNode } from "./lint";
+import { validateAndFixInlineChildren } from "./inline-tree";
 import { createDispatcher, paginate, pickFields } from "@ufira/vibma/endpoint";
 import {
   componentsCreateComponent, componentsCreateFromNode, componentsCreateVariantSet,
@@ -200,12 +201,19 @@ async function createComponentSingle(p: any) {
   try {
     comp.name = p.name;
     if (p.description) comp.description = p.description;
+    const hints: Hint[] = [];
 
-    const { hints } = await setupFrameNode(comp, p);
-
-    // Create inline children if provided (before explicit properties so auto-created TEXT props don't conflict)
+    // Validate inline children BEFORE setup — may promote p.layoutMode from NONE to VERTICAL
     if (p.children?.length) {
       normalizeInlineChildTypes(p.children);
+      validateAndFixInlineChildren(p, hints);
+    }
+
+    const { hints: setupHints } = await setupFrameNode(comp, p);
+    hints.push(...setupHints);
+
+    // Create inline children after setup (Figma node is now configured)
+    if (p.children?.length) {
       const textChildren = collectTextChildren(p.children);
       const textCtx = await prepCreateText({ items: textChildren });
       await createInlineChildren(comp, comp, p.children, hints, textCtx);

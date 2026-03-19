@@ -3,6 +3,7 @@ import { looksInteractive } from "@ufira/vibma/utils/wcag";
 import { framesCreateFrame, framesCreateAutoLayout } from "@ufira/vibma/guards";
 import { createInlineChildren, collectTextChildren, normalizeInlineChildTypes } from "./components";
 import { prepCreateText } from "./create-text";
+import { validateAndFixInlineChildren } from "./inline-tree";
 
 /**
  * Resolve the effective layoutMode from params.
@@ -212,12 +213,19 @@ async function createSingleFrame(p: any) {
   const frame = figma.createFrame();
   try {
     frame.name = p.name || "Frame";
+    const hints: Hint[] = [];
 
-    const { hints } = await setupFrameNode(frame, p);
-
-    // Create inline children if provided (frames only — no component property binding)
+    // Validate inline children BEFORE setup — may promote p.layoutMode from NONE to VERTICAL
     if (p.children?.length) {
       normalizeInlineChildTypes(p.children);
+      validateAndFixInlineChildren(p, hints);
+    }
+
+    const { hints: setupHints } = await setupFrameNode(frame, p);
+    hints.push(...setupHints);
+
+    // Create inline children after setup (Figma node is now configured)
+    if (p.children?.length) {
       const textChildren = collectTextChildren(p.children);
       const textCtx = await prepCreateText({ items: textChildren });
       await createInlineChildren(frame, null, p.children, hints, textCtx);

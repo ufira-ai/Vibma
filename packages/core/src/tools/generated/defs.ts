@@ -136,6 +136,7 @@ export const tools: ToolDef[] = [
             maxHeight: z.coerce.number().optional().describe("Max height for responsive auto-layout"),
             overflowDirection: z.enum(["NONE", "HORIZONTAL", "VERTICAL", "BOTH"]).optional().describe("Scroll overflow in prototype (default: NONE)"),
             description: z.string().optional().describe("Component description (shown in Figma's component panel)"),
+            children: flexJson(z.array(z.record(z.string(), z.unknown()))).optional().describe("Inline child nodes — build nested trees in one call. Types: text: {type:\"text\", text, componentPropertyName?, fontFamily?, fontSize?, fontColor?, layoutSizingHorizontal?}. frame: {type:\"frame\", name?, layoutMode?, fillColor?, width?, layoutSizingHorizontal?, children?}. instance: {type:\"instance\", componentId, componentPropertyName?, variantProperties?, properties?}. component: {type:\"component\", name, children?}. All params from text/frame endpoints are supported on their respective types. componentPropertyName auto-creates and binds a TEXT (text) or INSTANCE_SWAP (instance) property. Always set layoutSizingHorizontal + layoutSizingVertical on children inside auto-layout parents (FILL, HUG, or FIXED). Example: children:[{type:\"text\", text:\"Label\", componentPropertyName:\"Label\", fontSize:14, fontColorVariableName:\"text/primary\", layoutSizingHorizontal:\"FILL\", layoutSizingVertical:\"HUG\"}, {type:\"frame\", name:\"Actions\", layoutMode:\"HORIZONTAL\", layoutSizingHorizontal:\"FILL\", layoutSizingVertical:\"HUG\", itemSpacing:8, children:[{type:\"instance\", componentId:\"1:2\", componentPropertyName:\"Action\", layoutSizingHorizontal:\"FILL\", layoutSizingVertical:\"HUG\"}]}]\n"),
             properties: flexJson(z.array(z.record(z.string(), z.unknown()))).optional().describe("Component properties to define at creation: [{propertyName, type, defaultValue}]. TEXT properties for inline children with componentPropertyName are created automatically."),
           }).passthrough(),
           "from_node": z.object({
@@ -196,6 +197,7 @@ export const tools: ToolDef[] = [
             overflowDirection: z.enum(["NONE", "HORIZONTAL", "VERTICAL", "BOTH"]).optional().describe("Scroll overflow in prototype (default: NONE)"),
             componentIds: flexJson(z.array(z.string())).optional().describe("Existing component IDs to combine (min 2). Alternative to children."),
             variantPropertyName: z.string().optional().describe("Rename the auto-generated variant property (default: 'Property 1')"),
+            children: flexJson(z.array(z.record(z.string(), z.unknown()))).optional().describe("Inline variant components. Each must be {type:\"component\", name, children?, ...frame_params}. All variants must share the same child structure. Alternative to componentIds — do not combine both."),
           }).passthrough(),
         };
         const s = params.type && schemas[params.type];
@@ -352,6 +354,7 @@ export const tools: ToolDef[] = [
             maxHeight: z.coerce.number().optional().describe("Max height for responsive auto-layout"),
             overflowDirection: z.enum(["NONE", "HORIZONTAL", "VERTICAL", "BOTH"]).optional().describe("Scroll overflow in prototype (default: NONE)"),
             clipsContent: flexBool(z.boolean()).optional(),
+            children: flexJson(z.array(z.record(z.string(), z.unknown()))).optional().describe("Inline child nodes — build nested trees in one call. Types: text: {type:\"text\", text, fontFamily?, fontSize?, fontColor?, layoutSizingHorizontal?}. frame: {type:\"frame\", name?, layoutMode?, fillColor?, width?, layoutSizingHorizontal?, children?}. instance: {type:\"instance\", componentId, variantProperties?, properties?}. component: {type:\"component\", name, children?}. All params from text/frame endpoints are supported on their respective types. Always set layoutSizingHorizontal + layoutSizingVertical on children inside auto-layout parents (FILL, HUG, or FIXED). Example: children:[{type:\"text\", text:\"Title\", fontSize:20, layoutSizingHorizontal:\"FILL\", layoutSizingVertical:\"HUG\"}, {type:\"frame\", name:\"Row\", layoutMode:\"HORIZONTAL\", layoutSizingHorizontal:\"FILL\", layoutSizingVertical:\"HUG\", itemSpacing:8, children:[{type:\"instance\", componentId:\"1:2\", layoutSizingHorizontal:\"FILL\", layoutSizingVertical:\"HUG\"}]}] Inside components: add componentPropertyName to auto-bind TEXT or INSTANCE_SWAP properties.\n"),
           }).passthrough(),
           "auto_layout": z.object({
             name: z.string().optional().describe("Node name"),
@@ -407,6 +410,7 @@ export const tools: ToolDef[] = [
             overflowDirection: z.enum(["NONE", "HORIZONTAL", "VERTICAL", "BOTH"]).optional().describe("Scroll overflow in prototype (default: NONE)"),
             clipsContent: flexBool(z.boolean()).optional(),
             nodeIds: flexJson(z.array(z.string())).optional().describe("Existing node IDs to wrap into auto-layout"),
+            children: flexJson(z.array(z.record(z.string(), z.unknown()))).optional().describe("Inline child nodes — build nested trees in one call. Types: text: {type:\"text\", text, fontFamily?, fontSize?, fontColor?, layoutSizingHorizontal?}. frame: {type:\"frame\", name?, layoutMode?, fillColor?, width?, layoutSizingHorizontal?, children?}. instance: {type:\"instance\", componentId, variantProperties?, properties?}. component: {type:\"component\", name, children?}. All params from text/frame endpoints are supported on their respective types. Always set layoutSizingHorizontal + layoutSizingVertical on children inside auto-layout parents (FILL, HUG, or FIXED). Example: children:[{type:\"text\", text:\"Title\", fontSize:20, layoutSizingHorizontal:\"FILL\", layoutSizingVertical:\"HUG\"}, {type:\"frame\", name:\"Row\", layoutMode:\"HORIZONTAL\", layoutSizingHorizontal:\"FILL\", layoutSizingVertical:\"HUG\", itemSpacing:8, children:[{type:\"instance\", componentId:\"1:2\", layoutSizingHorizontal:\"FILL\", layoutSizingVertical:\"HUG\"}]}] Inside components: add componentPropertyName to auto-bind TEXT or INSTANCE_SWAP properties.\n"),
           }).passthrough(),
           "section": z.object({
             name: z.string().describe("Section name"),
