@@ -14,10 +14,12 @@ Vibma has a structural opinion engine (inline-tree.ts) that resolves incomplete 
 ## Methods
 
 ### `create` (tier: create) — auto behavior
-- Applies deterministic inferences silently
-- Per-item: if ambiguous → auto-stage that item; if deterministic-only → create directly
-- Mixed batches: each item independently resolves to `created` or `staged`
-- `correctedPayload` returned only on staged items (not on successful direct creates unless opt-in via `returnPayload: true`)
+- Applies deterministic inferences silently on all tiers
+- Per-item ambiguity handling is **capability-dependent**:
+  - **Edit-tier**: ambiguous → auto-stage that item in a stage container, return `{ status: "staged", diff, correctedPayload }`
+  - **Create-tier**: ambiguous → reject with structured `{ error, diff, correctedPayload }` (not thrown — returned as result object so batchHandler preserves the learning payload)
+- Mixed batches: each item independently resolves to `created`, `staged`, or ambiguity-rejected
+- `correctedPayload` returned only on staged/rejected items (not on successful direct creates unless opt-in via `returnPayload: true`)
 
 ### `commit` (tier: edit)
 - Takes staged node ID — commits to the parentId captured at stage time
@@ -108,20 +110,24 @@ Internal fields (`_skipOverlapCheck`, etc.) are stripped.
 Staged nodes live on the **same page** as the target, in a sibling stage container that mimics the target's constraints.
 
 ### Stage flow
-1. Inspect target parent (from `parentId`): read its layoutMode, sizing, width/height
-2. Create `[STAGED] {name}` frame nearby with equivalent fixed constraints
-3. Build the tree inside the stage container
-4. Return staged node ID
+1. If `parentId` provided: inspect target parent's layoutMode, sizing, width/height
+2. If `parentId` omitted (page-root create): target is the current page at requested x/y — no parent constraints to mimic
+3. Create `[STAGED] {name}` frame with equivalent fixed constraints (page-root: just the tree's own dimensions)
+4. Build the tree inside the stage container
+5. Capture `{ parentId (or null for page), x, y }` as the commit target
+6. Return staged node ID
 
 ### Commit flow
 1. Lookup staged node — validate it's in a `[STAGED]` container
-2. Reparent children into the **original** target parent (captured at stage time)
-3. Remove the stage container
-4. Return final node ID
+2. If original target was a parent frame: reparent children into that parent
+3. If original target was page-root: unwrap children onto the page at the captured x/y
+4. Remove the stage container
+5. Return final node ID
 
 ### Context fidelity
 - Stage container normalizes parent sizing to FIXED pixel values (if parent was FILL, resolve to current dimensions)
-- Commit is locked to the original parentId — no re-targeting
+- Page-root stages: no parent constraints, stage container uses the tree's own dimensions
+- Commit is locked to the original target context — no re-targeting
 - If the target parent was resized between stage and commit, the committed tree may reflow. This is acceptable — the agent reviewed the layout at stage time, and any parent changes are external.
 
 ## Access Tier Safety
@@ -190,12 +196,13 @@ function buildCorrectedPayload(mutatedParams: any): object
 - Add `formatDiff()` and `buildCorrectedPayload()`
 - Current create path: ignore return value (no behavior change yet)
 
-### Phase 2: Auto-stage on create
+### Phase 2: Auto-stage / reject on create
 - `createSingleFrame` / `createComponentSingle` check `hasAmbiguity`
-- Ambiguous: create stage container, build tree inside, return `{ status: "staged", diff, correctedPayload }`
 - Not ambiguous: create directly, return `{ status: "created", id }`
+- Ambiguous + edit-tier: create stage container, build tree inside, return `{ status: "staged", diff, correctedPayload }`
+- Ambiguous + create-tier: return structured `{ error, diff, correctedPayload }` (no staging, no throw)
 - `returnPayload: true` opt-in for correctedPayload on direct creates
-- batchHandler already handles per-item isolation — each item independently created or staged
+- Per-item handlers return structured results — batchHandler preserves them as-is (no changes needed)
 
 ### Phase 3: Commit method
 - `commit`: unwrap from stage container, locked to original parentId
@@ -207,7 +214,7 @@ function buildCorrectedPayload(mutatedParams: any): object
 1. `packages/adapter-figma/src/handlers/inline-tree.ts` — confidence tags, Inference, formatDiff, buildCorrectedPayload
 2. `packages/adapter-figma/src/handlers/create-frame.ts` — auto-stage in createSingleFrame (edit-tier), ambiguity reject (create-tier)
 3. `packages/adapter-figma/src/handlers/components.ts` — same for createComponentSingle
-4. `packages/adapter-figma/src/handlers/helpers.ts` — batchHandler needs to pass through structured ambiguity-reject results (not collapse to `{ error }`)
+4. `packages/adapter-figma/src/handlers/helpers.ts` — no batchHandler changes needed (already preserves returned objects; only collapses thrown errors). Per-item handlers must return ambiguity results, not throw them.
 5. **New**: `packages/adapter-figma/src/handlers/commit.ts` — commit handler
 6. `packages/adapter-figma/src/handlers/registry.ts` — register commit handler
 7. `schema/tools/frames.yaml` — commit method (tier: edit)
