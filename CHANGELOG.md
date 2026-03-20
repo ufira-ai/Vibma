@@ -22,8 +22,6 @@ Changes from `v0.3.2` to current.
 
 ### Added
 
-- **Batch prototype wiring.** `prototyping.add` accepts an `items` array to wire multiple reactions in one call. Per-item error isolation, Zod validation on item schema. Single-call form unchanged (backwards compatible).
-- **Wrapping layout guideline.** New "Wrapping Layouts" section in responsive-designs guideline covering `layoutWrap` usage, horizontal-only constraint, and vertical grid alternative pattern.
 - **Endpoint-based MCP surface.** Related operations grouped under endpoint tools (`frames`, `text`, `styles`, `variables`, `components`, `instances`, `connection`, etc.) instead of a large flat tool list.
 - **Schema-driven tool contracts.** YAML definitions generate help text, parameter guards, prompts, response interfaces, and docs from a single source of truth.
 - **Standalone tools:** `guidelines` for design-system guidance, `version_history` for named snapshots, `prototyping` for interaction/prototype operations.
@@ -32,22 +30,19 @@ Changes from `v0.3.2` to current.
 - **Component property auto-binding.** Inline text children with `componentPropertyName` auto-create and bind TEXT properties. Inline instance children with `componentPropertyName` auto-create and bind INSTANCE_SWAP properties.
 - **Inline variant set creation.** `variant_set` accepts `children` with `{type:"component"}` entries as an alternative to `componentIds`. Validates consistent child structure across variants.
 - **Clone with `name` param.** All endpoints support `name` on clone — required when cloning a variant into its component set to avoid duplicate name corruption.
-- **Batch clone.** Clone accepts an `items` array for batch operations: `components(method:"clone", items:[{id, name, parentId}, ...])`.
+- **Batch operations.** Clone and `prototyping.add` accept `items` arrays for batch operations with per-item error isolation.
 - **Contextual instance sizing.** `instances.create` accepts `sizing:"contextual"` to infer FILL/HUG from parent layout context. Opt-in, backward compatible.
 - **Component tree inspection.** `components.get` accepts `depth` and `verbose` — returns full node tree with component properties merged. Without depth, returns property summary only.
-- **Lint and structural checks:** overlapping children, unbounded hug, hug cross-axis, overflow-parent (with context-aware fix messages), text HUG checks, runtime warnings for structural problems.
+- **Lint and structural checks:** overlapping children, unbounded hug, hug cross-axis, overflow-parent (with context-aware fix messages), text HUG checks, fixed-in-autolayout (with HUG-parent and decorative-element exclusions), runtime warnings for structural problems.
 - **Token and variable capabilities:** document-level variable collections, query-based variable lookups, scope-aware auto-binding, canonical fills/strokes handling.
-- **Design guidelines:** responsive sizing (top-down workflow, HUG/HUG anti-patterns), component structure (variant clone workflow), token discipline, library components, vibma workflow.
+- **Design guidelines:** responsive sizing (top-down workflow, HUG/HUG anti-patterns), wrapping layouts (`layoutWrap` constraints and patterns), component structure (variant clone workflow), token discipline, library components, vibma workflow.
 - **UX improvements:** welcome/best-practices message on `connection.create`, `VIBMA_SERVER` environment variable support, package-level architecture docs.
 
 ### Changed
 
 - **Smart sizing defaults.** `applySizing` infers HUG/FILL from context (parent layout direction, node type) when no explicit sizing or dimensions are given. Frames default to HUG (shrink to content) instead of FIXED 100×100.
 - **`layoutMode` inference on create.** Detects auto-layout intent from padding, spacing, alignment, or HUG sizing params and infers `VERTICAL` with a hint.
-- **Resilient update path.** `update-frame` auto-promotes to auto-layout when layout properties are set without `layoutMode`, warns instead of throwing on non-layout node types, auto-enables `layoutWrap:"WRAP"` when `counterAxisSpacing` is set.
-- **`layoutWrap` horizontal-only enforcement.** `create-frame` and `update-frame` reject `layoutWrap:"WRAP"` with `layoutMode:"VERTICAL"` upfront with a clear error and workaround. Schema descriptions updated to document the Figma engine constraint.
-- **`fixed-in-autolayout` lint improvements.** Skips HUG-HUG parents (intrinsically-sized containers like badges/pills) and childless fixed frames (decorative elements like dots/dividers). Reduces false positives on well-structured designs.
-- **Style creation noise reduction.** Removed WCAG line height ratio warning from `styles.create` and `styles.update` — kept the `wcag-line-height` lint rule at verbose severity for explicit audits.
+- **Resilient update path.** `update-frame` auto-promotes to auto-layout when layout properties are set without `layoutMode`, warns instead of throwing on non-layout node types, auto-enables `layoutWrap:"WRAP"` when `counterAxisSpacing` is set, and rejects `WRAP` on vertical layouts with a clear error.
 - **CHANGE_TO destination validation.** `prototyping.add` with `navigation:"CHANGE_TO"` validates the destination is a variant (COMPONENT inside COMPONENT_SET) instead of requiring a top-level frame.
 - **Text sizing dispatch.** `text.update` with `layoutSizingHorizontal`/`layoutSizingVertical` routes through the text handler correctly instead of being rejected by the layout handler.
 - **Overflow-parent lint.** Checks actual bounding dimensions (not just FIXED children). Fix messages are context-aware based on parent sizing mode (FILL → suggest scroll or ancestor resize, FIXED → suggest increasing size).
@@ -61,7 +56,6 @@ Changes from `v0.3.2` to current.
 
 ### Fixed
 
-- **`layoutWrap` inference bug.** `inline-tree.ts` inferred `VERTICAL` when `layoutWrap:"WRAP"` was set without explicit `layoutMode`. Fixed to infer `HORIZONTAL` since WRAP only works with horizontal layouts.
 - **Clone-variant corruption prevention.** Cloning a component into its parent component set without renaming silently corrupted the set. Now pre-validated with an actionable error.
 - **Clone preserves property bindings.** `componentPropertyReferences` (TEXT and INSTANCE_SWAP) re-applied after cloning a variant into a component set — Figma drops them during the operation.
 - **`npx @ufira/vibma` direct invocation.** Added scoped bin entry so `npx` resolves correctly.
