@@ -423,14 +423,19 @@ async function walkNode(node: BaseNode, depth: number, issues: Issue[], ctx: Lin
   // -- Rule: fixed-in-autolayout --
   if (ctx.runAll || ctx.ruleSet.has("fixed-in-autolayout")) {
     if (isFrame(node) && node.layoutMode !== "NONE" && "children" in node) {
-      for (const child of (node as any).children) {
-        if (issues.length >= ctx.maxFindings) break;
-        if (!("layoutSizingHorizontal" in child)) continue;
-        // ABSOLUTE children are intentionally FIXED (taken out of flow)
-        if ((child as any).layoutPositioning === "ABSOLUTE") continue;
-        if (child.layoutSizingHorizontal === "FIXED" && child.layoutSizingVertical === "FIXED") {
-          const leafSeverity: Severity | undefined = isLeaf(child) ? "style" : undefined;
-          issues.push({ rule: "fixed-in-autolayout", nodeId: child.id, nodeName: child.name, severity: leafSeverity, extra: { parentId: node.id, parentName: node.name, axis: node.layoutMode === "HORIZONTAL" ? "horizontal" : "vertical" } });
+      // HUG-HUG parents are intrinsically-sized (badges, pills, chips) — FIXED children are expected
+      const parentHugs = node.layoutSizingHorizontal === "HUG" && node.layoutSizingVertical === "HUG";
+      if (!parentHugs) {
+        for (const child of (node as any).children) {
+          if (issues.length >= ctx.maxFindings) break;
+          if (!("layoutSizingHorizontal" in child)) continue;
+          // ABSOLUTE children are intentionally FIXED (taken out of flow)
+          if ((child as any).layoutPositioning === "ABSOLUTE") continue;
+          if (child.layoutSizingHorizontal === "FIXED" && child.layoutSizingVertical === "FIXED") {
+            // Childless frames are decorative elements (dots, dividers, icons) — skip
+            if ("children" in child && (child as any).children.length === 0) continue;
+            issues.push({ rule: "fixed-in-autolayout", nodeId: child.id, nodeName: child.name, extra: { parentId: node.id, parentName: node.name, axis: node.layoutMode === "HORIZONTAL" ? "horizontal" : "vertical" } });
+          }
         }
       }
       if (issues.length >= ctx.maxFindings) return;

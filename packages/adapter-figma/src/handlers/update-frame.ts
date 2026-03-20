@@ -57,6 +57,13 @@ export async function updateFrameSingle(p: any) {
   }
 
   // 1. Layout mode & wrap
+  // Validate: WRAP only works with HORIZONTAL (Figma engine constraint)
+  if (p.layoutWrap === "WRAP") {
+    const effectiveMode = p.layoutMode ?? (node as any).layoutMode;
+    if (effectiveMode === "VERTICAL") {
+      throw new Error("layoutWrap 'WRAP' requires layoutMode 'HORIZONTAL' — Figma does not support wrap on vertical layouts. Use column frames inside a horizontal parent for vertical grid patterns.");
+    }
+  }
   if (settingLayoutMode) {
     (node as any).layoutMode = p.layoutMode;
     if (p.layoutMode !== "NONE" && p.layoutWrap) (node as any).layoutWrap = p.layoutWrap;

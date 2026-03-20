@@ -121,7 +121,7 @@ export const tools: ToolDef[] = [
             bottomLeftRadius: S.token.optional(),
             effectStyleName: z.string().optional().describe("Effect style name (e.g. 'Shadow/Card') for shadows, blurs"),
             layoutMode: z.enum(["NONE", "HORIZONTAL", "VERTICAL"]).optional().describe("Layout direction (default: auto — NONE when width+height set, otherwise inferred from layout props)"),
-            layoutWrap: z.enum(["NO_WRAP", "WRAP"]).optional(),
+            layoutWrap: z.enum(["NO_WRAP", "WRAP"]).optional().describe("Wrap children to new rows (HORIZONTAL layout only — Figma does not support WRAP on VERTICAL layouts). Use column frames inside a HORIZONTAL parent for vertical grid patterns."),
             padding: S.token.optional().describe("All edges (number) or variable name (string). Per-edge: paddingTop, paddingRight, paddingBottom, paddingLeft."),
             paddingTop: S.token.optional(),
             paddingRight: S.token.optional(),
@@ -182,7 +182,7 @@ export const tools: ToolDef[] = [
             bottomLeftRadius: S.token.optional(),
             effectStyleName: z.string().optional().describe("Effect style name (e.g. 'Shadow/Card') for shadows, blurs"),
             layoutMode: z.enum(["NONE", "HORIZONTAL", "VERTICAL"]).optional().describe("Layout direction (default: auto — NONE when width+height set, otherwise inferred from layout props)"),
-            layoutWrap: z.enum(["NO_WRAP", "WRAP"]).optional(),
+            layoutWrap: z.enum(["NO_WRAP", "WRAP"]).optional().describe("Wrap children to new rows (HORIZONTAL layout only — Figma does not support WRAP on VERTICAL layouts). Use column frames inside a HORIZONTAL parent for vertical grid patterns."),
             padding: S.token.optional().describe("All edges (number) or variable name (string). Per-edge: paddingTop, paddingRight, paddingBottom, paddingLeft."),
             paddingTop: S.token.optional(),
             paddingRight: S.token.optional(),
@@ -343,7 +343,7 @@ export const tools: ToolDef[] = [
             bottomLeftRadius: S.token.optional(),
             effectStyleName: z.string().optional().describe("Effect style name (e.g. 'Shadow/Card') for shadows, blurs"),
             layoutMode: z.enum(["NONE", "HORIZONTAL", "VERTICAL"]).optional().describe("Layout direction (default: auto — NONE when width+height set, otherwise inferred from layout props)"),
-            layoutWrap: z.enum(["NO_WRAP", "WRAP"]).optional(),
+            layoutWrap: z.enum(["NO_WRAP", "WRAP"]).optional().describe("Wrap children to new rows (HORIZONTAL layout only — Figma does not support WRAP on VERTICAL layouts). Use column frames inside a HORIZONTAL parent for vertical grid patterns."),
             padding: S.token.optional().describe("All edges (number) or variable name (string). Per-edge: paddingTop, paddingRight, paddingBottom, paddingLeft."),
             paddingTop: S.token.optional(),
             paddingRight: S.token.optional(),
@@ -398,7 +398,7 @@ export const tools: ToolDef[] = [
             bottomLeftRadius: S.token.optional(),
             effectStyleName: z.string().optional().describe("Effect style name (e.g. 'Shadow/Card') for shadows, blurs"),
             layoutMode: z.enum(["HORIZONTAL", "VERTICAL"]).describe("Primary axis direction"),
-            layoutWrap: z.enum(["NO_WRAP", "WRAP"]).optional(),
+            layoutWrap: z.enum(["NO_WRAP", "WRAP"]).optional().describe("Wrap children to new rows (HORIZONTAL layout only — Figma does not support WRAP on VERTICAL layouts). Use column frames inside a HORIZONTAL parent for vertical grid patterns."),
             padding: S.token.optional().describe("All edges (number) or variable name (string). Per-edge: paddingTop, paddingRight, paddingBottom, paddingLeft."),
             paddingTop: S.token.optional(),
             paddingRight: S.token.optional(),
@@ -610,7 +610,7 @@ export const tools: ToolDef[] = [
           blendMode: z.enum(["PASS_THROUGH", "NORMAL", "DARKEN", "MULTIPLY", "LINEAR_BURN", "COLOR_BURN", "LIGHTEN", "SCREEN", "LINEAR_DODGE", "COLOR_DODGE", "OVERLAY", "SOFT_LIGHT", "HARD_LIGHT", "DIFFERENCE", "EXCLUSION", "HUE", "SATURATION", "COLOR", "LUMINOSITY"]).optional(),
           effectStyleName: z.string().optional().describe("Effect style name (e.g. 'Shadow/Card') for shadows, blurs"),
           layoutMode: z.enum(["NONE", "HORIZONTAL", "VERTICAL"]).optional().describe("Layout direction (default: NONE)"),
-          layoutWrap: z.enum(["NO_WRAP", "WRAP"]).optional(),
+          layoutWrap: z.enum(["NO_WRAP", "WRAP"]).optional().describe("Wrap children to new rows (HORIZONTAL layout only — Figma does not support WRAP on VERTICAL layouts). Use column frames inside a HORIZONTAL parent for vertical grid patterns."),
           padding: S.token.optional().describe("All edges (number) or variable name (string). Per-edge: paddingTop, paddingRight, paddingBottom, paddingLeft."),
           paddingTop: S.token.optional(),
           paddingRight: S.token.optional(),
@@ -723,7 +723,7 @@ export const tools: ToolDef[] = [
   },
   {
     name: "prototyping",
-    description: "/** Manage prototype interactions, reactions, and navigation flows. Use method \"help\" for detailed parameter docs. */\n  get       (id) → { reactions?, overflowDirection? }  // Get reactions and overflow direction on a node\n  add       (id, trigger: ON_CLICK|ON_HOVER|ON_PRESS|ON_DRAG|AFTER_TIMEOUT|MOUSE_ENTER|MOUSE_LEAVE|ON_KEY_DOWN, triggerDelay?, triggerKeyCodes?, triggerDevice?: KEYBOARD|XBOX_ONE|PS4|SWITCH_PRO, destination?, navigation?: NAVIGATE|SWAP|OVERLAY|SCROLL_TO|CHANGE_TO, transition?: DISSOLVE|SMART_ANIMATE|MOVE_IN|MOVE_OUT|PUSH|SLIDE_IN|SLIDE_OUT|INSTANT, transitionDirection?: LEFT|RIGHT|TOP|BOTTOM, duration?, easing?: EASE_IN|EASE_OUT|EASE_IN_AND_OUT|LINEAR|GENTLE|QUICK|BOUNCY|SLOW, actionType?: NODE|BACK|CLOSE|URL|SET_VARIABLE_MODE, url?, collectionName?, modeName?, resetScrollPosition?, actions?) → { results: \"ok\"[] }  // Add a prototype reaction to a node\n  set       (id, reactions) → { results: \"ok\"[] }  // Replace all reactions on a node (raw reactions array)\n  remove    (id, index) → { results: \"ok\"[] }  // Remove a reaction from a node by index\n// Reactions wire up interactions: trigger (ON_CLICK, ON_HOVER, ...) → action (navigate, swap, overlay).\n// Common patterns: button ON_CLICK → NAVIGATE to detail frame; card ON_HOVER → CHANGE_TO hover variant.\n// Multi-action: pass actions[] array to run multiple actions on one trigger (e.g. navigate + set variable mode).",
+    description: "/** Manage prototype interactions, reactions, and navigation flows. Use method \"help\" for detailed parameter docs. */\n  get       (id) → { reactions?, overflowDirection? }  // Get reactions and overflow direction on a node\n  add       (id?, trigger?: ON_CLICK|ON_HOVER|ON_PRESS|ON_DRAG|AFTER_TIMEOUT|MOUSE_ENTER|MOUSE_LEAVE|ON_KEY_DOWN, triggerDelay?, triggerKeyCodes?, triggerDevice?: KEYBOARD|XBOX_ONE|PS4|SWITCH_PRO, destination?, navigation?: NAVIGATE|SWAP|OVERLAY|SCROLL_TO|CHANGE_TO, transition?: DISSOLVE|SMART_ANIMATE|MOVE_IN|MOVE_OUT|PUSH|SLIDE_IN|SLIDE_OUT|INSTANT, transitionDirection?: LEFT|RIGHT|TOP|BOTTOM, duration?, easing?: EASE_IN|EASE_OUT|EASE_IN_AND_OUT|LINEAR|GENTLE|QUICK|BOUNCY|SLOW, actionType?: NODE|BACK|CLOSE|URL|SET_VARIABLE_MODE, url?, collectionName?, modeName?, resetScrollPosition?, actions?, items?: { id: string; trigger: \"ON_CLICK\" | \"ON_HOVER\" | \"ON_PRESS\" | \"ON_DRAG\" | \"AFTER_TIMEOUT\" | \"MOUSE_ENTER\" | \"MOUSE_LEAVE\" | \"ON_KEY_DOWN\"; destination?: string; navigation?: \"NAVIGATE\" | \"SWAP\" | \"OVERLAY\" | \"SCROLL_TO\" | \"CHANGE_TO\"; transition?: \"DISSOLVE\" | \"SMART_ANIMATE\" | \"MOVE_IN\" | \"MOVE_OUT\" | \"PUSH\" | \"SLIDE_IN\" | \"SLIDE_OUT\" | \"INSTANT\"; transitionDirection?: \"LEFT\" | \"RIGHT\" | \"TOP\" | \"BOTTOM\"; duration?: number; easing?: \"EASE_IN\" | \"EASE_OUT\" | \"EASE_IN_AND_OUT\" | \"LINEAR\" | \"GENTLE\" | \"QUICK\" | \"BOUNCY\" | \"SLOW\"; actionType?: \"NODE\" | \"BACK\" | \"CLOSE\" | \"URL\" | \"SET_VARIABLE_MODE\"; triggerDelay?: number; url?: string; collectionName?: string; modeName?: string; resetScrollPosition?: boolean; actions?: unknown[] }[]) → { results: \"ok\"[] }  // Add a prototype reaction to a node\n  set       (id, reactions) → { results: \"ok\"[] }  // Replace all reactions on a node (raw reactions array)\n  remove    (id, index) → { results: \"ok\"[] }  // Remove a reaction from a node by index\n// Reactions wire up interactions: trigger (ON_CLICK, ON_HOVER, ...) → action (navigate, swap, overlay).\n// Common patterns: button ON_CLICK → NAVIGATE to detail frame; card ON_HOVER → CHANGE_TO hover variant.\n// Multi-action: pass actions[] array to run multiple actions on one trigger (e.g. navigate + set variable mode).",
     schema: (caps) => filterMethodsByTier({    method: z.enum(["get", "add", "set", "remove", "help"]),
     id: z.string().optional().describe("Node ID"),
     trigger: z.enum(["ON_CLICK", "ON_HOVER", "ON_PRESS", "ON_DRAG", "AFTER_TIMEOUT", "MOUSE_ENTER", "MOUSE_LEAVE", "ON_KEY_DOWN"]).optional().describe("Trigger type"),
@@ -742,6 +742,7 @@ export const tools: ToolDef[] = [
     modeName: z.string().optional().describe("Mode name to switch to (for SET_VARIABLE_MODE)"),
     resetScrollPosition: flexBool(z.boolean()).optional().describe("Reset scroll position on navigate (default: true)"),
     actions: flexJson(z.array(z.record(z.string(), z.unknown()))).optional().describe("Multi-action: [{actionType, destination?, navigation?, collectionName?, modeName?, ...}]. Overrides single-action params."),
+    items: flexJson(z.array(z.record(z.string(), z.unknown()))).optional().describe("Batch: array of {id, trigger, destination?, ...} reaction items"),
     reactions: flexJson(z.array(z.record(z.string(), z.unknown()))).optional().describe("Full reactions array — [{trigger:{type}, actions:[{type, destinationId, navigation, transition}]}]"),
     index: z.coerce.number().optional().describe("Reaction index (0-based)"),
     topic: z.string().optional().describe("Help topic — method name for endpoint help, e.g. \"create\""),
@@ -752,10 +753,6 @@ export const tools: ToolDef[] = [
       if (m === "get") {
         if (params.id === undefined) throw new Error("get requires \"id\"");
       }
-      if (m === "add") {
-        if (params.id === undefined) throw new Error("add requires \"id\"");
-        if (params.trigger === undefined) throw new Error("add requires \"trigger\"");
-      }
       if (m === "set") {
         if (params.id === undefined) throw new Error("set requires \"id\"");
         if (params.reactions === undefined) throw new Error("set requires \"reactions\"");
@@ -763,6 +760,28 @@ export const tools: ToolDef[] = [
       if (m === "remove") {
         if (params.id === undefined) throw new Error("remove requires \"id\"");
         if (params.index === undefined) throw new Error("remove requires \"index\"");
+      }
+      if (!params.items) return;
+      if (m === "add") {
+        const itemSchema = z.object({
+          id: z.string().describe("Node ID"),
+          trigger: z.enum(["ON_CLICK", "ON_HOVER", "ON_PRESS", "ON_DRAG", "AFTER_TIMEOUT", "MOUSE_ENTER", "MOUSE_LEAVE", "ON_KEY_DOWN"]).describe("Trigger type"),
+          destination: z.string().optional().describe("Target node ID"),
+          navigation: z.enum(["NAVIGATE", "SWAP", "OVERLAY", "SCROLL_TO", "CHANGE_TO"]).optional(),
+          transition: z.enum(["DISSOLVE", "SMART_ANIMATE", "MOVE_IN", "MOVE_OUT", "PUSH", "SLIDE_IN", "SLIDE_OUT", "INSTANT"]).optional(),
+          transitionDirection: z.enum(["LEFT", "RIGHT", "TOP", "BOTTOM"]).optional(),
+          duration: z.coerce.number().optional(),
+          easing: z.enum(["EASE_IN", "EASE_OUT", "EASE_IN_AND_OUT", "LINEAR", "GENTLE", "QUICK", "BOUNCY", "SLOW"]).optional(),
+          actionType: z.enum(["NODE", "BACK", "CLOSE", "URL", "SET_VARIABLE_MODE"]).optional(),
+          triggerDelay: z.coerce.number().optional(),
+          url: z.string().optional(),
+          collectionName: z.string().optional(),
+          modeName: z.string().optional(),
+          resetScrollPosition: flexBool(z.boolean()).optional(),
+          actions: flexJson(z.array(z.record(z.string(), z.unknown()))).optional(),
+        }).passthrough();
+        try { params.items = z.array(itemSchema).parse(params.items); }
+        catch (e) { if (e instanceof z.ZodError) { throw new Error(e.issues.map(i => { const path = i.path.join("."); const shape = itemSchema instanceof z.ZodObject ? (itemSchema as any).shape : null; const desc = shape?.[i.path[1]]?.description; return path + ": " + i.message + (desc ? " (expected: " + desc + ")" : ""); }).join("; ")); } throw e; }
       }
     },
     commandMap: {"get":"prototyping.get","add":"prototyping.add","set":"prototyping.set","remove":"prototyping.remove"},

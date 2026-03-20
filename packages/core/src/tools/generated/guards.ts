@@ -544,6 +544,25 @@ export const instancesResetOverrides = new Set(["id"]) as ReadonlySet<string>;
 /** lint.fix item params */
 export const lintFix = new Set(["itemSpacing","layoutMode","nodeId"]) as ReadonlySet<string>;
 
+/** prototyping.add item params */
+export const prototypingAdd = new Set([
+  "actionType",
+  "actions",
+  "collectionName",
+  "destination",
+  "duration",
+  "easing",
+  "id",
+  "modeName",
+  "navigation",
+  "resetScrollPosition",
+  "transition",
+  "transitionDirection",
+  "trigger",
+  "triggerDelay",
+  "url",
+]) as ReadonlySet<string>;
+
 /** styles create type="paint" */
 export const stylesCreatePaint = new Set(["color","colorVariableName","description","name"]) as ReadonlySet<string>;
 

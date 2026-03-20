@@ -42,6 +42,32 @@ HUG on both axes is the most common cause of broken layouts. It means "shrink to
 - Shells, sidebars, modals → `width` + `layoutSizingHorizontal:"FIXED"`, vertical `FILL` or `HUG`
 - Full-width sections → `layoutSizingHorizontal:"FILL"`, `layoutSizingVertical:"HUG"`
 
+## Wrapping Layouts (layoutWrap)
+
+`layoutWrap: WRAP` enables children to flow into new rows when they exceed the container width — like CSS `flex-wrap`. This only works with **HORIZONTAL** auto-layout. Figma does not support wrap on VERTICAL layouts.
+
+**When to use wrap:**
+- Card grids with a fixed number of columns at a known width
+- Tag/chip collections where items flow into multiple rows
+- Any layout where items should reflow based on available width
+
+**Horizontal wrap pattern:**
+```
+frames.create(type: "auto_layout", layoutMode: "HORIZONTAL", layoutWrap: "WRAP",
+  itemSpacing: "space/16", counterAxisSpacing: "space/16")
+```
+Children use FIXED width to control column count. `counterAxisSpacing` sets the gap between wrapped rows.
+
+**Vertical grid alternative:**
+Since VERTICAL layouts cannot wrap, build column-based grids by nesting VERTICAL columns inside a HORIZONTAL parent:
+```
+outer (HORIZONTAL, itemSpacing: 20, FILL width)
+  col-1 (VERTICAL, FILL width, HUG height, itemSpacing: 20)
+  col-2 (VERTICAL, FILL width, HUG height, itemSpacing: 20)
+  col-3 (VERTICAL, FILL width, HUG height, itemSpacing: 20)
+```
+Each column gets equal width via FILL. Reparent items into columns for column-first ordering. This handles variable card heights per column independently.
+
 ## Component Sizing
 
 Component roots use `FILL` when placed in a parent — they adapt to context, not a fixed specimen width. Use `FIXED` only for the specimen (the component definition itself when it needs a specific preview width).

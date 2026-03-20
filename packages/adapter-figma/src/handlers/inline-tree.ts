@@ -64,7 +64,7 @@ function resolveChildLayoutMode(p: any): { mode: string; explicitNone: boolean }
   if (p.layoutMode) return { mode: p.layoutMode, explicitNone: false };
   if (AL_PARAMS.some(k => p[k] !== undefined)) return { mode: "VERTICAL", explicitNone: false };
   if (p.layoutSizingHorizontal === "HUG" || p.layoutSizingVertical === "HUG") return { mode: "VERTICAL", explicitNone: false };
-  if (p.layoutWrap && p.layoutWrap !== "NO_WRAP") return { mode: "VERTICAL", explicitNone: false };
+  if (p.layoutWrap && p.layoutWrap !== "NO_WRAP") return { mode: "HORIZONTAL", explicitNone: false };
   return { mode: "NONE", explicitNone: false };
 }
 

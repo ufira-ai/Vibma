@@ -3,7 +3,7 @@
 
 auto_layout_params:
   layoutMode: { type: enum, values: [NONE, HORIZONTAL, VERTICAL], optional: true, description: "Layout direction (default: NONE)" }
-  layoutWrap: { type: enum, values: [NO_WRAP, WRAP], optional: true }
+  layoutWrap: { type: enum, values: [NO_WRAP, WRAP], optional: true, description: "Wrap children to new rows (HORIZONTAL layout only — Figma does not support WRAP on VERTICAL layouts). Use column frames inside a HORIZONTAL parent for vertical grid patterns." }
   padding: { $expand: padding, type: token }
   primaryAxisAlignItems: { type: enum, values: [MIN, MAX, CENTER, SPACE_BETWEEN], optional: true }
   counterAxisAlignItems: { type: enum, values: [MIN, MAX, CENTER, BASELINE], optional: true }

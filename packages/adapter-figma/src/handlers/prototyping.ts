@@ -1,3 +1,5 @@
+import { batchHandler, type Hint } from "./helpers";
+
 // ─── Prototype Reactions & Navigation ────────────────────────────
 
 const DIRECTIONAL_TRANSITIONS = new Set(["MOVE_IN", "MOVE_OUT", "PUSH", "SLIDE_IN", "SLIDE_OUT"]);
@@ -206,10 +208,10 @@ async function getReactions(params: any) {
   return result;
 }
 
-async function addReaction(params: any) {
-  const id = params.id;
+async function addReactionSingle(p: any) {
+  const id = p.id;
   if (!id) throw new Error("id is required");
-  if (!params.trigger) throw new Error("trigger is required");
+  if (!p.trigger) throw new Error("trigger is required");
 
   const node = await figma.getNodeByIdAsync(id);
   if (!node) throw new Error(`Node not found: ${id}`);
@@ -222,12 +224,12 @@ async function addReaction(params: any) {
 
   const existing = JSON.parse(JSON.stringify((node as any).reactions || []));
   // Inject source page ID so buildAction can detect cross-page targets
-  params._sourcePageId = sourcePageId;
-  const newReaction = await buildReaction(params);
+  p._sourcePageId = sourcePageId;
+  const newReaction = await buildReaction(p);
   existing.push(newReaction);
 
   await (node as any).setReactionsAsync(existing);
-  return "ok";
+  return {};
 }
 
 async function setReactions(params: any) {
@@ -298,7 +300,7 @@ async function removeReaction(params: any) {
 
 export const figmaHandlers: Record<string, (params: any) => Promise<any>> = {
   get_reactions: getReactions,
-  add_reaction: addReaction,
+  add_reaction: (p) => batchHandler(p, addReactionSingle),
   set_reactions: setReactions,
   remove_reaction: removeReaction,
 };

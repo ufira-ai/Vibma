@@ -116,6 +116,10 @@ export async function setupFrameNode(
 
   // Auto-layout
   if (layoutMode !== "NONE") {
+    // Validate: WRAP only works with HORIZONTAL (Figma engine constraint)
+    if (layoutWrap === "WRAP" && layoutMode === "VERTICAL") {
+      throw new Error("layoutWrap 'WRAP' requires layoutMode 'HORIZONTAL' — Figma does not support wrap on vertical layouts. Use column frames inside a horizontal parent for vertical grid patterns.");
+    }
     node.layoutMode = layoutMode;
     node.layoutWrap = layoutWrap;
     for (const f of ["paddingTop", "paddingRight", "paddingBottom", "paddingLeft", "itemSpacing"] as const) {

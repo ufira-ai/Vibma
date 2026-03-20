@@ -36,13 +36,13 @@ methods:
   add:
     tier: edit
     description: "Add a prototype reaction to a node"
-    example: 'prototyping(method:"add", id:"btn-1", trigger:"ON_CLICK", destination:"detail-frame-id", navigation:"NAVIGATE")'
+    example: 'prototyping(method:"add", items:[{id:"btn-1", trigger:"ON_CLICK", destination:"frame-2", navigation:"NAVIGATE", transition:"SMART_ANIMATE"}, {id:"btn-2", trigger:"ON_CLICK", destination:"frame-3"}])'
     params:
-      id: { type: string, required: true, description: "Node ID" }
+      id: { type: string, optional: true, description: "Node ID" }
       trigger:
         type: enum
         values: [ON_CLICK, ON_HOVER, ON_PRESS, ON_DRAG, AFTER_TIMEOUT, MOUSE_ENTER, MOUSE_LEAVE, ON_KEY_DOWN]
-        required: true
+        optional: true
         description: "Trigger type"
       triggerDelay:
         type: number
@@ -115,6 +115,29 @@ methods:
         coerce: json
         optional: true
         description: "Multi-action: [{actionType, destination?, navigation?, collectionName?, modeName?, ...}]. Overrides single-action params."
+      items:
+        type: array
+        coerce: json
+        optional: true
+        description: "Batch: array of {id, trigger, destination?, ...} reaction items"
+        items:
+          type: object
+          properties:
+            id: { type: string, required: true, description: "Node ID" }
+            trigger: { type: enum, values: [ON_CLICK, ON_HOVER, ON_PRESS, ON_DRAG, AFTER_TIMEOUT, MOUSE_ENTER, MOUSE_LEAVE, ON_KEY_DOWN], required: true, description: "Trigger type" }
+            destination: { type: string, optional: true, description: "Target node ID" }
+            navigation: { type: enum, values: [NAVIGATE, SWAP, OVERLAY, SCROLL_TO, CHANGE_TO], optional: true }
+            transition: { type: enum, values: [DISSOLVE, SMART_ANIMATE, MOVE_IN, MOVE_OUT, PUSH, SLIDE_IN, SLIDE_OUT, INSTANT], optional: true }
+            transitionDirection: { type: enum, values: [LEFT, RIGHT, TOP, BOTTOM], optional: true }
+            duration: { type: number, coerce: true, optional: true }
+            easing: { type: enum, values: [EASE_IN, EASE_OUT, EASE_IN_AND_OUT, LINEAR, GENTLE, QUICK, BOUNCY, SLOW], optional: true }
+            actionType: { type: enum, values: [NODE, BACK, CLOSE, URL, SET_VARIABLE_MODE], optional: true }
+            triggerDelay: { type: number, coerce: true, optional: true }
+            url: { type: string, optional: true }
+            collectionName: { type: string, optional: true }
+            modeName: { type: string, optional: true }
+            resetScrollPosition: { type: boolean, coerce: true, optional: true }
+            actions: { type: array, coerce: json, optional: true }
     response:
       type: batch_ok
 
