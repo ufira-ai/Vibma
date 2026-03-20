@@ -348,6 +348,7 @@ async function fromNodeSingle(p: any) {
   if (node.type === "COMPONENT_SET") throw new Error(`Node "${node.name}" is already a COMPONENT_SET. Use components(method: "get") to inspect it.`);
   if (node.type === "INSTANCE") throw new Error(`Node "${node.name}" is an INSTANCE. Detach it first with instances(method:"detach"), or use the source component directly.`);
   const comp = figma.createComponentFromNode(node as SceneNode);
+  if (p.name) comp.name = p.name;
 
   const hints: Hint[] = [];
   const exposedProperties: Record<string, string> = {};

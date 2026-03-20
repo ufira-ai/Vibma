@@ -65,7 +65,7 @@ export const componentsCreateComponent = new Set([
 ]) as ReadonlySet<string>;
 
 /** components create type="from_node" */
-export const componentsCreateFromNode = new Set(["exposeText","nodeId"]) as ReadonlySet<string>;
+export const componentsCreateFromNode = new Set(["exposeText","name","nodeId"]) as ReadonlySet<string>;
 
 /** components create type="variant_set" */
 export const componentsCreateVariantSet = new Set([

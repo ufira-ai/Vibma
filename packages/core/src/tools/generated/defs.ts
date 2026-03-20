@@ -144,6 +144,7 @@ export const tools: ToolDef[] = [
           }).passthrough(),
           "from_node": z.object({
             nodeId: z.string().describe("Node ID to convert"),
+            name: z.string().optional().describe("Rename the component (default: keeps the node's current name)"),
             exposeText: flexBool(z.boolean()).optional().describe("Auto-expose text as editable properties (default: true)"),
           }).passthrough(),
           "variant_set": z.object({

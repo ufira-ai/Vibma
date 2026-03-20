@@ -116,6 +116,7 @@ methods:
         description: "Convert existing nodes to components. Text children auto-exposed as editable properties (exposeText: true)."
         params:
           nodeId: { type: string, required: true, description: Node ID to convert }
+          name: { type: string, optional: true, description: "Rename the component (default: keeps the node's current name)" }
           exposeText: { type: boolean, coerce: true, optional: true, description: "Auto-expose text as editable properties (default: true)" }
       variant_set:
         description: Combine components into a variant set. The resulting set is a frame — accepts all frame properties for layout/styling.

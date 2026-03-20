@@ -235,7 +235,12 @@ async function createTextStyleSingle(p: any) {
       let lhPx: number | null = null;
       if (typeof p.lineHeight === "number") lhPx = p.lineHeight;
       else if (p.lineHeight.unit === "PIXELS") lhPx = p.lineHeight.value;
-      else if (p.lineHeight.unit === "PERCENT") lhPx = (p.lineHeight.value / 100) * p.fontSize;
+      else if (p.lineHeight.unit === "PERCENT") {
+        if (p.lineHeight.value < 10) {
+          hints.push({ type: "warn", message: `lineHeight ${p.lineHeight.value}% looks wrong — did you mean ${Math.round(p.lineHeight.value * 100)}%? PERCENT uses whole percentages (e.g. 150 = 1.5×).` });
+        }
+        lhPx = (p.lineHeight.value / 100) * p.fontSize;
+      }
       if (lhPx !== null && lhPx / p.fontSize < 1.5) {
         hints.push({ type: "warn", message: `WCAG: Line height ${Math.ceil(p.fontSize * 1.5)}px (1.5x) recommended.` });
       }
@@ -473,7 +478,12 @@ async function patchStyleSingle(p: any) {
     if (lh && lh.unit !== "AUTO") {
       let lhPx: number | null = null;
       if (lh.unit === "PIXELS") lhPx = lh.value;
-      else if (lh.unit === "PERCENT") lhPx = (lh.value / 100) * ts.fontSize;
+      else if (lh.unit === "PERCENT") {
+        if (lh.value < 10) {
+          hints.push({ type: "warn", message: `lineHeight ${lh.value}% looks wrong — did you mean ${Math.round(lh.value * 100)}%? PERCENT uses whole percentages (e.g. 150 = 1.5×).` });
+        }
+        lhPx = (lh.value / 100) * ts.fontSize;
+      }
       if (lhPx !== null && lhPx / ts.fontSize < 1.5) {
         hints.push({ type: "warn", message: `WCAG: Line height ${Math.ceil(ts.fontSize * 1.5)}px (1.5x) recommended.` });
       }
