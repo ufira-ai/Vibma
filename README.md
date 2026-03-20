@@ -23,13 +23,13 @@ Vibma works with any LLM that supports MCP, but model quality still matters.
 
 | Recommendation       | OpenAI | Claude            | Gemini | Open Source |
 |----------------------|---|-------------------|---|---|
-| **Baseline**         | ChatGPT 5.2 Medium | Claude Sonnet 4.6 | Gemini 3.1 Pro | Kimi K2.5 |
+| **Baseline**         | GPT 5.2 Medium | Claude Sonnet 4.6 | Gemini 2.5 Flash | Kimi K2.5 |
 | **Best performance** | GPT 5.4 | Claude Opus 4.6   | Gemini 3.1 Pro | None currently recommended |
 
 - **OpenAI:** GPT 5.4 is the general recommendation. It achieves strong compatibility with Vibma while also having good baseline design taste.
 - **Claude:** Claude Opus 4.6 is the most capable model for working with the Vibma plugin, but its final design sense is less reliable than its tool competence suggests.
 - **Gemini:** Gemini 3.1 Pro is a neutral choice between compatibility and design quality, but GPT 5.4 currently surpasses it on both.
-- **Open source:** Open-source models still struggle with this task. Kimi K2.5 is the baseline for basic functions such as managing variable collections, but these models are more likely to introduce inconsistencies in the final mockup.
+- **Open source:** Open-source models still struggle with this task. Kimi K2.5 is the baseline for basic functions such as managing variable collections, but these smaller models are more likely to introduce inconsistencies in the final mockup.
 
 ## Setup
 
