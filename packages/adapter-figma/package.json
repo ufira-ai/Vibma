@@ -1,7 +1,7 @@
 {
   "name": "@ufira/vibma-figma",
   "description": "Figma adapter for Vibma — plugin + handler implementations.",
-  "version": "1.0.0-rc6",
+  "version": "1.0.0",
   "license": "MIT",
   "author": "ufira <https://github.com/ufira-ai>",
   "homepage": "https://github.com/ufira-ai/vibma",
