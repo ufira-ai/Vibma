@@ -11,18 +11,25 @@
 https://github.com/user-attachments/assets/bf38e37d-57bb-40b3-a2d1-f89216117c11
 </div>
 
-Let AI agents design directly in Figma — read layouts, create components,
-modify styles, and build entire design systems through conversation.
+Design with peace of mind in structure. Vibma helps AI agents keep Figma files
+structurally consistent, with better token discipline, auto-layout, component
+architecture, and reusable design-system patterns.
 
 ---
 
 ## Model Recommendations
 
-Vibma works with any LLM that supports MCP. Based on our [benchmark](https://github.com/ufira-ai/vibma-benchmark):
+Vibma works with any LLM that supports MCP, but model quality still matters.
 
-- **Cheap one-shot builds:** GPT-5.3 Codex (medium reasoning) — proper components, all variables bound, clean output for under $1. Degrades on follow-up tasks.
-- **Iterative design work:** GPT-5.3 Codex (xhigh), Gemini 3.1 Pro, or Claude Opus 4.6 — these maintain quality as context grows and handle multi-pass workflows.
-- **Avoid:** Models that skip figma components building (e.g. Cursor Auto, Kimi K2.5) produce frames that look right but aren't structurally usable — no instances, no variants, no library.
+| Recommendation       | OpenAI | Claude            | Gemini | Open Source |
+|----------------------|---|-------------------|---|---|
+| **Baseline**         | ChatGPT 5.2 Medium | Claude Sonnet 4.6 | Gemini 3.1 Pro | Kimi K2.5 |
+| **Best performance** | GPT 5.4 | Claude Opus 4.6   | Gemini 3.1 Pro | None currently recommended |
+
+- **OpenAI:** GPT 5.4 is the general recommendation. It achieves strong compatibility with Vibma while also having good baseline design taste.
+- **Claude:** Claude Opus 4.6 is the most capable model for working with the Vibma plugin, but its final design sense is less reliable than its tool competence suggests.
+- **Gemini:** Gemini 3.1 Pro is a neutral choice between compatibility and design quality, but GPT 5.4 currently surpasses it on both.
+- **Open source:** Open-source models still struggle with this task. Kimi K2.5 is the baseline for basic functions such as managing variable collections, but these models are more likely to introduce inconsistencies in the final mockup.
 
 ## Setup
 
