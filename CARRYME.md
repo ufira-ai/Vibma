@@ -73,11 +73,11 @@ Add to your MCP config (e.g. `.cursor/mcp.json`, `.claude.json`, or `.mcp.json`)
 
 Vibma uses access tiers to control which tools are available. Pass a flag to set the tier:
 
-| Flag | Access | Tools available | Use case |
-|------|--------|----------------|----------|
-| _(none)_ | <a class="method-badge method-badge-tier method-badge-tier-read" href="/Vibma/#access-tiers">read</a> | Inspect, search, export | Safe browsing, audits |
-| `--create` | <a class="method-badge method-badge-tier method-badge-tier-read" href="/Vibma/#access-tiers">read</a> <a class="method-badge method-badge-tier method-badge-tier-create" href="/Vibma/#access-tiers">create</a> | Read + create tools such as frames, text, and shapes | Generating new designs |
-| `--edit` | <a class="method-badge method-badge-tier method-badge-tier-read" href="/Vibma/#access-tiers">read</a> <a class="method-badge method-badge-tier method-badge-tier-create" href="/Vibma/#access-tiers">create</a> <a class="method-badge method-badge-tier method-badge-tier-edit" href="/Vibma/#access-tiers">edit</a> | Full tool access, including edit and delete operations | Full design workflow |
+| Flag | Tools available | Use case |
+|------|----------------|----------|
+| _(none)_ | Inspect, search, export | Safe browsing, audits |
+| `--create` | Read + create tools such as frames, text, and shapes | Generating new designs |
+| `--edit` | Full tool access, including edit and delete operations | Full design workflow |
 
 Most users want `--edit` for full access. Omit the flag for read-only mode.
 
