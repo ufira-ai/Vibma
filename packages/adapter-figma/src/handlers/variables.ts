@@ -328,7 +328,7 @@ async function createVariableSingle(p: any, collection: any) {
             type: "warn",
             message: `"${variable.name}" has the same ${mode.name} value (${newHex}) as existing variable "${sib.name}". ` +
               `If they should stay in sync, bind as alias: variables(method:"update", collectionId:"${collection.name}", ` +
-              `items:[{name:"${variable.name}", valuesByMode:{"${mode.name}":"{${sib.name}}"}}])`,
+              `items:[{name:"${variable.name}", valuesByMode:{"${mode.name}":{type:"VARIABLE_ALIAS", name:"${sib.name}"}}}])`,
           });
           break;
         }
