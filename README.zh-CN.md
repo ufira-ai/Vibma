@@ -11,17 +11,24 @@
 https://github.com/user-attachments/assets/bf38e37d-57bb-40b3-a2d1-f89216117c11
 </div>
 
-让 AI 代理直接在 Figma 中进行设计——读取布局、创建组件、修改样式，并通过对话构建完整的设计系统。
+让设计师回归设计品味，把结构需求交给 Vibma。Vibma 帮助 AI 代理操作并保持 Figma
+文件的结构一致性，强化规范 design token、auto-layout、组件架构与可复用的设计系统模式。
 
 ---
 
 ## 模型推荐
 
-Vibma 兼容任何支持 MCP 的大语言模型。以下是基于[基准测试](https://github.com/ufira-ai/vibma-benchmark)的推荐：
+Vibma 兼容任何支持 MCP 的大语言模型，但模型质量仍然很重要。
 
-- **低成本一次性构建：** GPT-5.3 Codex（meidum）——正确创建组件、绑定所有变量，费用低于 $1。不适合后续迭代任务。
-- **迭代设计工作：** GPT-5.3 Codex（xhigh）、Gemini 3.1 Pro 或 Claude Opus 4.6——随上下文增长仍保持质量，适合多轮工作流。
-- **不推荐：** 跳过组件搭建的模型（如 Cursor Auto、Kimi K2.5）生成的画面看似正确，但结构不可用——没有实例、没有变体、没有组件库。
+| 推荐层级     | OpenAI | Claude | Gemini           | 开源模型 |
+|----------|---|---|------------------|---|
+| **最低要求** | GPT 5.2 Medium | Claude Sonnet 4.6 | Gemini 2.5 Flash | Kimi K2.5 |
+| **最佳表现** | GPT 5.4 | Claude Opus 4.6 | Gemini 3.1 Pro   | 目前没有推荐 |
+
+- **OpenAI：** GPT 5.4 是当前的通用推荐。在 Vibma 兼容性和基础设计品味之间取得了最好的平衡。
+- **Claude：** Claude Opus 4.6 是目前最擅长使用 Vibma 插件的模型，但最终设计成果AI味较重。
+- **Gemini：** Gemini 3.1 Pro 是兼容性和设计质量之间比较中性的选择，但 GPT 5.4 目前在两方面都更强。
+- **开源模型：** 开源模型仍然普遍难以胜任这类任务。Kimi K2.5 可以作为要求基准线，完成变量集合管理等基础功能，但更容易在 mockup 中使用不规范的结构。
 
 ## 安装
 
