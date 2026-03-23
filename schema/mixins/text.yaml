@@ -14,7 +14,8 @@ text_params:
   fontColor: { type: color, optional: true, description: "Shorthand — sets text color (auto-binds to matching variable/style)" }
   fontColorVariableName: { type: string, optional: true, description: "Bind color variable by name e.g. 'text/primary'" }
   fontColorStyleName: { type: string, optional: true, description: "Apply paint style — overrides fontColor" }
-  textStyleId: { type: string, optional: true, description: "Apply text style by ID — overrides fontSize/fontWeight" }
+  textStyleKey: { type: string, optional: true, description: "Published text style key hash (40-char hex) for cross-file library import. Preferred over textStyleId for library styles." }
+  textStyleId: { type: string, optional: true, description: "Apply text style by ID — overrides fontSize/fontWeight. Use textStyleKey instead for cross-file library styles." }
   textStyleName: { type: string, optional: true, description: "Text style by name (case-insensitive)" }
   textAlignHorizontal: { type: enum, values: [LEFT, CENTER, RIGHT, JUSTIFIED], optional: true }
   textAlignVertical: { type: enum, values: [TOP, CENTER, BOTTOM], optional: true }

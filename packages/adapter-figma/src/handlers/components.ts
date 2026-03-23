@@ -46,7 +46,7 @@ export function normalizeInlineChildTypes(children: any[]): void {
       child.type = child.type.toLowerCase();
     } else if (child.text !== undefined || child.characters !== undefined) {
       child.type = "text";
-    } else if (child.componentId || child.id) {
+    } else if (child.componentKey || child.componentId || child.id) {
       child.type = "instance";
     } else if (child.name) {
       child.type = "frame";
@@ -623,6 +623,8 @@ async function getComponentFigma(params: any) {
 
 function serializeComponentSummary(node: any): any {
   const out: any = { id: node.id, name: node.name };
+  // Include the published key hash (40-char hex) for cross-file importComponentByKeyAsync.
+  if ("key" in node && node.key) out.key = node.key;
   if (node.description) out.description = node.description;
   try {
     const defs = node.componentPropertyDefinitions;
@@ -658,7 +660,11 @@ async function listComponentsFigma(params: any) {
     components = components.filter((c: any) => c.name.toLowerCase().includes(f));
   }
   const paged = paginate(components, params.offset, params.limit);
-  const items = paged.items.map((c: any) => c.name);
+  const items = paged.items.map((c: any) => {
+    const stub: any = { name: c.name, id: c.id };
+    if (c.key) stub.key = c.key;
+    return stub;
+  });
   return { ...paged, items };
 }
 
@@ -900,12 +906,26 @@ async function auditComponentFigma(params: any) {
 // -- instances handlers --
 
 async function instanceCreateSingle(p: any) {
-  let node: any = await figma.getNodeByIdAsync(p.componentId);
-  if (!node) {
-    await figma.loadAllPagesAsync();
+  let node: any;
+
+  if (p.componentKey) {
+    // Cross-file library import via published key hash (preferred path)
+    try { node = await (figma as any).importComponentSetByKeyAsync(p.componentKey); } catch (_) {}
+    if (!node) {
+      try { node = await figma.importComponentByKeyAsync(p.componentKey); } catch (_) {}
+    }
+    if (!node) throw new Error(`Component not found by key: ${p.componentKey}`);
+  } else if (p.componentId) {
+    // Local node ID lookup
     node = await figma.getNodeByIdAsync(p.componentId);
+    if (!node) {
+      await figma.loadAllPagesAsync();
+      node = await figma.getNodeByIdAsync(p.componentId);
+    }
+    if (!node) throw new Error(`Component not found: ${p.componentId}`);
+  } else {
+    throw new Error("Either componentKey or componentId is required");
   }
-  if (!node) throw new Error(`Component not found: ${p.componentId}`);
   if (node.type === "COMPONENT_SET") {
     if (!node.children?.length) throw new Error("Component set has no variants");
     if (p.variantProperties && typeof p.variantProperties === "object") {
@@ -1012,10 +1032,62 @@ async function instanceSwapSingle(p: any) {
   const node = await figma.getNodeByIdAsync(p.id);
   if (!node) throw new Error(`Node not found: ${p.id}`);
   if (node.type !== "INSTANCE") throw new Error(`Node ${p.id} is ${node.type}, not an INSTANCE`);
-  let comp: any = await figma.getNodeByIdAsync(p.componentId);
-  if (!comp) throw new Error(`Component not found: ${p.componentId}`);
-  if (comp.type === "COMPONENT_SET") comp = comp.defaultVariant || comp.children?.[0];
-  if (comp.type !== "COMPONENT") throw new Error(`Node ${p.componentId} is ${comp.type}, not a COMPONENT`);
+
+  // Resolve component: componentKey (cross-file) takes priority over componentId (local)
+  let comp: any;
+
+  if (p.componentKey) {
+    // Cross-file library import via published key hash (preferred path)
+    try { comp = await (figma as any).importComponentSetByKeyAsync(p.componentKey); } catch (_) {}
+    if (!comp) {
+      try { comp = await figma.importComponentByKeyAsync(p.componentKey); } catch (_) {}
+    }
+    if (!comp) throw new Error(`Component not found by key: ${p.componentKey}`);
+  } else if (p.componentId) {
+    // Local node ID lookup
+    comp = await figma.getNodeByIdAsync(p.componentId);
+    if (!comp) {
+      await figma.loadAllPagesAsync();
+      comp = await figma.getNodeByIdAsync(p.componentId);
+    }
+    if (!comp) throw new Error(`Component not found: ${p.componentId}`);
+  } else {
+    throw new Error("Either componentKey or componentId is required");
+  }
+
+  // Resolve component set → pick matching variant or default
+  if (comp.type === "COMPONENT_SET") {
+    if (!comp.children?.length) throw new Error("Component set has no variants");
+    if (p.variantProperties && typeof p.variantProperties === "object") {
+      const match = comp.children.find((child: any) => {
+        if (child.type !== "COMPONENT" || !child.variantProperties) return false;
+        return Object.entries(p.variantProperties).every(
+          ([k, v]) => {
+            if (child.variantProperties[k] === v) return true;
+            const prefixedKey = `${comp.name}/${k}`;
+            return child.variantProperties[prefixedKey] === v;
+          }
+        );
+      });
+      if (match) comp = match;
+      else {
+        const prefix = `${comp.name}/`;
+        const available = comp.children
+          .filter((c: any) => c.type === "COMPONENT")
+          .map((c: any) => {
+            const props: Record<string, string> = {};
+            for (const [k, v] of Object.entries(c.variantProperties || {})) {
+              props[k.startsWith(prefix) ? k.slice(prefix.length) : k] = v as string;
+            }
+            return props;
+          });
+        throw new Error(`No variant matching ${JSON.stringify(p.variantProperties)} in ${comp.name}. Available: ${JSON.stringify(available)}`);
+      }
+    } else {
+      comp = comp.defaultVariant || comp.children[0];
+    }
+  }
+  if (comp.type !== "COMPONENT") throw new Error(`Resolved node is ${comp.type}, not a COMPONENT`);
   (node as InstanceNode).swapComponent(comp as ComponentNode);
   return {};
 }
@@ -1067,6 +1139,7 @@ export async function instanceUpdateCombined(p: any): Promise<any> {
       fontFamily: item.fontFamily,
       fontStyle: item.fontStyle,
       fontWeight: item.fontWeight,
+      textStyleKey: item.textStyleKey,
       textStyleId: item.textStyleId,
       textStyleName: item.textStyleName,
     }));

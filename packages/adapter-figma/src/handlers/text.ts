@@ -112,25 +112,32 @@ export async function setTextPropertiesSingle(p: any, ctx: TextPropsContext) {
     throw new Error(`Not a text node: ${p.nodeId}`);
   }
 
-  // Text style takes priority
-  let resolvedStyleId = p.textStyleId;
-  if (!resolvedStyleId && p.textStyleName && ctx.textStyles) {
-    const exact = ctx.textStyles.find((s: any) => s.name === p.textStyleName);
-    if (exact) resolvedStyleId = exact.id;
-    else {
-      const fuzzy = ctx.textStyles.find((s: any) => s.name.toLowerCase().includes(p.textStyleName.toLowerCase()));
-      if (fuzzy) resolvedStyleId = fuzzy.id;
-    }
-  }
-  if (resolvedStyleId) {
-    const s = await figma.getStyleByIdAsync(resolvedStyleId);
+  // Text style: textStyleKey (cross-file) > textStyleId > textStyleName
+  let resolvedStyleId: string | undefined;
+  if (p.textStyleKey) {
+    // Cross-file library import via published key hash (preferred path)
+    const s = await figma.importStyleByKeyAsync(p.textStyleKey);
     if (s?.type === "TEXT") await (node as any).setTextStyleIdAsync(s.id);
   } else {
-    if (p.fontWeight !== undefined) {
-      const family = (node.fontName !== figma.mixed && node.fontName) ? node.fontName.family : "Inter";
-      node.fontName = { family, style: getFontStyle(p.fontWeight) };
+    resolvedStyleId = p.textStyleId;
+    if (!resolvedStyleId && p.textStyleName && ctx.textStyles) {
+      const exact = ctx.textStyles.find((s: any) => s.name === p.textStyleName);
+      if (exact) resolvedStyleId = exact.id;
+      else {
+        const fuzzy = ctx.textStyles.find((s: any) => s.name.toLowerCase().includes(p.textStyleName.toLowerCase()));
+        if (fuzzy) resolvedStyleId = fuzzy.id;
+      }
     }
-    if (p.fontSize !== undefined) node.fontSize = p.fontSize;
+    if (resolvedStyleId) {
+      const s = await figma.getStyleByIdAsync(resolvedStyleId);
+      if (s?.type === "TEXT") await (node as any).setTextStyleIdAsync(s.id);
+    } else {
+      if (p.fontWeight !== undefined) {
+        const family = (node.fontName !== figma.mixed && node.fontName) ? node.fontName.family : "Inter";
+        node.fontName = { family, style: getFontStyle(p.fontWeight) };
+      }
+      if (p.fontSize !== undefined) node.fontSize = p.fontSize;
+    }
   }
 
   // Text properties: lineHeight, letterSpacing, textCase, textDecoration
@@ -186,7 +193,7 @@ export async function setTextPropertiesSingle(p: any, ctx: TextPropsContext) {
   if (p.textStyleName && p.textStyleId) {
     warnings.push({ type: "warn", message: "Both textStyleName and textStyleId provided — used textStyleId. Pass only one." });
   }
-  if (!resolvedStyleId && !p.textStyleName && !p.textStyleId &&
+  if (!p.textStyleKey && !resolvedStyleId && !p.textStyleName && !p.textStyleId &&
       (p.fontSize !== undefined || p.fontWeight !== undefined)) {
     const fs = p.fontSize ?? (typeof node.fontSize === "number" ? node.fontSize : 14);
     const fw = p.fontWeight ?? 400;

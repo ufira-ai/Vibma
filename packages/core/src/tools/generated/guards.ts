@@ -205,6 +205,7 @@ export const nodeUpdate = new Set([
   "textCase",
   "textDecoration",
   "textStyleId",
+  "textStyleKey",
   "textStyleName",
   "topLeftRadius",
   "topRightRadius",
@@ -432,6 +433,7 @@ export const framesCreateSvg = new Set([
 export const instancesCreate = new Set([
   "blendMode",
   "componentId",
+  "componentKey",
   "effectStyleName",
   "height",
   "layoutPositioning",
@@ -523,6 +525,7 @@ export const instancesUpdate = new Set([
   "textCase",
   "textDecoration",
   "textStyleId",
+  "textStyleKey",
   "textStyleName",
   "topLeftRadius",
   "topRightRadius",
@@ -533,7 +536,7 @@ export const instancesUpdate = new Set([
 ]) as ReadonlySet<string>;
 
 /** instances.swap item params */
-export const instancesSwap = new Set(["componentId","id"]) as ReadonlySet<string>;
+export const instancesSwap = new Set(["componentId","componentKey","id","variantProperties"]) as ReadonlySet<string>;
 
 /** instances.detach item params */
 export const instancesDetach = new Set(["id"]) as ReadonlySet<string>;
@@ -637,6 +640,7 @@ export const textCreate = new Set([
   "textCase",
   "textDecoration",
   "textStyleId",
+  "textStyleKey",
   "textStyleName",
   "width",
   "x",
@@ -800,5 +804,6 @@ export const mixinTextParams = new Set([
   "textCase",
   "textDecoration",
   "textStyleId",
+  "textStyleKey",
   "textStyleName",
 ]) as ReadonlySet<string>;

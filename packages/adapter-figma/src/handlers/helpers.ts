@@ -460,8 +460,10 @@ export function solidPaint(c: any) {
 }
 
 /**
- * Resolve a variable by ID with scan fallback.
- * Direct lookup can fail for recently-created variables.
+ * Resolve a local variable by ID (e.g. VariableID:123).
+ * For cross-file library variables, use variableKey param instead.
+ * Tries direct async lookup first, then falls back to scanning all
+ * local variables (direct lookup can fail for recently-created variables).
  */
 export async function findVariableById(id: string): Promise<any> {
   const direct = await figma.variables.getVariableByIdAsync(id);

@@ -150,7 +150,7 @@ methods:
             overflowDirection: { type: enum, values: [NONE, HORIZONTAL, VERTICAL, BOTH], optional: true, description: "Scroll overflow in prototype (default: NONE)" }
             # --- advanced ---
             constraints: { type: object, optional: true, properties: { horizontal: { type: enum, values: [MIN, CENTER, MAX, STRETCH, SCALE] }, vertical: { type: enum, values: [MIN, CENTER, MAX, STRETCH, SCALE] } } }
-            bindings: { type: array, optional: true, description: "Bind variables to properties. field path examples: 'fills/0/color', 'strokes/0/color', 'opacity', 'width', 'cornerRadius', 'itemSpacing'.", items: { type: object, properties: { field: { type: string, required: true }, variableName: { type: string }, variableId: { type: string } } } }
+            bindings: { type: array, optional: true, description: "Bind variables to properties. field path examples: 'fills/0/color', 'strokes/0/color', 'opacity', 'width', 'cornerRadius', 'itemSpacing'.", items: { type: object, properties: { field: { type: string, required: true }, variableName: { type: string }, variableKey: { type: string, description: "Published variable key hash (40-char hex) for cross-file library token. Preferred over variableId." }, variableId: { type: string } } } }
             explicitMode: { type: object, optional: true, description: "Pin variable mode — use { collectionName, modeName } (preferred) or { collectionId, modeId }" }
             exportSettings: { type: array, optional: true, description: "Export settings", items: { type: object } }
             properties: { type: object, optional: true, description: "Direct Figma API props (escape hatch)" }

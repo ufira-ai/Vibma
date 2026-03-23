@@ -53,6 +53,15 @@ function rgbaToHex(color: any): string {
 /** Serialize a Figma BaseStyle to a plain object. Shared by get and list. */
 function serializeStyle(style: BaseStyle): Record<string, any> {
   const r: any = { id: style.id, name: style.name, type: style.type };
+  // Expose published key hash for cross-file importStyleByKeyAsync
+  // Plugin API may not expose .key directly — extract from style ID format "S:<hex>,"
+  try {
+    if ((style as any).key) { r.key = (style as any).key; }
+    else if (style.id) {
+      const m = style.id.match(/^S:([0-9a-f]{40}),/i);
+      if (m) r.key = m[1];
+    }
+  } catch (_) {}
   if (style.description) r.description = style.description;
   if (style.type === "PAINT") {
     const ps = style as PaintStyle;
@@ -126,8 +135,10 @@ async function listStylesFigma(params: StyleParams & { method: "list" }): Promis
   const items = paged.items.map(s => {
     const full = serializeStyle(s);
     // Stubs by default; fields to request more; ["*"] for everything
-    if (!fields?.length) return pickFields(full, []);
-    return pickFields(full, fields);
+    // Always include key if available (needed for cross-file imports)
+    const result = !fields?.length ? pickFields(full, []) : pickFields(full, fields);
+    if (full.key) result.key = full.key;
+    return result;
   });
 
   return { ...paged, items };

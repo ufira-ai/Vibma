@@ -99,6 +99,8 @@ async function serializeVariable(v: any): Promise<Record<string, any>> {
     name: v.name, type: v.resolvedType,
     valuesByMode, scopes: v.scopes,
   };
+  // Expose published key hash for cross-file importVariableByKeyAsync
+  try { if (v.key) result.key = v.key; } catch (_) {}
   if (v.description) result.description = v.description;
   return result;
 }
@@ -400,7 +402,10 @@ async function listVariablesFigma(params: any) {
   const items: any[] = [];
   for (const v of paged.items) {
     const full = await serializeVariable(v);
-    items.push(!fields?.length ? pickFields(full, ["valuesByMode", "scopes", "description"]) : pickFields(full, fields));
+    const result = !fields?.length ? pickFields(full, ["valuesByMode", "scopes", "description"]) : pickFields(full, fields);
+    // Always include key if available (needed for cross-file imports)
+    if (full.key) result.key = full.key;
+    items.push(result);
   }
   return { ...paged, items };
 }

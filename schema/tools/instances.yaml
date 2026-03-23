@@ -44,19 +44,20 @@ methods:
   create:
     tier: create
     description: Create component instances
-    example: 'instances(method:"create", items:[{componentId:"1:23", variantProperties:{"Size":"Large"}, properties:{"Label":"Click me"}, parentId:"2:45", layoutSizingHorizontal:"FILL"}])'
+    example: 'instances(method:"create", items:[{componentKey:"abcdef1234567890abcdef1234567890abcdef12", variantProperties:{"Size":"Large"}, properties:{"Label":"Click me"}, parentId:"2:45", layoutSizingHorizontal:"FILL"}])'
     params:
       items:
         type: array
         coerce: json
         required: true
         tsType: "InstanceCreateItem[]"
-        description: "Array of {componentId, variantProperties?, x?, y?, parentId?, layoutSizingHorizontal?, ...}"
+        description: "Array of {componentKey or componentId, variantProperties?, x?, y?, parentId?, layoutSizingHorizontal?, ...}"
         items:
           type: object
           properties:
             $mixin: [blend_params, sizing_params]
-            componentId: { type: string, required: true, description: "Component or component set ID", aliases: [id] }
+            componentKey: { type: string, optional: true, description: "Published component key hash (40-char hex) for cross-file library import. Preferred over componentId for library components." }
+            componentId: { type: string, optional: true, description: "Local component or component set node ID (e.g. '1:23'). Use componentKey instead for cross-file library components.", aliases: [id] }
             sizing: { type: enum, values: [contextual], optional: true, description: "\"contextual\": infer FILL/HUG from parent layout (e.g. FILL horizontally in a VERTICAL auto-layout parent). Omit to inherit sizing from the component definition." }
             variantProperties: { type: object, coerce: json, optional: true, description: 'Pick variant e.g. {"Style":"Secondary"}' }
             properties: { type: object, coerce: json, optional: true, description: 'Set component properties inline e.g. {"Label":"Click me", "ShowIcon":true}. Same as instances.update properties.' }
@@ -104,7 +105,7 @@ methods:
             # strokeWeight expanded via geometry_params mixin ($expand: stroke)
             effects: { type: array, optional: true, description: "Effect array (DROP_SHADOW, INNER_SHADOW, LAYER_BLUR, BACKGROUND_BLUR)", items: { type: object } }
             constraints: { type: object, optional: true, properties: { horizontal: { type: enum, values: [MIN, CENTER, MAX, STRETCH, SCALE] }, vertical: { type: enum, values: [MIN, CENTER, MAX, STRETCH, SCALE] } } }
-            bindings: { type: array, optional: true, description: "Bind variables to properties. field path examples: 'fills/0/color', 'strokes/0/color', 'opacity', 'width', 'cornerRadius', 'itemSpacing'.", items: { type: object, properties: { field: { type: string, required: true }, variableName: { type: string }, variableId: { type: string } } } }
+            bindings: { type: array, optional: true, description: "Bind variables to properties. field path examples: 'fills/0/color', 'strokes/0/color', 'opacity', 'width', 'cornerRadius', 'itemSpacing'.", items: { type: object, properties: { field: { type: string, required: true }, variableName: { type: string }, variableKey: { type: string, description: "Published variable key hash (40-char hex) for cross-file library token. Preferred over variableId." }, variableId: { type: string } } } }
             explicitMode: { type: object, optional: true, description: "Pin variable mode — use { collectionName, modeName } (preferred) or { collectionId, modeId }" }
             exportSettings: { type: array, optional: true, description: "Export settings", items: { type: object } }
     response:
@@ -112,18 +113,20 @@ methods:
 
   swap:
     tier: edit
-    description: "Swap instance component (preserves overrides)"
+    description: "Swap instance component (preserves overrides). Use componentKey for cross-file library components, componentId for local."
     params:
       items:
         type: array
         coerce: json
         required: true
-        description: "Array of {id, componentId}"
+        description: "Array of {id, componentKey or componentId, variantProperties?}"
         items:
           type: object
           properties:
             id: { type: string, required: true, description: "Instance node ID" }
-            componentId: { type: string, required: true, description: "New component or component set ID" }
+            componentKey: { type: string, optional: true, description: "Published component key hash (40-char hex) for cross-file library import. Preferred over componentId for library components." }
+            componentId: { type: string, optional: true, description: "Local component or component set node ID" }
+            variantProperties: { type: object, optional: true, description: 'Pick variant e.g. {"size":"24","style":"regular"}' }
     response:
       type: batch_mixed
 

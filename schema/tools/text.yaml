@@ -73,9 +73,13 @@ methods:
             fontColorStyleName:
               type: string
               description: "Apply paint style — overrides fontColor"
+            textStyleKey:
+              type: string
+              optional: true
+              description: "Published text style key hash (40-char hex) for cross-file library import. Preferred over textStyleId for library styles."
             textStyleId:
               type: string
-              description: "Text style ID or name (case-insensitive) — overrides fontSize/fontWeight"
+              description: "Local text style ID or name (case-insensitive) — overrides fontSize/fontWeight. Use textStyleKey instead for cross-file library styles."
             textStyleName:
               type: string
               description: "Alias for textStyleId — accepts name (case-insensitive)"

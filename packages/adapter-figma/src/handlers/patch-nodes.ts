@@ -212,6 +212,7 @@ export async function patchSingleNode(item: any, textCtx: TextPropsContext | nul
       fontStyle: item.fontStyle,
       fontWeight: item.fontWeight,
       fills: item.fills,
+      textStyleKey: item.textStyleKey,
       textStyleId: item.textStyleId,
       textStyleName: item.textStyleName,
       textAlignHorizontal: item.textAlignHorizontal,
@@ -245,10 +246,15 @@ export async function patchSingleNode(item: any, textCtx: TextPropsContext | nul
     const node = await figma.getNodeByIdAsync(item.nodeId);
     if (!node) throw new Error(`Node not found: ${item.nodeId}`);
     for (const b of item.bindings) {
+      // Priority: variableName > variableKey (cross-file) > variableId (local)
       const variable = b.variableName
         ? await findVariableByName(b.variableName)
-        : await findVariableById(b.variableId);
-      if (!variable) { hints.push({ type: "error", message: `Variable not found: ${b.variableName || b.variableId}` }); continue; }
+        : b.variableKey
+          ? await figma.variables.importVariableByKeyAsync(b.variableKey)
+          : b.variableId
+            ? await findVariableById(b.variableId)
+            : null;
+      if (!variable) { hints.push({ type: "error", message: `Variable not found: ${b.variableName || b.variableKey || b.variableId}` }); continue; }
       const paintMatch = b.field.match(/^(fills|strokes)\/(\d+)\/color$/);
       if (paintMatch) {
         const prop = paintMatch[1];
@@ -329,6 +335,7 @@ async function patchNodesBatch(params: any) {
       fontFamily: item.fontFamily,
       fontStyle: item.fontStyle,
       fontWeight: item.fontWeight,
+      textStyleKey: item.textStyleKey,
       textStyleId: item.textStyleId,
       textStyleName: item.textStyleName,
     }));

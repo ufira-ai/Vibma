@@ -120,25 +120,37 @@ export async function prepCreateText(params: any): Promise<CreateTextContext> {
   }
 
   // Resolve text style IDs and collect their fonts
+  // Resolve text style IDs and collect their fonts
+  // Priority: textStyleKey (cross-file) > textStyleId > textStyleName
   const resolvedTextStyleMap = new Map<string, any>();
   for (const p of items) {
-    let sid = p.textStyleId;
-    let foundStyle: any = null;
-    if (!sid && p.textStyleName && textStyles) {
-      const exact = textStyles.find((s: any) => s.name === p.textStyleName);
-      if (exact) { sid = exact.id; foundStyle = exact; }
-      else {
-        const fuzzy = textStyles.find((s: any) => s.name.toLowerCase().includes(p.textStyleName.toLowerCase()));
-        if (fuzzy) { sid = fuzzy.id; foundStyle = fuzzy; }
-      }
-    }
-    if (sid && !resolvedTextStyleMap.has(sid)) {
-      // Use the style object found by name directly (avoids re-fetch failures for recently-created styles)
-      const s = foundStyle ?? await figma.getStyleByIdAsync(sid);
+    // Cross-file library import via published key hash (preferred path)
+    if (p.textStyleKey && !resolvedTextStyleMap.has(p.textStyleKey)) {
+      const s = await figma.importStyleByKeyAsync(p.textStyleKey);
       if (s?.type === "TEXT") {
-        resolvedTextStyleMap.set(sid, s);
+        resolvedTextStyleMap.set(p.textStyleKey, s);
         const fn = (s as TextStyle).fontName;
         if (fn) fontRequests.push({ family: fn.family, style: fn.style });
+      }
+    }
+    if (!p.textStyleKey) {
+      let sid = p.textStyleId;
+      let foundStyle: any = null;
+      if (!sid && p.textStyleName && textStyles) {
+        const exact = textStyles.find((s: any) => s.name === p.textStyleName);
+        if (exact) { sid = exact.id; foundStyle = exact; }
+        else {
+          const fuzzy = textStyles.find((s: any) => s.name.toLowerCase().includes(p.textStyleName.toLowerCase()));
+          if (fuzzy) { sid = fuzzy.id; foundStyle = fuzzy; }
+        }
+      }
+      if (sid && !resolvedTextStyleMap.has(sid)) {
+        const s = foundStyle ?? await figma.getStyleByIdAsync(sid);
+        if (s?.type === "TEXT") {
+          resolvedTextStyleMap.set(sid, s);
+          const fn = (s as TextStyle).fontName;
+          if (fn) fontRequests.push({ family: fn.family, style: fn.style });
+        }
       }
     }
   }
@@ -167,7 +179,7 @@ export async function createTextSingle(p: any, ctx: CreateTextContext) {
     x = 0, y = 0, text = p.characters ?? "Text", fontSize = 14, fontWeight = 400, // characters: legacy fallback, aliased to text at MCP level
     fontFamily = "Inter", fontStyle,
     fills, name = "",
-    parentId, textStyleId, textStyleName,
+    parentId, textStyleKey, textStyleId, textStyleName,
     textAlignHorizontal, textAlignVertical,
     layoutSizingHorizontal, layoutSizingVertical, textAutoResize,
     componentPropertyName, componentId,
@@ -216,31 +228,45 @@ export async function createTextSingle(p: any, ctx: CreateTextContext) {
       textNode.fills = [{ type: "SOLID", color: { r: 0, g: 0, b: 0 }, opacity: 1 }];
     }
 
-    // Text style: by name > by ID (fonts already preloaded)
-    let resolvedStyleId = textStyleId;
-    if (!resolvedStyleId && textStyleName && ctx.textStyles) {
-      const exact = ctx.textStyles.find((s: any) => s.name === textStyleName);
-      if (exact) resolvedStyleId = exact.id;
-      else {
-        const fuzzy = ctx.textStyles.find((s: any) => s.name.toLowerCase().includes(textStyleName.toLowerCase()));
-        if (fuzzy) resolvedStyleId = fuzzy.id;
-      }
-    }
-    if (resolvedStyleId) {
-      const cached = ctx.resolvedTextStyleMap.get(resolvedStyleId);
+    // Text style: textStyleKey (cross-file) > textStyleId > textStyleName (fonts already preloaded)
+    if (textStyleKey) {
+      // Cross-file library import — already resolved in prep phase
+      const cached = ctx.resolvedTextStyleMap.get(textStyleKey);
       if (cached) {
         try {
           await (textNode as any).setTextStyleIdAsync(cached.id);
         } catch (e: any) {
-          hints.push({ type: "error", message: `textStyleName '${textStyleName || resolvedStyleId}' matched but failed to apply: ${e.message}` });
+          hints.push({ type: "error", message: `textStyleKey '${textStyleKey}' resolved but failed to apply: ${e.message}` });
         }
       } else {
-        hints.push({ type: "error", message: `textStyleName '${textStyleName || resolvedStyleId}' matched style ID '${resolvedStyleId}' but the style could not be loaded. It may be from a remote library or deleted.` });
+        hints.push({ type: "error", message: `textStyleKey '${textStyleKey}' could not be imported. Check the key hash is correct and the library is published.` });
       }
-    } else if (textStyleName) {
-      hints.push(styleNotFoundHint("textStyleName", textStyleName, ctx.textStyles!.map((s: any) => s.name)));
     } else {
-      hints.push(await suggestTextStyle(fontSize, fontWeight));
+      let resolvedStyleId = textStyleId;
+      if (!resolvedStyleId && textStyleName && ctx.textStyles) {
+        const exact = ctx.textStyles.find((s: any) => s.name === textStyleName);
+        if (exact) resolvedStyleId = exact.id;
+        else {
+          const fuzzy = ctx.textStyles.find((s: any) => s.name.toLowerCase().includes(textStyleName.toLowerCase()));
+          if (fuzzy) resolvedStyleId = fuzzy.id;
+        }
+      }
+      if (resolvedStyleId) {
+        const cached = ctx.resolvedTextStyleMap.get(resolvedStyleId);
+        if (cached) {
+          try {
+            await (textNode as any).setTextStyleIdAsync(cached.id);
+          } catch (e: any) {
+            hints.push({ type: "error", message: `textStyleName '${textStyleName || resolvedStyleId}' matched but failed to apply: ${e.message}` });
+          }
+        } else {
+          hints.push({ type: "error", message: `textStyleName '${textStyleName || resolvedStyleId}' matched style ID '${resolvedStyleId}' but the style could not be loaded. It may be from a remote library or deleted.` });
+        }
+      } else if (textStyleName) {
+        hints.push(styleNotFoundHint("textStyleName", textStyleName, ctx.textStyles!.map((s: any) => s.name)));
+      } else {
+        hints.push(await suggestTextStyle(fontSize, fontWeight));
+      }
     }
 
     const parent = await appendToParent(textNode, parentId);
