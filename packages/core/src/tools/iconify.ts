@@ -95,14 +95,16 @@ interface CollectionInfo {
   license?: string;
 }
 
-export async function listCollections(): Promise<
-  { collections: CollectionInfo[] } | { error: string }
-> {
+export async function listCollections(
+  query?: string,
+  category?: string,
+  limit?: number,
+): Promise<{ collections: CollectionInfo[]; total: number } | { error: string }> {
   try {
     const res = await fetch(`${ICONIFY_API}/collections`);
     if (!res.ok) return { error: `Iconify collections returned ${res.status}.` };
     const data = await res.json() as Record<string, any>;
-    const collections: CollectionInfo[] = Object.entries(data).map(
+    let collections: CollectionInfo[] = Object.entries(data).map(
       ([prefix, info]) => ({
         prefix,
         name: info.name,
@@ -111,7 +113,19 @@ export async function listCollections(): Promise<
         license: info.license?.spdx,
       }),
     );
-    return { collections };
+    if (category) {
+      const lc = category.toLowerCase();
+      collections = collections.filter((c) => c.category?.toLowerCase().includes(lc));
+    }
+    if (query) {
+      const lc = query.toLowerCase();
+      collections = collections.filter(
+        (c) => c.prefix.includes(lc) || c.name.toLowerCase().includes(lc),
+      );
+    }
+    const total = collections.length;
+    if (limit) collections = collections.slice(0, limit);
+    return { collections, total };
   } catch (e) {
     return { error: `Failed to fetch collections: ${e instanceof Error ? e.message : String(e)}` };
   }

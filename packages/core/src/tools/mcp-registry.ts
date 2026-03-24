@@ -80,7 +80,7 @@ export function registerAllTools(server: McpServer, sendCommand: SendCommandFn, 
         }
 
         if (method === "collections") {
-          const result = await listCollections();
+          const result = await listCollections(params.query, params.category, params.limit);
           return mcpJson(result);
         }
 
