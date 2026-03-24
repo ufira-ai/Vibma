@@ -91,7 +91,7 @@ export function registerAllTools(server: McpServer, sendCommand: SendCommandFn, 
           const result = await fetchIconSvg(params.icon, params.size);
           if ("error" in result) return mcpError("icons", result.error);
 
-          const isStrokeIcon = /stroke="[^"]*[^n]/.test(result.svg) && /fill="none"/.test(result.svg);
+          const isStrokeIcon = /stroke="(?!none")[^"]+/.test(result.svg) && /fill="none"/.test(result.svg);
           const colorVar = params.colorVariableName;
           const colorStyle = params.colorStyleName;
           const fillVar = params.fillVariableName ?? (isStrokeIcon ? undefined : colorVar);
