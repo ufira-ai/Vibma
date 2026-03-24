@@ -1,16 +1,18 @@
 import { z } from "zod";
 import type { McpServer, SendCommandFn, Capabilities } from "./types";
+import { mcpJson, mcpError } from "./types";
 import { registerTools } from "./registry";
 
 // Generated endpoint tools (schema compiler output)
 import { tools as generatedTools } from "./generated/defs";
-import { resolveHelp } from "./generated/help";
+import { resolveHelp, resolveEndpointHelp } from "./generated/help";
 import { resolveGuideline } from "./generated/guidelines";
 
 import { registerPrompts } from "./prompts";
+import { fetchIconSvg, searchIcons, listCollections } from "./iconify";
 
-// Connection endpoint is registered directly in mcp.ts (has inline methods)
-const endpointTools = generatedTools.filter(t => t.name !== "connection");
+// Connection + icons endpoints are registered with custom inline handlers (not via generic registerTools)
+const endpointTools = generatedTools.filter(t => t.name !== "connection" && t.name !== "icons");
 
 // Wire per-method response formatter for frames.export (returns binary image, not JSON)
 const framesTool = endpointTools.find(t => t.name === "frames");
@@ -52,6 +54,68 @@ export function registerAllTools(server: McpServer, sendCommand: SendCommandFn, 
   }, async (params: any) => {
     return { content: [{ type: "text" as const, text: resolveGuideline(params.topic) }] };
   });
+
+  // ─── Icons endpoint — all methods inline (Iconify API + sendCommand delegation) ───
+  // Follows the connection pattern: YAML-defined schema with inline:true, registered with custom handlers.
+  const iconsDef = generatedTools.find(t => t.name === "icons");
+  if (iconsDef) {
+    const iconsSchema = typeof iconsDef.schema === "function" ? iconsDef.schema(caps) : iconsDef.schema;
+
+    server.registerTool("icons", {
+      description: iconsDef.description,
+      inputSchema: iconsSchema,
+    }, async (params: any) => {
+      try {
+        const method = params.method;
+
+        if (method === "help") {
+          const text = resolveEndpointHelp("icons", params.topic) ?? resolveHelp("icons");
+          return { content: [{ type: "text" as const, text }] };
+        }
+
+        if (method === "search") {
+          if (!params.query) return mcpError("icons", "search requires a query parameter");
+          const result = await searchIcons(params.query, params.prefix, params.limit);
+          return mcpJson(result);
+        }
+
+        if (method === "collections") {
+          const result = await listCollections();
+          return mcpJson(result);
+        }
+
+        if (method === "create") {
+          if (!params.icon) {
+            return mcpError("icons", 'create requires icon — e.g. icon:"lucide:home"');
+          }
+          const result = await fetchIconSvg(params.icon, params.size);
+          if ("error" in result) return mcpError("icons", result.error);
+
+          // Delegate to Figma via existing frames.create SVG path
+          // Must use items[] — batchHandler guards reject top-level type/commandId
+          const figmaResult = await sendCommand("frames.create", {
+            type: "svg",
+            items: [{
+              svg: result.svg,
+              name: params.name ?? params.icon,
+              parentId: params.parentId,
+              x: params.x,
+              y: params.y,
+              fillStyleName: params.fillStyleName,
+              fillVariableName: params.fillVariableName,
+              strokeStyleName: params.strokeStyleName,
+              strokeVariableName: params.strokeVariableName,
+            }],
+          });
+          return mcpJson(figmaResult);
+        }
+
+        return mcpError("icons", `Unknown method "${method}"`);
+      } catch (e) {
+        return mcpError("icons", e);
+      }
+    });
+  }
 
   registerTools(server, sendCommand, caps, allTools);
   registerPrompts(server);

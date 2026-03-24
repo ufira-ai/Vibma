@@ -43,7 +43,7 @@ Package-specific rules live alongside the code they govern:
 
 **Figma watches `plugin/` for file changes** — build auto-reloads the plugin and reconnects. No manual action needed in Figma.
 
-**The MCP server is a stdio process — it does NOT hot-reload.** After every build, the user must restart the MCP connection in their client (e.g. `/mcp` in Claude Code), then `connection(method: "create")` + `connection(method: "get")` to verify.
+**MCP server hot-reload**: use `dev_reload` MCP tool after building — it rebuilds and restarts the MCP server without restarting Claude Code. Then `connection(method: "create")` + `connection(method: "get")` to verify.
 
 ## Running the Relay
 
@@ -52,13 +52,13 @@ npm run socket          # or: cd packages/tunnel && node dist/index.js
 lsof -ti :3055 | xargs kill -9   # kill stuck relay from previous session
 ```
 
-After relay restart: plugin auto-reconnects, but the user must restart the MCP server connection in their client.
+After relay restart: plugin auto-reconnects. Use `dev_reload` to restart the MCP server.
 
 ## Testing Changes End-to-End
 
 1. Make code changes
 2. `npm run build` (plugin auto-reloads in Figma)
-3. **If changes touch `packages/core`**: ask the user to restart the MCP server connection in their MCP client (e.g. `/mcp` in Claude Code) — you cannot do this yourself, it requires user action. Plugin-only changes (`packages/adapter-figma`) take effect immediately after build.
+3. **If changes touch `packages/core`**: use `dev_reload` to rebuild and restart the MCP server. Plugin-only changes (`packages/adapter-figma`) take effect immediately after build.
 4. `connection(method: "create")` → `connection(method: "get")` to verify chain
 5. Test the tools you changed
 

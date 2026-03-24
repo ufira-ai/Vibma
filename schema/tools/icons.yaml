@@ -1,0 +1,104 @@
+endpoint: icons
+domain: creation
+description: "Search and create icons from 200k+ open-source icons via Iconify."
+description_zh: "通过 Iconify 搜索和创建 200k+ 开源图标。"
+
+notes: |
+  // Icons are fetched from the Iconify API (iconify.design) and inserted as SVG vector nodes.
+  // Icon names use "prefix:name" format. Common sets: lucide, mdi, tabler, heroicons, ph.
+  // Examples: "lucide:home", "mdi:account-circle", "tabler:arrow-right", "ph:gear-bold"
+  // Use search to discover icons by keyword. Use collections to list available icon sets.
+  // create fetches the SVG and inserts it via frames.create — supports fill/stroke variable binding.
+  // Fetched icons are cached in memory for the session (same icon+size is fetched once).
+  // Powered by Iconify (iconify.design) — open-source icon framework.
+
+methods:
+  search:
+    tier: read
+    inline: true
+    description: Search icons by keyword across all Iconify sets
+    example: 'icons(method:"search", query:"arrow right", prefix:"lucide")'
+    params:
+      query:
+        type: string
+        required: true
+        description: Search keyword (e.g. "home", "arrow", "user")
+      prefix:
+        type: string
+        optional: true
+        description: "Restrict to one icon set (e.g. \"lucide\", \"mdi\")"
+      limit:
+        type: number
+        coerce: true
+        optional: true
+        description: "Max results (default 64)"
+    response:
+      type: object
+      properties:
+        icons: { type: "string[]", description: 'Icon names (e.g. ["lucide:home", "mdi:home"])' }
+        total: { type: number, description: Total matching icons }
+
+  collections:
+    tier: read
+    inline: true
+    description: List available Iconify icon sets
+    example: 'icons(method:"collections")'
+    params: {}
+    response:
+      type: object
+      description: Array of icon set metadata
+      properties:
+        collections: { type: array, description: "[{ prefix, name, total, category, license }]" }
+
+  create:
+    tier: create
+    inline: true
+    description: "Create an icon node in Figma from an Iconify icon name"
+    example: 'icons(method:"create", icon:"lucide:home", size:24, parentId:"1:2")'
+    params:
+      icon:
+        type: string
+        required: true
+        description: 'Icon name — "prefix:name" e.g. "lucide:home", "mdi:account"'
+      size:
+        type: number
+        coerce: true
+        optional: true
+        description: "Icon size in px (default 24, square)"
+      name:
+        type: string
+        optional: true
+        description: "Layer name (default: icon name)"
+      parentId:
+        type: string
+        optional: true
+        description: "Parent node ID. Omit for current page root."
+      x:
+        type: number
+        coerce: true
+        optional: true
+        description: "X position (default: 0)"
+      y:
+        type: number
+        coerce: true
+        optional: true
+        description: "Y position (default: 0)"
+      fillStyleName:
+        type: string
+        optional: true
+        description: "Paint style to apply to vector fills"
+      fillVariableName:
+        type: string
+        optional: true
+        description: "Color variable by name for vector fills"
+      strokeStyleName:
+        type: string
+        optional: true
+        description: "Paint style to apply to vector strokes"
+      strokeVariableName:
+        type: string
+        optional: true
+        description: "Color variable by name for vector strokes"
+    response:
+      type: batch
+      item: { id: { type: string } }

@@ -30,6 +30,7 @@ export const commandMap: Record<string, Record<string, string>> = {
   "document": {"get":"document.get","list":"document.list","set":"document.set","create":"document.create","update":"document.update"},
   "fonts": {"list":"fonts.list"},
   "frames": {"get":"frames.get","list":"frames.list","update":"frames.update","delete":"frames.delete","clone":"frames.clone","audit":"frames.audit","reparent":"frames.reparent","create":"frames.create","commit":"frames.commit","export":"frames.export"},
+  "icons": {"search":"icons.search","collections":"icons.collections","create":"icons.create"},
   "instances": {"list":"instances.list","delete":"instances.delete","clone":"instances.clone","audit":"instances.audit","reparent":"instances.reparent","get":"instances.get","create":"instances.create","update":"instances.update","swap":"instances.swap","detach":"instances.detach","reset_overrides":"instances.reset_overrides"},
   "lint": {"check":"lint.check","fix":"lint.fix"},
   "prototyping": {"get":"prototyping.get","add":"prototyping.add","set":"prototyping.set","remove":"prototyping.remove"},
@@ -44,6 +45,7 @@ export const commandMap: Record<string, Record<string, string>> = {
 /** Methods handled inline (local WS state, not sent to Figma) */
 export const inlineMethods: Record<string, Record<string, boolean>> = {
   "connection": {"create":true,"list":true,"delete":true},
+  "icons": {"search":true,"collections":true,"create":true},
 };
 
 export const tools: ToolDef[] = [
@@ -519,6 +521,37 @@ export const tools: ToolDef[] = [
       }
     },
     commandMap: {"get":"frames.get","list":"frames.list","update":"frames.update","delete":"frames.delete","clone":"frames.clone","audit":"frames.audit","reparent":"frames.reparent","create":"frames.create","commit":"frames.commit","export":"frames.export"},
+  },
+  {
+    name: "icons",
+    description: "/** Search and create icons from 200k+ open-source icons via Iconify. Use method \"help\" for detailed parameter docs. */\n  search    (query, prefix?, limit?) → { icons?, total? }  // Search icons by keyword across all Iconify sets\n  collections() → { collections? }  // List available Iconify icon sets\n  create    (icon, size?, name?, parentId?, x?, y?, fillStyleName?, fillVariableName?, strokeStyleName?, strokeVariableName?) → { results: {id}[] }  // Create an icon node in Figma from an Iconify icon name\n// Icons are fetched from the Iconify API (iconify.design) and inserted as SVG vector nodes.\n// Icon names use \"prefix:name\" format. Common sets: lucide, mdi, tabler, heroicons, ph.\n// Examples: \"lucide:home\", \"mdi:account-circle\", \"tabler:arrow-right\", \"ph:gear-bold\"\n// Use search to discover icons by keyword. Use collections to list available icon sets.\n// create fetches the SVG and inserts it via frames.create — supports fill/stroke variable binding.\n// Fetched icons are cached in memory for the session (same icon+size is fetched once).\n// Powered by Iconify (iconify.design) — open-source icon framework.",
+    schema: (caps) => filterMethodsByTier({    method: z.enum(["search", "collections", "create", "help"]),
+    query: z.string().optional().describe("Search keyword (e.g. \"home\", \"arrow\", \"user\")"),
+    prefix: z.string().optional().describe("Restrict to one icon set (e.g. \"lucide\", \"mdi\")"),
+    limit: z.coerce.number().optional().describe("Max results (default 64)"),
+    icon: z.string().optional().describe("Icon name — \"prefix:name\" e.g. \"lucide:home\", \"mdi:account\""),
+    size: z.coerce.number().optional().describe("Icon size in px (default 24, square)"),
+    name: z.string().optional().describe("Layer name (default: icon name)"),
+    parentId: z.string().optional().describe("Parent node ID. Omit for current page root."),
+    x: z.coerce.number().optional().describe("X position (default: 0)"),
+    y: z.coerce.number().optional().describe("Y position (default: 0)"),
+    fillStyleName: z.string().optional().describe("Paint style to apply to vector fills"),
+    fillVariableName: z.string().optional().describe("Color variable by name for vector fills"),
+    strokeStyleName: z.string().optional().describe("Paint style to apply to vector strokes"),
+    strokeVariableName: z.string().optional().describe("Color variable by name for vector strokes"),
+    topic: z.string().optional().describe("Help topic — method name for endpoint help, e.g. \"create\""),
+    }, caps, {"search":"read","collections":"read","create":"create","help":"read"}),
+    tier: "read" as const,
+    validate: (params: any) => {
+      const m = params.method;
+      if (m === "search") {
+        if (params.query === undefined) throw new Error("search requires \"query\"");
+      }
+      if (m === "create") {
+        if (params.icon === undefined) throw new Error("create requires \"icon\"");
+      }
+    },
+    commandMap: {"search":"icons.search","collections":"icons.collections","create":"icons.create"},
   },
   {
     name: "instances",

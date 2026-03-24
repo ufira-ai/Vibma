@@ -16,6 +16,8 @@ export const generatedResponseSchemas: Record<string, Record<string, unknown>> =
   },
   "frames": {
   },
+  "icons": {
+  },
   "instances": {
   },
   "lint": {
