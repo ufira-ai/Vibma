@@ -1,0 +1,5 @@
+# Corner radius params — mirrors Figma's CornerMixin
+# Include via $mixin: corner_params
+
+corner_params:
+  cornerRadius: { $expand: corners, type: token }

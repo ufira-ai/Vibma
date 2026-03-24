@@ -688,10 +688,17 @@ export const mixinAutoLayoutParams = new Set([
   "paddingRight",
   "paddingTop",
   "primaryAxisAlignItems",
+  "strokesIncludedInLayout",
 ]) as ReadonlySet<string>;
 
 /** blend_params */
-export const mixinBlendParams = new Set(["blendMode","effectStyleName","locked","opacity","visible"]) as ReadonlySet<string>;
+export const mixinBlendParams = new Set(["blendMode","effectStyleName","opacity"]) as ReadonlySet<string>;
+
+/** corner_params */
+export const mixinCornerParams = new Set(["bottomLeftRadius","bottomRightRadius","cornerRadius","topLeftRadius","topRightRadius"]) as ReadonlySet<string>;
+
+/** fill_params */
+export const mixinFillParams = new Set(["fillColor","fillStyleName","fillVariableName","fills"]) as ReadonlySet<string>;
 
 /** frame_params */
 export const mixinFrameParams = new Set([
@@ -767,10 +774,12 @@ export const mixinGeometryParams = new Set([
   "strokeVariableName",
   "strokeWeight",
   "strokes",
-  "strokesIncludedInLayout",
   "topLeftRadius",
   "topRightRadius",
 ]) as ReadonlySet<string>;
+
+/** scene_params */
+export const mixinSceneParams = new Set(["locked","visible"]) as ReadonlySet<string>;
 
 /** sizing_params */
 export const mixinSizingParams = new Set([
@@ -781,6 +790,20 @@ export const mixinSizingParams = new Set([
   "maxWidth",
   "minHeight",
   "minWidth",
+]) as ReadonlySet<string>;
+
+/** stroke_params */
+export const mixinStrokeParams = new Set([
+  "strokeAlign",
+  "strokeBottomWeight",
+  "strokeColor",
+  "strokeLeftWeight",
+  "strokeRightWeight",
+  "strokeStyleName",
+  "strokeTopWeight",
+  "strokeVariableName",
+  "strokeWeight",
+  "strokes",
 ]) as ReadonlySet<string>;
 
 /** text_params */
@@ -802,3 +825,6 @@ export const mixinTextParams = new Set([
   "textStyleId",
   "textStyleName",
 ]) as ReadonlySet<string>;
+
+/** vector_style_params */
+export const mixinVectorStyleParams = new Set(["fillStyleName","fillVariableName","strokeStyleName","strokeVariableName"]) as ReadonlySet<string>;

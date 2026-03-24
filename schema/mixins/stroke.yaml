@@ -1,0 +1,12 @@
+# Stroke params — mirrors Figma's MinimalStrokesMixin + custom aliases
+# Include via $mixin: stroke_params
+
+stroke_params:
+  # MinimalStrokesMixin (1-1 Figma API)
+  strokes: { type: array, optional: true, description: "Stroke paints array — e.g. [{type: 'SOLID', color: '#hex'}] or [] to clear. Primary way to set strokes." }
+  strokeWeight: { $expand: stroke, type: token }
+  strokeAlign: { type: enum, values: [INSIDE, OUTSIDE, CENTER], optional: true, description: "Stroke position (default: INSIDE)" }
+  # Custom aliases
+  strokeColor: { $ref: color, optional: true, description: "Shorthand — sets a single solid stroke (auto-binds to matching variable/style)" }
+  strokeStyleName: { type: string, optional: true, description: "Paint style name for stroke" }
+  strokeVariableName: { type: string, optional: true, description: "Color variable by name for stroke" }

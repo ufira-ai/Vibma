@@ -1,16 +1,19 @@
 # Fill + stroke + corner params — mirrors Figma's GeometryMixin + CornerMixin
+# Composite of: fill_params, stroke_params, corner_params (see atomic mixin files)
 # Include via $mixin: geometry_params
 
 geometry_params:
+  # MinimalFillsMixin + custom aliases (see fill.yaml)
   fills: { type: array, optional: true, description: "Fill paints array — e.g. [{type: 'SOLID', color: '#hex'}] or [] for transparent. Primary way to set fills." }
   fillColor: { $ref: color, optional: true, description: "Shorthand — sets a single solid fill (auto-binds to matching variable/style)" }
   fillStyleName: { type: string, optional: true, description: "Paint style name for fill" }
   fillVariableName: { type: string, optional: true, description: "Color variable by name e.g. 'bg/primary'" }
+  # MinimalStrokesMixin + custom aliases (see stroke.yaml)
   strokes: { type: array, optional: true, description: "Stroke paints array — e.g. [{type: 'SOLID', color: '#hex'}] or [] to clear. Primary way to set strokes." }
   strokeColor: { $ref: color, optional: true, description: "Shorthand — sets a single solid stroke (auto-binds to matching variable/style)" }
   strokeStyleName: { type: string, optional: true, description: "Paint style name for stroke" }
   strokeVariableName: { type: string, optional: true, description: "Color variable by name for stroke" }
   strokeWeight: { $expand: stroke, type: token }
   strokeAlign: { type: enum, values: [INSIDE, OUTSIDE, CENTER], optional: true, description: "Stroke position (default: INSIDE)" }
-  strokesIncludedInLayout: { type: boolean, coerce: true, optional: true, description: "Include stroke width in layout measurements (default: false)" }
+  # CornerMixin (see corner.yaml)
   cornerRadius: { $expand: corners, type: token }

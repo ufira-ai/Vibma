@@ -139,15 +139,12 @@ methods:
       svg:
         description: Create node from SVG markup
         params:
+          $mixin: vector_style_params
           svg: { type: string, required: true, description: SVG markup string }
           name: { type: string, optional: true, description: "Layer name (default: 'SVG')" }
           parentId: { $ref: parentId }
           x: { $ref: xPos }
           y: { $ref: yPos }
-          fillStyleName: { type: string, optional: true, description: "Paint style to apply to vector fills" }
-          fillVariableName: { type: string, optional: true, description: "Color variable by name for vector fills" }
-          strokeStyleName: { type: string, optional: true, description: "Paint style to apply to vector strokes" }
-          strokeVariableName: { type: string, optional: true, description: "Color variable by name for vector strokes" }
     response:
       type: batch
       item: { id: { type: string } }

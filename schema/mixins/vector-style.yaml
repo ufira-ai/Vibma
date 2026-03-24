@@ -1,0 +1,8 @@
+# Paint style/variable binding for vector nodes (SVG, icons)
+# Include via $mixin: vector_style_params
+
+vector_style_params:
+  fillStyleName: { type: string, optional: true, description: "Paint style to apply to vector fills" }
+  fillVariableName: { type: string, optional: true, description: "Color variable by name for vector fills" }
+  strokeStyleName: { type: string, optional: true, description: "Paint style to apply to vector strokes" }
+  strokeVariableName: { type: string, optional: true, description: "Color variable by name for vector strokes" }

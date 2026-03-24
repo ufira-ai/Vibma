@@ -8,7 +8,8 @@ notes: |
   // Icon names use "prefix:name" format. Common sets: lucide, mdi, tabler, heroicons, ph.
   // Examples: "lucide:home", "mdi:account-circle", "tabler:arrow-right", "ph:gear-bold"
   // Use search to discover icons by keyword. Use collections to list available icon sets.
-  // create fetches the SVG and inserts it via frames.create — supports fill/stroke variable binding.
+  // create fetches the SVG and inserts it via frames.create — auto-detects fill vs stroke icons.
+  // Use colorVariableName (not fillVariableName/strokeVariableName) — the handler applies to whichever channel has paint.
   // Fetched icons are cached in memory for the session (same icon+size is fetched once).
   // Powered by Iconify (iconify.design) — open-source icon framework.
 
@@ -54,7 +55,7 @@ methods:
     tier: create
     inline: true
     description: "Create an icon node in Figma from an Iconify icon name"
-    example: 'icons(method:"create", icon:"lucide:home", size:24, parentId:"1:2")'
+    example: 'icons(method:"create", icon:"lucide:home", size:24, colorVariableName:"text/primary", parentId:"1:2")'
     params:
       icon:
         type: string
@@ -83,22 +84,14 @@ methods:
         coerce: true
         optional: true
         description: "Y position (default: 0)"
-      fillStyleName:
+      colorVariableName:
         type: string
         optional: true
-        description: "Paint style to apply to vector fills"
-      fillVariableName:
+        description: "Color variable for the icon — auto-detects fill vs stroke (e.g. 'text/primary')"
+      colorStyleName:
         type: string
         optional: true
-        description: "Color variable by name for vector fills"
-      strokeStyleName:
-        type: string
-        optional: true
-        description: "Paint style to apply to vector strokes"
-      strokeVariableName:
-        type: string
-        optional: true
-        description: "Color variable by name for vector strokes"
+        description: "Paint style for the icon — auto-detects fill vs stroke (e.g. 'Icon/Primary')"
     response:
       type: batch
       item: { id: { type: string } }

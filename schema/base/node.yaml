@@ -128,7 +128,7 @@ methods:
         items:
           type: object
           properties:
-            $mixin: [geometry_params, blend_params, auto_layout_params, sizing_params, text_params]
+            $mixin: [geometry_params, scene_params, blend_params, auto_layout_params, sizing_params, text_params]
             # --- identity ---
             id: { type: string, required: true }
             # --- scene node (SceneNodeMixin) ---

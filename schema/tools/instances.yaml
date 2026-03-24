@@ -55,7 +55,7 @@ methods:
         items:
           type: object
           properties:
-            $mixin: [blend_params, sizing_params]
+            $mixin: [scene_params, blend_params, sizing_params]
             componentId: { type: string, required: true, description: "Component or component set ID", aliases: [id] }
             sizing: { type: enum, values: [contextual], optional: true, description: "\"contextual\": infer FILL/HUG from parent layout (e.g. FILL horizontally in a VERTICAL auto-layout parent). Omit to inherit sizing from the component definition." }
             variantProperties: { type: object, coerce: json, optional: true, description: 'Pick variant e.g. {"Style":"Secondary"}' }
@@ -85,7 +85,7 @@ methods:
         items:
           type: object
           properties:
-            $mixin: [geometry_params, blend_params, auto_layout_params, sizing_params, text_params]
+            $mixin: [geometry_params, scene_params, blend_params, auto_layout_params, sizing_params, text_params]
             id: { type: string, required: true, description: "Instance node ID" }
             properties: { type: object, coerce: json, optional: true, description: "Component property key→value map" }
             componentProperties: { type: object, coerce: json, optional: true, description: "Alias for properties (matches instances.get response shape)" }

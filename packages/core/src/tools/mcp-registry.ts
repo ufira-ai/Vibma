@@ -91,8 +91,14 @@ export function registerAllTools(server: McpServer, sendCommand: SendCommandFn, 
           const result = await fetchIconSvg(params.icon, params.size);
           if ("error" in result) return mcpError("icons", result.error);
 
-          // Delegate to Figma via existing frames.create SVG path
-          // Must use items[] — batchHandler guards reject top-level type/commandId
+          const isStrokeIcon = /stroke="[^"]*[^n]/.test(result.svg) && /fill="none"/.test(result.svg);
+          const colorVar = params.colorVariableName;
+          const colorStyle = params.colorStyleName;
+          const fillVar = params.fillVariableName ?? (isStrokeIcon ? undefined : colorVar);
+          const strokeVar = params.strokeVariableName ?? (isStrokeIcon ? colorVar : undefined);
+          const fillStyle = params.fillStyleName ?? (isStrokeIcon ? undefined : colorStyle);
+          const strokeStyle = params.strokeStyleName ?? (isStrokeIcon ? colorStyle : undefined);
+
           const figmaResult = await sendCommand("frames.create", {
             type: "svg",
             items: [{
@@ -101,12 +107,24 @@ export function registerAllTools(server: McpServer, sendCommand: SendCommandFn, 
               parentId: params.parentId,
               x: params.x,
               y: params.y,
-              fillStyleName: params.fillStyleName,
-              fillVariableName: params.fillVariableName,
-              strokeStyleName: params.strokeStyleName,
-              strokeVariableName: params.strokeVariableName,
+              fillStyleName: fillStyle,
+              fillVariableName: fillVar,
+              strokeStyleName: strokeStyle,
+              strokeVariableName: strokeVar,
             }],
           });
+
+          const hasColor = fillVar || strokeVar || fillStyle || strokeStyle;
+          if (!hasColor && figmaResult && typeof figmaResult === "object") {
+            const r = figmaResult as any;
+            if (!r.warnings) r.warnings = [];
+            const param = isStrokeIcon ? "strokeVariableName" : "fillVariableName";
+            const id = Array.isArray(r.results) ? r.results[0]?.id : undefined;
+            r.warnings.push(
+              `Hardcoded color. Pass colorVariableName on create, or set ${param} on the vector child: frames(method:"update", items:[{id:"${id}", ${param}:"<name>"}])`,
+            );
+          }
+
           return mcpJson(figmaResult);
         }
 

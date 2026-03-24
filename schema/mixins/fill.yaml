@@ -1,0 +1,10 @@
+# Fill params — mirrors Figma's MinimalFillsMixin + custom aliases
+# Include via $mixin: fill_params
+
+fill_params:
+  # MinimalFillsMixin (1-1 Figma API)
+  fills: { type: array, optional: true, description: "Fill paints array — e.g. [{type: 'SOLID', color: '#hex'}] or [] for transparent. Primary way to set fills." }
+  # Custom aliases
+  fillColor: { $ref: color, optional: true, description: "Shorthand — sets a single solid fill (auto-binds to matching variable/style)" }
+  fillStyleName: { type: string, optional: true, description: "Paint style name for fill" }
+  fillVariableName: { type: string, optional: true, description: "Color variable by name e.g. 'bg/primary'" }

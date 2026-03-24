@@ -9,3 +9,4 @@ auto_layout_params:
   counterAxisAlignItems: { type: enum, values: [MIN, MAX, CENTER, BASELINE], optional: true }
   itemSpacing: { type: token, optional: true, description: "Spacing between children (number or variable name string, default: 0)" }
   counterAxisSpacing: { type: token, optional: true, description: "Gap between wrapped rows (requires layoutWrap: WRAP)" }
+  strokesIncludedInLayout: { type: boolean, coerce: true, optional: true, description: "Include stroke width in layout measurements (default: false)" }

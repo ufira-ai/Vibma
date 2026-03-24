@@ -92,8 +92,13 @@ function resolveEndpoint(def: RawEndpointDef, refs: Record<string, RawParam>, mi
   const resolved = structuredClone(def);
   for (const method of Object.values(resolved.methods)) {
     if (method.params && typeof method.params === "object") {
+      // Apply $mixin at method-level params (same as types/properties)
+      let params = method.params as Record<string, any>;
+      if (params.$mixin) {
+        params = applyMixins(params, mixins);
+      }
       const resolvedParams: Record<string, RawParam> = {};
-      for (const [k, v] of Object.entries(method.params)) {
+      for (const [k, v] of Object.entries(params)) {
         resolvedParams[k] = resolveParam(v as RawParam, refs, mixins);
       }
       method.params = resolvedParams;
@@ -118,8 +123,13 @@ function resolveBase(def: RawBaseDef, refs: Record<string, RawParam>, mixins: Re
   const resolved = structuredClone(def);
   for (const method of Object.values(resolved.methods)) {
     if (method.params && typeof method.params === "object") {
+      // Apply $mixin at method-level params
+      let params = method.params as Record<string, any>;
+      if (params.$mixin) {
+        params = applyMixins(params, mixins);
+      }
       const resolvedParams: Record<string, RawParam> = {};
-      for (const [k, v] of Object.entries(method.params)) {
+      for (const [k, v] of Object.entries(params)) {
         resolvedParams[k] = resolveParam(v as RawParam, refs, mixins);
       }
       method.params = resolvedParams;

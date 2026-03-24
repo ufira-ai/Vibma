@@ -1,0 +1,6 @@
+# Scene node params — mirrors Figma's SceneNodeMixin
+# Include via $mixin: scene_params
+
+scene_params:
+  visible: { type: boolean, coerce: true, optional: true, description: "Show/hide (default true)" }
+  locked: { type: boolean, coerce: true, optional: true, description: "Lock/unlock (default false)" }
