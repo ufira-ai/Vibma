@@ -293,8 +293,20 @@ export async function createTextSingle(p: any, ctx: CreateTextContext) {
     const parentIsAL = textNode.parent && "layoutMode" in textNode.parent && (textNode.parent as any).layoutMode !== "NONE";
 
     // Smart defaults for text inside auto-layout: FILL width + HUG height (text wraps)
-    // Explicit width overrides to FIXED
-    const effectiveH = layoutSizingHorizontal || (width !== undefined ? "FIXED" : (parentIsAL ? "FILL" : undefined));
+    // Explicit width overrides to FIXED. Respect parent alignment — FILL overrides CENTER/MAX.
+    let effectiveH = layoutSizingHorizontal;
+    if (!effectiveH) {
+      if (width !== undefined) {
+        effectiveH = "FIXED";
+      } else if (parentIsAL) {
+        const parentAL = textNode.parent as any;
+        const isHorizontal = parentAL.layoutMode === "HORIZONTAL";
+        const isCrossAxis = !isHorizontal; // text H is cross-axis in VERTICAL parent
+        const crossAlign = parentAL.counterAxisAlignItems as string | undefined;
+        const parentAligns = isCrossAxis && (crossAlign === "CENTER" || crossAlign === "MAX" || crossAlign === "BASELINE");
+        effectiveH = parentAligns ? "HUG" : "FILL";
+      }
+    }
     const effectiveV = layoutSizingVertical || (parentIsAL ? "HUG" : undefined);
 
     if (textAutoResize) {

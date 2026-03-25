@@ -357,6 +357,18 @@ export function applySizing(
 
     (node as any)[field] = value;
 
+    // Warn when FILL contradicts parent's cross-axis alignment (CENTER/MAX/BASELINE)
+    if (value === "FILL" && !inferred && parentIsAL) {
+      const isH = field === "layoutSizingHorizontal";
+      const isCrossAxis = parentDir === "HORIZONTAL" ? !isH : isH;
+      if (isCrossAxis) {
+        const crossAlign = (parent as any).counterAxisAlignItems as string | undefined;
+        if (crossAlign === "CENTER" || crossAlign === "MAX" || crossAlign === "BASELINE") {
+          hints.push({ type: "warn", message: `${field}:'FILL' overrides parent's counterAxisAlignItems:'${crossAlign}' — this node will stretch to full width instead of being aligned. Use 'HUG' to respect ${crossAlign} alignment.` });
+        }
+      }
+    }
+
     // Report inferred decisions so the agent knows what we chose
     if (inferred) {
       const dim = field === "layoutSizingHorizontal" ? "width" : "height";
