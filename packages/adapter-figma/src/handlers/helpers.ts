@@ -334,6 +334,11 @@ export function applySizing(
       value = "HUG";
     }
 
+    // FILL/HUG on ABSOLUTE child is a no-op — Figma ignores sizing for absolute children
+    if ((value === "FILL" || value === "HUG") && "layoutPositioning" in node && (node as any).layoutPositioning === "ABSOLUTE") {
+      hints.push({ type: "warn", message: `${field}:'${value}' has no effect on absolutely positioned nodes — use explicit width/height instead.` });
+    }
+
     // HUG needs auto-layout on the node (frames) or an AL parent (text)
     if (value === "HUG") {
       const isTextInAL = node.type === "TEXT" && parentIsAL;
