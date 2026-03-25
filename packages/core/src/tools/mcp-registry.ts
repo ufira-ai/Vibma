@@ -10,7 +10,7 @@ import { resolveGuideline } from "./generated/guidelines";
 
 import { registerPrompts } from "./prompts";
 import { fetchIconSvg, searchIcons, listCollections } from "./iconify";
-import { searchPhotos, fetchImageAsBase64, isPexelRef, resolvePexelRef, looksLikeSvg, fetchSvgContent } from "./pexels";
+import { searchPhotos, fetchImageAsBase64, resolvePexelRef, looksLikeSvg, fetchSvgContent } from "./pexels";
 
 // Connection + icons + images endpoints are registered with custom inline handlers (not via generic registerTools)
 const endpointTools = generatedTools.filter(t => t.name !== "connection" && t.name !== "icons" && t.name !== "images");
