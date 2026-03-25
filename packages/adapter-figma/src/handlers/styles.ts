@@ -232,6 +232,9 @@ async function createTextStyleSingle(p: any) {
       hints.push({ type: "warn", message: "WCAG: Min 12px text recommended." });
     }
     if (p.lineHeight !== undefined && p.lineHeight !== "AUTO") {
+      if (typeof p.lineHeight === "number" && p.lineHeight < 10) {
+        hints.push({ type: "warn", message: `lineHeight ${p.lineHeight}px looks wrong — did you mean {value: ${Math.round(p.lineHeight * 100)}, unit: "PERCENT"}? Bare numbers are pixels.` });
+      }
       if (typeof p.lineHeight !== "number" && p.lineHeight.unit === "PERCENT" && p.lineHeight.value < 10) {
         hints.push({ type: "warn", message: `lineHeight ${p.lineHeight.value}% looks wrong — did you mean ${Math.round(p.lineHeight.value * 100)}%? PERCENT uses whole percentages (e.g. 150 = 1.5×).` });
       }
@@ -465,6 +468,9 @@ async function patchStyleSingle(p: any) {
   if (style.type === "TEXT") {
     const ts = style as TextStyle;
     if (ts.fontSize < 12) hints.push({ type: "warn", message: "WCAG: Min 12px text recommended." });
+    if (p.lineHeight !== undefined && typeof p.lineHeight === "number" && p.lineHeight < 10) {
+      hints.push({ type: "warn", message: `lineHeight ${p.lineHeight}px looks wrong — did you mean {value: ${Math.round(p.lineHeight * 100)}, unit: "PERCENT"}? Bare numbers are pixels.` });
+    }
     const lh = ts.lineHeight as any;
     if (lh && lh.unit === "PERCENT" && lh.value < 10) {
       hints.push({ type: "warn", message: `lineHeight ${lh.value}% looks wrong — did you mean ${Math.round(lh.value * 100)}%? PERCENT uses whole percentages (e.g. 150 = 1.5×).` });

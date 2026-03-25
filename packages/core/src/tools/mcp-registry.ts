@@ -210,14 +210,23 @@ export function registerAllTools(server: McpServer, sendCommand: SendCommandFn, 
     delete target.imageUrl;
   }
 
+  async function resolveImageUrlsDeep(node: any): Promise<void> {
+    await resolveOneImageUrl(node);
+    if (Array.isArray(node.children)) {
+      for (const child of node.children) {
+        await resolveImageUrlsDeep(child);
+      }
+    }
+  }
+
   async function resolveImageUrls(params: any): Promise<void> {
     const items = params.items as any[] | undefined;
     if (!items) {
-      await resolveOneImageUrl(params);
+      await resolveImageUrlsDeep(params);
       return;
     }
     for (const item of items) {
-      await resolveOneImageUrl(item);
+      await resolveImageUrlsDeep(item);
     }
   }
 
