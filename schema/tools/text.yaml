@@ -106,6 +106,7 @@ methods:
             componentId:
               type: string
               description: "Target component ID for componentPropertyName binding. When omitted, walks up ancestors to find the nearest COMPONENT or COMPONENT_SET."
+            annotations: { type: array, coerce: json, optional: true, description: "Annotations — [{label?, labelMarkdown?, properties?, categoryId?}]", items: { type: object } }
       depth: { $ref: depth }
     response:
       type: batch

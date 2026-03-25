@@ -20,6 +20,7 @@ import { figmaHandlers as variablesHandlers } from "./variables";
 import { figmaHandlers as lintHandlers, auditNode } from "./lint";
 import { figmaHandlers as versionHistoryHandlers } from "./version-history";
 import { figmaHandlers as prototypingHandlers } from "./prototyping";
+import { figmaHandlers as annotationsHandlers } from "./annotations";
 import { figmaHandlers as stageHandlers } from "./stage";
 
 // ─── Shared adapters for inherited node base methods ──────────────
@@ -64,6 +65,7 @@ export const allFigmaHandlers: Record<string, (params: any) => Promise<any>> = {
   ...lintHandlers,
   ...versionHistoryHandlers,
   ...prototypingHandlers,
+  ...annotationsHandlers,
 
   // ─── Endpoint-style command aliases (generated endpoints use {endpoint}.{method}) ───
   // connection endpoint

@@ -62,3 +62,5 @@ frame_params:
   maxWidth: { type: number, coerce: true, optional: true, description: "Max width for responsive auto-layout" }
   minHeight: { type: number, coerce: true, optional: true, description: "Min height for responsive auto-layout" }
   maxHeight: { type: number, coerce: true, optional: true, description: "Max height for responsive auto-layout" }
+  # --- AnnotationsMixin ---
+  annotations: { type: array, coerce: json, optional: true, description: "Set annotations — [{label?, labelMarkdown?, properties?, categoryId?}]. Properties validated per node type.", items: { type: object } }

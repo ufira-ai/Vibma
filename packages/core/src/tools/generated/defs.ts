@@ -25,6 +25,7 @@ function filterMethodsByTier(
  * For discriminated methods (create with type), the value is a sub-map: type → command.
  */
 export const commandMap: Record<string, Record<string, string>> = {
+  "annotations": {"get":"annotations.get","list":"annotations.list","set":"annotations.set","add":"annotations.add","remove":"annotations.remove","categories":"annotations.categories","create_category":"annotations.create_category","update_category":"annotations.update_category","delete_category":"annotations.delete_category"},
   "components": {"clone":"components.clone","audit":"components.audit","reparent":"components.reparent","list":"components.list","get":"components.get","create":"components.create","commit":"components.commit","update":"components.update","delete":"components.delete"},
   "connection": {"create":"connection.create","get":"connection.get","list":"connection.list","delete":"connection.delete"},
   "document": {"get":"document.get","list":"document.list","set":"document.set","create":"document.create","update":"document.update"},
@@ -51,6 +52,75 @@ export const inlineMethods: Record<string, Record<string, boolean>> = {
 };
 
 export const tools: ToolDef[] = [
+  {
+    name: "annotations",
+    description: "/** Read and manage design annotations and annotation categories. Use method \"help\" for detailed parameter docs. */\n  get       (id?, categoryId?, items?: { id: string; categoryId?: string }[]) → { results: {id, name, annotations}[] }  // Read all annotations on a node (full detail with resolved category names)\n  list      (parentId?, categoryId?, limit?) → { results?, count?, _truncated? }  // Search annotations across a subtree, optionally filtered by category\n  set       (id?, annotations?: { label?: string; labelMarkdown?: string; properties?: string[]; categoryId?: string }[], items?: { id: string; annotations: unknown[] }[]) → { results: {id, count}[] }  // Replace all annotations on a node\n  add       (id?, label?, labelMarkdown?, properties?, categoryId?, items?: { id: string; label?: string; labelMarkdown?: string; properties?: string[]; categoryId?: string }[]) → { results: {id, index, count}[] }  // Add an annotation to a node\n  remove    (id?, index?, items?: { id: string; index: number }[]) → { results: {id, removed, count}[] }  // Remove an annotation from a node by index\n  categories() → { categories? }  // List all annotation categories in the file\n  create_category(label, color: yellow|orange|red|pink|violet|blue|teal|green) → { id?, label?, color? }  // Create a new annotation category\n  update_category(id, label?, color?: yellow|orange|red|pink|violet|blue|teal|green) → { id?, label?, color? }  // Update an annotation category's label or color\n  delete_category(id) → { deleted? }  // Delete an annotation category\n// Annotations are designer-authored notes attached to nodes — specs, intent, constraints.\n// Every node-returning endpoint includes an annotation brief: { label, properties?, categoryId? }.\n// Use this endpoint for full CRUD and to manage annotation categories.\n// Workflow: read annotations on a node with get, add new ones with add, manage categories with categories/create_category.\n// Batch: get/set/add/remove accept items:[{id, ...}] for multi-node operations, or single-item params (id, label, etc).\n// properties: measurement indicators Figma displays on the canvas — validated per node type and state.\n// labelMarkdown: rich text label supporting **bold**, *italic*, `code`, [links](url).\n// categoryId: group annotations by category (e.g. \"Spacing\", \"Typography\"). Create categories first.",
+    schema: (caps) => filterMethodsByTier({    method: z.enum(["get", "list", "set", "add", "remove", "categories", "create_category", "update_category", "delete_category", "help"]),
+    id: z.string().optional().describe("Node ID"),
+    categoryId: z.string().optional().describe("Filter — only return annotations in this category"),
+    items: flexJson(z.array(z.record(z.string(), z.unknown()))).optional().describe("Array of {id, ...properties} to get/set/add/remove"),
+    parentId: z.string().optional().describe("Root node to search within (default: current page)"),
+    limit: z.coerce.number().optional().default(100).describe("Max items per page (default 100)"),
+    annotations: flexJson(z.array(z.record(z.string(), z.unknown()))).optional().describe("Array of annotation objects to set (replaces all existing)"),
+    label: z.string().optional().describe("Plain text label (use label or labelMarkdown, not both)"),
+    labelMarkdown: z.string().optional().describe("Rich text label with Markdown formatting"),
+    properties: flexJson(z.array(z.string())).optional().describe("Measurement property types to display on canvas"),
+    index: z.coerce.number().optional().describe("Annotation index to remove (from get response)"),
+    color: z.enum(["yellow", "orange", "red", "pink", "violet", "blue", "teal", "green"]).optional().describe("Category color"),
+    topic: z.string().optional().describe("Help topic — method name for endpoint help, e.g. \"create\""),
+    }, caps, {"get":"read","list":"read","set":"edit","add":"edit","remove":"edit","categories":"read","create_category":"create","update_category":"edit","delete_category":"edit","help":"read"}),
+    tier: "read" as const,
+    validate: (params: any) => {
+      const m = params.method;
+      if (m === "create_category") {
+        if (params.label === undefined) throw new Error("create_category requires \"label\"");
+        if (params.color === undefined) throw new Error("create_category requires \"color\"");
+      }
+      if (m === "update_category") {
+        if (params.id === undefined) throw new Error("update_category requires \"id\"");
+      }
+      if (m === "delete_category") {
+        if (params.id === undefined) throw new Error("delete_category requires \"id\"");
+      }
+      if (!params.items) return;
+      if (m === "get") {
+        const itemSchema = z.object({
+          id: z.string(),
+          categoryId: z.string().optional(),
+        }).passthrough();
+        try { params.items = z.array(itemSchema).parse(params.items); }
+        catch (e) { if (e instanceof z.ZodError) { throw new Error(e.issues.map(i => { const path = i.path.join("."); const shape = itemSchema instanceof z.ZodObject ? (itemSchema as any).shape : null; const desc = shape?.[i.path[1]]?.description; return path + ": " + i.message + (desc ? " (expected: " + desc + ")" : ""); }).join("; ")); } throw e; }
+      }
+      if (m === "set") {
+        const itemSchema = z.object({
+          id: z.string(),
+          annotations: z.array(z.record(z.string(), z.unknown())).describe("Annotations to set on this node"),
+        }).passthrough();
+        try { params.items = z.array(itemSchema).parse(params.items); }
+        catch (e) { if (e instanceof z.ZodError) { throw new Error(e.issues.map(i => { const path = i.path.join("."); const shape = itemSchema instanceof z.ZodObject ? (itemSchema as any).shape : null; const desc = shape?.[i.path[1]]?.description; return path + ": " + i.message + (desc ? " (expected: " + desc + ")" : ""); }).join("; ")); } throw e; }
+      }
+      if (m === "add") {
+        const itemSchema = z.object({
+          id: z.string(),
+          label: z.string().optional(),
+          labelMarkdown: z.string().optional(),
+          properties: z.array(z.string()).optional(),
+          categoryId: z.string().optional(),
+        }).passthrough();
+        try { params.items = z.array(itemSchema).parse(params.items); }
+        catch (e) { if (e instanceof z.ZodError) { throw new Error(e.issues.map(i => { const path = i.path.join("."); const shape = itemSchema instanceof z.ZodObject ? (itemSchema as any).shape : null; const desc = shape?.[i.path[1]]?.description; return path + ": " + i.message + (desc ? " (expected: " + desc + ")" : ""); }).join("; ")); } throw e; }
+      }
+      if (m === "remove") {
+        const itemSchema = z.object({
+          id: z.string(),
+          index: z.number(),
+        }).passthrough();
+        try { params.items = z.array(itemSchema).parse(params.items); }
+        catch (e) { if (e instanceof z.ZodError) { throw new Error(e.issues.map(i => { const path = i.path.join("."); const shape = itemSchema instanceof z.ZodObject ? (itemSchema as any).shape : null; const desc = shape?.[i.path[1]]?.description; return path + ": " + i.message + (desc ? " (expected: " + desc + ")" : ""); }).join("; ")); } throw e; }
+      }
+    },
+    commandMap: {"get":"annotations.get","list":"annotations.list","set":"annotations.set","add":"annotations.add","remove":"annotations.remove","categories":"annotations.categories","create_category":"annotations.create_category","update_category":"annotations.update_category","delete_category":"annotations.delete_category"},
+  },
   {
     name: "components",
     description: "/** Create and manage reusable components and variant sets. Use method \"help\" for detailed parameter docs. */\n  clone     (id?, name?, parentId?, x?, y?, items?: { id: string; name?: string; parentId?: string; x?: number; y?: number }[], depth?) → { results: {id}[] }  // Duplicate nodes\n  audit     (id, rules?, maxDepth?, maxFindings?, minSeverity?: error|unsafe|heuristic|style|verbose, skipInstances?) → { nodeId?, nodeName?, categories? }  // Run lint on a node — returns severity-ranked findings\n  reparent  (items: { id: string; parentId: string; index?: number }[]) → { results: \"ok\"[] }  // Move nodes into a new parent\n  list      (query?, offset?, limit?) → { totalCount, items }  // List local component names (variant sets as single entries)\n  get       (id?, names?, depth?, verbose?) → { results, _truncated? }  // Get component detail — property definitions + optional node tree for structural inspection\n  create    (type: component|from_node|variant_set, items: (ComponentItem | FromNodeItem | VariantSetItem)[]) → { results: {id}[] }  // Create components\n  commit    (id) → { results: {id}[] }  // Commit a staged component — unwraps from [STAGED] container into the original target location.\n  update    (items: UpdatePropertyItem[], depth?) → { results: (\"ok\" | {error})[] }  // Add, edit, or delete component properties\n  delete    (id) → { results: \"ok\"[] }  // Delete components or component sets\n// depth: omit → id+name stubs | 0 → props + child stubs | N → recurse N | -1 → full tree\n// fields: whitelist e.g. [\"fills\",\"opacity\"] — id, name, type always included. Pass [\"*\"] for all.\n// layoutSizingHorizontal/Vertical: FIXED | HUG | FILL — how the node sizes within auto-layout.\n// Colors: fillVariableName/strokeVariableName bind by name — preferred over raw color values.\n// Note: node-based endpoints (frames, text, instances, components) use `results` as the list key.\n//   Standalone endpoints (styles, variables, variable_collections) use `items`. Components.list uses `items` (catalog view).",
@@ -144,6 +214,7 @@ export const tools: ToolDef[] = [
             maxWidth: z.coerce.number().optional().describe("Max width for responsive auto-layout"),
             minHeight: z.coerce.number().optional().describe("Min height for responsive auto-layout"),
             maxHeight: z.coerce.number().optional().describe("Max height for responsive auto-layout"),
+            annotations: flexJson(z.array(z.record(z.string(), z.unknown()))).optional().describe("Set annotations — [{label?, labelMarkdown?, properties?, categoryId?}]. Properties validated per node type."),
             description: z.string().optional().describe("Component description (shown in Figma's component panel)"),
             children: flexJson(z.array(z.record(z.string(), z.unknown()))).optional().describe("Inline child nodes — build nested trees in one call. Types: text: {type:\"text\", text, componentPropertyName?, fontFamily?, fontSize?, fontWeight?, fontStyle?, fontColor?, layoutSizingHorizontal?}. frame: {type:\"frame\", name?, layoutMode?, fillColor?, width?, layoutSizingHorizontal?, children?}. instance: {type:\"instance\", componentId, componentPropertyName?, variantProperties?, properties?}. component: {type:\"component\", name, children?}. All params from text/frame endpoints are supported on their respective types. componentPropertyName auto-creates and binds a TEXT (text) or INSTANCE_SWAP (instance) property. Always set layoutSizingHorizontal + layoutSizingVertical on children inside auto-layout parents (FILL, HUG, or FIXED). Example: children:[{type:\"text\", text:\"Label\", componentPropertyName:\"Label\", fontSize:14, fontColorVariableName:\"text/primary\", layoutSizingHorizontal:\"FILL\", layoutSizingVertical:\"HUG\"}, {type:\"frame\", name:\"Actions\", layoutMode:\"HORIZONTAL\", layoutSizingHorizontal:\"FILL\", layoutSizingVertical:\"HUG\", itemSpacing:8, children:[{type:\"instance\", componentId:\"1:2\", componentPropertyName:\"Action\", layoutSizingHorizontal:\"FILL\", layoutSizingVertical:\"HUG\"}]}]\n"),
             properties: flexJson(z.array(z.record(z.string(), z.unknown()))).optional().describe("Component properties to define at creation: [{propertyName, type, defaultValue}]. TEXT properties for inline children with componentPropertyName are created automatically."),
@@ -207,6 +278,7 @@ export const tools: ToolDef[] = [
             maxWidth: z.coerce.number().optional().describe("Max width for responsive auto-layout"),
             minHeight: z.coerce.number().optional().describe("Min height for responsive auto-layout"),
             maxHeight: z.coerce.number().optional().describe("Max height for responsive auto-layout"),
+            annotations: flexJson(z.array(z.record(z.string(), z.unknown()))).optional().describe("Set annotations — [{label?, labelMarkdown?, properties?, categoryId?}]. Properties validated per node type."),
             componentIds: flexJson(z.array(z.string())).optional().describe("Existing component IDs to combine (min 2). Alternative to children."),
             variantPropertyName: z.string().optional().describe("Rename the auto-generated variant property (default: 'Property 1')"),
             children: flexJson(z.array(z.record(z.string(), z.unknown()))).optional().describe("Inline variant components. Each must be {type:\"component\", name, children?, ...frame_params}. All variants must share the same child structure. Alternative to componentIds — do not combine both."),
@@ -370,6 +442,7 @@ export const tools: ToolDef[] = [
             maxWidth: z.coerce.number().optional().describe("Max width for responsive auto-layout"),
             minHeight: z.coerce.number().optional().describe("Min height for responsive auto-layout"),
             maxHeight: z.coerce.number().optional().describe("Max height for responsive auto-layout"),
+            annotations: flexJson(z.array(z.record(z.string(), z.unknown()))).optional().describe("Set annotations — [{label?, labelMarkdown?, properties?, categoryId?}]. Properties validated per node type."),
             clipsContent: flexBool(z.boolean()).optional(),
             children: flexJson(z.array(z.record(z.string(), z.unknown()))).optional().describe("Inline child nodes — build nested trees in one call. Types: text: {type:\"text\", text, fontFamily?, fontSize?, fontWeight?, fontStyle?, fontColor?, layoutSizingHorizontal?}. frame: {type:\"frame\", name?, layoutMode?, fillColor?, width?, layoutSizingHorizontal?, children?}. instance: {type:\"instance\", componentId, variantProperties?, properties?}. component: {type:\"component\", name, children?}. All params from text/frame endpoints are supported on their respective types. Always set layoutSizingHorizontal + layoutSizingVertical on children inside auto-layout parents (FILL, HUG, or FIXED). Example: children:[{type:\"text\", text:\"Title\", fontSize:20, layoutSizingHorizontal:\"FILL\", layoutSizingVertical:\"HUG\"}, {type:\"frame\", name:\"Row\", layoutMode:\"HORIZONTAL\", layoutSizingHorizontal:\"FILL\", layoutSizingVertical:\"HUG\", itemSpacing:8, children:[{type:\"instance\", componentId:\"1:2\", layoutSizingHorizontal:\"FILL\", layoutSizingVertical:\"HUG\"}]}] Inside components: add componentPropertyName to auto-bind TEXT or INSTANCE_SWAP properties.\n"),
           }).passthrough(),
@@ -427,6 +500,7 @@ export const tools: ToolDef[] = [
             maxWidth: z.coerce.number().optional().describe("Max width for responsive auto-layout"),
             minHeight: z.coerce.number().optional().describe("Min height for responsive auto-layout"),
             maxHeight: z.coerce.number().optional().describe("Max height for responsive auto-layout"),
+            annotations: flexJson(z.array(z.record(z.string(), z.unknown()))).optional().describe("Set annotations — [{label?, labelMarkdown?, properties?, categoryId?}]. Properties validated per node type."),
             clipsContent: flexBool(z.boolean()).optional(),
             nodeIds: flexJson(z.array(z.string())).optional().describe("Existing node IDs to wrap into auto-layout"),
             children: flexJson(z.array(z.record(z.string(), z.unknown()))).optional().describe("Inline child nodes — build nested trees in one call. Types: text: {type:\"text\", text, fontFamily?, fontSize?, fontWeight?, fontStyle?, fontColor?, layoutSizingHorizontal?}. frame: {type:\"frame\", name?, layoutMode?, fillColor?, width?, layoutSizingHorizontal?, children?}. instance: {type:\"instance\", componentId, variantProperties?, properties?}. component: {type:\"component\", name, children?}. All params from text/frame endpoints are supported on their respective types. Always set layoutSizingHorizontal + layoutSizingVertical on children inside auto-layout parents (FILL, HUG, or FIXED). Example: children:[{type:\"text\", text:\"Title\", fontSize:20, layoutSizingHorizontal:\"FILL\", layoutSizingVertical:\"HUG\"}, {type:\"frame\", name:\"Row\", layoutMode:\"HORIZONTAL\", layoutSizingHorizontal:\"FILL\", layoutSizingVertical:\"HUG\", itemSpacing:8, children:[{type:\"instance\", componentId:\"1:2\", layoutSizingHorizontal:\"FILL\", layoutSizingVertical:\"HUG\"}]}] Inside components: add componentPropertyName to auto-bind TEXT or INSTANCE_SWAP properties.\n"),
@@ -470,6 +544,7 @@ export const tools: ToolDef[] = [
             opacity: S.token.optional(),
             layoutSizingHorizontal: z.enum(["FIXED", "FILL"]).optional().describe("Horizontal sizing in auto-layout parent"),
             layoutSizingVertical: z.enum(["FIXED", "FILL"]).optional().describe("Vertical sizing in auto-layout parent"),
+            annotations: flexJson(z.array(z.record(z.string(), z.unknown()))).optional().describe("Annotations — [{label?, labelMarkdown?, properties?, categoryId?}]"),
           }).passthrough(),
           "ellipse": z.object({
             name: z.string().optional().describe("Layer name (default: 'Ellipse')"),
@@ -491,6 +566,7 @@ export const tools: ToolDef[] = [
             opacity: S.token.optional(),
             layoutSizingHorizontal: z.enum(["FIXED", "FILL"]).optional().describe("Horizontal sizing in auto-layout parent"),
             layoutSizingVertical: z.enum(["FIXED", "FILL"]).optional().describe("Vertical sizing in auto-layout parent"),
+            annotations: flexJson(z.array(z.record(z.string(), z.unknown()))).optional().describe("Annotations — [{label?, labelMarkdown?, properties?, categoryId?}]"),
           }).passthrough(),
           "line": z.object({
             name: z.string().optional().describe("Layer name (default: 'Line')"),
@@ -505,6 +581,7 @@ export const tools: ToolDef[] = [
             strokeWeight: S.token.optional().describe("Line thickness (default: 1)"),
             opacity: S.token.optional(),
             layoutSizingHorizontal: z.enum(["FIXED", "FILL"]).optional().describe("Horizontal sizing in auto-layout parent (defaults to FILL in vertical auto-layout)"),
+            annotations: flexJson(z.array(z.record(z.string(), z.unknown()))).optional().describe("Annotations — [{label?, labelMarkdown?, properties?, categoryId?}]"),
           }).passthrough(),
           "group": z.object({
             nodeIds: z.array(z.string()).describe("Node IDs to group (min 1)"),
@@ -1029,6 +1106,7 @@ export const tools: ToolDef[] = [
           textAutoResize: z.enum(["NONE", "WIDTH_AND_HEIGHT", "HEIGHT", "TRUNCATE"]).optional().describe("NONE (fixed box), WIDTH_AND_HEIGHT (grow both), HEIGHT (fixed width, auto height), TRUNCATE (fixed + ellipsis)"),
           componentPropertyName: z.string().optional().describe("Bind to a component TEXT property by name. Walks up ancestors to find the nearest component, or targets the component specified by componentId. For deeply nested text, consider using components(method:'create', type:'from_node') with exposeText:true instead — it auto-discovers and binds all text nodes."),
           componentId: z.string().optional().describe("Target component ID for componentPropertyName binding. When omitted, walks up ancestors to find the nearest COMPONENT or COMPONENT_SET."),
+          annotations: flexJson(z.array(z.record(z.string(), z.unknown()))).optional().describe("Annotations — [{label?, labelMarkdown?, properties?, categoryId?}]"),
         }).passthrough();
         try { params.items = z.array(itemSchema).parse(params.items); }
         catch (e) { if (e instanceof z.ZodError) { throw new Error(e.issues.map(i => { const path = i.path.join("."); const shape = itemSchema instanceof z.ZodObject ? (itemSchema as any).shape : null; const desc = shape?.[i.path[1]]?.description; return path + ": " + i.message + (desc ? " (expected: " + desc + ")" : ""); }).join("; ")); } throw e; }

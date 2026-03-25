@@ -1,0 +1,279 @@
+endpoint: annotations
+domain: node-inspection
+description: "Read and manage design annotations and annotation categories."
+description_zh: "读取和管理设计标注及标注分类。"
+
+notes: |
+  // Annotations are designer-authored notes attached to nodes — specs, intent, constraints.
+  // Every node-returning endpoint includes an annotation brief: { label, properties?, categoryId? }.
+  // Use this endpoint for full CRUD and to manage annotation categories.
+  // Workflow: read annotations on a node with get, add new ones with add, manage categories with categories/create_category.
+  // Batch: get/set/add/remove accept items:[{id, ...}] for multi-node operations, or single-item params (id, label, etc).
+  // properties: measurement indicators Figma displays on the canvas — validated per node type and state.
+  // labelMarkdown: rich text label supporting **bold**, *italic*, `code`, [links](url).
+  // categoryId: group annotations by category (e.g. "Spacing", "Typography"). Create categories first.
+  // ---
+  // AnnotationPropertyType values (node-type-dependent — invalid ones are rejected with the available list):
+  //   Dimension: width, height, maxWidth, minWidth, maxHeight, minHeight
+  //   Paint: fills, strokes, effects, strokeWeight, cornerRadius, opacity
+  //   Text (TEXT nodes only): textStyleId, textAlignHorizontal, fontFamily, fontStyle, fontSize, fontWeight, lineHeight, letterSpacing
+  //   Layout (auto-layout only): itemSpacing, padding, layoutMode, alignItems
+  //   Instance (INSTANCE only): mainComponent
+  //   Grid (grid layout only): gridRowGap, gridColumnGap, gridRowCount, gridColumnCount, gridRowAnchorIndex, gridColumnAnchorIndex, gridRowSpan, gridColumnSpan
+  // AnnotationCategoryColor values: yellow, orange, red, pink, violet, blue, teal, green.
+
+methods:
+  get:
+    tier: read
+    description: "Read all annotations on a node (full detail with resolved category names)"
+    example: 'annotations(method:"get", id:"1:23")'
+    params:
+      id:
+        $ref: nodeId
+        optional: true
+      categoryId:
+        type: string
+        optional: true
+        description: "Filter — only return annotations in this category"
+      items:
+        type: array
+        coerce: json
+        optional: true
+        description: "Batch: [{id, categoryId?}, ...]"
+        items:
+          type: object
+          properties:
+            id: { type: string, required: true }
+            categoryId: { type: string, optional: true }
+    response:
+      type: batch
+      item:
+        id: { type: string }
+        name: { type: string }
+        annotations:
+          type: array
+          items:
+            type: object
+            properties:
+              index: { type: number }
+              label: { type: string }
+              labelMarkdown: { type: string }
+              properties: { type: array, items: { type: string } }
+              category: { type: object, properties: { id: { type: string }, label: { type: string }, color: { type: string } } }
+
+  list:
+    tier: read
+    description: "Search annotations across a subtree, optionally filtered by category"
+    example: 'annotations(method:"list", parentId:"1:2", categoryId:"113:0")'
+    params:
+      parentId:
+        type: string
+        optional: true
+        description: "Root node to search within (default: current page)"
+      categoryId:
+        type: string
+        optional: true
+        description: "Filter by category ID"
+      limit:
+        $ref: limit
+    response:
+      type: object
+      properties:
+        results:
+          type: array
+          description: "Annotations found across the subtree"
+          items:
+            type: object
+            properties:
+              nodeId: { type: string }
+              nodeName: { type: string }
+              nodeType: { type: string }
+              index: { type: number }
+              label: { type: string }
+              labelMarkdown: { type: string }
+              properties: { type: array, items: { type: string } }
+              category: { type: object, properties: { id: { type: string }, label: { type: string }, color: { type: string } } }
+        count: { type: number }
+        _truncated: { type: boolean }
+
+  set:
+    tier: edit
+    description: "Replace all annotations on a node"
+    example: 'annotations(method:"set", id:"1:23", annotations:[{label:"Spacing: 16px", properties:["padding"]}])'
+    params:
+      id:
+        $ref: nodeId
+        optional: true
+      annotations:
+        type: array
+        coerce: json
+        description: "Array of annotation objects to set (replaces all existing)"
+        items:
+          type: object
+          properties:
+            label: { type: string, optional: true, description: "Plain text label" }
+            labelMarkdown: { type: string, optional: true, description: "Rich text label (Markdown)" }
+            properties:
+              type: "string[]"
+              optional: true
+              description: "Measurement property types to display"
+            categoryId: { type: string, optional: true, description: "Category ID" }
+      items:
+        type: array
+        coerce: json
+        optional: true
+        description: "Batch: [{id, annotations: [...]}, ...]"
+        items:
+          type: object
+          properties:
+            id: { type: string, required: true }
+            annotations: { type: array, required: true, description: "Annotations to set on this node" }
+    response:
+      type: batch
+      item: { id: { type: string }, count: { type: number } }
+
+  add:
+    tier: edit
+    description: "Add an annotation to a node"
+    example: 'annotations(method:"add", id:"1:23", labelMarkdown:"**Width**: 320px fixed", properties:["width"])'
+    params:
+      id:
+        $ref: nodeId
+        optional: true
+      label:
+        type: string
+        optional: true
+        description: "Plain text label (use label or labelMarkdown, not both)"
+      labelMarkdown:
+        type: string
+        optional: true
+        description: "Rich text label with Markdown formatting"
+      properties:
+        type: "string[]"
+        coerce: json
+        optional: true
+        description: "Measurement property types to display on canvas"
+      categoryId:
+        type: string
+        optional: true
+        description: "Category ID to group this annotation"
+      items:
+        type: array
+        coerce: json
+        optional: true
+        description: "Batch: [{id, label?, labelMarkdown?, properties?, categoryId?}, ...]"
+        items:
+          type: object
+          properties:
+            id: { type: string, required: true }
+            label: { type: string, optional: true }
+            labelMarkdown: { type: string, optional: true }
+            properties: { type: "string[]", optional: true }
+            categoryId: { type: string, optional: true }
+    response:
+      type: batch
+      item: { id: { type: string }, index: { type: number }, count: { type: number } }
+
+  remove:
+    tier: edit
+    description: "Remove an annotation from a node by index"
+    example: 'annotations(method:"remove", id:"1:23", index:0)'
+    params:
+      id:
+        $ref: nodeId
+        optional: true
+      index:
+        type: number
+        coerce: true
+        description: "Annotation index to remove (from get response)"
+      items:
+        type: array
+        coerce: json
+        optional: true
+        description: "Batch: [{id, index}, ...]"
+        items:
+          type: object
+          properties:
+            id: { type: string, required: true }
+            index: { type: number, required: true }
+    response:
+      type: batch
+      item: { id: { type: string }, removed: { type: boolean }, count: { type: number } }
+
+  categories:
+    tier: read
+    description: "List all annotation categories in the file"
+    example: 'annotations(method:"categories")'
+    params: {}
+    response:
+      type: object
+      properties:
+        categories:
+          type: array
+          items:
+            type: object
+            properties:
+              id: { type: string }
+              label: { type: string }
+              color: { type: string }
+              isPreset: { type: boolean }
+
+  create_category:
+    tier: create
+    description: "Create a new annotation category"
+    example: 'annotations(method:"create_category", label:"Spacing", color:"blue")'
+    params:
+      label:
+        type: string
+        required: true
+        description: "Category label"
+      color:
+        type: enum
+        values: [yellow, orange, red, pink, violet, blue, teal, green]
+        required: true
+        description: "Category color"
+    response:
+      type: object
+      properties:
+        id: { type: string }
+        label: { type: string }
+        color: { type: string }
+
+  update_category:
+    tier: edit
+    description: "Update an annotation category's label or color"
+    example: 'annotations(method:"update_category", id:"cat:123", label:"Layout", color:"teal")'
+    params:
+      id:
+        type: string
+        required: true
+        description: "Category ID"
+      label:
+        type: string
+        optional: true
+        description: "New label"
+      color:
+        type: enum
+        values: [yellow, orange, red, pink, violet, blue, teal, green]
+        optional: true
+        description: "New color"
+    response:
+      type: object
+      properties:
+        id: { type: string }
+        label: { type: string }
+        color: { type: string }
+
+  delete_category:
+    tier: edit
+    description: "Delete an annotation category"
+    example: 'annotations(method:"delete_category", id:"cat:123")'
+    params:
+      id:
+        type: string
+        required: true
+        description: "Category ID to delete"
+    response:
+      type: object
+      properties:
+        deleted: { type: boolean }

@@ -2,6 +2,8 @@
 
 /** Runtime JSON Schema + example for each endpoint's response, per method. */
 export const generatedResponseSchemas: Record<string, Record<string, unknown>> = {
+  "annotations": {
+  },
   "components": {
     "get": {"example":{"results":[{"id":"1:23","name":"Push Button","properties":{"Label":{"type":"TEXT","defaultValue":"Button"},"Style":{"type":"VARIANT","defaultValue":"Primary","options":["Primary","Secondary"]},"Size":{"type":"VARIANT","defaultValue":"Medium","options":["Small","Medium","Large"]}}}]}},
   },

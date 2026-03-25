@@ -1,5 +1,6 @@
 import { batchHandler, appendToParent, checkOverlappingSiblings, suggestTextStyle, applyFillWithAutoBind, applySizing, styleNotFoundHint, bindTextToComponentProperty, findComponentForBinding, type Hint } from "./helpers";
 import { textCreate } from "@ufira/vibma/guards";
+import { applyAnnotations } from "./annotations";
 
 // ─── Figma Handlers ──────────────────────────────────────────────
 
@@ -318,6 +319,8 @@ export async function createTextSingle(p: any, ctx: CreateTextContext) {
         hints.push({ type: "warn", message: `Text has HUG on cross-axis of constrained parent — won't fill available space and text won't wrap. Use ${crossProp}:"FILL".` });
       }
     }
+
+    applyAnnotations(textNode, p, hints);
 
     const result: any = { id: textNode.id };
     if (hints.length > 0) result.hints = hints;

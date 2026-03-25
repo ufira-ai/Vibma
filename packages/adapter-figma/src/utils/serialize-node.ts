@@ -393,6 +393,21 @@ export async function serializeNode(
     out.constraints = (node as any).constraints;
   }
 
+  // ── Annotations ────────────────────────────────────────────────
+  if ("annotations" in node) {
+    const anns = (node as any).annotations as ReadonlyArray<{ label?: string; labelMarkdown?: string; properties?: ReadonlyArray<{ type: string }>; categoryId?: string }>;
+    if (anns && anns.length > 0) {
+      out.annotations = anns.map(a => {
+        const brief: any = {};
+        if (a.label) brief.label = a.label;
+        else if (a.labelMarkdown) brief.label = a.labelMarkdown.replace(/[#*_`~\[\]]/g, "").slice(0, 120);
+        if (a.properties && a.properties.length > 0) brief.properties = a.properties.map(p => p.type);
+        if (a.categoryId) brief.categoryId = a.categoryId;
+        return brief;
+      });
+    }
+  }
+
   // ── Children ──────────────────────────────────────────────────
   if ("children" in node) {
     const children = (node as any).children as readonly BaseNode[];

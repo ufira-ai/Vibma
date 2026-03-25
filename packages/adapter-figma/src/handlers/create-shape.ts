@@ -4,7 +4,7 @@ import {
   framesCreateEllipse, framesCreateLine, framesCreateGroup,
   framesCreateBooleanOperation,
 } from "@ufira/vibma/guards";
-
+import { applyAnnotations } from "./annotations";
 
 // Handler-level extensions: params accepted by handler but not in YAML schema
 const SVG_KEYS = new Set([...framesCreateSvg, "fillVariableId", "strokeVariableId"]) as ReadonlySet<string>;
@@ -26,6 +26,7 @@ async function createSingleSection(p: any) {
     if (!hasImageFill) await applyFillWithAutoBind(section, p, hints);
 
     await appendToParent(section, p.parentId);
+    applyAnnotations(section, p, hints);
     const result: any = { id: section.id };
     if (hints.length > 0) result.hints = hints;
     return result;
@@ -142,6 +143,7 @@ async function createSingleRectangle(p: any) {
     const parent = await appendAndApplySizing(rect, p, hints);
     checkOverlappingSiblings(rect, parent, hints);
 
+    applyAnnotations(rect, p, hints);
     const result: any = { id: rect.id };
     if (hints.length > 0) result.hints = hints;
     return result;
@@ -169,6 +171,7 @@ async function createSingleEllipse(p: any) {
     const parent = await appendAndApplySizing(ellipse, p, hints);
     checkOverlappingSiblings(ellipse, parent, hints);
 
+    applyAnnotations(ellipse, p, hints);
     const result: any = { id: ellipse.id };
     if (hints.length > 0) result.hints = hints;
     return result;
@@ -205,6 +208,7 @@ async function createSingleLine(p: any) {
       (line as any).layoutSizingHorizontal = "FILL";
     }
 
+    applyAnnotations(line, p, hints);
     const result: any = { id: line.id };
     if (hints.length > 0) result.hints = hints;
     return result;
