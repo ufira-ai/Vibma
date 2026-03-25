@@ -1,4 +1,4 @@
-import { batchHandler, appendAndApplySizing, applySizing, checkOverlappingSiblings, isSmallIntrinsic, applyFillWithAutoBind, applyImageFill, applyStrokeWithAutoBind, applyCornerRadius, applyTokens, normalizeAliases, FRAME_ALIAS_KEYS, type Hint } from "./helpers";
+import { batchHandler, appendAndApplySizing, applySizing, checkOverlappingSiblings, isSmallIntrinsic, applyFillWithAutoBind, applyImageFill, applyStrokeWithAutoBind, applyCornerRadius, applyTokens, normalizeAliases, warnCrossAxisHug, FRAME_ALIAS_KEYS, type Hint } from "./helpers";
 import { looksInteractive } from "@ufira/vibma/utils/wcag";
 import { framesCreateFrame, framesCreateAutoLayout } from "@ufira/vibma/guards";
 import { createInlineChildren, collectTextChildren, normalizeInlineChildTypes } from "./components";
@@ -194,17 +194,7 @@ export async function setupFrameNode(
     // Leaf containers (buttons, badges) with HUG/HUG: no warning — intentional
   }
 
-  // HUG on cross-axis of constrained parent — child won't fill available space
-  if (parent && "layoutMode" in parent && (parent as any).layoutMode !== "NONE") {
-    const parentAL = parent as any;
-    const isHorizontal = parentAL.layoutMode === "HORIZONTAL";
-    const parentCross = isHorizontal ? parentAL.layoutSizingVertical : parentAL.layoutSizingHorizontal;
-    const childCross = isHorizontal ? node.layoutSizingVertical : node.layoutSizingHorizontal;
-    if ((parentCross === "FIXED" || parentCross === "FILL") && childCross === "HUG") {
-      const crossProp = isHorizontal ? "layoutSizingVertical" : "layoutSizingHorizontal";
-      hints.push({ type: "warn", message: `HUG on cross-axis of constrained parent — won't fill available space. Use ${crossProp}:"FILL".` });
-    }
-  }
+  warnCrossAxisHug(node, parent, hints);
 
   // WCAG 2.5.8: target size recommendation for interactive elements
   if (looksInteractive(node) && (node.width < 24 || node.height < 24)) {

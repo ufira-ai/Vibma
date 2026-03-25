@@ -1,4 +1,4 @@
-import { batchHandler, applyFillWithAutoBind, applySizing, isSmallIntrinsic, suggestTextStyle, type Hint } from "./helpers";
+import { batchHandler, applyFillWithAutoBind, applySizing, isSmallIntrinsic, suggestTextStyle, warnCrossAxisHug, type Hint } from "./helpers";
 
 // ─── Figma Handlers ──────────────────────────────────────────────
 
@@ -174,17 +174,8 @@ export async function setTextPropertiesSingle(p: any, ctx: TextPropsContext) {
       warnings.push({ type: "warn", message: "Text with HUG on both axes won't wrap. Use layoutSizingHorizontal:\"FILL\" + layoutSizingVertical:\"HUG\" so text fills parent width and wraps, or set textAutoResize:\"HEIGHT\" for fixed-width wrapping." });
     }
   }
-  // HUG on cross-axis of constrained parent — text won't fill available space
-  if ((p.layoutSizingHorizontal || p.layoutSizingVertical) &&
-      node.parent && "layoutMode" in node.parent && (node.parent as any).layoutMode !== "NONE") {
-    const parentAL = node.parent as any;
-    const isHorizontal = parentAL.layoutMode === "HORIZONTAL";
-    const parentCross = isHorizontal ? parentAL.layoutSizingVertical : parentAL.layoutSizingHorizontal;
-    const childCross = isHorizontal ? node.layoutSizingVertical : node.layoutSizingHorizontal;
-    if ((parentCross === "FIXED" || parentCross === "FILL") && childCross === "HUG") {
-      const crossProp = isHorizontal ? "layoutSizingVertical" : "layoutSizingHorizontal";
-      warnings.push({ type: "warn", message: `Text has HUG on cross-axis of constrained parent — won't fill available space. Use ${crossProp}:"FILL".` });
-    }
+  if (p.layoutSizingHorizontal || p.layoutSizingVertical) {
+    warnCrossAxisHug(node, node.parent, warnings, "Text");
   }
   if (p.textStyleName && p.textStyleId) {
     warnings.push({ type: "warn", message: "Both textStyleName and textStyleId provided — used textStyleId. Pass only one." });
