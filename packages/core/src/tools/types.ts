@@ -30,6 +30,8 @@ export interface ToolDef {
   timeout?: number;
   /** Pre-send validation (e.g. per-method item parsing for endpoints) */
   validate?: (params: any) => void;
+  /** Async pre-processor — runs before sendCommand. Can transform params (e.g. download imageUrl → base64). */
+  preProcess?: (params: any) => Promise<void>;
   /** Custom response formatter. Default: mcpJson */
   formatResponse?: (result: unknown) => any;
   /** Per-method response formatters. Overrides formatResponse for specific methods. */

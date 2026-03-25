@@ -10,9 +10,10 @@ import { resolveGuideline } from "./generated/guidelines";
 
 import { registerPrompts } from "./prompts";
 import { fetchIconSvg, searchIcons, listCollections } from "./iconify";
+import { searchPhotos, fetchImageAsBase64, isPexelRef, resolvePexelRef, looksLikeSvg, fetchSvgContent } from "./pexels";
 
-// Connection + icons endpoints are registered with custom inline handlers (not via generic registerTools)
-const endpointTools = generatedTools.filter(t => t.name !== "connection" && t.name !== "icons");
+// Connection + icons + images endpoints are registered with custom inline handlers (not via generic registerTools)
+const endpointTools = generatedTools.filter(t => t.name !== "connection" && t.name !== "icons" && t.name !== "images");
 
 // Wire per-method response formatter for frames.export (returns binary image, not JSON)
 const framesTool = endpointTools.find(t => t.name === "frames");
@@ -133,6 +134,96 @@ export function registerAllTools(server: McpServer, sendCommand: SendCommandFn, 
         return mcpError("icons", e);
       }
     });
+  }
+
+  // ─── Images endpoint — search inline (Pexels API), no Figma handler needed ───
+  // Only registered when PEXELS_API_KEY is set — no point exposing a tool agents can't use.
+  const imagesDef = process.env.PEXELS_API_KEY ? generatedTools.find(t => t.name === "images") : undefined;
+  if (imagesDef) {
+    const imagesSchema = typeof imagesDef.schema === "function" ? imagesDef.schema(caps) : imagesDef.schema;
+
+    server.registerTool("images", {
+      description: imagesDef.description,
+      inputSchema: imagesSchema,
+    }, async (params: any) => {
+      try {
+        const method = params.method;
+
+        if (method === "help") {
+          const text = resolveEndpointHelp("images", params.topic) ?? resolveHelp("images");
+          return { content: [{ type: "text" as const, text }] };
+        }
+
+        if (method === "search") {
+          if (!params.query) return mcpError("images", "search requires a query parameter");
+          const result = await searchPhotos({
+            query: params.query,
+            orientation: params.orientation,
+            size: params.size,
+            color: params.color,
+            locale: params.locale,
+            page: params.page,
+            per_page: params.per_page,
+          });
+          return mcpJson(result);
+        }
+
+        return mcpError("images", `Unknown method "${method}"`);
+      } catch (e) {
+        return mcpError("images", e);
+      }
+    });
+  }
+
+  // ─── imageUrl pre-processor ───
+  // Intercept imageUrl in create/update items, download image MCP-side,
+  // and inject _imageData (base64) for the Figma handler.
+  // Applied to all node-based endpoints (frames, text, components, instances).
+  /** Resolve imageUrl (pexel:ID, SVG, or raster URL/path) → _imageData or _svgMarkup. */
+  async function resolveOneImageUrl(target: any): Promise<void> {
+    if (!target.imageUrl) return;
+    let url = target.imageUrl;
+    let attribution: string | undefined;
+
+    // Resolve pexel:ID → actual URL + attribution
+    if (url.startsWith("pexel:")) {
+      const resolved = await resolvePexelRef(url);
+      if ("error" in resolved) throw new Error(resolved.error);
+      url = resolved.url;
+      attribution = resolved.attribution;
+    }
+
+    // SVG → read as text markup for createNodeFromSvg
+    if (looksLikeSvg(url)) {
+      const result = await fetchSvgContent(url);
+      if ("error" in result) throw new Error(result.error);
+      target._svgMarkup = result.svg;
+      delete target.imageUrl;
+      return;
+    }
+
+    const img = await fetchImageAsBase64(url);
+    if ("error" in img) throw new Error(img.error);
+    target._imageData = img.base64;
+    target._imageMimeType = img.mimeType;
+    if (attribution) target._attribution = attribution;
+    delete target.imageUrl;
+  }
+
+  async function resolveImageUrls(params: any): Promise<void> {
+    const items = params.items as any[] | undefined;
+    if (!items) {
+      await resolveOneImageUrl(params);
+      return;
+    }
+    for (const item of items) {
+      await resolveOneImageUrl(item);
+    }
+  }
+
+  for (const name of ["frames", "text", "components", "instances"]) {
+    const tool = allTools.find(t => t.name === name);
+    if (tool) tool.preProcess = resolveImageUrls;
   }
 
   registerTools(server, sendCommand, caps, allTools);

@@ -1,0 +1,59 @@
+endpoint: images
+domain: creation
+description: "Search stock photos from Pexels and apply image fills."
+description_zh: "搜索 Pexels 图片库并应用图片填充。"
+
+notes: |
+  // Search returns slim photo objects: { id, alt, avg_color, width, height }.
+  // Agents pick images by alt text and avg_color.
+  // To use an image: pass imageUrl:"pexel:<id>" to frames.create or frames.update.
+  // Attribution (photographer credit) is applied automatically as node description.
+  // User-provided image URLs also work — any public image URL can be used as imageUrl on frames.
+  // Powered by Pexels (pexels.com) — free stock photos. Requires PEXELS_API_KEY env var.
+
+methods:
+  search:
+    tier: read
+    inline: true
+    description: Search photos by keyword via Pexels API
+    example: 'images(method:"search", query:"sunset beach", orientation:"landscape", per_page:5)'
+    params:
+      query:
+        type: string
+        required: true
+        description: Search keyword (e.g. "sunset", "office", "nature")
+      orientation:
+        type: enum
+        values: [landscape, portrait, square]
+        optional: true
+        description: "Filter by photo orientation"
+      size:
+        type: enum
+        values: [large, medium, small]
+        optional: true
+        description: "Minimum photo size"
+      color:
+        type: string
+        optional: true
+        description: "Filter by color — hex (e.g. '#FF0000') or named: red, orange, yellow, green, turquoise, blue, violet, pink, brown, black, gray, white"
+      locale:
+        type: string
+        optional: true
+        description: "Locale for search (e.g. 'en-US', 'ja-JP'). Default: en-US"
+      page:
+        type: number
+        coerce: true
+        optional: true
+        description: "Page number for pagination (default: 1)"
+      per_page:
+        type: number
+        coerce: true
+        optional: true
+        description: "Results per page (default: 15, max: 80)"
+    response:
+      type: object
+      properties:
+        photos: { type: array, description: "[{ id, alt, avg_color, width, height }]" }
+        total_results: { type: number, description: Total matching photos }
+        page: { type: number }
+        per_page: { type: number }

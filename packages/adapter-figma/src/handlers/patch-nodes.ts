@@ -1,4 +1,4 @@
-import { batchHandler, findVariableById, findVariableByName, bindTextToComponentProperty, findComponentForBinding, type Hint } from "./helpers";
+import { batchHandler, findVariableById, findVariableByName, bindTextToComponentProperty, findComponentForBinding, applyImageFill, type Hint } from "./helpers";
 import { setFillSingle, setStrokeSingle, setCornerSingle, setOpacitySingle } from "./fill-stroke";
 import { setEffectsSingle, setConstraintsSingle, setExportSettingsSingle, setNodePropertiesSingle } from "./effects";
 import { moveSingle, resizeSingle } from "./modify-node";
@@ -11,7 +11,7 @@ import { nodeUpdate, mixinTextParams } from "@ufira/vibma/guards";
 
 const SIMPLE_PROPS = ["name", "visible", "locked", "rotation", "blendMode", "layoutPositioning", "overflowDirection"] as const;
 
-const FILL_KEYS = ["fills", "fillColor", "fillStyleName", "fillVariableName", "clearFill"] as const;
+const FILL_KEYS = ["fills", "fillColor", "fillStyleName", "fillVariableName", "clearFill", "_imageData"] as const;
 
 const STROKE_KEYS = ["strokes", "strokeColor", "strokeStyleName", "strokeVariableName", "strokeWeight",
   "strokeTopWeight", "strokeBottomWeight", "strokeLeftWeight", "strokeRightWeight"] as const;
@@ -41,6 +41,9 @@ const ALL_KNOWN = new Set<string>([
   "componentProperties", // instance handler extension
   "componentPropertyName", // bind text node to component TEXT property
   "componentId",           // explicit target component for property binding
+  "_imageData",          // base64 image data (injected by MCP pre-processor)
+  "_imageMimeType",      // image MIME type (injected by MCP pre-processor)
+  "imageScaleMode",      // IMAGE fill scale mode
 ]);
 
 export function hasAny(item: any, keys: readonly string[]): boolean {
@@ -106,8 +109,12 @@ export async function patchSingleNode(item: any, textCtx: TextPropsContext | nul
     await doResize(item);
   }
 
-  // 5. Fill (fills is canonical — all aliases normalized by batchHandler)
-  if (hasAny(item, FILL_KEYS)) {
+  // 5. Fill (image fill takes precedence, then regular fill)
+  if (item._imageData) {
+    const node = await figma.getNodeByIdAsync(item.nodeId);
+    if (!node) throw new Error(`Node not found: ${item.nodeId}`);
+    await applyImageFill(node, item, hints);
+  } else if (hasAny(item, FILL_KEYS)) {
     const r = await setFillSingle({
       nodeId: item.nodeId,
       fills: item.fills,

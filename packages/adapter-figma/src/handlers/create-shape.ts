@@ -1,4 +1,4 @@
-import { batchHandler, appendToParent, appendAndApplySizing, checkOverlappingSiblings, solidPaint, applyFillWithAutoBind, applyStrokeWithAutoBind, applyCornerRadius, applyTokens, findVariableById, findColorVariableByName, type Hint } from "./helpers";
+import { batchHandler, appendToParent, appendAndApplySizing, checkOverlappingSiblings, solidPaint, applyFillWithAutoBind, applyImageFill, applyStrokeWithAutoBind, applyCornerRadius, applyTokens, findVariableById, findColorVariableByName, type Hint } from "./helpers";
 import {
   framesCreateSection, framesCreateSvg, framesCreateRectangle,
   framesCreateEllipse, framesCreateLine, framesCreateGroup,
@@ -22,7 +22,8 @@ async function createSingleSection(p: any) {
     section.fills = [];
 
     const hints: Hint[] = [];
-    await applyFillWithAutoBind(section, p, hints);
+    const hasImageFill = await applyImageFill(section, p, hints);
+    if (!hasImageFill) await applyFillWithAutoBind(section, p, hints);
 
     await appendToParent(section, p.parentId);
     const result: any = { id: section.id };
@@ -135,7 +136,8 @@ async function createSingleRectangle(p: any) {
     const hints: Hint[] = [];
     await applyTokens(rect, { opacity: p.opacity }, hints);
     await applyCornerRadius(rect, p, hints);
-    await applyFillWithAutoBind(rect, p, hints);
+    const hasImageFill = await applyImageFill(rect, p, hints);
+    if (!hasImageFill) await applyFillWithAutoBind(rect, p, hints);
     await applyStrokeWithAutoBind(rect, p, hints);
     const parent = await appendAndApplySizing(rect, p, hints);
     checkOverlappingSiblings(rect, parent, hints);
@@ -161,7 +163,8 @@ async function createSingleEllipse(p: any) {
 
     const hints: Hint[] = [];
     await applyTokens(ellipse, { opacity: p.opacity }, hints);
-    await applyFillWithAutoBind(ellipse, p, hints);
+    const hasImageFill = await applyImageFill(ellipse, p, hints);
+    if (!hasImageFill) await applyFillWithAutoBind(ellipse, p, hints);
     await applyStrokeWithAutoBind(ellipse, p, hints);
     const parent = await appendAndApplySizing(ellipse, p, hints);
     checkOverlappingSiblings(ellipse, parent, hints);

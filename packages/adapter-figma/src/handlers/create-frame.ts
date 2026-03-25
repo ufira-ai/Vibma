@@ -1,4 +1,4 @@
-import { batchHandler, appendAndApplySizing, applySizing, checkOverlappingSiblings, isSmallIntrinsic, applyFillWithAutoBind, applyStrokeWithAutoBind, applyCornerRadius, applyTokens, normalizeAliases, FRAME_ALIAS_KEYS, type Hint } from "./helpers";
+import { batchHandler, appendAndApplySizing, applySizing, checkOverlappingSiblings, isSmallIntrinsic, applyFillWithAutoBind, applyImageFill, applyStrokeWithAutoBind, applyCornerRadius, applyTokens, normalizeAliases, FRAME_ALIAS_KEYS, type Hint } from "./helpers";
 import { looksInteractive } from "@ufira/vibma/utils/wcag";
 import { framesCreateFrame, framesCreateAutoLayout } from "@ufira/vibma/guards";
 import { createInlineChildren, collectTextChildren, normalizeInlineChildTypes } from "./components";
@@ -141,8 +141,9 @@ export async function setupFrameNode(
     }
   }
 
-  // Fill & stroke
-  await applyFillWithAutoBind(node, p, hints);
+  // Fill & stroke (image fill takes precedence over color fill)
+  const hasImageFill = await applyImageFill(node, p, hints);
+  if (!hasImageFill) await applyFillWithAutoBind(node, p, hints);
   await applyStrokeWithAutoBind(node, p, hints);
   if (p.strokeAlign) node.strokeAlign = p.strokeAlign;
   if (p.strokesIncludedInLayout !== undefined) (node as any).strokesIncludedInLayout = p.strokesIncludedInLayout;
@@ -374,7 +375,8 @@ async function createSingleAutoLayout(p: any) {
       await applyTokens(frame, { counterAxisSpacing: p.counterAxisSpacing }, hints);
     }
 
-    await applyFillWithAutoBind(frame, p, hints);
+    const hasImageFill = await applyImageFill(frame, p, hints);
+    if (!hasImageFill) await applyFillWithAutoBind(frame, p, hints);
     await applyStrokeWithAutoBind(frame, p, hints);
     await applyCornerRadius(frame, p, hints);
 

@@ -9,6 +9,7 @@ notes: |
   // Sizing: FIXED = explicit size, HUG = shrink to children, FILL = expand to fill parent.
   // Fill: pass fills:[{type:"SOLID", color:"#hex"}] or [] for transparent. Shorthand: fillColor:"#3B82F6" (auto-binds to matching variable/style).
   // Also: fillVariableName:"bg/primary", fillStyleName:"Surface/Primary".
+  // Image fill: imageUrl accepts "pexel:<id>", a public URL, or a local file path. SVGs become vector nodes; raster images become IMAGE fills. imageScaleMode: FILL (default), FIT, CROP, TILE.
   // Stroke: pass strokes:[{type:"SOLID", color:"#hex"}] or [] to clear. Shorthand: strokeColor:"#000", strokeVariableName:"border/default".
   // Token fields (cornerRadius, opacity, itemSpacing, padding, strokeWeight): pass number for value, string for variable name/ID.
   // ---
@@ -57,6 +58,8 @@ methods:
           fillColor: { $ref: color, optional: true, description: "Shorthand — sets a single solid fill (auto-binds to matching variable/style)" }
           fillStyleName: { type: string, optional: true, description: Paint style name for fill }
           fillVariableName: { type: string, optional: true, description: "Color variable by name e.g. 'bg/primary'" }
+          imageUrl: { type: string, optional: true, description: "Image source — 'pexel:<id>', public URL, or local file path" }
+          imageScaleMode: { type: enum, values: [FILL, FIT, CROP, TILE], optional: true, description: "How the image is scaled (default: FILL)" }
       rectangle:
         description: Rectangle shape node
         params:
@@ -70,6 +73,8 @@ methods:
           fillColor: { $ref: color, optional: true, description: "Shorthand — sets a single solid fill (auto-binds to matching variable/style)" }
           fillStyleName: { type: string, optional: true, description: Paint style name for fill }
           fillVariableName: { type: string, optional: true, description: "Color variable by name e.g. 'bg/primary'" }
+          imageUrl: { type: string, optional: true, description: "Image source — 'pexel:<id>', public URL, or local file path" }
+          imageScaleMode: { type: enum, values: [FILL, FIT, CROP, TILE], optional: true, description: "How the image is scaled (default: FILL)" }
           strokes: { type: array, optional: true, description: "Stroke paints array — e.g. [{type: 'SOLID', color: '#hex'}] or [] to clear" }
           strokeColor: { $ref: color, optional: true, description: "Shorthand — sets a single solid stroke (auto-binds to matching variable/style)" }
           strokeVariableName: { type: string, optional: true, description: "Color variable by name for stroke" }
@@ -91,6 +96,8 @@ methods:
           fillColor: { $ref: color, optional: true, description: "Shorthand — sets a single solid fill (auto-binds to matching variable/style)" }
           fillStyleName: { type: string, optional: true, description: Paint style name for fill }
           fillVariableName: { type: string, optional: true, description: "Color variable by name e.g. 'bg/primary'" }
+          imageUrl: { type: string, optional: true, description: "Image source — 'pexel:<id>', public URL, or local file path" }
+          imageScaleMode: { type: enum, values: [FILL, FIT, CROP, TILE], optional: true, description: "How the image is scaled (default: FILL)" }
           strokes: { type: array, optional: true, description: "Stroke paints array — e.g. [{type: 'SOLID', color: '#hex'}] or [] to clear" }
           strokeColor: { $ref: color, optional: true, description: "Shorthand — sets a single solid stroke (auto-binds to matching variable/style)" }
           strokeVariableName: { type: string, optional: true, description: "Color variable by name for stroke" }

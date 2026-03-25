@@ -49,6 +49,7 @@ export function registerTools(
         }
 
         if (tool.validate) tool.validate(params);
+        if (tool.preProcess) await tool.preProcess(params);
         const command = resolveCommand(tool, params);
         // Inject session capabilities so adapter-side handlers can branch on tier
         params._caps = caps;

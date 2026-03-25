@@ -25,6 +25,8 @@
     "typescript": "^5.9.3"
   },
   "dependencies": {
+    "pexels": "1.4.0",
+    "untildify": "6.0.0",
     "yaml": "^2.8.2"
   }
 }

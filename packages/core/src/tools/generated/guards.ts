@@ -22,6 +22,8 @@ export const componentsCreateComponent = new Set([
   "fillVariableName",
   "fills",
   "height",
+  "imageScaleMode",
+  "imageUrl",
   "itemSpacing",
   "layoutMode",
   "layoutPositioning",
@@ -83,6 +85,8 @@ export const componentsCreateVariantSet = new Set([
   "fillVariableName",
   "fills",
   "height",
+  "imageScaleMode",
+  "imageUrl",
   "itemSpacing",
   "layoutMode",
   "layoutPositioning",
@@ -164,6 +168,8 @@ export const nodeUpdate = new Set([
   "fontWeight",
   "height",
   "id",
+  "imageScaleMode",
+  "imageUrl",
   "itemSpacing",
   "layoutMode",
   "layoutPositioning",
@@ -233,6 +239,8 @@ export const framesCreateFrame = new Set([
   "fillVariableName",
   "fills",
   "height",
+  "imageScaleMode",
+  "imageUrl",
   "itemSpacing",
   "layoutMode",
   "layoutPositioning",
@@ -290,6 +298,8 @@ export const framesCreateAutoLayout = new Set([
   "fillVariableName",
   "fills",
   "height",
+  "imageScaleMode",
+  "imageUrl",
   "itemSpacing",
   "layoutMode",
   "layoutPositioning",
@@ -339,6 +349,8 @@ export const framesCreateSection = new Set([
   "fillVariableName",
   "fills",
   "height",
+  "imageScaleMode",
+  "imageUrl",
   "name",
   "parentId",
   "width",
@@ -356,6 +368,8 @@ export const framesCreateRectangle = new Set([
   "fillVariableName",
   "fills",
   "height",
+  "imageScaleMode",
+  "imageUrl",
   "layoutSizingHorizontal",
   "layoutSizingVertical",
   "name",
@@ -379,6 +393,8 @@ export const framesCreateEllipse = new Set([
   "fillVariableName",
   "fills",
   "height",
+  "imageScaleMode",
+  "imageUrl",
   "layoutSizingHorizontal",
   "layoutSizingVertical",
   "name",
@@ -698,7 +714,7 @@ export const mixinBlendParams = new Set(["blendMode","effectStyleName","opacity"
 export const mixinCornerParams = new Set(["bottomLeftRadius","bottomRightRadius","cornerRadius","topLeftRadius","topRightRadius"]) as ReadonlySet<string>;
 
 /** fill_params */
-export const mixinFillParams = new Set(["fillColor","fillStyleName","fillVariableName","fills"]) as ReadonlySet<string>;
+export const mixinFillParams = new Set(["fillColor","fillStyleName","fillVariableName","fills","imageScaleMode","imageUrl"]) as ReadonlySet<string>;
 
 /** frame_params */
 export const mixinFrameParams = new Set([
@@ -714,6 +730,8 @@ export const mixinFrameParams = new Set([
   "fillVariableName",
   "fills",
   "height",
+  "imageScaleMode",
+  "imageUrl",
   "itemSpacing",
   "layoutMode",
   "layoutPositioning",

@@ -8,3 +8,6 @@ fill_params:
   fillColor: { $ref: color, optional: true, description: "Shorthand — sets a single solid fill (auto-binds to matching variable/style)" }
   fillStyleName: { type: string, optional: true, description: "Paint style name for fill" }
   fillVariableName: { type: string, optional: true, description: "Color variable by name e.g. 'bg/primary'" }
+  # Image fill
+  imageUrl: { type: string, optional: true, description: "Image source — 'pexel:<id>' for Pexels photos, a public URL, or a local file path. SVGs are inserted as vectors; raster images become IMAGE fills." }
+  imageScaleMode: { type: enum, values: [FILL, FIT, CROP, TILE], optional: true, description: "How the image is scaled within the frame (default: FILL)" }

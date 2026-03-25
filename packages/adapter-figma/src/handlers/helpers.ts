@@ -683,6 +683,75 @@ export function rejectUnknownParams(p: any, knownKeys: ReadonlySet<string>, help
   }
 }
 
+/**
+ * Apply an IMAGE fill from base64 data, or insert SVG markup as child vector nodes.
+ * Injected by MCP-side imageUrl pre-processor (_imageData for raster, _svgMarkup for SVG).
+ * Returns true if fill/SVG was applied, false if no image data present.
+ */
+export async function applyImageFill(
+  node: any,
+  p: { _imageData?: string; _imageMimeType?: string; imageScaleMode?: string; _attribution?: string; _svgMarkup?: string },
+  hints: Hint[],
+): Promise<boolean> {
+  // SVG → insert as vector children inside the node, scaled to fit
+  if (p._svgMarkup) {
+    try {
+      const svgNode = figma.createNodeFromSvg(p._svgMarkup);
+
+      if ("children" in node) {
+        const targetW = node.width;
+        const targetH = node.height;
+        const svgW = svgNode.width;
+        const svgH = svgNode.height;
+
+        // Scale the whole SVG group to fit, then transfer children
+        if (targetW && targetH && (svgW !== targetW || svgH !== targetH)) {
+          const scale = Math.min(targetW / svgW, targetH / svgH);
+          svgNode.rescale(scale);
+        }
+
+        for (const child of [...svgNode.children]) node.appendChild(child);
+        svgNode.remove();
+      } else {
+        svgNode.x = node.x;
+        svgNode.y = node.y;
+        svgNode.name = node.name;
+        if (node.parent) node.parent.appendChild(svgNode);
+        node.remove();
+      }
+      return true;
+    } catch (e: any) {
+      hints.push({ type: "error", message: `Failed to insert SVG: ${e.message}` });
+      return false;
+    }
+  }
+
+  if (!p._imageData) return false;
+
+  try {
+    const { customBase64Decode } = await import("../utils/base64");
+    const bytes = customBase64Decode(p._imageData);
+    const image = figma.createImage(bytes);
+    const scaleMode = (p.imageScaleMode ?? "FILL") as "FILL" | "FIT" | "CROP" | "TILE";
+
+    node.fills = [{
+      type: "IMAGE" as const,
+      scaleMode,
+      imageHash: image.hash,
+    }];
+
+    if (p._attribution) {
+      node.name = `${node.name} — ${p._attribution}`;
+      hints.push({ type: "suggest", message: p._attribution });
+    }
+
+    return true;
+  } catch (e: any) {
+    hints.push({ type: "error", message: `Failed to apply image fill: ${e.message}` });
+    return false;
+  }
+}
+
 export async function applyFillWithAutoBind(
   node: any,
   p: { fills?: any },

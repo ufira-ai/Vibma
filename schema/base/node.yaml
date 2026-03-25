@@ -144,6 +144,8 @@ methods:
             width: { type: number, optional: true }
             height: { type: number, optional: true }
             clearFill: { type: boolean, optional: true, description: "Remove all fills" }
+            imageUrl: { type: string, optional: true, description: "Image source — 'pexel:<id>' for Pexels photos, a public URL, or a local file path. SVGs are inserted as vectors; raster images become IMAGE fills." }
+            imageScaleMode: { type: enum, values: [FILL, FIT, CROP, TILE], optional: true, description: "How the image is scaled within the frame (default: FILL)" }
             # strokeWeight expanded via geometry_params mixin ($expand: stroke)
             effects: { type: array, optional: true, description: "Effect array (DROP_SHADOW, INNER_SHADOW, LAYER_BLUR, BACKGROUND_BLUR)", items: { type: object } }
             # --- prototyping ---

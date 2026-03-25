@@ -31,6 +31,7 @@ export const commandMap: Record<string, Record<string, string>> = {
   "fonts": {"list":"fonts.list"},
   "frames": {"get":"frames.get","list":"frames.list","update":"frames.update","delete":"frames.delete","clone":"frames.clone","audit":"frames.audit","reparent":"frames.reparent","create":"frames.create","commit":"frames.commit","export":"frames.export"},
   "icons": {"search":"icons.search","collections":"icons.collections","create":"icons.create"},
+  "images": {"search":"images.search"},
   "instances": {"list":"instances.list","delete":"instances.delete","clone":"instances.clone","audit":"instances.audit","reparent":"instances.reparent","get":"instances.get","create":"instances.create","update":"instances.update","swap":"instances.swap","detach":"instances.detach","reset_overrides":"instances.reset_overrides"},
   "lint": {"check":"lint.check","fix":"lint.fix"},
   "prototyping": {"get":"prototyping.get","add":"prototyping.add","set":"prototyping.set","remove":"prototyping.remove"},
@@ -46,6 +47,7 @@ export const commandMap: Record<string, Record<string, string>> = {
 export const inlineMethods: Record<string, Record<string, boolean>> = {
   "connection": {"create":true,"list":true,"delete":true},
   "icons": {"search":true,"collections":true,"create":true},
+  "images": {"search":true},
 };
 
 export const tools: ToolDef[] = [
@@ -105,6 +107,8 @@ export const tools: ToolDef[] = [
             fillColor: S.colorRgba.optional().describe("Shorthand — sets a single solid fill (auto-binds to matching variable/style)"),
             fillStyleName: z.string().optional().describe("Paint style name for fill"),
             fillVariableName: z.string().optional().describe("Color variable by name e.g. 'bg/primary'"),
+            imageUrl: z.string().optional().describe("Image source — 'pexel:<id>' for Pexels photos, a public URL, or a local file path. SVGs are inserted as vectors; raster images become IMAGE fills."),
+            imageScaleMode: z.enum(["FILL", "FIT", "CROP", "TILE"]).optional().describe("How the image is scaled within the frame (default: FILL)"),
             strokes: z.array(z.record(z.string(), z.unknown())).optional().describe("Stroke paints array — e.g. [{type: 'SOLID', color: '#hex'}] or [] to clear. Primary way to set strokes."),
             strokeColor: S.colorRgba.optional().describe("Shorthand — sets a single solid stroke (auto-binds to matching variable/style)"),
             strokeStyleName: z.string().optional().describe("Paint style name for stroke"),
@@ -166,6 +170,8 @@ export const tools: ToolDef[] = [
             fillColor: S.colorRgba.optional().describe("Shorthand — sets a single solid fill (auto-binds to matching variable/style)"),
             fillStyleName: z.string().optional().describe("Paint style name for fill"),
             fillVariableName: z.string().optional().describe("Color variable by name e.g. 'bg/primary'"),
+            imageUrl: z.string().optional().describe("Image source — 'pexel:<id>' for Pexels photos, a public URL, or a local file path. SVGs are inserted as vectors; raster images become IMAGE fills."),
+            imageScaleMode: z.enum(["FILL", "FIT", "CROP", "TILE"]).optional().describe("How the image is scaled within the frame (default: FILL)"),
             strokes: z.array(z.record(z.string(), z.unknown())).optional().describe("Stroke paints array — e.g. [{type: 'SOLID', color: '#hex'}] or [] to clear. Primary way to set strokes."),
             strokeColor: S.colorRgba.optional().describe("Shorthand — sets a single solid stroke (auto-binds to matching variable/style)"),
             strokeStyleName: z.string().optional().describe("Paint style name for stroke"),
@@ -327,6 +333,8 @@ export const tools: ToolDef[] = [
             fillColor: S.colorRgba.optional().describe("Shorthand — sets a single solid fill (auto-binds to matching variable/style)"),
             fillStyleName: z.string().optional().describe("Paint style name for fill"),
             fillVariableName: z.string().optional().describe("Color variable by name e.g. 'bg/primary'"),
+            imageUrl: z.string().optional().describe("Image source — 'pexel:<id>' for Pexels photos, a public URL, or a local file path. SVGs are inserted as vectors; raster images become IMAGE fills."),
+            imageScaleMode: z.enum(["FILL", "FIT", "CROP", "TILE"]).optional().describe("How the image is scaled within the frame (default: FILL)"),
             strokes: z.array(z.record(z.string(), z.unknown())).optional().describe("Stroke paints array — e.g. [{type: 'SOLID', color: '#hex'}] or [] to clear. Primary way to set strokes."),
             strokeColor: S.colorRgba.optional().describe("Shorthand — sets a single solid stroke (auto-binds to matching variable/style)"),
             strokeStyleName: z.string().optional().describe("Paint style name for stroke"),
@@ -382,6 +390,8 @@ export const tools: ToolDef[] = [
             fillColor: S.colorRgba.optional().describe("Shorthand — sets a single solid fill (auto-binds to matching variable/style)"),
             fillStyleName: z.string().optional().describe("Paint style name for fill"),
             fillVariableName: z.string().optional().describe("Color variable by name e.g. 'bg/primary'"),
+            imageUrl: z.string().optional().describe("Image source — 'pexel:<id>' for Pexels photos, a public URL, or a local file path. SVGs are inserted as vectors; raster images become IMAGE fills."),
+            imageScaleMode: z.enum(["FILL", "FIT", "CROP", "TILE"]).optional().describe("How the image is scaled within the frame (default: FILL)"),
             strokes: z.array(z.record(z.string(), z.unknown())).optional().describe("Stroke paints array — e.g. [{type: 'SOLID', color: '#hex'}] or [] to clear. Primary way to set strokes."),
             strokeColor: S.colorRgba.optional().describe("Shorthand — sets a single solid stroke (auto-binds to matching variable/style)"),
             strokeStyleName: z.string().optional().describe("Paint style name for stroke"),
@@ -432,6 +442,8 @@ export const tools: ToolDef[] = [
             fillColor: S.colorRgba.optional().describe("Shorthand — sets a single solid fill (auto-binds to matching variable/style)"),
             fillStyleName: z.string().optional().describe("Paint style name for fill"),
             fillVariableName: z.string().optional().describe("Color variable by name e.g. 'bg/primary'"),
+            imageUrl: z.string().optional().describe("Image source — 'pexel:<id>', public URL, or local file path"),
+            imageScaleMode: z.enum(["FILL", "FIT", "CROP", "TILE"]).optional().describe("How the image is scaled (default: FILL)"),
           }).passthrough(),
           "rectangle": z.object({
             name: z.string().optional().describe("Layer name (default: 'Rectangle')"),
@@ -444,6 +456,8 @@ export const tools: ToolDef[] = [
             fillColor: S.colorRgba.optional().describe("Shorthand — sets a single solid fill (auto-binds to matching variable/style)"),
             fillStyleName: z.string().optional().describe("Paint style name for fill"),
             fillVariableName: z.string().optional().describe("Color variable by name e.g. 'bg/primary'"),
+            imageUrl: z.string().optional().describe("Image source — 'pexel:<id>', public URL, or local file path"),
+            imageScaleMode: z.enum(["FILL", "FIT", "CROP", "TILE"]).optional().describe("How the image is scaled (default: FILL)"),
             strokes: z.array(z.record(z.string(), z.unknown())).optional().describe("Stroke paints array — e.g. [{type: 'SOLID', color: '#hex'}] or [] to clear"),
             strokeColor: S.colorRgba.optional().describe("Shorthand — sets a single solid stroke (auto-binds to matching variable/style)"),
             strokeVariableName: z.string().optional().describe("Color variable by name for stroke"),
@@ -468,6 +482,8 @@ export const tools: ToolDef[] = [
             fillColor: S.colorRgba.optional().describe("Shorthand — sets a single solid fill (auto-binds to matching variable/style)"),
             fillStyleName: z.string().optional().describe("Paint style name for fill"),
             fillVariableName: z.string().optional().describe("Color variable by name e.g. 'bg/primary'"),
+            imageUrl: z.string().optional().describe("Image source — 'pexel:<id>', public URL, or local file path"),
+            imageScaleMode: z.enum(["FILL", "FIT", "CROP", "TILE"]).optional().describe("How the image is scaled (default: FILL)"),
             strokes: z.array(z.record(z.string(), z.unknown())).optional().describe("Stroke paints array — e.g. [{type: 'SOLID', color: '#hex'}] or [] to clear"),
             strokeColor: S.colorRgba.optional().describe("Shorthand — sets a single solid stroke (auto-binds to matching variable/style)"),
             strokeVariableName: z.string().optional().describe("Color variable by name for stroke"),
@@ -550,6 +566,28 @@ export const tools: ToolDef[] = [
       }
     },
     commandMap: {"search":"icons.search","collections":"icons.collections","create":"icons.create"},
+  },
+  {
+    name: "images",
+    description: "/** Search stock photos from Pexels and apply image fills. Use method \"help\" for detailed parameter docs. */\n  search    (query, orientation?: landscape|portrait|square, size?: large|medium|small, color?, locale?, page?, per_page?) → { photos?, total_results?, page?, per_page? }  // Search photos by keyword via Pexels API\n// Search returns slim photo objects: { id, alt, avg_color, width, height }.\n// Agents pick images by alt text and avg_color.\n// To use an image: pass imageUrl:\"pexel:<id>\" to frames.create or frames.update.\n// Attribution (photographer credit) is applied automatically as node description.\n// User-provided image URLs also work — any public image URL can be used as imageUrl on frames.\n// Powered by Pexels (pexels.com) — free stock photos. Requires PEXELS_API_KEY env var.",
+    schema: (caps) => filterMethodsByTier({    method: z.enum(["search", "help"]),
+    query: z.string().optional().describe("Search keyword (e.g. \"sunset\", \"office\", \"nature\")"),
+    orientation: z.enum(["landscape", "portrait", "square"]).optional().describe("Filter by photo orientation"),
+    size: z.enum(["large", "medium", "small"]).optional().describe("Minimum photo size"),
+    color: z.string().optional().describe("Filter by color — hex (e.g. '#FF0000') or named: red, orange, yellow, green, turquoise, blue, violet, pink, brown, black, gray, white"),
+    locale: z.string().optional().describe("Locale for search (e.g. 'en-US', 'ja-JP'). Default: en-US"),
+    page: z.coerce.number().optional().describe("Page number for pagination (default: 1)"),
+    per_page: z.coerce.number().optional().describe("Results per page (default: 15, max: 80)"),
+    topic: z.string().optional().describe("Help topic — method name for endpoint help, e.g. \"create\""),
+    }, caps, {"search":"read","help":"read"}),
+    tier: "read" as const,
+    validate: (params: any) => {
+      const m = params.method;
+      if (m === "search") {
+        if (params.query === undefined) throw new Error("search requires \"query\"");
+      }
+    },
+    commandMap: {"search":"images.search"},
   },
   {
     name: "instances",
