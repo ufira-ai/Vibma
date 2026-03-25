@@ -65,7 +65,7 @@ tell application "Figma" to activate
 delay 0.5
 tell application "System Events"
     tell process "Figma"
-        keystroke "/" using command down
+        keystroke "k" using command down
         delay 0.8
         keystroke "Vibma"
         delay 1.5

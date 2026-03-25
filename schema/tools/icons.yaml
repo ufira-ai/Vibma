@@ -43,13 +43,27 @@ methods:
     tier: read
     inline: true
     description: List available Iconify icon sets
-    example: 'icons(method:"collections")'
-    params: {}
+    example: 'icons(method:"collections", category:"UI 24px", limit:10)'
+    params:
+      query:
+        type: string
+        optional: true
+        description: "Filter by name or prefix (e.g. \"lucide\", \"material\")"
+      category:
+        type: string
+        optional: true
+        description: "Filter by category (e.g. \"UI 24px\", \"Logos\", \"Emoji\")"
+      limit:
+        type: number
+        coerce: true
+        optional: true
+        description: "Max results (default: all)"
     response:
       type: object
       description: Array of icon set metadata
       properties:
         collections: { type: array, description: "[{ prefix, name, total, category, license }]" }
+        total: { type: number, description: "Total matching collections (before limit)" }
 
   create:
     tier: create
