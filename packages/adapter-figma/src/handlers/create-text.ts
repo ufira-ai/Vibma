@@ -290,35 +290,22 @@ export async function createTextSingle(p: any, ctx: CreateTextContext) {
       textNode.resize(width, textNode.height);
     }
 
-    const parentIsAL = textNode.parent && "layoutMode" in textNode.parent && (textNode.parent as any).layoutMode !== "NONE";
+    // Let applySizing handle alignment-aware inference (FILL vs HUG on cross-axis).
+    // Only pre-resolve: explicit width → FIXED, explicit sizing → pass through.
+    applySizing(textNode, parent, {
+      layoutSizingHorizontal: layoutSizingHorizontal || (width !== undefined ? "FIXED" : undefined),
+      layoutSizingVertical: layoutSizingVertical,
+    }, hints);
 
-    // Smart defaults for text inside auto-layout: FILL width + HUG height (text wraps)
-    // Explicit width overrides to FIXED. Respect parent alignment — FILL overrides CENTER/MAX.
-    let effectiveH = layoutSizingHorizontal;
-    if (!effectiveH) {
-      if (width !== undefined) {
-        effectiveH = "FIXED";
-      } else if (parentIsAL) {
-        const parentAL = textNode.parent as any;
-        const isHorizontal = parentAL.layoutMode === "HORIZONTAL";
-        const isCrossAxis = !isHorizontal; // text H is cross-axis in VERTICAL parent
-        const crossAlign = parentAL.counterAxisAlignItems as string | undefined;
-        const parentAligns = isCrossAxis && (crossAlign === "CENTER" || crossAlign === "MAX" || crossAlign === "BASELINE");
-        effectiveH = parentAligns ? "HUG" : "FILL";
-      }
-    }
-    const effectiveV = layoutSizingVertical || (parentIsAL ? "HUG" : undefined);
-
+    // Set textAutoResize based on resolved sizing (after applySizing chose FILL/HUG/FIXED)
     if (textAutoResize) {
       textNode.textAutoResize = textAutoResize;
-    } else if (effectiveH === "FILL" || effectiveH === "FIXED") {
-      textNode.textAutoResize = "HEIGHT";
+    } else {
+      const resolvedH = (textNode as any).layoutSizingHorizontal;
+      if (resolvedH === "FILL" || resolvedH === "FIXED") {
+        textNode.textAutoResize = "HEIGHT";
+      }
     }
-
-    applySizing(textNode, parent, {
-      layoutSizingHorizontal: effectiveH,
-      layoutSizingVertical: effectiveV,
-    }, hints);
 
     warnCrossAxisHug(textNode, textNode.parent, hints, "Text");
 
