@@ -206,7 +206,10 @@ export async function createTextSingle(p: any, ctx: CreateTextContext) {
     // Text color: fills is canonical (normalized from fontColor/fontColorVariableName/fontColorStyleName by batchHandler)
     const hints: Hint[] = [];
 
-    // lineHeight PERCENT < 10 warning
+    // lineHeight sanity warnings
+    if (p.lineHeight !== undefined && typeof p.lineHeight === "number" && p.lineHeight < 10) {
+      hints.push({ type: "warn", message: `lineHeight ${p.lineHeight}px looks wrong — did you mean {value: ${Math.round(p.lineHeight * 100)}, unit: "PERCENT"}? Bare numbers are pixels.` });
+    }
     if (p.lineHeight !== undefined && typeof p.lineHeight === "object" && p.lineHeight.unit === "PERCENT" && p.lineHeight.value < 10) {
       hints.push({ type: "warn", message: `lineHeight ${p.lineHeight.value}% looks wrong — did you mean ${Math.round(p.lineHeight.value * 100)}%? PERCENT uses whole percentages (e.g. 150 = 1.5×).` });
     }

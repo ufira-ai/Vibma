@@ -651,6 +651,7 @@ const WRONG_SHAPE_CORRECTIONS: Record<string, string> = {
   justifyContent: `"justifyContent" is not a valid param. Use primaryAxisAlignItems: "CENTER" (MIN | MAX | CENTER | SPACE_BETWEEN)`,
   direction: `"direction" is not a valid param. Use layoutMode: "HORIZONTAL" or "VERTICAL"`,
   display: `"display" is not a valid param. Use layoutMode: "HORIZONTAL" or "VERTICAL" for auto-layout, or "NONE" for static frames`,
+  fontWeight: `"fontWeight" is not supported here. Use fontStyle with the variant name, for example fontStyle: "Bold" or "SemiBold" (use fonts.list to find available variants for your font family).`,
 };
 
 /**
@@ -816,12 +817,20 @@ export async function applyFillWithAutoBind(
 
   // Array of paints → coerce hex colors, auto-bind single solid
   if (Array.isArray(p.fills)) {
+    // Warn about REST API gradient format (gradientHandlePositions) — plugin API uses gradientTransform
+    for (const f of p.fills) {
+      if (f.gradientHandlePositions) {
+        hints.push({ type: "warn", message: `"gradientHandlePositions" is the REST API format. The plugin API uses gradientTransform: [[1,0,0],[0,1,0]] (2×3 matrix). The handle positions were ignored.` });
+        break;
+      }
+    }
     node.fills = p.fills.map((f: any) => {
       if (f.type === "SOLID" && f.color) {
         const c = coerceColor(f.color);
         if (c) return { type: "SOLID" as const, color: { r: c.r, g: c.g, b: c.b }, opacity: f.opacity ?? c.a ?? 1 };
       }
-      return f;
+      const { gradientHandlePositions: _, ...clean } = f;
+      return clean;
     });
     // Auto-bind for single solid color
     if (p.fills.length === 1 && node.fills[0]?.type === "SOLID") {
@@ -936,12 +945,20 @@ export async function applyStrokeWithAutoBind(
     }
     // Array of paints → coerce hex colors, auto-bind single solid
     else if (Array.isArray(p.strokes)) {
+      // Warn about REST API gradient format (gradientHandlePositions) — plugin API uses gradientTransform
+      for (const f of p.strokes) {
+        if (f.gradientHandlePositions) {
+          hints.push({ type: "warn", message: `"gradientHandlePositions" is the REST API format. The plugin API uses gradientTransform: [[1,0,0],[0,1,0]] (2×3 matrix). The handle positions were ignored.` });
+          break;
+        }
+      }
       node.strokes = p.strokes.map((f: any) => {
         if (f.type === "SOLID" && f.color) {
           const c = coerceColor(f.color);
           if (c) return { type: "SOLID" as const, color: { r: c.r, g: c.g, b: c.b }, opacity: f.opacity ?? c.a ?? 1 };
         }
-        return f;
+        const { gradientHandlePositions: _, ...clean } = f;
+        return clean;
       });
       // Auto-bind for single solid color
       if (p.strokes.length === 1 && node.strokes[0]?.type === "SOLID") {
