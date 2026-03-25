@@ -283,11 +283,18 @@ export function applySizing(
       if (isCrossAxis) {
         // Cross-axis: match parent's constraint on this axis.
         // Parent HUGs → child can't fill (would collapse), so HUG.
-        // Parent FIXED/FILL → child should stretch to fill available space.
+        // Parent has CENTER/MAX alignment → FILL would nullify that alignment, so HUG.
+        // Parent FIXED/FILL with MIN alignment → child should stretch to fill.
         const parentCross = isH ? parentSizingH : parentSizingV;
-        const fill = parentCross !== "HUG";
-        return { value: fill ? "FILL" : "HUG", inferred: true,
-          reason: fill ? "stretch to fill parent" : "parent hugs on this axis" };
+        if (parentCross === "HUG") {
+          return { value: "HUG", inferred: true, reason: "parent hugs on this axis" };
+        }
+        const crossAlign = (parent as any).counterAxisAlignItems as string | undefined;
+        if (crossAlign === "CENTER" || crossAlign === "MAX" || crossAlign === "BASELINE") {
+          return { value: "HUG", inferred: true,
+            reason: `parent aligns children ${crossAlign} on cross-axis — FILL would override that` };
+        }
+        return { value: "FILL", inferred: true, reason: "stretch to fill parent" };
       }
       // Primary axis: content-sized along the flow direction
       return { value: "HUG", inferred: true, reason: "shrink to content along flow" };
@@ -327,6 +334,11 @@ export function applySizing(
       value = "HUG";
     }
 
+    // FILL/HUG on ABSOLUTE child is a no-op — Figma ignores sizing for absolute children
+    if ((value === "FILL" || value === "HUG") && "layoutPositioning" in node && (node as any).layoutPositioning === "ABSOLUTE") {
+      hints.push({ type: "warn", message: `${field}:'${value}' has no effect on absolutely positioned nodes — use explicit width/height instead.` });
+    }
+
     // HUG needs auto-layout on the node (frames) or an AL parent (text)
     if (value === "HUG") {
       const isTextInAL = node.type === "TEXT" && parentIsAL;
@@ -344,6 +356,18 @@ export function applySizing(
     }
 
     (node as any)[field] = value;
+
+    // Warn when FILL contradicts parent's cross-axis alignment (CENTER/MAX/BASELINE)
+    if (value === "FILL" && !inferred && parentIsAL) {
+      const isH = field === "layoutSizingHorizontal";
+      const isCrossAxis = parentDir === "HORIZONTAL" ? !isH : isH;
+      if (isCrossAxis) {
+        const crossAlign = (parent as any).counterAxisAlignItems as string | undefined;
+        if (crossAlign === "CENTER" || crossAlign === "MAX" || crossAlign === "BASELINE") {
+          hints.push({ type: "warn", message: `${field}:'FILL' overrides parent's counterAxisAlignItems:'${crossAlign}' — this node will stretch to full width instead of being aligned. Use 'HUG' to respect ${crossAlign} alignment.` });
+        }
+      }
+    }
 
     // Report inferred decisions so the agent knows what we chose
     if (inferred) {
@@ -366,16 +390,39 @@ export function applySizing(
   }
 
   // ── Suggest for updates (autoDefault=false): don't override, just advise ──
+  // Skip suggestion when parent centers/aligns children — FILL would override alignment.
   if (!autoDefault && parentIsAL) {
     const isHorizontal = parentDir === "HORIZONTAL";
     const crossField = isHorizontal ? "layoutSizingVertical" : "layoutSizingHorizontal";
     const crossExplicit = isHorizontal ? p.layoutSizingVertical : p.layoutSizingHorizontal;
-    if (!crossExplicit && crossField in node) {
+    const crossAlign = (parent as any).counterAxisAlignItems as string | undefined;
+    const parentAligns = crossAlign === "CENTER" || crossAlign === "MAX" || crossAlign === "BASELINE";
+    if (!crossExplicit && !parentAligns && crossField in node) {
       const current = (node as any)[crossField];
       if (current === "HUG" || current === "FIXED") {
         hints.push({ type: "suggest", message: `${crossField} is '${current}' inside auto-layout parent. Consider '${crossField}:"FILL"' to fill available space.` });
       }
     }
+  }
+}
+
+/**
+ * Warn if a node has HUG on the cross-axis of a constrained auto-layout parent.
+ * Skips when parent centers/aligns children — HUG is correct to respect alignment.
+ * Call AFTER sizing is applied, passing the node's parent.
+ */
+export function warnCrossAxisHug(node: SceneNode, parent: BaseNode | null, hints: Hint[], label = ""): void {
+  if (!parent || !("layoutMode" in parent) || (parent as any).layoutMode === "NONE") return;
+  const parentAL = parent as any;
+  const isHorizontal = parentAL.layoutMode === "HORIZONTAL";
+  const crossAlign = parentAL.counterAxisAlignItems as string | undefined;
+  if (crossAlign === "CENTER" || crossAlign === "MAX" || crossAlign === "BASELINE") return;
+  const parentCross = isHorizontal ? parentAL.layoutSizingVertical : parentAL.layoutSizingHorizontal;
+  const childCross = isHorizontal ? (node as any).layoutSizingVertical : (node as any).layoutSizingHorizontal;
+  if ((parentCross === "FIXED" || parentCross === "FILL") && childCross === "HUG") {
+    const crossProp = isHorizontal ? "layoutSizingVertical" : "layoutSizingHorizontal";
+    const prefix = label ? `${label} has ` : "";
+    hints.push({ type: "warn", message: `${prefix}HUG on cross-axis of constrained parent — won't fill available space. Use ${crossProp}:"FILL".` });
   }
 }
 

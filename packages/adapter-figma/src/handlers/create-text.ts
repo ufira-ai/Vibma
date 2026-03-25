@@ -1,4 +1,4 @@
-import { batchHandler, appendToParent, checkOverlappingSiblings, suggestTextStyle, applyFillWithAutoBind, applySizing, styleNotFoundHint, bindTextToComponentProperty, findComponentForBinding, type Hint } from "./helpers";
+import { batchHandler, appendToParent, checkOverlappingSiblings, suggestTextStyle, applyFillWithAutoBind, applySizing, styleNotFoundHint, bindTextToComponentProperty, findComponentForBinding, warnCrossAxisHug, type Hint } from "./helpers";
 import { textCreate } from "@ufira/vibma/guards";
 import { applyAnnotations } from "./annotations";
 
@@ -290,35 +290,24 @@ export async function createTextSingle(p: any, ctx: CreateTextContext) {
       textNode.resize(width, textNode.height);
     }
 
-    const parentIsAL = textNode.parent && "layoutMode" in textNode.parent && (textNode.parent as any).layoutMode !== "NONE";
-
-    // Smart defaults for text inside auto-layout: FILL width + HUG height (text wraps)
-    // Explicit width overrides to FIXED
-    const effectiveH = layoutSizingHorizontal || (width !== undefined ? "FIXED" : (parentIsAL ? "FILL" : undefined));
-    const effectiveV = layoutSizingVertical || (parentIsAL ? "HUG" : undefined);
-
-    if (textAutoResize) {
-      textNode.textAutoResize = textAutoResize;
-    } else if (effectiveH === "FILL" || effectiveH === "FIXED") {
-      textNode.textAutoResize = "HEIGHT";
-    }
-
+    // Let applySizing handle alignment-aware inference (FILL vs HUG on cross-axis).
+    // Only pre-resolve: explicit width → FIXED, explicit sizing → pass through.
     applySizing(textNode, parent, {
-      layoutSizingHorizontal: effectiveH,
-      layoutSizingVertical: effectiveV,
+      layoutSizingHorizontal: layoutSizingHorizontal || (width !== undefined ? "FIXED" : undefined),
+      layoutSizingVertical: layoutSizingVertical,
     }, hints);
 
-    // HUG on cross-axis of constrained parent — text won't fill available space
-    if (textNode.parent && "layoutMode" in textNode.parent && (textNode.parent as any).layoutMode !== "NONE") {
-      const parentAL = textNode.parent as any;
-      const isHorizontal = parentAL.layoutMode === "HORIZONTAL";
-      const parentCross = isHorizontal ? parentAL.layoutSizingVertical : parentAL.layoutSizingHorizontal;
-      const childCross = isHorizontal ? textNode.layoutSizingVertical : textNode.layoutSizingHorizontal;
-      if ((parentCross === "FIXED" || parentCross === "FILL") && childCross === "HUG") {
-        const crossProp = isHorizontal ? "layoutSizingVertical" : "layoutSizingHorizontal";
-        hints.push({ type: "warn", message: `Text has HUG on cross-axis of constrained parent — won't fill available space and text won't wrap. Use ${crossProp}:"FILL".` });
+    // Set textAutoResize based on resolved sizing (after applySizing chose FILL/HUG/FIXED)
+    if (textAutoResize) {
+      textNode.textAutoResize = textAutoResize;
+    } else {
+      const resolvedH = (textNode as any).layoutSizingHorizontal;
+      if (resolvedH === "FILL" || resolvedH === "FIXED") {
+        textNode.textAutoResize = "HEIGHT";
       }
     }
+
+    warnCrossAxisHug(textNode, textNode.parent, hints, "Text");
 
     applyAnnotations(textNode, p, hints);
 
