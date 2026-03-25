@@ -6,6 +6,7 @@ import { updateFrameSingle } from "./update-frame";
 import { prepSetTextProperties, setTextPropertiesSingle } from "./text";
 import type { TextPropsContext } from "./text";
 import { nodeUpdate, mixinTextParams } from "@ufira/vibma/guards";
+import { applyAnnotations } from "./annotations";
 
 // ─── Sub-dispatch groups (handler-level concern, not schema validation) ────
 
@@ -314,6 +315,12 @@ export async function patchSingleNode(item: any, textCtx: TextPropsContext | nul
   // 16. Properties escape hatch (last)
   if (item.properties) {
     await setNodePropertiesSingle({ nodeId: item.nodeId, properties: item.properties });
+  }
+
+  // Annotations
+  if (item.annotations) {
+    const node = await figma.getNodeByIdAsync(item.nodeId);
+    if (node) applyAnnotations(node, item, hints);
   }
 
   if (hints.length > 0) result.hints = hints;

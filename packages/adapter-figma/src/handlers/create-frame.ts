@@ -5,6 +5,7 @@ import { createInlineChildren, collectTextChildren, normalizeInlineChildTypes } 
 import { prepCreateText } from "./create-text";
 import { validateAndFixInlineChildren, formatDiff, buildCorrectedPayload } from "./inline-tree";
 import { createStageContainer } from "./stage";
+import { applyAnnotations } from "./annotations";
 
 /**
  * Resolve the effective layoutMode from params.
@@ -209,6 +210,9 @@ export async function setupFrameNode(
   if (looksInteractive(node) && (node.width < 24 || node.height < 24)) {
     hints.push({ type: "suggest", message: "WCAG: Min 24x24px for touch targets." });
   }
+
+  // Annotations
+  applyAnnotations(node, p, hints);
 
   return { parent, hints };
 }

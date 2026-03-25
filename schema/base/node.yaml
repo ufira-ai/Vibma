@@ -155,6 +155,7 @@ methods:
             bindings: { type: array, optional: true, description: "Bind variables to properties. field path examples: 'fills/0/color', 'strokes/0/color', 'opacity', 'width', 'cornerRadius', 'itemSpacing'.", items: { type: object, properties: { field: { type: string, required: true }, variableName: { type: string }, variableId: { type: string } } } }
             explicitMode: { type: object, optional: true, description: "Pin variable mode — use { collectionName, modeName } (preferred) or { collectionId, modeId }" }
             exportSettings: { type: array, optional: true, description: "Export settings", items: { type: object } }
+            annotations: { type: array, coerce: json, optional: true, description: "Set annotations — [{label?, labelMarkdown?, properties?, categoryId?}]. Properties are validated per node type.", items: { type: object } }
             properties: { type: object, optional: true, description: "Direct Figma API props (escape hatch)" }
     response:
       type: batch_mixed
