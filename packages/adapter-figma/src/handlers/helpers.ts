@@ -829,7 +829,8 @@ export async function applyFillWithAutoBind(
         const c = coerceColor(f.color);
         if (c) return { type: "SOLID" as const, color: { r: c.r, g: c.g, b: c.b }, opacity: f.opacity ?? c.a ?? 1 };
       }
-      return f;
+      const { gradientHandlePositions: _, ...clean } = f;
+      return clean;
     });
     // Auto-bind for single solid color
     if (p.fills.length === 1 && node.fills[0]?.type === "SOLID") {
@@ -956,7 +957,8 @@ export async function applyStrokeWithAutoBind(
           const c = coerceColor(f.color);
           if (c) return { type: "SOLID" as const, color: { r: c.r, g: c.g, b: c.b }, opacity: f.opacity ?? c.a ?? 1 };
         }
-        return f;
+        const { gradientHandlePositions: _, ...clean } = f;
+        return clean;
       });
       // Auto-bind for single solid color
       if (p.strokes.length === 1 && node.strokes[0]?.type === "SOLID") {
