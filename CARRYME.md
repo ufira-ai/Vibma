@@ -58,11 +58,12 @@ Update the **port field in the Figma plugin UI** before clicking Connect to matc
 
 Add to your MCP config (e.g. `.cursor/mcp.json`, `.claude.json`, or `.mcp.json`):
 
-```json
+```jsonc
 {
   "mcpServers": {
     "Vibma": {
       "command": "npx",
+      // remove "--edit" if you want to allow AI to read your designs only
       "args": ["-y", "@ufira/vibma", "--edit"]
     }
   }

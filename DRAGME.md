@@ -60,11 +60,12 @@ The Figma plugin can only connect to ports 3055, 3056, 3057, or 3058. This is a 
 
 Add to your MCP config (e.g. `.cursor/mcp.json`, `.claude.json`, or `.mcp.json`):
 
-```json
+```jsonc
 {
   "mcpServers": {
     "Vibma": {
       "command": "node",
+      // remove "--edit" if you want to allow AI to read your designs only
       "args": ["/absolute/path/to/vibma/dist/mcp.js", "--edit"]
     }
   }
@@ -73,11 +74,12 @@ Add to your MCP config (e.g. `.cursor/mcp.json`, `.claude.json`, or `.mcp.json`)
 
 Or run from source (no build step, good for development):
 
-```json
+```jsonc
 {
   "mcpServers": {
     "Vibma": {
       "command": "npx",
+      // remove "--edit" if you want to allow AI to read your designs only
       "args": ["tsx", "/absolute/path/to/vibma/packages/core/src/mcp.ts", "--edit"]
     }
   }

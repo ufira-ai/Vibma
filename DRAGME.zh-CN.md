@@ -54,11 +54,12 @@ Figma 插件只能连接到端口 3055、3056、3057 或 3058。这是 Figma 平
 
 添加到你的 MCP 配置文件（例如 `.cursor/mcp.json`、`.claude.json` 或 `.mcp.json`）：
 
-```json
+```jsonc
 {
   "mcpServers": {
     "Vibma": {
       "command": "node",
+      // 如果只想让 AI 读取你的设计稿，请移除 "--edit"
       "args": ["/absolute/path/to/vibma/dist/mcp.js", "--edit"]
     }
   }
@@ -67,11 +68,12 @@ Figma 插件只能连接到端口 3055、3056、3057 或 3058。这是 Figma 平
 
 或直接从源码运行（无需构建步骤，适合开发）：
 
-```json
+```jsonc
 {
   "mcpServers": {
     "Vibma": {
       "command": "npx",
+      // 如果只想让 AI 读取你的设计稿，请移除 "--edit"
       "args": ["tsx", "/absolute/path/to/vibma/packages/core/src/mcp.ts", "--edit"]
     }
   }

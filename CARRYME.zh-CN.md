@@ -58,11 +58,12 @@ VIBMA_PORT=3056 npx @ufira/vibma-tunnel
 
 添加到你的 MCP 配置文件（例如 `.cursor/mcp.json`、`.claude.json` 或 `.mcp.json`）：
 
-```json
+```jsonc
 {
   "mcpServers": {
     "Vibma": {
       "command": "npx",
+      // 如果只想让 AI 读取你的设计稿，请移除 "--edit"
       "args": ["-y", "@ufira/vibma", "--edit"]
     }
   }
