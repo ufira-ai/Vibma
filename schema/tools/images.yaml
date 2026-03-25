@@ -4,9 +4,10 @@ description: "Search stock photos from Pexels and apply image fills."
 description_zh: "搜索 Pexels 图片库并应用图片填充。"
 
 notes: |
+  // Workflow: search → preview → place.
   // Search returns slim photo objects: { id, alt, avg_color, width, height }.
-  // Agents pick images by alt text and avg_color.
-  // To use an image: pass imageUrl:"pexel:<id>" to frames.create or frames.update.
+  // Preview returns the actual image so you can visually confirm before placing.
+  // To place: pass imageUrl:"pexel:<id>" to frames.create or frames.update.
   // Attribution (photographer credit) is applied automatically as node description.
   // User-provided image URLs also work — any public image URL can be used as imageUrl on frames.
   // Powered by Pexels (pexels.com) — free stock photos. Requires PEXELS_API_KEY env var.
@@ -57,3 +58,23 @@ methods:
         total_results: { type: number, description: Total matching photos }
         page: { type: number }
         per_page: { type: number }
+
+  preview:
+    tier: read
+    inline: true
+    description: "Preview a photo by ID — returns the image so you can see it before placing"
+    example: 'images(method:"preview", id:12345)'
+    params:
+      id:
+        type: number
+        coerce: true
+        required: true
+        description: "Photo ID from search results"
+      size:
+        type: enum
+        values: [small, medium, large]
+        optional: true
+        description: "Preview size (default: medium). small≈130px, medium≈350px, large≈940px height"
+    response:
+      type: image
+      description: "The photo as a visual image preview"

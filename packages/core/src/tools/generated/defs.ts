@@ -31,7 +31,7 @@ export const commandMap: Record<string, Record<string, string>> = {
   "fonts": {"list":"fonts.list"},
   "frames": {"get":"frames.get","list":"frames.list","update":"frames.update","delete":"frames.delete","clone":"frames.clone","audit":"frames.audit","reparent":"frames.reparent","create":"frames.create","commit":"frames.commit","export":"frames.export"},
   "icons": {"search":"icons.search","collections":"icons.collections","create":"icons.create"},
-  "images": {"search":"images.search"},
+  "images": {"search":"images.search","preview":"images.preview"},
   "instances": {"list":"instances.list","delete":"instances.delete","clone":"instances.clone","audit":"instances.audit","reparent":"instances.reparent","get":"instances.get","create":"instances.create","update":"instances.update","swap":"instances.swap","detach":"instances.detach","reset_overrides":"instances.reset_overrides"},
   "lint": {"check":"lint.check","fix":"lint.fix"},
   "prototyping": {"get":"prototyping.get","add":"prototyping.add","set":"prototyping.set","remove":"prototyping.remove"},
@@ -47,7 +47,7 @@ export const commandMap: Record<string, Record<string, string>> = {
 export const inlineMethods: Record<string, Record<string, boolean>> = {
   "connection": {"create":true,"list":true,"delete":true},
   "icons": {"search":true,"collections":true,"create":true},
-  "images": {"search":true},
+  "images": {"search":true,"preview":true},
 };
 
 export const tools: ToolDef[] = [
@@ -570,8 +570,8 @@ export const tools: ToolDef[] = [
   },
   {
     name: "images",
-    description: "/** Search stock photos from Pexels and apply image fills. Use method \"help\" for detailed parameter docs. */\n  search    (query, orientation?: landscape|portrait|square, size?: large|medium|small, color?, locale?, page?, per_page?) → { photos?, total_results?, page?, per_page? }  // Search photos by keyword via Pexels API\n// Search returns slim photo objects: { id, alt, avg_color, width, height }.\n// Agents pick images by alt text and avg_color.\n// To use an image: pass imageUrl:\"pexel:<id>\" to frames.create or frames.update.\n// Attribution (photographer credit) is applied automatically as node description.\n// User-provided image URLs also work — any public image URL can be used as imageUrl on frames.\n// Powered by Pexels (pexels.com) — free stock photos. Requires PEXELS_API_KEY env var.",
-    schema: (caps) => filterMethodsByTier({    method: z.enum(["search", "help"]),
+    description: "/** Search stock photos from Pexels and apply image fills. Use method \"help\" for detailed parameter docs. */\n  search    (query, orientation?: landscape|portrait|square, size?: large|medium|small, color?, locale?, page?, per_page?) → { photos?, total_results?, page?, per_page? }  // Search photos by keyword via Pexels API\n  preview   (id, size?: small|medium|large) → unknown  // Preview a photo by ID — returns the image so you can see it before placing\n// Workflow: search → preview → place.\n// Search returns slim photo objects: { id, alt, avg_color, width, height }.\n// Preview returns the actual image so you can visually confirm before placing.\n// To place: pass imageUrl:\"pexel:<id>\" to frames.create or frames.update.\n// Attribution (photographer credit) is applied automatically as node description.\n// User-provided image URLs also work — any public image URL can be used as imageUrl on frames.\n// Powered by Pexels (pexels.com) — free stock photos. Requires PEXELS_API_KEY env var.",
+    schema: (caps) => filterMethodsByTier({    method: z.enum(["search", "preview", "help"]),
     query: z.string().optional().describe("Search keyword (e.g. \"sunset\", \"office\", \"nature\")"),
     orientation: z.enum(["landscape", "portrait", "square"]).optional().describe("Filter by photo orientation"),
     size: z.enum(["large", "medium", "small"]).optional().describe("Minimum photo size"),
@@ -579,16 +579,20 @@ export const tools: ToolDef[] = [
     locale: z.string().optional().describe("Locale for search (e.g. 'en-US', 'ja-JP'). Default: en-US"),
     page: z.coerce.number().optional().describe("Page number for pagination (default: 1)"),
     per_page: z.coerce.number().optional().describe("Results per page (default: 15, max: 80)"),
+    id: z.coerce.number().optional().describe("Photo ID from search results"),
     topic: z.string().optional().describe("Help topic — method name for endpoint help, e.g. \"create\""),
-    }, caps, {"search":"read","help":"read"}),
+    }, caps, {"search":"read","preview":"read","help":"read"}),
     tier: "read" as const,
     validate: (params: any) => {
       const m = params.method;
       if (m === "search") {
         if (params.query === undefined) throw new Error("search requires \"query\"");
       }
+      if (m === "preview") {
+        if (params.id === undefined) throw new Error("preview requires \"id\"");
+      }
     },
-    commandMap: {"search":"images.search"},
+    commandMap: {"search":"images.search","preview":"images.preview"},
   },
   {
     name: "instances",

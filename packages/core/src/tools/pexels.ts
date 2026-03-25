@@ -84,6 +84,23 @@ export async function searchPhotos(
   }
 }
 
+// ─── Get single photo by ID (cache-first) ──────────────────────
+
+export async function getPhoto(id: number): Promise<Photo | { error: string }> {
+  const cached = photoCache.get(id);
+  if (cached) return cached;
+  try {
+    const client = getClient();
+    const res = await client.photos.show({ id });
+    if (isError(res)) return { error: `Pexels photo ${id} not found: ${res.error}` };
+    const photo = res as Photo;
+    photoCache.set(id, photo);
+    return photo;
+  } catch (e) {
+    return { error: `Failed to fetch Pexels photo ${id}: ${e instanceof Error ? e.message : String(e)}` };
+  }
+}
+
 // ─── Resolve pexel:ID ───────────────────────────────────────────
 
 const PEXEL_RE = /^pexel:(\d+)$/;

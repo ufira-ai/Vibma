@@ -10,7 +10,7 @@ import { resolveGuideline } from "./generated/guidelines";
 
 import { registerPrompts } from "./prompts";
 import { fetchIconSvg, searchIcons, listCollections } from "./iconify";
-import { searchPhotos, fetchImageAsBase64, resolvePexelRef, looksLikeSvg, fetchSvgContent } from "./pexels";
+import { searchPhotos, getPhoto, fetchImageAsBase64, resolvePexelRef, looksLikeSvg, fetchSvgContent } from "./pexels";
 
 // Connection + icons + images endpoints are registered with custom inline handlers (not via generic registerTools)
 const endpointTools = generatedTools.filter(t => t.name !== "connection" && t.name !== "icons" && t.name !== "images");
@@ -166,6 +166,22 @@ export function registerAllTools(server: McpServer, sendCommand: SendCommandFn, 
             per_page: params.per_page,
           });
           return mcpJson(result);
+        }
+
+        if (method === "preview") {
+          if (!params.id) return mcpError("images", "preview requires an id parameter");
+          const photo = await getPhoto(Number(params.id));
+          if ("error" in photo) return mcpError("images", photo.error);
+          const size: string = params.size ?? "medium";
+          const url = (photo.src as any)[size] ?? photo.src.medium;
+          const img = await fetchImageAsBase64(url);
+          if ("error" in img) return mcpError("images", img.error);
+          return {
+            content: [
+              { type: "image" as const, data: img.base64, mimeType: img.mimeType },
+              { type: "text" as const, text: JSON.stringify({ id: photo.id, alt: photo.alt, photographer: photo.photographer, width: photo.width, height: photo.height }) },
+            ],
+          };
         }
 
         return mcpError("images", `Unknown method "${method}"`);
