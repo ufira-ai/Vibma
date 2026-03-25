@@ -267,7 +267,15 @@ export function applySizing(
     dimension: number | undefined,
   ): { value: string | undefined; inferred: boolean; reason?: string } {
     // 1. Agent explicitly set sizing → use as-is
-    if (explicit) return { value: explicit, inferred: false };
+    if (explicit) {
+      // Warn when sizing conflicts with a provided dimension
+      if (dimension !== undefined && (explicit === "HUG" || explicit === "FILL")) {
+        const dim = field === "layoutSizingHorizontal" ? "width" : "height";
+        const behavior = explicit === "HUG" ? "node will shrink to content" : "node will stretch to fill parent";
+        hints.push({ type: "warn", message: `${dim}: ${dimension} ignored — ${field} is "${explicit}" (${behavior}). Set ${field}: "FIXED" to use the explicit ${dim}.` });
+      }
+      return { value: explicit, inferred: false };
+    }
 
     // 2. Agent provided a dimension → FIXED on that axis
     if (dimension !== undefined) return { value: "FIXED", inferred: false };
