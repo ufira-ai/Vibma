@@ -63,7 +63,7 @@ Add to your MCP config (e.g. `.cursor/mcp.json`, `.claude.json`, or `.mcp.json`)
   "mcpServers": {
     "Vibma": {
       "command": "npx",
-      "args": ["-y", "@ufira/vibma", "--edit"]
+      "args": ["-y", "@ufira/vibma@latest", "--edit"]
     }
   }
 }
@@ -90,7 +90,7 @@ If using a non-default port, add `--port=`:
   "mcpServers": {
     "Vibma": {
       "command": "npx",
-      "args": ["-y", "@ufira/vibma", "--edit", "--port=3056"]
+      "args": ["-y", "@ufira/vibma@latest", "--edit", "--port=3056"]
     }
   }
 }
@@ -105,7 +105,7 @@ By default the MCP server connects to `localhost`. If the relay is running on a 
   "mcpServers": {
     "Vibma": {
       "command": "npx",
-      "args": ["-y", "@ufira/vibma", "--edit"],
+      "args": ["-y", "@ufira/vibma@latest", "--edit"],
       "env": { "VIBMA_SERVER": "host.docker.internal" }
     }
   }
@@ -125,7 +125,7 @@ Vibma's core tools work without any API keys. To unlock **team library discovery
   "mcpServers": {
     "Vibma": {
       "command": "npx",
-      "args": ["-y", "@ufira/vibma", "--edit"],
+      "args": ["-y", "@ufira/vibma@latest", "--edit"],
       "env": {
         "FIGMA_API_TOKEN": "<your-figma-pat>",
         "FIGMA_TEAM_ID": "<your-team-id>",
@@ -312,7 +312,7 @@ Tell the user to update their MCP configuration (e.g. `.cursor/mcp.json`, `claud
   "mcpServers": {
     "Vibma": {
       "command": "npx",
-      "args": ["-y", "@ufira/vibma", "--edit"]
+      "args": ["-y", "@ufira/vibma@latest", "--edit"]
     }
   }
 }

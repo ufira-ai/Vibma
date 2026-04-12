@@ -3,7 +3,7 @@ title: Endpoints
 description: How Vibma organizes tools as REST-style endpoints
 ---
 
-Vibma exposes **14 endpoint tools** instead of dozens of standalone tools. Each endpoint groups related operations behind a single tool with a `method` parameter — similar to a REST resource.
+Vibma exposes **18 endpoint tools** instead of dozens of standalone tools. Each endpoint groups related operations behind a single tool with a `method` parameter — similar to a REST resource.
 
 In addition to endpoint tools, Vibma also includes standalone `help` and `guidelines` tools. Use `help` to discover the API surface, and `guidelines` for design-system and structural best practices.
 
@@ -11,7 +11,7 @@ In addition to endpoint tools, Vibma also includes standalone `help` and `guidel
 
 LLMs work better with fewer, well-documented tools than with a long flat list. Instead of `create_frame`, `get_frame`, `list_frames`, `update_frame`, `delete_frame` as five separate tools, a single `frames` endpoint handles all of them. This:
 
-- **Reduces tool count** — 14 endpoints cover 75 methods
+- **Reduces tool count** — 18 endpoints cover 93 methods
 - **Groups related operations** — the AI sees all frame operations together in one description
 - **Shares parameters** — `fields`, `depth`, `offset`, `limit` work the same everywhere
 - **Enables capability gating** — read methods are always available, create/edit methods appear based on `--create` / `--edit` flags
