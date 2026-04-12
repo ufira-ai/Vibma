@@ -120,6 +120,60 @@ The `--server=<host>` CLI arg also works and takes priority over the env var.
 
 Local addresses (`localhost`, `127.0.0.1`, `host.docker.internal`, `0.0.0.0`, `*.local`) use `ws://` and `http://`. All other addresses use `wss://` and `https://`.
 
+## Optional: Library & Image API Keys
+
+Vibma's core tools work without any API keys. To unlock **team library discovery** and **stock photo search**, add environment variables to your MCP config:
+
+```json
+{
+  "mcpServers": {
+    "Vibma": {
+      "command": "npx",
+      "args": ["-y", "@ufira/vibma", "--edit"],
+      "env": {
+        "FIGMA_API_TOKEN": "<your-figma-pat>",
+        "FIGMA_TEAM_ID": "<your-team-id>",
+        "PEXELS_API_KEY": "<your-pexels-key>"
+      }
+    }
+  }
+}
+```
+
+### Getting a Figma Personal Access Token
+
+1. Go to [Figma Settings > Security](https://www.figma.com/settings) and scroll to **Personal access tokens**
+
+   ![Figma Settings — Personal access tokens](https://raw.githubusercontent.com/ufira-ai/vibma/main/assets/PAT_settings_section.png)
+
+2. Click **Generate new token** and select these two scopes:
+   - **File content — Read** (`file_content:read`)
+   - **Team library content — Read** (`team_library_content:read`)
+
+   ![PAT scopes](https://raw.githubusercontent.com/ufira-ai/vibma/main/assets/PAT_scope.png)
+
+3. Copy the generated token — it starts with `figd_`
+
+### Getting your Team ID
+
+Your Team ID is the number in your Figma home page URL:
+
+```
+https://www.figma.com/files/team/1234567890/...
+                                 ^^^^^^^^^^
+                                 This is your TEAM_ID
+```
+
+![Team ID in URL](https://raw.githubusercontent.com/ufira-ai/vibma/main/assets/TEAM_ID.jpg)
+
+### Getting a Pexels API Key
+
+1. Go to [pexels.com/api/key](https://www.pexels.com/api/key/) and sign up or log in
+2. Request an API key — it's free for personal and commercial use
+3. Copy the key from your dashboard
+
+Pexels photos are free to use, even commercially. Please read the [Pexels Terms of Service](https://www.pexels.com/terms-of-service/) and credit photographers if you use images in production. Vibma automatically attaches photographer attribution to placed images as a node description.
+
 ## 5. Connect
 
 1. In the Figma plugin, set the channel name to `vibma` (or any name you like)
