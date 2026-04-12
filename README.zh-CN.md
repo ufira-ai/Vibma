@@ -77,7 +77,7 @@ Vibma 是 **[ufira](https://github.com/ufira-ai)** 的首个开源项目 — 一
 
 ## 致谢
 
-基于 [sonnylazuardi](https://github.com/sonnylazuardi) 的 [cursor-talk-to-figma-mcp](https://github.com/grab/cursor-talk-to-figma-mcp) 构建。图库照片由 [Pexels](https://www.pexels.com) 提供 — 个人和商业用途均免费。请阅读 [Pexels 服务条款](https://www.pexels.com/terms-of-service/)，在生产环境中使用图片时请注明摄影师。
+基于 [sonnylazuardi](https://github.com/sonnylazuardi) 的 [cursor-talk-to-figma-mcp](https://github.com/grab/cursor-talk-to-figma-mcp) 构建。图标搜索与插入由 [Iconify](https://iconify.design/) 公共 API 提供支持 — 一个开源的统一图标框架，涵盖 100+ 图标集的 200,000+ 图标。图库照片由 [Pexels](https://www.pexels.com) 提供 — 个人和商业用途均免费。请阅读 [Pexels 服务条款](https://www.pexels.com/terms-of-service/)，在生产环境中使用图片时请注明摄影师。
 
 ## 许可证
 
