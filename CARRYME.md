@@ -164,9 +164,11 @@ https://www.figma.com/files/team/1234567890/...
 
 ### Getting a Pexels API Key
 
-1. Create a free account at [pexels.com](https://www.pexels.com)
-2. Go to [Pexels API](https://www.pexels.com/api/) and request an API key
-3. Copy the key from your [API dashboard](https://www.pexels.com/api/new/)
+1. Go to [pexels.com/api/key](https://www.pexels.com/api/key/) and sign up or log in
+2. Request an API key — it's free for personal and commercial use
+3. Copy the key from your dashboard
+
+Pexels photos are free to use, even commercially. Please read the [Pexels Terms of Service](https://www.pexels.com/terms-of-service/) and credit photographers if you use images in production. Vibma automatically attaches photographer attribution to placed images as a node description.
 
 ## 5. Connect
 

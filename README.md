@@ -84,7 +84,7 @@ Vibma is the first open-source project from **[ufira](https://github.com/ufira-a
 
 Built on the foundation of [cursor-talk-to-figma-mcp](https://github.com/grab/cursor-talk-to-figma-mcp) by [sonnylazuardi](https://github.com/sonnylazuardi).
 
-Stock photos powered by [Pexels](https://www.pexels.com).
+Stock photos powered by [Pexels](https://www.pexels.com) — free for personal and commercial use. Please read the [Pexels Terms of Service](https://www.pexels.com/terms-of-service/) and credit photographers when using images in production.
 
 ## License
 
