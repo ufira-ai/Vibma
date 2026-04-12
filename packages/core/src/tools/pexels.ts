@@ -1,16 +1,28 @@
 /**
  * Pexels API client — search stock photos via pexels.com.
- * Uses the official `pexels` npm package.
+ * Uses the official `pexels` npm package, loaded lazily so the optional
+ * image integration cannot break MCP startup when unused.
  * API key sourced from PEXELS_API_KEY environment variable.
  */
 
-import { createClient, type PhotosWithTotalResults, type Photo, type ErrorResponse } from "pexels";
+import type { PhotosWithTotalResults, Photo, ErrorResponse } from "pexels";
 
 // ─── Client ─────────────────────────────────────────────────────
 
-let _client: ReturnType<typeof createClient> | null = null;
+type PexelsModule = typeof import("pexels");
+type PexelsClient = ReturnType<PexelsModule["createClient"]>;
 
-function getClient(): ReturnType<typeof createClient> {
+let _module: Promise<PexelsModule> | null = null;
+let _client: PexelsClient | null = null;
+
+function loadPexels(): Promise<PexelsModule> {
+  if (!_module) {
+    _module = import("pexels");
+  }
+  return _module;
+}
+
+async function getClient(): Promise<PexelsClient> {
   if (_client) return _client;
   const key = process.env.PEXELS_API_KEY;
   if (!key) {
@@ -19,6 +31,7 @@ function getClient(): ReturnType<typeof createClient> {
       "Get a free API key at https://www.pexels.com/api/new/ and set it in your environment.",
     );
   }
+  const { createClient } = await loadPexels();
   _client = createClient(key);
   return _client;
 }
@@ -69,7 +82,7 @@ export async function searchPhotos(
   params: PexelsSearchParams,
 ): Promise<{ photos: SlimPhoto[]; total_results: number; page: number; per_page: number } | { error: string }> {
   try {
-    const client = getClient();
+    const client = await getClient();
     const res = await client.photos.search(params as any);
     if (isError(res)) return { error: res.error };
     const data = res as PhotosWithTotalResults;
@@ -90,7 +103,7 @@ export async function getPhoto(id: number): Promise<Photo | { error: string }> {
   const cached = photoCache.get(id);
   if (cached) return cached;
   try {
-    const client = getClient();
+    const client = await getClient();
     const res = await client.photos.show({ id });
     if (isError(res)) return { error: `Pexels photo ${id} not found: ${res.error}` };
     const photo = res as Photo;
@@ -125,7 +138,7 @@ export async function resolvePexelRef(
 
   if (!photo) {
     try {
-      const client = getClient();
+      const client = await getClient();
       const res = await client.photos.show({ id });
       if (isError(res)) return { error: `Pexels photo ${id} not found: ${res.error}` };
       photo = res as Photo;
