@@ -96,6 +96,60 @@ Vibma 通过访问层级控制可用工具。通过传入标志设置层级：
 }
 ```
 
+## 可选：库与图片 API 密钥
+
+Vibma 的核心工具无需任何 API 密钥。如需启用**团队库发现**和**图库照片搜索**，请在 MCP 配置中添加环境变量：
+
+```json
+{
+  "mcpServers": {
+    "Vibma": {
+      "command": "npx",
+      "args": ["-y", "@ufira/vibma", "--edit"],
+      "env": {
+        "FIGMA_API_TOKEN": "<your-figma-pat>",
+        "FIGMA_TEAM_ID": "<your-team-id>",
+        "PEXELS_API_KEY": "<your-pexels-key>"
+      }
+    }
+  }
+}
+```
+
+### 获取 Figma 个人访问令牌
+
+1. 前往 [Figma 设置 > 安全](https://www.figma.com/settings)，滚动到 **Personal access tokens**
+
+   ![Figma 设置 — 个人访问令牌](https://raw.githubusercontent.com/ufira-ai/vibma/main/assets/PAT_settings_section.png)
+
+2. 点击 **Generate new token**，勾选以下两个权限：
+   - **File content — Read**（`file_content:read`）
+   - **Team library content — Read**（`team_library_content:read`）
+
+   ![PAT 权限](https://raw.githubusercontent.com/ufira-ai/vibma/main/assets/PAT_scope.png)
+
+3. 复制生成的令牌 — 以 `figd_` 开头
+
+### 获取 Team ID
+
+Team ID 是 Figma 主页 URL 中的数字：
+
+```
+https://www.figma.com/files/team/1234567890/...
+                                 ^^^^^^^^^^
+                                 这就是你的 TEAM_ID
+```
+
+![URL 中的 Team ID](https://raw.githubusercontent.com/ufira-ai/vibma/main/assets/TEAM_ID.jpg)
+
+### 获取 Pexels API 密钥
+
+1. 前往 [pexels.com/api/key](https://www.pexels.com/api/key/) 注册或登录
+2. 申请 API 密钥 — 个人和商业用途均免费
+3. 从控制面板复制密钥
+
+Pexels 照片可免费使用，包括商业用途。请阅读 [Pexels 服务条款](https://www.pexels.com/terms-of-service/)，在生产环境中使用图片时请注明摄影师。Vibma 会自动将摄影师信息附加到放置的图片节点描述中。
+
 ## 5. 连接
 
 1. 在 Figma 插件中，将频道名设置为 `vibma`（或任意你喜欢的名称）
@@ -199,6 +253,16 @@ If any tool times out after a successful `connection(method: "create")`, the Fig
 - The **port** matches what MCP is using
 - The **channel name** matches what MCP joined
 - The plugin status shows **Connected**
+
+### Configuring API keys
+
+If the user wants to use team library components or stock photos, help them set up the environment variables.
+
+**FIGMA_API_TOKEN + FIGMA_TEAM_ID**: If the user doesn't know their Team ID, ask them to paste their Figma home page URL — it looks like `https://www.figma.com/files/team/1234567890/...`. Parse the number after `/team/` — that's the Team ID. For the PAT, walk them through Figma Settings > Security > Personal access tokens > Generate new token, and ensure they check **File content — Read** and **Team library content — Read**.
+
+**PEXELS_API_KEY**: Direct the user to [pexels.com/api](https://www.pexels.com/api/) to create a free account and get an API key.
+
+After updating the env vars in their MCP config, they must restart the AI tool (or reload MCP servers) for the changes to take effect.
 
 ### Version mismatch
 

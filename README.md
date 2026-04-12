@@ -15,7 +15,7 @@ https://github.com/user-attachments/assets/bf38e37d-57bb-40b3-a2d1-f89216117c11
 > launched native MCP capabilities through
 > **[Figma for Agents](https://www.figma.com/blog/the-figma-canvas-is-now-open-to-agents/)**,
 > and the Vibma plugin was not accepted to the Figma marketplace due to
-> overlap with this first-party offering.
+> "overlap" with this first-party offering.
 >
 > **Vibma is not an official Figma tool.** For production use, we recommend
 > Figma's native MCP integration and encourage you to follow
@@ -23,9 +23,8 @@ https://github.com/user-attachments/assets/bf38e37d-57bb-40b3-a2d1-f89216117c11
 > agent capabilities.
 >
 > The source code remains available under MIT for learning and reference.
-> If you choose to use the Vibma plugin, please review
-> [Figma's Terms of Service](https://www.figma.com/tos/) to ensure
-> compliance with their platform policies.
+> We recommend reading [Figma's Terms of Service](https://www.figma.com/tos/)
+> before using Vibma to ensure compliance with their platform policies.
 
 Design with peace of mind in structure. Vibma helps AI agents keep Figma files
 structurally consistent, with better token discipline, auto-layout, component
