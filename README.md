@@ -11,15 +11,21 @@
 https://github.com/user-attachments/assets/bf38e37d-57bb-40b3-a2d1-f89216117c11
 </div>
 
-> **Direction Shift (March 2025):** Figma has announced native MCP write access
-> and rejected the Vibma plugin for overlapping with their first-party offering.
-> Vibma is pivoting to become the **adapter layer** for
-> **[Aileron](https://github.com/ufira-ai/aileron)** — a universal design IR
-> that teaches AI agents to produce structurally sound designs, independent of
-> any single tool. See the **[Roadmap](./ROADMAP.md)** for the full plan.
+> **Project Status:** Vibma is no longer under active development. Figma has
+> launched native MCP capabilities through
+> **[Figma for Agents](https://www.figma.com/blog/the-figma-canvas-is-now-open-to-agents/)**,
+> and the Vibma plugin was not accepted to the Figma marketplace due to
+> overlap with this first-party offering.
 >
-> The legacy Figma plugin adapter remains available but carries policy risk.
-> A new adapter converts Aileron IR to Figma's native MCP endpoints.
+> **Vibma is not an official Figma tool.** For production use, we recommend
+> Figma's native MCP integration and encourage you to follow
+> [Figma's official updates](https://www.figma.com/blog/) for the latest
+> agent capabilities.
+>
+> The source code remains available under MIT for learning and reference.
+> If you choose to use the Vibma plugin, please review
+> [Figma's Terms of Service](https://www.figma.com/tos/) to ensure
+> compliance with their platform policies.
 
 Design with peace of mind in structure. Vibma helps AI agents keep Figma files
 structurally consistent, with better token discipline, auto-layout, component
