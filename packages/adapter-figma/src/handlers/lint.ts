@@ -445,9 +445,13 @@ async function walkNode(node: BaseNode, depth: number, issues: Issue[], ctx: Lin
   // -- Rule: overflow-parent --
   // Detect children whose actual bounding dimensions exceed the parent's available inner space.
   // Skip containers with prototype overflow (scrollable) — overflow is intentional.
+  // Skip instance internals when skipInstances is true — overflow inside library components
+  // is owned by the component author, not the consumer. Without this, every use of e.g.
+  // Window/Button Group fires a Liquid Glass overflow finding, drowning real issues.
   if (ctx.runAll || ctx.ruleSet.has("overflow-parent")) {
     const overflow = (node as any).overflowDirection;
-    if (isFrame(node) && node.layoutMode !== "NONE" && "children" in node && (!overflow || overflow === "NONE")) {
+    const isInstanceInternal = ctx.skipInstances && node.type === "INSTANCE";
+    if (isFrame(node) && node.layoutMode !== "NONE" && "children" in node && (!overflow || overflow === "NONE") && !isInstanceInternal) {
       const pW = node.width;
       const pH = node.height;
       const padL = (node as any).paddingLeft || 0;
@@ -562,10 +566,15 @@ async function walkNode(node: BaseNode, depth: number, issues: Issue[], ctx: Lin
   }
 
   // -- Rule: empty-container --
+  // Skip frames with image or gradient fills — they have visual content even without children.
   if (ctx.runAll || ctx.ruleSet.has("empty-container")) {
     if (isFrame(node) && "children" in node && (node as any).children.length === 0) {
-      issues.push({ rule: "empty-container", nodeId: node.id, nodeName: node.name });
-      if (issues.length >= ctx.maxFindings) return;
+      const fills: any[] = (node as any).fills || [];
+      const hasVisualFill = fills.some((f: any) => f.type === "IMAGE" || f.type === "GRADIENT_LINEAR" || f.type === "GRADIENT_RADIAL" || f.type === "GRADIENT_ANGULAR" || f.type === "GRADIENT_DIAMOND");
+      if (!hasVisualFill) {
+        issues.push({ rule: "empty-container", nodeId: node.id, nodeName: node.name });
+        if (issues.length >= ctx.maxFindings) return;
+      }
     }
   }
 

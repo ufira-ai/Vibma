@@ -77,6 +77,16 @@ methods:
         coerce: true
         optional: true
         description: "Max findings (default: 50)"
+      minSeverity:
+        type: enum
+        values: [error, unsafe, heuristic, style, verbose]
+        optional: true
+        description: "Minimum severity to report (default: style). Set to 'verbose' to include AAA contrast and line-height checks."
+      skipInstances:
+        type: boolean
+        coerce: true
+        optional: true
+        description: "Skip instance internals — findings inside instances are owned by the component (default: true)"
     response:
       type: object
       tsType: LintResult

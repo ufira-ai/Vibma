@@ -977,6 +977,38 @@ async function instanceCreateSingle(p: any) {
   const parent = await appendAndApplySizing(inst, p, hints, autoSizing);
   checkOverlappingSiblings(inst, parent, hints);
 
+  // Explicit variable mode — pin Light/Dark or other modes at creation time.
+  // Without this, library components with mode-dependent children (e.g. Desktop
+  // Template with Color Mode: Dark) would require a separate instances.update call.
+  if (p.explicitMode) {
+    const allCollections = await figma.variables.getLocalVariableCollectionsAsync();
+    const em = p.explicitMode;
+    let collection: any;
+    let modeId: string;
+    if (em.collectionName) {
+      const cName = em.collectionName.toLowerCase();
+      collection = allCollections.find((c: any) => c.name.toLowerCase() === cName);
+      if (!collection) hints.push({ type: "error", message: `explicitMode: collection "${em.collectionName}" not found. Available: ${allCollections.map((c: any) => c.name).join(", ")}` });
+    } else if (em.collectionId) {
+      collection = allCollections.find((c: any) => c.id === em.collectionId);
+      if (!collection) hints.push({ type: "error", message: `explicitMode: collection ID "${em.collectionId}" not found.` });
+    }
+    if (collection) {
+      if (em.modeName) {
+        const mName = em.modeName.toLowerCase();
+        const mode = collection.modes.find((m: any) => m.name.toLowerCase() === mName);
+        if (!mode) hints.push({ type: "error", message: `explicitMode: mode "${em.modeName}" not found in "${collection.name}". Available: ${collection.modes.map((m: any) => m.name).join(", ")}` });
+        else modeId = mode.modeId;
+      } else {
+        modeId = em.modeId;
+      }
+      if (modeId!) {
+        try { (inst as any).setExplicitVariableModeForCollection(collection, modeId); }
+        catch (e: any) { hints.push({ type: "error", message: `explicitMode failed: ${e.message}` }); }
+      }
+    }
+  }
+
   const props = p.properties ?? p.componentProperties;
   if (props && typeof props === "object" && Object.keys(props).length > 0) {
     await instanceUpdateComponentProps(inst, props);

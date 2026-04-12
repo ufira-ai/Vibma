@@ -471,6 +471,7 @@ export const instancesCreate = new Set([
   "componentKey",
   "componentName",
   "effectStyleName",
+  "explicitMode",
   "height",
   "layoutPositioning",
   "layoutSizingHorizontal",

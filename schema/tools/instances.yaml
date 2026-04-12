@@ -68,6 +68,7 @@ methods:
             y: { type: number, coerce: true, optional: true }
             width: { type: number, coerce: true, optional: true, description: "Override width (resize)" }
             height: { type: number, coerce: true, optional: true, description: "Override height (resize)" }
+            explicitMode: { type: object, coerce: json, optional: true, description: "Pin variable mode at creation — use { collectionName, modeName } (preferred) or { collectionId, modeId }. Useful for library components with Light/Dark modes." }
             parentId: { $ref: parentId }
       depth: { $ref: depth }
     response:

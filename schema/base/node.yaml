@@ -184,7 +184,7 @@ methods:
   clone:
     # command auto-derived as {endpoint}.clone
     tier: create
-    description: Duplicate nodes
+    description: "Duplicate nodes — produces a same-type copy (frame→frame, instance→instance, component→component). Instance clones reference the same source component; they do not duplicate the component definition."
     params:
       id:
         $ref: nodeId

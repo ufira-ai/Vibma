@@ -108,6 +108,15 @@ export async function patchSingleNode(item: any, textCtx: TextPropsContext | nul
   const needsResize = item.width !== undefined || item.height !== undefined;
   if (needsResize && !hasLayout) {
     await doResize(item);
+    // TEXT nodes: explicit width implies FIXED sizing + height auto-resize.
+    // Without this, the old textAutoResize mode (e.g. WIDTH_AND_HEIGHT) overrides the
+    // new width and the change silently does nothing.
+    if (item.width !== undefined && !item.textAutoResize) {
+      const node = await figma.getNodeByIdAsync(item.nodeId);
+      if (node?.type === "TEXT") {
+        (node as any).textAutoResize = item.height !== undefined ? "NONE" : "HEIGHT";
+      }
+    }
   }
 
   // 5. Fill (image fill takes precedence, then regular fill)
@@ -206,6 +215,12 @@ export async function patchSingleNode(item: any, textCtx: TextPropsContext | nul
   // 12b. Deferred resize — after layout so sizing mode (FIXED/HUG/FILL) is set first
   if (needsResize && hasLayout) {
     await doResize(item);
+    if (item.width !== undefined && !item.textAutoResize) {
+      const node = await figma.getNodeByIdAsync(item.nodeId);
+      if (node?.type === "TEXT") {
+        (node as any).textAutoResize = item.height !== undefined ? "NONE" : "HEIGHT";
+      }
+    }
   }
 
   // 13. Text (flat: fontSize, fontFamily, fontStyle, fontWeight, fills, ...)
