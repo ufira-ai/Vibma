@@ -1,4 +1,4 @@
-import { batchHandler, applyFillWithAutoBind, applySizing, isSmallIntrinsic, suggestTextStyle, warnCrossAxisHug, type Hint } from "./helpers";
+import { batchHandler, applyFillWithAutoBind, applySizing, isSmallIntrinsic, styleNotFoundHint, suggestTextStyle, warnCrossAxisHug, resolveTextStylesForBatch, type Hint } from "./helpers";
 
 // ─── Figma Handlers ──────────────────────────────────────────────
 
@@ -64,6 +64,8 @@ async function setTextContentBatch(params: any) {
 export interface TextPropsContext {
   nodeMap: Map<string, TextNode>;
   textStyles: any[] | null;
+  /** name → resolved BaseStyle (local first, library fallback). Preferred lookup path. */
+  textStyleByName: Map<string, any>;
 }
 
 /**
@@ -92,16 +94,19 @@ export async function prepSetTextProperties(params: any): Promise<TextPropsConte
     }
   }
 
+  // Resolve textStyleName → BaseStyle with local-first precedence (library
+  // fallback via _textStyleKey). Mirrors prepCreateText so text.create and
+  // text.update behave identically for library text styles.
+  const { byName: textStyleByName, fontsToLoad: styleFonts, localStyles } = await resolveTextStylesForBatch(items);
+  for (const fn of styleFonts) {
+    fontsToLoad.set(`${fn.family}::${fn.style}`, fn);
+  }
+
   await Promise.all([...fontsToLoad.values()].map(f => figma.loadFontAsync(f)));
 
-  let textStyles: any[] | null = null;
-  const styleNames = new Set<string>();
-  for (const p of items) {
-    if (p.textStyleName && !p.textStyleId) styleNames.add(p.textStyleName);
-  }
-  if (styleNames.size > 0) textStyles = await figma.getLocalTextStylesAsync();
+  const textStyles = items.some((p: any) => p.textStyleName) ? localStyles : null;
 
-  return { nodeMap, textStyles };
+  return { nodeMap, textStyles, textStyleByName };
 }
 
 export async function setTextPropertiesSingle(p: any, ctx: TextPropsContext) {
@@ -112,19 +117,20 @@ export async function setTextPropertiesSingle(p: any, ctx: TextPropsContext) {
     throw new Error(`Not a text node: ${p.nodeId}`);
   }
 
-  // Text style takes priority
+  // Text style takes priority. textStyleName resolves via ctx.textStyleByName
+  // (local first, library fallback) — same as text.create. Unresolved name
+  // surfaces as an error hint instead of silently falling through.
+  const warnings: Hint[] = [];
   let resolvedStyleId = p.textStyleId;
-  if (!resolvedStyleId && p.textStyleName && ctx.textStyles) {
-    const exact = ctx.textStyles.find((s: any) => s.name === p.textStyleName);
-    if (exact) resolvedStyleId = exact.id;
-    else {
-      const fuzzy = ctx.textStyles.find((s: any) => s.name.toLowerCase().includes(p.textStyleName.toLowerCase()));
-      if (fuzzy) resolvedStyleId = fuzzy.id;
-    }
+  if (!resolvedStyleId && p.textStyleName) {
+    const resolved = ctx.textStyleByName.get(p.textStyleName);
+    if (resolved?.id) resolvedStyleId = resolved.id;
   }
   if (resolvedStyleId) {
     const s = await figma.getStyleByIdAsync(resolvedStyleId);
     if (s?.type === "TEXT") await (node as any).setTextStyleIdAsync(s.id);
+  } else if (p.textStyleName) {
+    warnings.push(styleNotFoundHint("textStyleName", p.textStyleName, (ctx.textStyles || []).map((s: any) => s.name)));
   } else {
     if (p.fontWeight !== undefined) {
       const family = (node.fontName !== figma.mixed && node.fontName) ? node.fontName.family : "Inter";
@@ -147,7 +153,6 @@ export async function setTextPropertiesSingle(p: any, ctx: TextPropsContext) {
   if (p.textDecoration) node.textDecoration = p.textDecoration;
 
   // Text color: fills is canonical (normalized from fontColor* by batchHandler)
-  const warnings: Hint[] = [];
 
   // lineHeight sanity warnings
   if (p.lineHeight !== undefined && typeof p.lineHeight === "number" && p.lineHeight < 10) {

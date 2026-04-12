@@ -13,7 +13,8 @@ notes: |
   // swap: change which component an instance points to while preserving compatible overrides.
   // detach: permanently converts an instance to a regular frame, breaking the component link.
   // reset_overrides: reverts all instance overrides to match the main component.
-  // Workflow: components.list → instances.create with componentId + properties (one call). No separate update needed for text/boolean overrides.
+  // Workflow (local components): components.list → instances.create with componentId + properties (one call).
+  // Workflow (external/published libraries): library(method:"components", query:"...") → instances.create with componentName + properties. The MCP resolves componentName → key and imports via figma.importComponentByKeyAsync — the raw key never enters agent context.
   // Instances support frame-level overrides: layoutSizingHorizontal/Vertical (FIXED, FILL, HUG), opacity, width/height, min/max.
   // Use layoutSizingHorizontal: "FILL" to make instances stretch in auto-layout parents.
 
@@ -44,7 +45,7 @@ methods:
   create:
     tier: create
     description: Create component instances
-    example: 'instances(method:"create", items:[{componentId:"1:23", variantProperties:{"Size":"Large"}, properties:{"Label":"Click me"}, parentId:"2:45", layoutSizingHorizontal:"FILL"}])'
+    example: 'instances(method:"create", items:[{componentName:"Button", variantProperties:{"Size":"Large"}, properties:{"Label":"Click me"}, parentId:"2:45", layoutSizingHorizontal:"FILL"}])  // or componentId:"1:23" for a local component'
     params:
       items:
         type: array
@@ -56,7 +57,9 @@ methods:
           type: object
           properties:
             $mixin: [scene_params, blend_params, sizing_params]
-            componentId: { type: string, required: true, description: "Component or component set ID", aliases: [id] }
+            componentId: { type: string, optional: true, description: "Local component or component set ID. Pass this OR componentKey.", aliases: [id] }
+            componentKey: { type: string, optional: true, description: "Published library component key — imports from a team library via importComponentByKeyAsync. Discover keys via library(method:\"components\", ...); the library tool auto-resolves names → keys so you normally pass componentName instead." }
+            componentName: { type: string, optional: true, description: "Name of a component previously discovered via the library tool. Resolved to a componentKey MCP-side — the agent never handles the raw key. Preferred over componentKey for context hygiene." }
             sizing: { type: enum, values: [contextual], optional: true, description: "\"contextual\": infer FILL/HUG from parent layout (e.g. FILL horizontally in a VERTICAL auto-layout parent). Omit to inherit sizing from the component definition." }
             variantProperties: { type: object, coerce: json, optional: true, description: 'Pick variant e.g. {"Style":"Secondary"}' }
             properties: { type: object, coerce: json, optional: true, description: 'Set component properties inline e.g. {"Label":"Click me", "ShowIcon":true}. Same as instances.update properties.' }

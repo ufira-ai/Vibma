@@ -11,9 +11,22 @@ import { resolveGuideline } from "./generated/guidelines";
 import { registerPrompts } from "./prompts";
 import { fetchIconSvg, searchIcons, listCollections } from "./iconify";
 import { searchPhotos, getPhoto, fetchImageAsBase64, resolvePexelRef, looksLikeSvg, fetchSvgContent } from "./pexels";
+import {
+  parseFileKey,
+  parseTeamId,
+  getFileLibraryList,
+  getTeamLibraryList,
+  filterRegistryByQuery,
+  queryLibrary,
+  countDetailMatches,
+  resolveComponentKey,
+  resolveLibraryRecord,
+  listCachedComponentNames,
+  validateFigmaCredentials,
+} from "./figma-rest";
 
-// Connection + icons + images endpoints are registered with custom inline handlers (not via generic registerTools)
-const endpointTools = generatedTools.filter(t => t.name !== "connection" && t.name !== "icons" && t.name !== "images");
+// Connection + icons + images + library endpoints are registered with custom inline handlers (not via generic registerTools)
+const endpointTools = generatedTools.filter(t => t.name !== "connection" && t.name !== "icons" && t.name !== "images" && t.name !== "library");
 
 // Wire per-method response formatter for frames.export (returns binary image, not JSON)
 const framesTool = endpointTools.find(t => t.name === "frames");
@@ -35,7 +48,7 @@ if (framesTool) {
 export const allTools = [...endpointTools];
 
 /** Register all MCP tools and prompts on the server */
-export function registerAllTools(server: McpServer, sendCommand: SendCommandFn, caps: Capabilities) {
+export async function registerAllTools(server: McpServer, sendCommand: SendCommandFn, caps: Capabilities) {
   // Standalone help tool — directory of all endpoints, handled locally
   server.registerTool("help", {
     description: 'Get help on any endpoint or method. Lists all endpoints, their methods, and detailed parameter docs.\nExamples: help() → directory, help(topic: "components") → endpoint details, help(topic: "components.create") → method params.',
@@ -191,6 +204,91 @@ export function registerAllTools(server: McpServer, sendCommand: SendCommandFn, 
     });
   }
 
+  // ─── Library endpoint — browse external published team libraries via Figma REST API ───
+  // Only registered when both FIGMA_API_TOKEN and FIGMA_TEAM_ID are set and the token
+  // is valid (verified via GET /v1/me at startup). Without these, the tool is hidden —
+  // agents never see it and can't call it with invalid credentials.
+  const figmaCreds = await validateFigmaCredentials();
+  const libraryDef = figmaCreds.ok ? generatedTools.find(t => t.name === "library") : undefined;
+  if (!figmaCreds.ok) {
+    console.error(`[vibma] Library tool disabled: ${figmaCreds.error}`);
+  } else {
+    console.error(`[vibma] Library tool enabled (team ${process.env.FIGMA_TEAM_ID})`);
+  }
+  if (libraryDef) {
+    const librarySchema = typeof libraryDef.schema === "function" ? libraryDef.schema(caps) : libraryDef.schema;
+
+    server.registerTool("library", {
+      description: libraryDef.description,
+      inputSchema: librarySchema,
+    }, async (params: any) => {
+      try {
+        const method = params.method;
+
+        if (method === "help") {
+          const text = resolveEndpointHelp("library", params.topic) ?? resolveHelp("library");
+          return { content: [{ type: "text" as const, text }] };
+        }
+
+        const teamFromEnv = process.env.FIGMA_TEAM_ID;
+        let { file, team } = params;
+
+        // Convenience: if registry is empty and neither target is passed, try env.
+        const needsTarget = (m: string) => m === "list" || (m === "get" && filterRegistryByQuery("").length === 0);
+        if (!file && !team && needsTarget(method) && teamFromEnv) team = teamFromEnv;
+
+        if (method === "list") {
+          if (!file && !team) {
+            return mcpError("library", "list requires either a file (URL or key), a team (URL or ID), or FIGMA_TEAM_ID env var on the MCP server.");
+          }
+          if (file && team) return mcpError("library", "Pass either file or team, not both");
+
+          const view = file
+            ? await getFileLibraryList(parseFileKey(file))
+            : await getTeamLibraryList(parseTeamId(team));
+
+          return mcpJson(view);
+        }
+
+        if (method === "get") {
+          if (!params.query) {
+            return mcpError("library", 'get requires a query parameter — e.g. library(method:"get", query:"button")');
+          }
+
+          // If registry is empty, auto-populate from file/team (ergonomic one-shot).
+          if (filterRegistryByQuery("").length === 0) {
+            if (!file && !team) {
+              return mcpError("library", "Registry empty. Call library(method:\"list\") first, or pass file/team on this call for a one-shot list+get.");
+            }
+            if (file) await getFileLibraryList(parseFileKey(file));
+            else await getTeamLibraryList(parseTeamId(team));
+          }
+
+          // Accept query as a single string or an array of strings. Each query
+          // is a substring filter; matches across queries are merged and deduped
+          // by registered name. Optional library/section filters narrow by source
+          // so overlapping names across imported libraries can be disambiguated.
+          const rawQueries: string | string[] = params.query;
+          const queries = Array.isArray(rawQueries) ? rawQueries : [rawQueries];
+          const view = await queryLibrary(queries, { library: params.library, section: params.section });
+          if (countDetailMatches(view) === 0) {
+            const scope = [
+              params.library ? `library matching "${params.library}"` : null,
+              params.section ? `section matching "${params.section}"` : null,
+            ].filter(Boolean).join(" / ");
+            const hint = `No entries match ${JSON.stringify(queries)}${scope ? ` in ${scope}` : ""}. Call library(method:"list") to see what's available.`;
+            return mcpJson({ libraries: [], hint });
+          }
+          return mcpJson(view);
+        }
+
+        return mcpError("library", `Unknown method "${method}"`);
+      } catch (e) {
+        return mcpError("library", e);
+      }
+    });
+  }
+
   // ─── imageUrl pre-processor ───
   // Intercept imageUrl in create/update items, download image MCP-side,
   // and inject _imageData (base64) for the Figma handler.
@@ -249,6 +347,95 @@ export function registerAllTools(server: McpServer, sendCommand: SendCommandFn, 
   for (const name of ["frames", "text", "components", "instances"]) {
     const tool = allTools.find(t => t.name === name);
     if (tool) tool.preProcess = resolveImageUrls;
+  }
+
+  // ─── instances pre-processor: componentName → componentKey ───
+  // Agents reference published library components by human-readable name.
+  // The figma-rest module holds an internal name→key registry populated
+  // whenever library(...) runs. This pre-processor resolves the name once
+  // at dispatch time so the plugin receives a key — agent context never
+  // has to touch the 40-char opaque key directly.
+  // ─── Library style resolver ──────────────────────────────────
+  // For frames/text items: if the agent passed fillStyleName/strokeStyleName/
+  // For *StyleName params, attach a sibling _*StyleKey field when the name
+  // appears in the library registry. The plugin-side applier uses local-first
+  // precedence — if a local style with that exact name exists, it wins and the
+  // key is ignored. Otherwise the plugin imports via importStyleByKeyAsync and
+  // applies the returned style's ID directly. This matters especially for text
+  // styles: figma.getLocalTextStylesAsync does NOT return library-imported text
+  // styles until they've been applied to a node, so the name-lookup path alone
+  // cannot find them — the direct ID from importStyleByKeyAsync is the only
+  // reliable way to apply a library text style.
+  function resolveLibraryStyleKeys(node: any): void {
+    if (node.fillStyleName) {
+      const rec = resolveLibraryRecord(node.fillStyleName);
+      if (rec?.kind === "style") node._fillStyleKey = rec.key;
+    }
+    if (node.strokeStyleName) {
+      const rec = resolveLibraryRecord(node.strokeStyleName);
+      if (rec?.kind === "style") node._strokeStyleKey = rec.key;
+    }
+    if (node.textStyleName) {
+      const rec = resolveLibraryRecord(node.textStyleName);
+      if (rec?.kind === "style") node._textStyleKey = rec.key;
+    }
+    if (node.effectStyleName) {
+      const rec = resolveLibraryRecord(node.effectStyleName);
+      if (rec?.kind === "style") node._effectStyleKey = rec.key;
+    }
+    if (Array.isArray(node.children)) for (const c of node.children) resolveLibraryStyleKeys(c);
+  }
+
+  async function resolveStyleNames(params: any): Promise<void> {
+    const items = params.items as any[] | undefined;
+    if (!items) {
+      resolveLibraryStyleKeys(params);
+      return;
+    }
+    for (const item of items) resolveLibraryStyleKeys(item);
+  }
+
+  for (const name of ["frames", "text"]) {
+    const tool = allTools.find(t => t.name === name);
+    if (tool) {
+      const existing = tool.preProcess;
+      tool.preProcess = async (params: any) => {
+        await resolveStyleNames(params);
+        if (existing) await existing(params);
+      };
+    }
+  }
+
+  // Auto-resolve componentName → componentKey from the registry. No gate — the
+  // plugin imports on-demand when it sees componentKey. Figma itself tracks
+  // imported components; we don't duplicate that state.
+  async function resolveComponentNames(params: any): Promise<void> {
+    const items = params.items as any[] | undefined;
+    if (!items) return;
+    for (const item of items) {
+      if (item.componentName && !item.componentKey && !item.componentId) {
+        const name: string = item.componentName;
+        const key = resolveComponentKey(name);
+        if (!key) {
+          const known = listCachedComponentNames();
+          const hint = known.length
+            ? ` Registry has: ${known.slice(0, 10).join(", ")}${known.length > 10 ? ", ..." : ""}.`
+            : ' Registry is empty — call library(method:"list") first to populate it.';
+          throw new Error(`Unknown componentName "${name}".${hint}`);
+        }
+        item.componentKey = key;
+        delete item.componentName;
+      }
+    }
+  }
+
+  const instancesTool = allTools.find(t => t.name === "instances");
+  if (instancesTool) {
+    const existingPreProcess = instancesTool.preProcess;
+    instancesTool.preProcess = async (params: any) => {
+      await resolveComponentNames(params);
+      if (existingPreProcess) await existingPreProcess(params);
+    };
   }
 
   registerTools(server, sendCommand, caps, allTools);

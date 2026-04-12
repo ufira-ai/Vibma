@@ -198,4 +198,11 @@ export const allFigmaHandlers: Record<string, (params: any) => Promise<any>> = {
   "prototyping.add": prototypingHandlers.add_reaction,
   "prototyping.set": prototypingHandlers.set_reactions,
   "prototyping.remove": prototypingHandlers.remove_reaction,
+
+  // ─── library endpoint ───
+  // library.list and library.get are MCP-side REST calls — no plugin handler.
+  // All library imports (components, styles) happen on-demand when agents reference
+  // a *Name (componentName, fillStyleName, textStyleName, effectStyleName). The MCP
+  // pre-processor attaches the key, and plugin-side appliers call
+  // importComponentByKeyAsync / importStyleByKeyAsync at apply time (idempotent).
 };

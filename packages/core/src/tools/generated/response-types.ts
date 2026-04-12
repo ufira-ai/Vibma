@@ -24,6 +24,8 @@ export const generatedResponseSchemas: Record<string, Record<string, unknown>> =
   },
   "instances": {
   },
+  "library": {
+  },
   "lint": {
   },
   "prototyping": {

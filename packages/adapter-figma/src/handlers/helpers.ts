@@ -1,6 +1,13 @@
 import { serializeNode, DEFAULT_NODE_BUDGET } from "../utils/serialize-node";
 import type { BatchResult } from "@ufira/vibma/types";
 
+// NOTE: the plugin holds ZERO state about imported library styles.
+// The MCP pre-processor on frames/text attaches *StyleKey fields next to
+// *StyleName; on a local miss, the applier calls figma.importStyleByKeyAsync
+// on demand (it's idempotent) and uses the returned style id. This keeps the
+// plugin stateless — request/response only. Single source of truth lives in
+// the MCP's library registry.
+
 // ─── Hint System ────────────────────────────────────────────────
 // Typed warning/hint objects collected by handlers and summarized by batchHandler.
 
@@ -102,7 +109,7 @@ export function normalizeAliases(p: Record<string, any>, keys: ReadonlySet<strin
     if (!p.fills && p.fillVariableName !== undefined) {
       p.fills = { _variable: p.fillVariableName }; delete p.fillVariableName;
     } else if (!p.fills && p.fillStyleName !== undefined) {
-      p.fills = { _style: p.fillStyleName }; delete p.fillStyleName;
+      p.fills = { _style: p.fillStyleName, _styleKey: p._fillStyleKey }; delete p.fillStyleName; delete p._fillStyleKey;
     } else if (!p.fills && p.fillColor !== undefined) {
       const c = coerceColor(p.fillColor);
       p.fills = c ? [solidPaint(c)] : p.fillColor; delete p.fillColor;
@@ -113,7 +120,7 @@ export function normalizeAliases(p: Record<string, any>, keys: ReadonlySet<strin
     if (p.strokeVariableName !== undefined) {
       p.strokes = { _variable: p.strokeVariableName }; delete p.strokeVariableName;
     } else if (p.strokeStyleName !== undefined) {
-      p.strokes = { _style: p.strokeStyleName }; delete p.strokeStyleName;
+      p.strokes = { _style: p.strokeStyleName, _styleKey: p._strokeStyleKey }; delete p.strokeStyleName; delete p._strokeStyleKey;
     } else if (p.strokeColor !== undefined) {
       const c = coerceColor(p.strokeColor);
       p.strokes = c ? [solidPaint(c)] : p.strokeColor; delete p.strokeColor;
@@ -224,6 +231,52 @@ export async function appendToParent(node: SceneNode, parentId?: string): Promis
   }
   figma.currentPage.appendChild(node);
   return figma.currentPage;
+}
+
+/**
+ * Lightweight post-append overflow check. Call after appending a child to detect
+ * when an auto-layout parent with FIXED primary-axis sizing has children whose
+ * total exceeds available space. Only fires when `clipsContent` is true (silent
+ * clipping) or when the parent uses FIXED sizing — prevents agents from shipping
+ * clipped layouts without realizing.
+ */
+export function checkParentOverflow(parent: BaseNode | null, hints: Hint[]): void {
+  if (!parent || parent.type === "PAGE") return;
+  const p = parent as any;
+  if (!p.layoutMode || p.layoutMode === "NONE") return;
+  if (p.overflowDirection && p.overflowDirection !== "NONE") return;
+  if (!("children" in p)) return;
+
+  const isH = p.layoutMode === "HORIZONTAL";
+  const primarySizing = isH ? p.layoutSizingHorizontal : p.layoutSizingVertical;
+  if (primarySizing !== "FIXED") return;
+
+  const padStart = isH ? (p.paddingLeft || 0) : (p.paddingTop || 0);
+  const padEnd = isH ? (p.paddingRight || 0) : (p.paddingBottom || 0);
+  const primaryInner = (isH ? p.width : p.height) - padStart - padEnd;
+  if (primaryInner <= 0) return;
+
+  const children = p.children as any[];
+  const spacing = p.itemSpacing || 0;
+  const concreteChildren = children.filter((c: any) =>
+    "width" in c && (isH ? c.layoutSizingHorizontal : c.layoutSizingVertical) !== "FILL"
+  );
+  if (concreteChildren.length === 0) return;
+
+  const totalConcrete = concreteChildren.reduce((sum: number, c: any) => sum + (isH ? c.width : c.height), 0);
+  const totalSpacing = Math.max(0, children.length - 1) * spacing;
+  const totalUsed = totalConcrete + totalSpacing;
+
+  if (totalUsed > primaryInner) {
+    const axis = isH ? "width" : "height";
+    const scrollDir = isH ? "HORIZONTAL" : "VERTICAL";
+    hints.push({
+      type: "warn",
+      message: `Children overflow ${p.name} on ${axis}: ${Math.round(totalUsed)} used vs ${Math.round(primaryInner)} available. ` +
+        `Content will be clipped. Set overflowDirection:"${scrollDir}" for scrollable content, ` +
+        `or use layoutSizingVertical/Horizontal:"HUG" so the frame grows to fit.`,
+    });
+  }
 }
 
 /**
@@ -459,6 +512,9 @@ export async function appendAndApplySizing(
   // Post-parent: applySizing handles HUG promotion, FILL validation, cross-axis defaults
   applySizing(node, parent, p, hints, autoDefault);
 
+  // Post-append: warn if this child pushes the parent past its available space
+  checkParentOverflow(parent, hints);
+
   return parent;
 }
 
@@ -599,6 +655,80 @@ export function styleNotFoundHint(param: string, value: string, available: strin
   const names = available.slice(0, limit);
   const suffix = available.length > limit ? `, … and ${available.length - limit} more` : "";
   return { type: "error", message: `${param} '${value}' not found. Available: [${names.join(", ")}${suffix}]` };
+}
+
+/**
+ * Resolve textStyleName → BaseStyle for a batch of items, with local-first
+ * precedence. For each unique name:
+ *   1. Look up local text styles by exact name (then fuzzy substring match).
+ *   2. If no local match and `_textStyleKey` was attached by the MCP
+ *      pre-processor, import via figma.importStyleByKeyAsync and use the
+ *      returned BaseStyle directly.
+ *
+ * Why local-first: prevents library styles from shadowing locally-authored
+ * styles of the same name. Why direct-ID-from-import: Figma's
+ * getLocalTextStylesAsync does not return library-imported text styles until
+ * they've been applied, so name lookup alone cannot find them; the direct ID
+ * from importStyleByKeyAsync is the only reliable path.
+ *
+ * Returns a Map<textStyleName, BaseStyle> and a list of fonts that need loading
+ * before any text node applies the resolved style.
+ */
+export async function resolveTextStylesForBatch(
+  items: any[],
+): Promise<{ byName: Map<string, any>; fontsToLoad: FontName[]; localStyles: any[] }> {
+  const byName = new Map<string, any>();
+  const fontsToLoad: FontName[] = [];
+
+  const needsResolve = items.some((p: any) => p.textStyleName && !p.textStyleId);
+  if (!needsResolve) return { byName, fontsToLoad, localStyles: [] };
+
+  const localStyles = await figma.getLocalTextStylesAsync();
+
+  // First pass: exact-match local styles. Local always wins.
+  for (const p of items) {
+    if (!p.textStyleName || p.textStyleId) continue;
+    const name: string = p.textStyleName;
+    if (byName.has(name)) continue;
+    const exact = localStyles.find((s: any) => s.name === name);
+    if (exact) {
+      byName.set(name, exact);
+      if (exact.fontName) fontsToLoad.push(exact.fontName);
+      continue;
+    }
+  }
+
+  // Second pass: library fallback via _textStyleKey. Only for names with no
+  // local match. importStyleByKeyAsync is idempotent — repeated calls are cheap.
+  for (const p of items) {
+    if (!p.textStyleName || p.textStyleId) continue;
+    const name: string = p.textStyleName;
+    if (byName.has(name)) continue;
+    if (!p._textStyleKey) continue;
+    try {
+      const style: any = await figma.importStyleByKeyAsync(p._textStyleKey);
+      if (style && style.type === "TEXT") {
+        byName.set(name, style);
+        if (style.fontName) fontsToLoad.push(style.fontName);
+      }
+    } catch {
+      // Import failure surfaces as styleNotFoundHint downstream.
+    }
+  }
+
+  // Third pass: fuzzy local match as last resort (only for names with still no match).
+  for (const p of items) {
+    if (!p.textStyleName || p.textStyleId) continue;
+    const name: string = p.textStyleName;
+    if (byName.has(name)) continue;
+    const fuzzy = localStyles.find((s: any) => s.name.toLowerCase().includes(name.toLowerCase()));
+    if (fuzzy) {
+      byName.set(name, fuzzy);
+      if (fuzzy.fontName) fontsToLoad.push(fuzzy.fontName);
+    }
+  }
+
+  return { byName, fontsToLoad, localStyles };
 }
 
 /** Result from color matching: includes the hint AND auto-bind data when a match is found. */
@@ -849,18 +979,30 @@ export async function applyFillWithAutoBind(
     return false;
   }
 
-  // Tagged binding: { _style: "name" } (from fillStyleName normalization)
+  // Tagged binding: { _style: "name", _styleKey?: "<libKey>" } (from fillStyleName normalization)
   if (p.fills?._style) {
     const name = p.fills._style;
+    const styleKey: string | undefined = p.fills._styleKey;
     const styles = await figma.getLocalPaintStylesAsync();
-    const available = styles.map(s => s.name);
     const exact = styles.find(s => s.name === name);
     const match = exact || styles.find(s => s.name.toLowerCase().includes(name.toLowerCase()));
     if (match) {
       try { await node.setFillStyleIdAsync(match.id); return true; }
       catch (e: any) { hints.push({ type: "error", message: `fillStyleName '${name}' matched but failed to apply: ${e.message}` }); return false; }
     }
-    hints.push(styleNotFoundHint("fillStyleName", name, available));
+    // Fallback: MCP pre-processor attached a library style key. Import on demand.
+    // importStyleByKeyAsync is idempotent — re-calling is cheap and stateless.
+    if (styleKey) {
+      try {
+        const style = await figma.importStyleByKeyAsync(styleKey);
+        await node.setFillStyleIdAsync(style.id);
+        return true;
+      } catch (e: any) {
+        hints.push({ type: "error", message: `fillStyleName '${name}' (library import) failed: ${e.message}. Ensure the source library is enabled for this file.` });
+        return false;
+      }
+    }
+    hints.push(styleNotFoundHint("fillStyleName", name, styles.map(s => s.name)));
     return false;
   }
 
@@ -980,18 +1122,25 @@ export async function applyStrokeWithAutoBind(
         hints.push({ type: "error", message: `strokeVariableName '${name}' not found. Available: [${names.join(", ")}]` });
       }
     }
-    // Tagged binding: { _style: "name" }
+    // Tagged binding: { _style: "name", _styleKey?: "<libKey>" }
     else if (p.strokes?._style) {
       const name = p.strokes._style;
+      const styleKey: string | undefined = p.strokes._styleKey;
       const styles = await figma.getLocalPaintStylesAsync();
-      const available = styles.map(s => s.name);
       const exact = styles.find(s => s.name === name);
       const match = exact || styles.find(s => s.name.toLowerCase().includes(name.toLowerCase()));
       if (match) {
         try { await node.setStrokeStyleIdAsync(match.id); }
         catch (e: any) { hints.push({ type: "error", message: `strokeStyleName '${name}' matched but failed to apply: ${e.message}` }); }
+      } else if (styleKey) {
+        try {
+          const style = await figma.importStyleByKeyAsync(styleKey);
+          await node.setStrokeStyleIdAsync(style.id);
+        } catch (e: any) {
+          hints.push({ type: "error", message: `strokeStyleName '${name}' (library import) failed: ${e.message}` });
+        }
       } else {
-        hints.push(styleNotFoundHint("strokeStyleName", name, available));
+        hints.push(styleNotFoundHint("strokeStyleName", name, styles.map(s => s.name)));
       }
     }
     // Empty array → clear strokes

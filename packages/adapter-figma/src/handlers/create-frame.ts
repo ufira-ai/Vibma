@@ -149,13 +149,20 @@ export async function setupFrameNode(
   if (p.strokeAlign) node.strokeAlign = p.strokeAlign;
   if (p.strokesIncludedInLayout !== undefined) (node as any).strokesIncludedInLayout = p.strokesIncludedInLayout;
 
-  // Effect style
+  // Effect style: local first, library fallback via _effectStyleKey
   if (p.effectStyleName) {
     const styles = await figma.getLocalEffectStylesAsync();
     const exact = styles.find(s => s.name === p.effectStyleName);
     const match = exact || styles.find(s => s.name.toLowerCase().includes(p.effectStyleName.toLowerCase()));
     if (match) {
       await (node as any).setEffectStyleIdAsync(match.id);
+    } else if (p._effectStyleKey) {
+      try {
+        const style = await figma.importStyleByKeyAsync(p._effectStyleKey);
+        await (node as any).setEffectStyleIdAsync(style.id);
+      } catch (e: any) {
+        hints.push({ type: "error", message: `effectStyleName '${p.effectStyleName}' (library import) failed: ${e.message}. Ensure the source library is enabled for this file.` });
+      }
     } else {
       const names = styles.map(s => s.name).slice(0, 20);
       const suffix = styles.length > 20 ? `, … and ${styles.length - 20} more` : "";

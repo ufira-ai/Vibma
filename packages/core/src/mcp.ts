@@ -382,8 +382,8 @@ server.registerTool(
   }
 );
 
-// Register all per-tool-file tools and prompts
-registerAllTools(server, sendCommandToFigma, caps);
+// Tools are registered in main() — registerAllTools is async because it validates
+// Figma credentials before deciding whether to expose the library tool.
 
 // ─── Start ───────────────────────────────────────────────────────
 
@@ -399,6 +399,8 @@ process.on("exit", cleanup);
 process.stdin.on("end", () => { cleanup(); process.exit(0); });
 
 async function main() {
+  await registerAllTools(server, sendCommandToFigma, caps);
+
   try {
     connectToFigma();
   } catch (error) {

@@ -1,4 +1,4 @@
-import { batchHandler, appendToParent, checkOverlappingSiblings, suggestTextStyle, applyFillWithAutoBind, applySizing, styleNotFoundHint, bindTextToComponentProperty, findComponentForBinding, warnCrossAxisHug, type Hint } from "./helpers";
+import { batchHandler, appendToParent, checkParentOverflow, checkOverlappingSiblings, suggestTextStyle, applyFillWithAutoBind, applySizing, styleNotFoundHint, bindTextToComponentProperty, findComponentForBinding, warnCrossAxisHug, resolveTextStylesForBatch, type Hint } from "./helpers";
 import { textCreate } from "@ufira/vibma/guards";
 import { applyAnnotations } from "./annotations";
 
@@ -78,6 +78,8 @@ const TEXT_CREATE_KEYS = new Set([
 
 export interface CreateTextContext {
   textStyles: any[] | null;
+  /** name → resolved BaseStyle (local first, library fallback). Preferred lookup path. */
+  textStyleByName: Map<string, any>;
   paintStyles: any[] | null;
   resolvedTextStyleMap: Map<string, any>;
   resolvedFontMap: Map<string, FontName>;
@@ -94,15 +96,14 @@ export async function prepCreateText(params: any): Promise<CreateTextContext> {
 
   // Note: fill*/fontColor* aliases are normalized to `fills` by batchHandler
 
-  // Resolve text styles by name once (not per-item)
-  const styleNames = new Set<string>();
-  for (const p of items) {
-    if (p.textStyleName && !p.textStyleId) styleNames.add(p.textStyleName);
-  }
-  let textStyles: any[] | null = null;
-  if (styleNames.size > 0) {
-    textStyles = await figma.getLocalTextStylesAsync();
-  }
+  // Resolve text styles with local-first precedence. Local styles always win;
+  // if no local match exists and the MCP attached a `_textStyleKey` (library
+  // fallback), we import via figma.importStyleByKeyAsync and use the returned
+  // BaseStyle's id directly. Figma's getLocalTextStylesAsync does NOT return
+  // library-imported text styles until they've been applied to a node, so the
+  // direct-ID path is the only reliable way to bind a library text style.
+  const { byName: textStyleByName, fontsToLoad: styleFonts, localStyles } = await resolveTextStylesForBatch(items);
+  const textStyles: any[] | null = localStyles.length > 0 || items.some((p: any) => p.textStyleName) ? localStyles : null;
 
   // Preload paint styles if any item uses a style-tagged fill
   const hasFillStyle = items.some((p: any) => p.fills?._style || p.fontColorStyleName);
@@ -111,7 +112,7 @@ export async function prepCreateText(params: any): Promise<CreateTextContext> {
     paintStyles = await figma.getLocalPaintStylesAsync();
   }
 
-  // Collect font requirements from items and text styles
+  // Collect font requirements from items and any library-resolved text styles.
   const fontRequests: Array<{ family: string; style: string }> = [];
   for (const p of items) {
     fontRequests.push({
@@ -119,25 +120,22 @@ export async function prepCreateText(params: any): Promise<CreateTextContext> {
       style: p.fontStyle || getFontStyle(p.fontWeight || 400),
     });
   }
+  for (const fn of styleFonts) {
+    fontRequests.push({ family: fn.family, style: fn.style });
+  }
 
-  // Resolve text style IDs and collect their fonts
+  // Resolved text style cache by ID — populated from textStyleByName (local or
+  // library) plus explicit textStyleId entries. createTextSingle uses this to
+  // apply the final style id after fonts are loaded.
   const resolvedTextStyleMap = new Map<string, any>();
+  for (const [, style] of textStyleByName) {
+    if (style?.id) resolvedTextStyleMap.set(style.id, style);
+  }
   for (const p of items) {
-    let sid = p.textStyleId;
-    let foundStyle: any = null;
-    if (!sid && p.textStyleName && textStyles) {
-      const exact = textStyles.find((s: any) => s.name === p.textStyleName);
-      if (exact) { sid = exact.id; foundStyle = exact; }
-      else {
-        const fuzzy = textStyles.find((s: any) => s.name.toLowerCase().includes(p.textStyleName.toLowerCase()));
-        if (fuzzy) { sid = fuzzy.id; foundStyle = fuzzy; }
-      }
-    }
-    if (sid && !resolvedTextStyleMap.has(sid)) {
-      // Use the style object found by name directly (avoids re-fetch failures for recently-created styles)
-      const s = foundStyle ?? await figma.getStyleByIdAsync(sid);
+    if (p.textStyleId && !resolvedTextStyleMap.has(p.textStyleId)) {
+      const s = await figma.getStyleByIdAsync(p.textStyleId);
       if (s?.type === "TEXT") {
-        resolvedTextStyleMap.set(sid, s);
+        resolvedTextStyleMap.set(p.textStyleId, s);
         const fn = (s as TextStyle).fontName;
         if (fn) fontRequests.push({ family: fn.family, style: fn.style });
       }
@@ -156,7 +154,7 @@ export async function prepCreateText(params: any): Promise<CreateTextContext> {
   }
 
   const { setCharacters } = await import("../utils/figma-helpers");
-  return { textStyles, paintStyles, resolvedTextStyleMap, resolvedFontMap, setCharacters };
+  return { textStyles, textStyleByName, paintStyles, resolvedTextStyleMap, resolvedFontMap, setCharacters };
 }
 
 /**
@@ -220,15 +218,12 @@ export async function createTextSingle(p: any, ctx: CreateTextContext) {
       textNode.fills = [{ type: "SOLID", color: { r: 0, g: 0, b: 0 }, opacity: 1 }];
     }
 
-    // Text style: by name > by ID (fonts already preloaded)
+    // Text style: by name (via resolved map — local first, library fallback) or by ID.
+    // Fonts for resolved styles were preloaded in prepCreateText.
     let resolvedStyleId = textStyleId;
-    if (!resolvedStyleId && textStyleName && ctx.textStyles) {
-      const exact = ctx.textStyles.find((s: any) => s.name === textStyleName);
-      if (exact) resolvedStyleId = exact.id;
-      else {
-        const fuzzy = ctx.textStyles.find((s: any) => s.name.toLowerCase().includes(textStyleName.toLowerCase()));
-        if (fuzzy) resolvedStyleId = fuzzy.id;
-      }
+    if (!resolvedStyleId && textStyleName) {
+      const resolved = ctx.textStyleByName.get(textStyleName);
+      if (resolved?.id) resolvedStyleId = resolved.id;
     }
     if (resolvedStyleId) {
       const cached = ctx.resolvedTextStyleMap.get(resolvedStyleId);
@@ -242,13 +237,14 @@ export async function createTextSingle(p: any, ctx: CreateTextContext) {
         hints.push({ type: "error", message: `textStyleName '${textStyleName || resolvedStyleId}' matched style ID '${resolvedStyleId}' but the style could not be loaded. It may be from a remote library or deleted.` });
       }
     } else if (textStyleName) {
-      hints.push(styleNotFoundHint("textStyleName", textStyleName, ctx.textStyles!.map((s: any) => s.name)));
+      hints.push(styleNotFoundHint("textStyleName", textStyleName, (ctx.textStyles || []).map((s: any) => s.name)));
     } else {
       hints.push(await suggestTextStyle(fontSize, fontWeight));
     }
 
     const parent = await appendToParent(textNode, parentId);
     checkOverlappingSiblings(textNode, parent, hints);
+    checkParentOverflow(parent, hints);
 
     // Component property binding: bind text to a component TEXT property
     const comp = await findComponentForBinding(textNode, componentId, hints);

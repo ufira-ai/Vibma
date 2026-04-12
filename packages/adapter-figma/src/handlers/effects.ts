@@ -12,14 +12,23 @@ export async function setEffectsSingle(p: any): Promise<any> {
     const styles = await figma.getLocalEffectStylesAsync();
     const exact = styles.find(s => s.name === p.effectStyleName);
     const match = exact || styles.find(s => s.name.toLowerCase().includes(p.effectStyleName.toLowerCase()));
-    if (!match) {
+    if (match) {
+      await (node as any).setEffectStyleIdAsync(match.id);
+      result.matchedStyle = match.name;
+    } else if (p._effectStyleKey) {
+      try {
+        const style = await figma.importStyleByKeyAsync(p._effectStyleKey);
+        await (node as any).setEffectStyleIdAsync(style.id);
+        result.matchedStyle = style.name;
+      } catch (e: any) {
+        throw new Error(`effectStyleName '${p.effectStyleName}' (library import) failed: ${e.message}. Ensure the source library is enabled for this file.`);
+      }
+    } else {
       const available = styles.map(s => s.name);
       const names = available.slice(0, 20);
       const suffix = available.length > 20 ? `, … and ${available.length - 20} more` : "";
       throw new Error(`effectStyleName '${p.effectStyleName}' not found. Available: [${names.join(", ")}${suffix}]`);
     }
-    await (node as any).setEffectStyleIdAsync(match.id);
-    result.matchedStyle = match.name;
     if (p.effects) result.hints = [{ type: "warn", message: "Both effectStyleName and effects provided — used effectStyleName, ignored effects. Pass only one." }];
   } else if (p.effects) {
     const mapped = p.effects.map((e: any) => {

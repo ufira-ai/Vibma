@@ -1,0 +1,153 @@
+endpoint: library
+domain: design-system
+description: "Discover and inspect published team library components and styles via Figma REST API."
+description_zh: "通过 Figma REST API 发现和检查已发布的团队库组件和样式。"
+
+notes: |
+  // Discover components and styles published to team libraries — external files not open in Figma.
+  // Requires FIGMA_API_TOKEN env var (Personal Access Token with library_content:read scope).
+  // Accepts a file URL/key, a team URL/ID, or falls back to the FIGMA_TEAM_ID env var if neither is passed.
+  //
+  // Two-step flow (discovery → use):
+  //   1. list → populates the MCP name→key registry (one-shot, no pagination, no side effects in Figma)
+  //   2. get  → rich details for any number of queries: componentPropertyDefinitions, variant options, defaults, usage hint
+  //   3. use  → instances(method:"create", items:[{componentName:"..."}]) or frames/text with fillStyleName/textStyleName
+  //
+  // list returns { libraries: [{ name, sections: [{ name, components, componentSets, styles }] }] }.
+  // Libraries are grouped by source Figma file, then by section (containing frame) — mirroring Figma's Libraries browser.
+  // Use the library and section names to identify the right component when multiple libraries expose overlapping names.
+  //
+  // get returns the same nested hierarchy as list, but each leaf is a full detail object (properties, variant options,
+  // defaults, copy-pasteable usage hint) instead of a bare name. Pass library and/or section params to narrow results
+  // when names collide — e.g. library(method:"get", query:"Item", library:"macOS", section:"Sidebars").
+  //
+  // No import step needed. Every *Name referenced in a later tool call (componentName, fillStyleName,
+  // textStyleName, effectStyleName) is auto-resolved from the registry and imported on demand via
+  // figma.importComponentByKeyAsync / importStyleByKeyAsync. Local styles always take precedence —
+  // library fallback only kicks in when no local style with that exact name exists.
+  //
+  // The raw 40-char component/style keys NEVER enter agent context — the MCP holds them internally.
+  //
+  // list must be called before get / before any name reference in other tools — the registry is initially empty.
+  // Results are cached for 5 minutes.
+  //
+  // Name collisions across files: first-seen wins; subsequent entries with the same name are re-keyed with
+  // " (in <frame>)" suffix in the registry so you can still address them.
+
+methods:
+  list:
+    tier: read
+    inline: true
+    description: "List all published components, sets, and styles. Minimal shapes, no pagination. Populates the MCP name→key registry."
+    example: 'library(method:"list")  // uses FIGMA_TEAM_ID env var; or pass file/team explicitly'
+    params:
+      file:
+        type: string
+        optional: true
+        description: "File URL or file key — e.g. 'https://www.figma.com/design/abc123/MyDS' or 'abc123'"
+      team:
+        type: string
+        optional: true
+        description: "Team URL or team ID. Falls back to FIGMA_TEAM_ID env var if omitted."
+    response:
+      type: object
+      properties:
+        libraries:
+          type: array
+          description: "Components, sets, and styles grouped by source Figma file (library) and then by section — the same hierarchy designers see in Figma's Libraries browser. Use the library name to pick the intended kit when multiple libraries expose overlapping names (e.g. two files both defining 'Item' or 'Header'), and use section names to locate components semantically (e.g. the 'Sidebars' section contains the proper sidebar Item and Section Header, distinct from a List 'Item' row)."
+          items:
+            type: object
+            properties:
+              name:
+                type: string
+                description: "Display name of the source Figma file."
+              sections:
+                type: array
+                description: "Sections within the library, mirroring the headings designers see in Figma's Libraries panel. Usually correspond to containing frames or pages in the source file."
+                items:
+                  type: object
+                  properties:
+                    name:
+                      type: string
+                      description: "Section heading — e.g. 'Sidebars', 'Windows', 'Buttons'. '(unsectioned)' when the source component is not inside a named frame."
+                    components:
+                      type: array
+                      description: "Non-variant component names in this section. Reference by name in instances.create via componentName."
+                      items: { type: string }
+                    componentSets:
+                      type: array
+                      description: "Variant set names in this section. Use with variantProperties in instances.create."
+                      items: { type: string }
+                    styles:
+                      type: object
+                      description: "Published styles in this section, grouped by type."
+                      properties:
+                        TEXT: { type: array, items: { type: string } }
+                        FILL: { type: array, items: { type: string } }
+                        EFFECT: { type: array, items: { type: string } }
+                        GRID: { type: array, items: { type: string } }
+
+  get:
+    tier: read
+    inline: true
+    description: "Get rich details for components matching one or more queries. Returns nested libraries → sections → entries (same hierarchy as list) with properties, variant options, defaults, and a copy-pasteable usage hint at each leaf."
+    example: 'library(method:"get", query:["item","header"], library:"macOS", section:"Sidebars")  // batch query scoped to a specific library and section'
+    params:
+      query:
+        type: string[]
+        coerce: json
+        required: true
+        description: "One or more substring queries (case-insensitive, matched against name OR description). Pass a single string or an array. Matches from multiple queries are merged and deduped by registered name before details are fetched."
+      library:
+        type: string
+        optional: true
+        description: "Optional source library (Figma file) name filter — case-insensitive substring. Use when multiple imported libraries expose overlapping component names (e.g. two files both defining 'Item'). Match the name returned under list → libraries[].name."
+      section:
+        type: string
+        optional: true
+        description: "Optional section name filter — case-insensitive substring. Matches the containing frame / section headers returned under list → libraries[].sections[].name (e.g. 'Sidebars', 'Windows', 'List'). Combine with library for maximum precision."
+      file:
+        type: string
+        optional: true
+        description: "Only used if the registry is empty — convenience to run list+get in one step."
+      team:
+        type: string
+        optional: true
+        description: "Only used if the registry is empty — convenience to run list+get in one step."
+    response:
+      type: object
+      properties:
+        libraries:
+          type: array
+          description: "Matching entries nested by source library and section — same hierarchy as list, but each leaf is a full detail object (properties, variant options, defaults, usage hint) instead of a bare name."
+          items:
+            type: object
+            properties:
+              name:
+                type: string
+                description: "Source Figma file name."
+              sections:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    name:
+                      type: string
+                      description: "Section heading (containing frame). '(unsectioned)' when absent."
+                    components:
+                      type: array
+                      description: "Non-variant components in this section with full detail. Each entry: { name, kind, description?, properties?, usage? } — properties is { [propName]: { type: VARIANT|TEXT|BOOLEAN|INSTANCE_SWAP, defaultValue?, options? } } matching components.get. usage is a copy-pasteable instances.create snippet."
+                      items: { type: object }
+                    componentSets:
+                      type: array
+                      description: "Variant component sets in this section with full detail, same shape as components above. VARIANT properties carry options; pair with TEXT/BOOLEAN properties via instances.create."
+                      items: { type: object }
+                    styles:
+                      type: object
+                      description: "Published styles in this section, grouped by type. Each entry: { name, kind: 'style', styleType, description? } (no properties/usage — styles have no variants)."
+                      properties:
+                        TEXT:   { type: array, items: { type: object } }
+                        FILL:   { type: array, items: { type: object } }
+                        EFFECT: { type: array, items: { type: object } }
+                        GRID:   { type: array, items: { type: object } }
+

@@ -345,6 +345,10 @@ async function patchNodesBatch(params: any) {
       fontWeight: item.fontWeight,
       textStyleId: item.textStyleId,
       textStyleName: item.textStyleName,
+      // Preserve the library-style key injected by the MCP pre-processor.
+      // Without this, resolveTextStylesForBatch cannot import library text
+      // styles and text.update silently falls back to default font.
+      _textStyleKey: item._textStyleKey,
     }));
     textCtx = await prepSetTextProperties({ items: syntheticItems });
   }

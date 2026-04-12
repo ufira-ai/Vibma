@@ -900,12 +900,28 @@ async function auditComponentFigma(params: any) {
 // -- instances handlers --
 
 async function instanceCreateSingle(p: any) {
-  let node: any = await figma.getNodeByIdAsync(p.componentId);
-  if (!node) {
-    await figma.loadAllPagesAsync();
+  let node: any;
+  if (p.componentKey) {
+    // Explicit library key (rare escape hatch). Preferred path: agent calls
+    // componentKey is resolved from the library registry by the MCP pre-processor.
+    try {
+      node = await figma.importComponentByKeyAsync(p.componentKey);
+    } catch (err: any) {
+      try {
+        node = await figma.importComponentSetByKeyAsync(p.componentKey);
+      } catch {
+        throw new Error(`Could not import by componentKey "${p.componentKey}": ${err?.message || err}. Ensure the source library is enabled for this file.`);
+      }
+    }
+  } else {
+    if (!p.componentId) throw new Error(`Missing componentId (local node) or componentKey (published library).`);
     node = await figma.getNodeByIdAsync(p.componentId);
+    if (!node) {
+      await figma.loadAllPagesAsync();
+      node = await figma.getNodeByIdAsync(p.componentId);
+    }
+    if (!node) throw new Error(`Component not found: ${p.componentId}`);
   }
-  if (!node) throw new Error(`Component not found: ${p.componentId}`);
   if (node.type === "COMPONENT_SET") {
     if (!node.children?.length) throw new Error("Component set has no variants");
     if (p.variantProperties && typeof p.variantProperties === "object") {

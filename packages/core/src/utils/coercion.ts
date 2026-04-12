@@ -26,6 +26,26 @@ export const flexJson = <T extends z.ZodTypeAny>(inner: T) =>
     return v;
   }, inner);
 
+/**
+ * String-array coercion: accept a JSON array, a JSON-encoded array, or a bare
+ * string (wrapped into a single-element array). Use for params that are
+ * semantically "one or more strings" — e.g. library.get `query`, selection.set
+ * `nodeIds`, lint `rules`. Without this, passing `query:"Button"` fails zod
+ * validation even though the docs promise "pass a single string or an array".
+ */
+export const flexStringList = <T extends z.ZodTypeAny>(inner: T) =>
+  z.preprocess((v) => {
+    if (Array.isArray(v)) return v;
+    if (typeof v === "string") {
+      const trimmed = v.trim();
+      if (trimmed.startsWith("[")) {
+        try { return JSON.parse(trimmed); } catch { /* fall through — treat as bare */ }
+      }
+      return [v];
+    }
+    return v;
+  }, inner);
+
 /** Coerce numeric strings only when they're valid numbers (safe for use inside unions) */
 export const flexNum = <T extends z.ZodTypeAny>(inner: T) =>
   z.preprocess((v) => {

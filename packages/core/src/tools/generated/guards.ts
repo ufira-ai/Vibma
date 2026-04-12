@@ -468,6 +468,8 @@ export const framesCreateSvg = new Set([
 export const instancesCreate = new Set([
   "blendMode",
   "componentId",
+  "componentKey",
+  "componentName",
   "effectStyleName",
   "height",
   "layoutPositioning",
