@@ -1,8 +1,8 @@
-> **[简体中文](./README.zh-CN.md)**
+> **[简体中文](https://github.com/ufira-ai/vibma/blob/main/README.zh-CN.md)**
 
 <div align="center">
 
-<img src="./logo.svg" alt="Vibma" width="120" />
+<img src="https://raw.githubusercontent.com/ufira-ai/vibma/main/logo.svg" alt="Vibma" width="120" />
 
 # Vibma
 
@@ -26,37 +26,33 @@ https://github.com/user-attachments/assets/bf38e37d-57bb-40b3-a2d1-f89216117c11
 > We recommend reading [Figma's Terms of Service](https://www.figma.com/tos/)
 > before using Vibma to ensure compliance with their platform policies.
 
-Design with peace of mind in structure. Vibma helps AI agents keep Figma files
-structurally consistent, with better token discipline, auto-layout, component
-architecture, and reusable design-system patterns.
+Vibma helps AI agents produce structurally sound Figma files — proper auto-layout, design tokens, component architecture, and reusable design-system patterns.
 
 ---
 
 ## Model Recommendations
 
-Vibma works with any LLM that supports MCP, but model quality still matters.
+Vibma works with any MCP-capable LLM, but model quality matters.
 
-| Recommendation       | OpenAI | Claude            | Gemini | Open Source |
-|----------------------|---|-------------------|---|---|
-| **Baseline**         | GPT 5.2 Medium | Claude Sonnet 4.6 | Gemini 2.5 Flash | Kimi K2.5 |
-| **Best performance** | GPT 5.4 | Claude Opus 4.6   | Gemini 3.1 Pro | None currently recommended |
+| Tier | OpenAI | Claude | Gemini | Open Source |
+|------|--------|--------|--------|-------------|
+| **Baseline** | GPT 5.2 Medium | Claude Sonnet 4.6 | Gemini 2.5 Flash | Kimi K2.5 |
+| **Recommended** | GPT 5.4 | Claude Opus 4.6 | Gemini 3.1 Pro | — |
 
-- **OpenAI:** GPT 5.4 is the general recommendation. It achieves strong compatibility with Vibma while also having good baseline design taste.
-- **Claude:** Claude Opus 4.6 is the most capable model for working with the Vibma plugin, but its final design sense is less reliable than its tool competence suggests.
-- **Gemini:** Gemini 3.1 Pro is a neutral choice between compatibility and design quality, but GPT 5.4 currently surpasses it on both.
-- **Open source:** Open-source models still struggle with this task. Kimi K2.5 is the baseline for basic functions such as managing variable collections, but these smaller models are more likely to introduce inconsistencies in the final mockup.
+- **GPT 5.4** — best overall balance of tool competence and design taste.
+- **Claude Opus 4.6** — strongest tool use, but final designs can feel formulaic.
+- **Gemini 3.1 Pro** — solid middle ground; GPT 5.4 currently edges it on both axes.
+- **Open source** — Kimi K2.5 handles basics (variables, styles) but struggles with complex multi-tool flows.
 
 ## Setup
 
-Two paths:
-
 | | Guide | For |
 |---|---|---|
-| 📦 | [**DRAGME.md**](./DRAGME.md) | Clone the repo, build from source, full control |
-| ☁️ | [**CARRYME.md**](./CARRYME.md) | Install from npm, zero cloning |
-| 📖 | [**Docs**](https://ufira-ai.github.io/Vibma/) | Tool reference with parameters, response schemas, and examples |
+| 📦 | [**DRAGME.md**](https://github.com/ufira-ai/vibma/blob/main/DRAGME.md) | Clone the repo, build from source |
+| ☁️ | [**CARRYME.md**](https://github.com/ufira-ai/vibma/blob/main/CARRYME.md) | Install from npm, zero cloning |
+| 📖 | [**Docs**](https://ufira-ai.github.io/Vibma/) | Tool reference — parameters, response schemas, examples |
 
-Or just paste this to your AI agent and let it figure it out:
+Or paste this to your AI agent:
 
 ```
 Set up Vibma so I can vibe-design in Figma.
@@ -65,32 +61,28 @@ Follow the instructions at https://raw.githubusercontent.com/ufira-ai/vibma/refs
 
 ## Optional: Library & Image Tools
 
-Vibma works without any API keys — all core design tools (frames, text, components, styles, variables, lint) are available out of the box. Two optional integrations unlock additional capabilities:
+All core tools work without API keys. Two optional integrations add library discovery and stock photos:
 
-| Env var | What it enables | How to get it |
-|---------|----------------|---------------|
-| `FIGMA_API_TOKEN` | **Library tool** — discover and use published team library components and styles | [Figma Settings > Security > Personal access tokens](https://www.figma.com/developers/api#access-tokens) |
-| `FIGMA_TEAM_ID` | Default team for library discovery | Copy the number from your Figma home URL: `figma.com/files/team/<TEAM_ID>/...` |
-| `PEXELS_API_KEY` | **Images tool** — search and place stock photos | [Pexels API](https://www.pexels.com/api/) (free) |
+| Env var | Enables | How to get it |
+|---------|---------|---------------|
+| `FIGMA_API_TOKEN` | **Library** — discover published team library components and styles | [Figma Settings > Security > Personal access tokens](https://www.figma.com/developers/api#access-tokens) |
+| `FIGMA_TEAM_ID` | Default team for library discovery | The number in `figma.com/files/team/<ID>/...` |
+| `PEXELS_API_KEY` | **Images** — search and place stock photos | [pexels.com/api/key](https://www.pexels.com/api/key/) (free) |
 
-The Figma PAT needs two scopes: **File content (Read)** and **Team library content (Read)**.
-
-See [DRAGME.md](./DRAGME.md) or [CARRYME.md](./CARRYME.md) for configuration details.
+The Figma PAT requires two scopes: **File content (Read)** and **Team library content (Read)**. See the setup guides for step-by-step instructions with screenshots.
 
 ## Community
 
-[![Discord Banner](https://img.shields.io/discord/1476577401298358315?color=5865F2&label=Join%20the%20Discord&logo=discord&logoColor=white&style=for-the-badge)](https://discord.gg/4XTedZdwV6)
+[![Discord](https://img.shields.io/discord/1476577401298358315?color=5865F2&label=Discord&logo=discord&logoColor=white&style=for-the-badge)](https://discord.gg/4XTedZdwV6)
 
 [GitHub Issues](https://github.com/ufira-ai/vibma/issues) — bugs and feature requests
 
-Vibma is the first open-source project from **[ufira](https://github.com/ufira-ai)** — a platform bridging creators and technology. We believe everyone who wants to create should have access to AI-powered tools, not just developers.
+Vibma is the first open-source project from **[ufira](https://github.com/ufira-ai)** — a platform bridging creators and technology.
 
 ## Acknowledgments
 
-Built on the foundation of [cursor-talk-to-figma-mcp](https://github.com/grab/cursor-talk-to-figma-mcp) by [sonnylazuardi](https://github.com/sonnylazuardi).
-
-Stock photos powered by [Pexels](https://www.pexels.com) — free for personal and commercial use. Please read the [Pexels Terms of Service](https://www.pexels.com/terms-of-service/) and credit photographers when using images in production.
+Built on [cursor-talk-to-figma-mcp](https://github.com/grab/cursor-talk-to-figma-mcp) by [sonnylazuardi](https://github.com/sonnylazuardi). Stock photos by [Pexels](https://www.pexels.com) — free for personal and commercial use. Please read the [Pexels Terms of Service](https://www.pexels.com/terms-of-service/) and credit photographers in production.
 
 ## License
 
-[MIT](./LICENSE)
+[MIT](https://github.com/ufira-ai/vibma/blob/main/LICENSE)
