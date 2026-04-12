@@ -133,6 +133,58 @@ The `--server=<host>` CLI arg also works and takes priority over the env var.
 
 Local addresses (`localhost`, `127.0.0.1`, `host.docker.internal`, `0.0.0.0`, `*.local`) use `ws://` and `http://`. All other addresses use `wss://` and `https://`.
 
+## Optional: Library & Image API Keys
+
+Vibma's core tools work without any API keys. To unlock **team library discovery** and **stock photo search**, add environment variables to your MCP config:
+
+```json
+{
+  "mcpServers": {
+    "Vibma": {
+      "command": "node",
+      "args": ["/absolute/path/to/vibma/dist/mcp.js", "--edit"],
+      "env": {
+        "FIGMA_API_TOKEN": "<your-figma-pat>",
+        "FIGMA_TEAM_ID": "<your-team-id>",
+        "PEXELS_API_KEY": "<your-pexels-key>"
+      }
+    }
+  }
+}
+```
+
+### Getting a Figma Personal Access Token
+
+1. Go to [Figma Settings > Security](https://www.figma.com/settings) and scroll to **Personal access tokens**
+
+   ![Figma Settings — Personal access tokens](./assets/PAT_settings_section.png)
+
+2. Click **Generate new token** and select these two scopes:
+   - **File content — Read** (`file_content:read`)
+   - **Team library content — Read** (`team_library_content:read`)
+
+   ![PAT scopes](./assets/PAT_scope.png)
+
+3. Copy the generated token — it starts with `figd_`
+
+### Getting your Team ID
+
+Your Team ID is the number in your Figma home page URL:
+
+```
+https://www.figma.com/files/team/1234567890/...
+                                 ^^^^^^^^^^
+                                 This is your TEAM_ID
+```
+
+![Team ID in URL](./assets/TEAM_ID.jpg)
+
+### Getting a Pexels API Key
+
+1. Create a free account at [pexels.com](https://www.pexels.com)
+2. Go to [Pexels API](https://www.pexels.com/api/) and request an API key
+3. Copy the key from your [API dashboard](https://www.pexels.com/api/new/)
+
 ## 5. Connect
 
 1. In the Figma plugin, set the channel name to `vibma` (or any name you like)
@@ -233,6 +285,16 @@ If any tool times out after a successful `connection(method: "create")`, the Fig
 - The **port** matches what MCP is using
 - The **channel name** matches what MCP joined
 - The plugin status shows **Connected**
+
+### Configuring API keys
+
+If the user wants to use team library components or stock photos, help them set up the environment variables.
+
+**FIGMA_API_TOKEN + FIGMA_TEAM_ID**: If the user doesn't know their Team ID, ask them to paste their Figma home page URL — it looks like `https://www.figma.com/files/team/1234567890/...`. Parse the number after `/team/` — that's the Team ID. For the PAT, walk them through Figma Settings > Security > Personal access tokens > Generate new token, and ensure they check **File content — Read** and **Team library content — Read**.
+
+**PEXELS_API_KEY**: Direct the user to [pexels.com/api](https://www.pexels.com/api/) to create a free account and get an API key.
+
+After updating the env vars in their MCP config, they must restart the AI tool (or reload MCP servers) for the changes to take effect.
 
 ### Version mismatch
 
