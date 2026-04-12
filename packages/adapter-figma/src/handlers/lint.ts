@@ -443,11 +443,7 @@ async function walkNode(node: BaseNode, depth: number, issues: Issue[], ctx: Lin
   }
 
   // -- Rule: overflow-parent --
-  // Detect children whose actual bounding dimensions exceed the parent's available inner space.
-  // Skip containers with prototype overflow (scrollable) — overflow is intentional.
-  // Skip instance internals when skipInstances is true — overflow inside library components
-  // is owned by the component author, not the consumer. Without this, every use of e.g.
-  // Window/Button Group fires a Liquid Glass overflow finding, drowning real issues.
+  // Skip scrollable containers (intentional overflow) and instance internals (owned by component author).
   if (ctx.runAll || ctx.ruleSet.has("overflow-parent")) {
     const overflow = (node as any).overflowDirection;
     const isInstanceInternal = ctx.skipInstances && node.type === "INSTANCE";

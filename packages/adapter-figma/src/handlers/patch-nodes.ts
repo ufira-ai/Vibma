@@ -108,9 +108,6 @@ export async function patchSingleNode(item: any, textCtx: TextPropsContext | nul
   const needsResize = item.width !== undefined || item.height !== undefined;
   if (needsResize && !hasLayout) {
     await doResize(item);
-    // TEXT nodes: explicit width implies FIXED sizing + height auto-resize.
-    // Without this, the old textAutoResize mode (e.g. WIDTH_AND_HEIGHT) overrides the
-    // new width and the change silently does nothing.
     if (item.width !== undefined && !item.textAutoResize) {
       const node = await figma.getNodeByIdAsync(item.nodeId);
       if (node?.type === "TEXT") {
@@ -360,9 +357,6 @@ async function patchNodesBatch(params: any) {
       fontWeight: item.fontWeight,
       textStyleId: item.textStyleId,
       textStyleName: item.textStyleName,
-      // Preserve the library-style key injected by the MCP pre-processor.
-      // Without this, resolveTextStylesForBatch cannot import library text
-      // styles and text.update silently falls back to default font.
       _textStyleKey: item._textStyleKey,
     }));
     textCtx = await prepSetTextProperties({ items: syntheticItems });

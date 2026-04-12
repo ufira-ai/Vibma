@@ -356,16 +356,8 @@ export async function registerAllTools(server: McpServer, sendCommand: SendComma
   // at dispatch time so the plugin receives a key — agent context never
   // has to touch the 40-char opaque key directly.
   // ─── Library style resolver ──────────────────────────────────
-  // For frames/text items: if the agent passed fillStyleName/strokeStyleName/
-  // For *StyleName params, attach a sibling _*StyleKey field when the name
-  // appears in the library registry. The plugin-side applier uses local-first
-  // precedence — if a local style with that exact name exists, it wins and the
-  // key is ignored. Otherwise the plugin imports via importStyleByKeyAsync and
-  // applies the returned style's ID directly. This matters especially for text
-  // styles: figma.getLocalTextStylesAsync does NOT return library-imported text
-  // styles until they've been applied to a node, so the name-lookup path alone
-  // cannot find them — the direct ID from importStyleByKeyAsync is the only
-  // reliable way to apply a library text style.
+  // Attach _*StyleKey from the library registry for *StyleName params.
+  // Plugin-side: local style wins by name; library key is the fallback.
   function resolveLibraryStyleKeys(node: any): void {
     if (node.fillStyleName) {
       const rec = resolveLibraryRecord(node.fillStyleName);

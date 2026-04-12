@@ -94,15 +94,20 @@ export async function prepSetTextProperties(params: any): Promise<TextPropsConte
     }
   }
 
-  // Resolve textStyleName → BaseStyle with local-first precedence (library
-  // fallback via _textStyleKey). Mirrors prepCreateText so text.create and
-  // text.update behave identically for library text styles.
+  // Resolve text styles: local first, library fallback via _textStyleKey.
   const { byName: textStyleByName, fontsToLoad: styleFonts, localStyles } = await resolveTextStylesForBatch(items);
   for (const fn of styleFonts) {
     fontsToLoad.set(`${fn.family}::${fn.style}`, fn);
   }
 
-  await Promise.all([...fontsToLoad.values()].map(f => figma.loadFontAsync(f)));
+  await Promise.allSettled(
+    [...fontsToLoad.values()].map(f =>
+      Promise.race([
+        figma.loadFontAsync(f),
+        new Promise((_, reject) => setTimeout(() => reject(new Error(`Font load timeout: ${f.family} ${f.style}`)), 3000)),
+      ]),
+    ),
+  );
 
   const textStyles = items.some((p: any) => p.textStyleName) ? localStyles : null;
 
@@ -117,9 +122,7 @@ export async function setTextPropertiesSingle(p: any, ctx: TextPropsContext) {
     throw new Error(`Not a text node: ${p.nodeId}`);
   }
 
-  // Text style takes priority. textStyleName resolves via ctx.textStyleByName
-  // (local first, library fallback) — same as text.create. Unresolved name
-  // surfaces as an error hint instead of silently falling through.
+  // Text style takes priority. Unresolved name surfaces as error hint.
   const warnings: Hint[] = [];
   let resolvedStyleId = p.textStyleId;
   if (!resolvedStyleId && p.textStyleName) {

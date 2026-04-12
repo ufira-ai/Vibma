@@ -658,21 +658,8 @@ export function styleNotFoundHint(param: string, value: string, available: strin
 }
 
 /**
- * Resolve textStyleName → BaseStyle for a batch of items, with local-first
- * precedence. For each unique name:
- *   1. Look up local text styles by exact name (then fuzzy substring match).
- *   2. If no local match and `_textStyleKey` was attached by the MCP
- *      pre-processor, import via figma.importStyleByKeyAsync and use the
- *      returned BaseStyle directly.
- *
- * Why local-first: prevents library styles from shadowing locally-authored
- * styles of the same name. Why direct-ID-from-import: Figma's
- * getLocalTextStylesAsync does not return library-imported text styles until
- * they've been applied, so name lookup alone cannot find them; the direct ID
- * from importStyleByKeyAsync is the only reliable path.
- *
- * Returns a Map<textStyleName, BaseStyle> and a list of fonts that need loading
- * before any text node applies the resolved style.
+ * Resolve textStyleName → BaseStyle for a batch of items.
+ * Local-first: exact local match → library import via _textStyleKey → fuzzy local.
  */
 export async function resolveTextStylesForBatch(
   items: any[],
@@ -698,21 +685,29 @@ export async function resolveTextStylesForBatch(
     }
   }
 
-  // Second pass: library fallback via _textStyleKey. Only for names with no
-  // local match. importStyleByKeyAsync is idempotent — repeated calls are cheap.
+  // Second pass: library fallback via _textStyleKey (deduped, sequential, 2s timeout per call).
+  const MAX_LIBRARY_IMPORTS = 3;
+  const pendingImports: { name: string; key: string }[] = [];
   for (const p of items) {
     if (!p.textStyleName || p.textStyleId) continue;
     const name: string = p.textStyleName;
     if (byName.has(name)) continue;
     if (!p._textStyleKey) continue;
+    if (pendingImports.some(i => i.name === name)) continue;
+    pendingImports.push({ name, key: p._textStyleKey });
+  }
+  for (const { name, key } of pendingImports.slice(0, MAX_LIBRARY_IMPORTS)) {
     try {
-      const style: any = await figma.importStyleByKeyAsync(p._textStyleKey);
+      const style: any = await Promise.race([
+        figma.importStyleByKeyAsync(key),
+        new Promise((_, reject) => setTimeout(() => reject(new Error("timeout")), 2000)),
+      ]);
       if (style && style.type === "TEXT") {
         byName.set(name, style);
         if (style.fontName) fontsToLoad.push(style.fontName);
       }
     } catch {
-      // Import failure surfaces as styleNotFoundHint downstream.
+      // falls through to styleNotFoundHint
     }
   }
 

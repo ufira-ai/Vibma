@@ -977,9 +977,6 @@ async function instanceCreateSingle(p: any) {
   const parent = await appendAndApplySizing(inst, p, hints, autoSizing);
   checkOverlappingSiblings(inst, parent, hints);
 
-  // Explicit variable mode — pin Light/Dark or other modes at creation time.
-  // Without this, library components with mode-dependent children (e.g. Desktop
-  // Template with Color Mode: Dark) would require a separate instances.update call.
   if (p.explicitMode) {
     const allCollections = await figma.variables.getLocalVariableCollectionsAsync();
     const em = p.explicitMode;

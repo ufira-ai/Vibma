@@ -96,12 +96,7 @@ export async function prepCreateText(params: any): Promise<CreateTextContext> {
 
   // Note: fill*/fontColor* aliases are normalized to `fills` by batchHandler
 
-  // Resolve text styles with local-first precedence. Local styles always win;
-  // if no local match exists and the MCP attached a `_textStyleKey` (library
-  // fallback), we import via figma.importStyleByKeyAsync and use the returned
-  // BaseStyle's id directly. Figma's getLocalTextStylesAsync does NOT return
-  // library-imported text styles until they've been applied to a node, so the
-  // direct-ID path is the only reliable way to bind a library text style.
+  // Resolve text styles: local first, library fallback via _textStyleKey.
   const { byName: textStyleByName, fontsToLoad: styleFonts, localStyles } = await resolveTextStylesForBatch(items);
   const textStyles: any[] | null = localStyles.length > 0 || items.some((p: any) => p.textStyleName) ? localStyles : null;
 
@@ -112,7 +107,7 @@ export async function prepCreateText(params: any): Promise<CreateTextContext> {
     paintStyles = await figma.getLocalPaintStylesAsync();
   }
 
-  // Collect font requirements from items and any library-resolved text styles.
+  // Collect font requirements.
   const fontRequests: Array<{ family: string; style: string }> = [];
   for (const p of items) {
     fontRequests.push({
@@ -124,9 +119,7 @@ export async function prepCreateText(params: any): Promise<CreateTextContext> {
     fontRequests.push({ family: fn.family, style: fn.style });
   }
 
-  // Resolved text style cache by ID — populated from textStyleByName (local or
-  // library) plus explicit textStyleId entries. createTextSingle uses this to
-  // apply the final style id after fonts are loaded.
+  // Resolved text style cache by ID.
   const resolvedTextStyleMap = new Map<string, any>();
   for (const [, style] of textStyleByName) {
     if (style?.id) resolvedTextStyleMap.set(style.id, style);
@@ -218,8 +211,7 @@ export async function createTextSingle(p: any, ctx: CreateTextContext) {
       textNode.fills = [{ type: "SOLID", color: { r: 0, g: 0, b: 0 }, opacity: 1 }];
     }
 
-    // Text style: by name (via resolved map — local first, library fallback) or by ID.
-    // Fonts for resolved styles were preloaded in prepCreateText.
+    // Text style: by name (resolved map) or by ID.
     let resolvedStyleId = textStyleId;
     if (!resolvedStyleId && textStyleName) {
       const resolved = ctx.textStyleByName.get(textStyleName);
