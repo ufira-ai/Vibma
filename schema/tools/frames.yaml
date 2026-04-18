@@ -156,11 +156,10 @@ methods:
           x: { $ref: xPos }
           y: { $ref: yPos }
       slot:
-        description: "Create a slot inside a component. Slots are placeholder containers that instance users fill with content. Can be placed anywhere in the component tree — pass parentId for nested placement."
+        description: "Create a slot inside a component. Slots are placeholder containers that instance users fill with content. Defaults to VERTICAL auto-layout with FILL/HUG sizing — ready to receive children. Accepts all frame layout properties."
         params:
-          parentId: { $ref: parentId, description: "Where to place the slot — the component itself or any frame inside it. The owning component is found by walking up ancestors." }
+          $mixin: frame_params
           componentId: { type: string, optional: true, description: "Owning component ID. Optional — auto-resolved from parentId by walking up ancestors." }
-          name: { type: string, optional: true, description: "Slot name (default: Figma auto-names it)" }
     response:
       type: batch
       item: { id: { type: string } }

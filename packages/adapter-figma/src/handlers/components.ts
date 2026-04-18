@@ -195,6 +195,16 @@ export async function createInlineChildren(
       const slot = comp.createSlot();
       if (child.name) slot.name = child.name;
       appendTo.appendChild(slot);
+
+      // Apply sensible defaults — VERTICAL auto-layout, FILL/HUG
+      child.layoutMode ??= "VERTICAL";
+      child.layoutSizingHorizontal ??= "FILL";
+      child.layoutSizingVertical ??= "HUG";
+      const { type: _t, name: _n, ...slotFrameParams } = child;
+      slotFrameParams.parentId = appendTo.id;
+      slotFrameParams._skipOverlapCheck = true;
+      const { hints: slotHints } = await setupFrameNode(slot as any, slotFrameParams);
+      hints.push(...slotHints);
     } else {
       hints.push({ type: "error", message: `Inline child type '${child.type}' not supported. Use 'text', 'frame', 'instance', 'component', or 'slot'.` });
     }
@@ -587,7 +597,22 @@ export async function createSlotSingle(p: any) {
     }
   }
 
-  return { id: slot.id };
+  // Apply frame properties via setupFrameNode (slot extends DefaultFrameMixin).
+  // Default to VERTICAL auto-layout with FILL/HUG so the slot is immediately
+  // usable as a content container — matches how frames behave in auto-layout.
+  p.layoutMode ??= "VERTICAL";
+  p.layoutSizingHorizontal ??= "FILL";
+  p.layoutSizingVertical ??= "HUG";
+  // Point parentId at the slot's actual parent so setupFrameNode re-appends correctly
+  const slotParentId = slot.parent?.id;
+  const { componentId: _cid, ...frameParams } = p;
+  frameParams.parentId = slotParentId;
+  frameParams._skipOverlapCheck = true;
+  const { hints } = await setupFrameNode(slot as any, frameParams);
+
+  const result: any = { id: slot.id };
+  if (hints.length > 0) result.hints = hints;
+  return result;
 }
 
 async function createComponentDispatch(params: any) {
