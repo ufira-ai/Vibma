@@ -91,7 +91,7 @@ export async function createInlineChildren(
     // Type normalization (lowercase, inference, id→componentId) handled by normalizeInlineChildTypes pre-pass.
     // Catch anything that still has no type (e.g. empty object).
     if (!child.type) {
-      hints.push({ type: "error", message: `Inline child missing 'type'. Set type: "text", "frame", "instance", or "component".` });
+      hints.push({ type: "error", message: `Inline child missing 'type'. Set type: "text", "frame", "instance", "component", or "slot".` });
       continue;
     }
 
@@ -187,8 +187,16 @@ export async function createInlineChildren(
         parentId: appendTo.id,
       });
       if (result.hints) hints.push(...result.hints);
+    } else if (child.type === "slot") {
+      if (!comp) {
+        hints.push({ type: "error", message: `Inline slot children require a component parent. Slots can only be created inside components.` });
+        continue;
+      }
+      const slot = comp.createSlot();
+      if (child.name) slot.name = child.name;
+      appendTo.appendChild(slot);
     } else {
-      hints.push({ type: "error", message: `Inline child type '${child.type}' not supported. Use 'text', 'frame', 'instance', or 'component'.` });
+      hints.push({ type: "error", message: `Inline child type '${child.type}' not supported. Use 'text', 'frame', 'instance', 'component', or 'slot'.` });
     }
   }
 }
