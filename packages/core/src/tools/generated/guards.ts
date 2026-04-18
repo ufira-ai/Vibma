@@ -465,7 +465,7 @@ export const framesCreateSvg = new Set([
 ]) as ReadonlySet<string>;
 
 /** frames create type="slot" */
-export const framesCreateSlot = new Set(["componentId","name"]) as ReadonlySet<string>;
+export const framesCreateSlot = new Set(["componentId","name","parentId"]) as ReadonlySet<string>;
 
 /** instances.create item params */
 export const instancesCreate = new Set([

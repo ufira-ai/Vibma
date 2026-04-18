@@ -548,11 +548,37 @@ async function combineSingle(p: any) {
 const VARIANT_SET_KEYS = new Set([...componentsCreateVariantSet, "nodeIds"]) as ReadonlySet<string>;
 
 export async function createSlotSingle(p: any) {
-  const node = await figma.getNodeByIdAsync(p.componentId);
-  if (!node) throw new Error(`Component not found: ${p.componentId}`);
-  if (node.type !== "COMPONENT") throw new Error(`Node ${p.componentId} is ${node.type}, not a COMPONENT`);
-  const slot = (node as ComponentNode).createSlot();
+  // Resolve the owning component — explicit componentId, or walk up from parentId
+  let comp: ComponentNode | null = null;
+  if (p.componentId) {
+    const node = await figma.getNodeByIdAsync(p.componentId);
+    if (!node) throw new Error(`Component not found: ${p.componentId}`);
+    if (node.type !== "COMPONENT") throw new Error(`Slots can only be created inside components — "${(node as any).name || p.componentId}" is a ${node.type}. Pass the ID of a COMPONENT node as componentId.`);
+    comp = node as ComponentNode;
+  } else if (p.parentId) {
+    const parent = await figma.getNodeByIdAsync(p.parentId);
+    if (!parent) throw new Error(`Parent not found: ${p.parentId}`);
+    let cursor: BaseNode | null = parent;
+    while (cursor) {
+      if (cursor.type === "COMPONENT") { comp = cursor as ComponentNode; break; }
+      cursor = cursor.parent;
+    }
+    if (!comp) throw new Error(`No ancestor component found for parentId "${p.parentId}". Slots must live inside a component — pass parentId of a node within a component, or componentId of the owning component.`);
+  } else {
+    throw new Error(`Slots must be created inside a component. Pass parentId (a frame inside a component) or componentId (the component itself).`);
+  }
+
+  const slot = comp.createSlot();
   if (p.name) slot.name = p.name;
+
+  // Reparent into the target frame if parentId differs from the component
+  if (p.parentId && p.parentId !== comp.id) {
+    const parent = await figma.getNodeByIdAsync(p.parentId);
+    if (parent && "appendChild" in parent) {
+      (parent as any).appendChild(slot);
+    }
+  }
+
   return { id: slot.id };
 }
 

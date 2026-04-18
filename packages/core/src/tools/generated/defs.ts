@@ -608,7 +608,8 @@ export const tools: ToolDef[] = [
             y: z.coerce.number().optional().describe("Y position (default: 0)"),
           }).passthrough(),
           "slot": z.object({
-            componentId: z.string().describe("Parent component ID to create the slot in"),
+            parentId: z.string().optional().describe("Where to place the slot — the component itself or any frame inside it. The owning component is found by walking up ancestors."),
+            componentId: z.string().optional().describe("Owning component ID. Optional — auto-resolved from parentId by walking up ancestors."),
             name: z.string().optional().describe("Slot name (default: Figma auto-names it)"),
           }).passthrough(),
         };
