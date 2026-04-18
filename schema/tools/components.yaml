@@ -125,11 +125,6 @@ methods:
           componentIds: { type: "string[]", coerce: json, optional: true, description: "Existing component IDs to combine (min 2). Alternative to children.", aliases: [nodeIds] }
           variantPropertyName: { type: string, optional: true, description: "Rename the auto-generated variant property (default: 'Property 1')" }
           children: { $ref: inlineVariants }
-      slot:
-        description: "Create a slot node inside a component. Slots are placeholders that instance users can fill with their own content."
-        params:
-          componentId: { type: string, required: true, description: "Parent component ID to create the slot in" }
-          name: { type: string, optional: true, description: "Slot name (default: Figma auto-names it)" }
     response:
       type: batch
       item: { id: { type: string } }

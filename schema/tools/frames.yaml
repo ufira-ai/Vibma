@@ -155,6 +155,11 @@ methods:
           parentId: { $ref: parentId }
           x: { $ref: xPos }
           y: { $ref: yPos }
+      slot:
+        description: "Create a slot node inside a component. Slots are placeholder containers that instance users can fill with custom content."
+        params:
+          componentId: { type: string, required: true, description: "Parent component ID to create the slot in" }
+          name: { type: string, optional: true, description: "Slot name (default: Figma auto-names it)" }
     response:
       type: batch
       item: { id: { type: string } }

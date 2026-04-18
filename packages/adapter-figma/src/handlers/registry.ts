@@ -8,7 +8,8 @@ import { figmaHandlers as createFrameHandlers } from "./create-frame";
 import { figmaHandlers as createTextHandlers } from "./create-text";
 import { figmaHandlers as modifyNodeHandlers } from "./modify-node";
 import { figmaHandlers as patchNodesHandlers } from "./patch-nodes";
-import { instanceUpdateCombined } from "./components";
+import { instanceUpdateCombined, createSlotSingle } from "./components";
+import { batchHandler } from "./helpers";
 import { figmaHandlers as fillStrokeHandlers } from "./fill-stroke";
 import { figmaHandlers as updateFrameHandlers } from "./update-frame";
 import { figmaHandlers as effectsHandlers } from "./effects";
@@ -88,7 +89,8 @@ export const allFigmaHandlers: Record<string, (params: any) => Promise<any>> = {
     if (type === "group") return createShapeHandlers.create_group(params);
     if (type === "boolean_operation") return createShapeHandlers.create_boolean_operation(params);
     if (type === "svg") return createShapeHandlers.create_node_from_svg(params);
-    throw new Error(`frames.create: unknown type "${type}". Expected: frame, auto_layout, section, rectangle, ellipse, line, group, boolean_operation, svg`);
+    if (type === "slot") return batchHandler(params, createSlotSingle);
+    throw new Error(`frames.create: unknown type "${type}". Expected: frame, auto_layout, section, rectangle, ellipse, line, group, boolean_operation, svg, slot`);
   },
 
   // frames endpoint — inherited node base methods (translate endpoint params → legacy handler params)

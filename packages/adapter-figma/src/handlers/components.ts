@@ -547,7 +547,7 @@ async function combineSingle(p: any) {
 // Extend variant_set guard to accept nodeIds as alias for componentIds
 const VARIANT_SET_KEYS = new Set([...componentsCreateVariantSet, "nodeIds"]) as ReadonlySet<string>;
 
-async function createSlotSingle(p: any) {
+export async function createSlotSingle(p: any) {
   const node = await figma.getNodeByIdAsync(p.componentId);
   if (!node) throw new Error(`Component not found: ${p.componentId}`);
   if (node.type !== "COMPONENT") throw new Error(`Node ${p.componentId} is ${node.type}, not a COMPONENT`);
@@ -561,7 +561,6 @@ async function createComponentDispatch(params: any) {
     case "component": return batchHandler(params, createComponentSingle, { keys: componentsCreateComponent, help: 'components(method: "help", topic: "create")' });
     case "from_node": return batchHandler(params, fromNodeSingle, { keys: componentsCreateFromNode, help: 'components(method: "help", topic: "create")' });
     case "variant_set": return batchHandler(params, combineSingle, { keys: VARIANT_SET_KEYS, help: 'components(method: "help", topic: "create")' });
-    case "slot": return batchHandler(params, createSlotSingle);
     default: throw new Error(`Unknown create type: ${params.type}`);
   }
 }

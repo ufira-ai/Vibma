@@ -59,7 +59,7 @@ Property bindings (TEXT, INSTANCE_SWAP) are preserved on cloned variants.
 
 Slots are placeholder containers inside components that instance users can fill with custom content.
 
-- Create: `components(method:"create", type:"slot", items:[{componentId:"<comp_id>", name:"Content"}])`
+- Create: `frames(method:"create", type:"slot", items:[{componentId:"<comp_id>", name:"Content"}])`
 - In instances, add content by using the slot's ID as `parentId` on any create/reparent call
 - Empty slots are normal — they don't trigger lint warnings
 
