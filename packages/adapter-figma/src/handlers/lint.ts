@@ -563,8 +563,9 @@ async function walkNode(node: BaseNode, depth: number, issues: Issue[], ctx: Lin
 
   // -- Rule: empty-container --
   // Skip frames with image or gradient fills — they have visual content even without children.
+  // Skip SLOT nodes — empty slots are intentional placeholders for instance content.
   if (ctx.runAll || ctx.ruleSet.has("empty-container")) {
-    if (isFrame(node) && "children" in node && (node as any).children.length === 0) {
+    if (isFrame(node) && node.type !== "SLOT" && "children" in node && (node as any).children.length === 0) {
       const fills: any[] = (node as any).fills || [];
       const hasVisualFill = fills.some((f: any) => f.type === "IMAGE" || f.type === "GRADIENT_LINEAR" || f.type === "GRADIENT_RADIAL" || f.type === "GRADIENT_ANGULAR" || f.type === "GRADIENT_DIAMOND");
       if (!hasVisualFill) {
@@ -842,7 +843,7 @@ function findColorMatch(r: number, g: number, b: number, a: number, ctx: LintCtx
 }
 
 function isFrame(node: BaseNode): node is FrameNode {
-  return node.type === "FRAME" || node.type === "COMPONENT" || node.type === "COMPONENT_SET" || node.type === "INSTANCE";
+  return node.type === "FRAME" || node.type === "COMPONENT" || node.type === "COMPONENT_SET" || node.type === "INSTANCE" || node.type === "SLOT";
 }
 
 function isInsideComponent(node: BaseNode): boolean {

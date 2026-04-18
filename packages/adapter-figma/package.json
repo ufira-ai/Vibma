@@ -29,7 +29,7 @@
     "@ufira/vibma": "*"
   },
   "devDependencies": {
-    "@figma/plugin-typings": "^1.123.0",
+    "@figma/plugin-typings": "^1.124.0",
     "tsup": "^8.5.1",
     "typescript": "^5.9.3"
   }

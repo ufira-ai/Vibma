@@ -143,6 +143,9 @@ export const componentsCreateVariantSet = new Set([
   "y",
 ]) as ReadonlySet<string>;
 
+/** components create type="slot" */
+export const componentsCreateSlot = new Set(["componentId","name"]) as ReadonlySet<string>;
+
 /** components.update item params */
 export const componentsUpdate = new Set([
   "action",
