@@ -568,13 +568,14 @@ const VARIANT_SET_KEYS = new Set([...componentsCreateVariantSet, "nodeIds"]) as 
 export async function createSlotSingle(p: any) {
   // Resolve the owning component — explicit componentId, or walk up from parentId
   let comp: ComponentNode | null = null;
+  let parent: BaseNode | null = null;
   if (p.componentId) {
     const node = await figma.getNodeByIdAsync(p.componentId);
     if (!node) throw new Error(`Component not found: ${p.componentId}`);
     if (node.type !== "COMPONENT") throw new Error(`Slots can only be created inside components — "${(node as any).name || p.componentId}" is a ${node.type}. Pass the ID of a COMPONENT node as componentId.`);
     comp = node as ComponentNode;
   } else if (p.parentId) {
-    const parent = await figma.getNodeByIdAsync(p.parentId);
+    parent = await figma.getNodeByIdAsync(p.parentId);
     if (!parent) throw new Error(`Parent not found: ${p.parentId}`);
     let cursor: BaseNode | null = parent;
     while (cursor) {
@@ -591,10 +592,19 @@ export async function createSlotSingle(p: any) {
 
   // Reparent into the target frame if parentId differs from the component
   if (p.parentId && p.parentId !== comp.id) {
-    const parent = await figma.getNodeByIdAsync(p.parentId);
-    if (parent && "appendChild" in parent) {
-      (parent as any).appendChild(slot);
+    parent ??= await figma.getNodeByIdAsync(p.parentId);
+    if (!parent) throw new Error(`Parent not found: ${p.parentId}`);
+    if (!("appendChild" in parent)) {
+      throw new Error(`Parent does not support children: ${p.parentId}. Only FRAME, COMPONENT, GROUP, SECTION, SLOT, and PAGE nodes can have children.`);
     }
+
+    let parentOwner: BaseNode | null = parent;
+    while (parentOwner && parentOwner.type !== "COMPONENT") parentOwner = parentOwner.parent;
+    if (parentOwner?.id !== comp.id) {
+      throw new Error(`Parent "${(parent as any).name || p.parentId}" is not inside component "${comp.name}". Pass parentId of a node within the owning component, or omit parentId to create the slot at the component root.`);
+    }
+
+    (parent as any).appendChild(slot);
   }
 
   // Apply frame properties via setupFrameNode (slot extends DefaultFrameMixin).

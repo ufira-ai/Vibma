@@ -609,7 +609,7 @@ export const tools: ToolDef[] = [
           }).passthrough(),
           "slot": z.object({
             name: z.string().optional().describe("Node name"),
-            parentId: z.string().optional().describe("Parent node ID. Omit to place at current page root."),
+            parentId: z.string().optional().describe("Parent node ID inside the owning component. Required unless componentId is provided."),
             x: z.coerce.number().optional().describe("X position (default: 0)"),
             y: z.coerce.number().optional().describe("Y position (default: 0)"),
             width: z.coerce.number().optional().describe("Width in px (omit to shrink-to-content via HUG)"),

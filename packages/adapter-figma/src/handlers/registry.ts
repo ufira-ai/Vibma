@@ -23,6 +23,7 @@ import { figmaHandlers as versionHistoryHandlers } from "./version-history";
 import { figmaHandlers as prototypingHandlers } from "./prototyping";
 import { figmaHandlers as annotationsHandlers } from "./annotations";
 import { figmaHandlers as stageHandlers } from "./stage";
+import { framesCreateSlot } from "@ufira/vibma/guards";
 
 // ─── Shared adapters for inherited node base methods ──────────────
 // Single source of truth for param → handler item mapping.
@@ -89,7 +90,7 @@ export const allFigmaHandlers: Record<string, (params: any) => Promise<any>> = {
     if (type === "group") return createShapeHandlers.create_group(params);
     if (type === "boolean_operation") return createShapeHandlers.create_boolean_operation(params);
     if (type === "svg") return createShapeHandlers.create_node_from_svg(params);
-    if (type === "slot") return batchHandler(params, createSlotSingle);
+    if (type === "slot") return batchHandler(params, createSlotSingle, { keys: framesCreateSlot, help: 'frames(method: "help", topic: "create")' });
     throw new Error(`frames.create: unknown type "${type}". Expected: frame, auto_layout, section, rectangle, ellipse, line, group, boolean_operation, svg, slot`);
   },
 
