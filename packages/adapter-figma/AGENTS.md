@@ -41,3 +41,8 @@ async function myBatch(params: any) {
 `src/handlers/registry.ts` maps every `"{endpoint}.{method}"` command to a handler function:
 - **Dispatcher-based**: styles, components, variables use `createDispatcher()` — a single handler routes by method
 - **Alias-based**: frames, text translate endpoint params and delegate to shared handlers (node-info, patch-nodes, modify-node)
+
+## Endpoint Consistency
+
+- New discriminant branches added under an existing endpoint must preserve that endpoint's normal validation path. If the endpoint's other create variants use generated guard key sets with `batchHandler(..., { keys, help })`, the new branch should too.
+- Contextual create paths must reject invalid parent targets explicitly. Do not silently fall back to a different parent when `parentId` resolves to a node that cannot contain children or is outside the intended ownership context.

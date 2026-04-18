@@ -106,7 +106,7 @@ async function cloneSingle(p: any) {
 async function insertSingle(p: any) {
   const parent = await figma.getNodeByIdAsync(p.parentId);
   if (!parent) throw new Error(`Parent not found: ${p.parentId}`);
-  if (!("insertChild" in parent)) throw new Error(`Parent does not support children: ${p.parentId}. Only FRAME, COMPONENT, GROUP, SECTION, and PAGE nodes can have children.`);
+  if (!("insertChild" in parent)) throw new Error(`Parent does not support children: ${p.parentId}. Only FRAME, COMPONENT, GROUP, SECTION, SLOT, and PAGE nodes can have children.`);
   const child = await figma.getNodeByIdAsync(p.childId);
   if (!child) throw new Error(`Child not found: ${p.childId}`);
   if (p.index !== undefined) (parent as any).insertChild(p.index, child);

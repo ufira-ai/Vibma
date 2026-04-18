@@ -225,7 +225,7 @@ export async function appendToParent(node: SceneNode, parentId?: string): Promis
     const parent = await figma.getNodeByIdAsync(parentId);
     if (!parent) throw new Error(`Parent not found: ${parentId}`);
     if (!("appendChild" in parent))
-      throw new Error(`Parent does not support children: ${parentId}. Only FRAME, COMPONENT, GROUP, SECTION, and PAGE nodes can have children.`);
+      throw new Error(`Parent does not support children: ${parentId}. Only FRAME, COMPONENT, GROUP, SECTION, SLOT, and PAGE nodes can have children.`);
     (parent as any).appendChild(node);
     return parent;
   }

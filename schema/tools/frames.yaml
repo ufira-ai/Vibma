@@ -155,6 +155,12 @@ methods:
           parentId: { $ref: parentId }
           x: { $ref: xPos }
           y: { $ref: yPos }
+      slot:
+        description: "Create a slot inside a component. Slots are placeholder containers that instance users fill with content. Defaults to VERTICAL auto-layout with FILL/HUG sizing — ready to receive children. Accepts all frame layout properties."
+        params:
+          $mixin: frame_params
+          parentId: { type: string, optional: true, description: "Parent node ID inside the owning component. Required unless componentId is provided." }
+          componentId: { type: string, optional: true, description: "Owning component ID. Optional — auto-resolved from parentId by walking up ancestors." }
     response:
       type: batch
       item: { id: { type: string } }

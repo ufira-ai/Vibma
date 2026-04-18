@@ -91,7 +91,7 @@ export async function createInlineChildren(
     // Type normalization (lowercase, inference, id→componentId) handled by normalizeInlineChildTypes pre-pass.
     // Catch anything that still has no type (e.g. empty object).
     if (!child.type) {
-      hints.push({ type: "error", message: `Inline child missing 'type'. Set type: "text", "frame", "instance", or "component".` });
+      hints.push({ type: "error", message: `Inline child missing 'type'. Set type: "text", "frame", "instance", "component", or "slot".` });
       continue;
     }
 
@@ -187,8 +187,26 @@ export async function createInlineChildren(
         parentId: appendTo.id,
       });
       if (result.hints) hints.push(...result.hints);
+    } else if (child.type === "slot") {
+      if (!comp) {
+        hints.push({ type: "error", message: `Inline slot children require a component parent. Slots can only be created inside components.` });
+        continue;
+      }
+      const slot = comp.createSlot();
+      if (child.name) slot.name = child.name;
+      appendTo.appendChild(slot);
+
+      // Apply sensible defaults — VERTICAL auto-layout, FILL/HUG
+      child.layoutMode ??= "VERTICAL";
+      child.layoutSizingHorizontal ??= "FILL";
+      child.layoutSizingVertical ??= "HUG";
+      const { type: _t, name: _n, ...slotFrameParams } = child;
+      slotFrameParams.parentId = appendTo.id;
+      slotFrameParams._skipOverlapCheck = true;
+      const { hints: slotHints } = await setupFrameNode(slot as any, slotFrameParams);
+      hints.push(...slotHints);
     } else {
-      hints.push({ type: "error", message: `Inline child type '${child.type}' not supported. Use 'text', 'frame', 'instance', or 'component'.` });
+      hints.push({ type: "error", message: `Inline child type '${child.type}' not supported. Use 'text', 'frame', 'instance', 'component', or 'slot'.` });
     }
   }
 }
@@ -546,6 +564,66 @@ async function combineSingle(p: any) {
 
 // Extend variant_set guard to accept nodeIds as alias for componentIds
 const VARIANT_SET_KEYS = new Set([...componentsCreateVariantSet, "nodeIds"]) as ReadonlySet<string>;
+
+export async function createSlotSingle(p: any) {
+  // Resolve the owning component — explicit componentId, or walk up from parentId
+  let comp: ComponentNode | null = null;
+  let parent: BaseNode | null = null;
+  if (p.componentId) {
+    const node = await figma.getNodeByIdAsync(p.componentId);
+    if (!node) throw new Error(`Component not found: ${p.componentId}`);
+    if (node.type !== "COMPONENT") throw new Error(`Slots can only be created inside components — "${(node as any).name || p.componentId}" is a ${node.type}. Pass the ID of a COMPONENT node as componentId.`);
+    comp = node as ComponentNode;
+  } else if (p.parentId) {
+    parent = await figma.getNodeByIdAsync(p.parentId);
+    if (!parent) throw new Error(`Parent not found: ${p.parentId}`);
+    let cursor: BaseNode | null = parent;
+    while (cursor) {
+      if (cursor.type === "COMPONENT") { comp = cursor as ComponentNode; break; }
+      cursor = cursor.parent;
+    }
+    if (!comp) throw new Error(`No ancestor component found for parentId "${p.parentId}". Slots must live inside a component — pass parentId of a node within a component, or componentId of the owning component.`);
+  } else {
+    throw new Error(`Slots must be created inside a component. Pass parentId (a frame inside a component) or componentId (the component itself).`);
+  }
+
+  const slot = comp.createSlot();
+  if (p.name) slot.name = p.name;
+
+  // Reparent into the target frame if parentId differs from the component
+  if (p.parentId && p.parentId !== comp.id) {
+    parent ??= await figma.getNodeByIdAsync(p.parentId);
+    if (!parent) throw new Error(`Parent not found: ${p.parentId}`);
+    if (!("appendChild" in parent)) {
+      throw new Error(`Parent does not support children: ${p.parentId}. Only FRAME, COMPONENT, GROUP, SECTION, SLOT, and PAGE nodes can have children.`);
+    }
+
+    let parentOwner: BaseNode | null = parent;
+    while (parentOwner && parentOwner.type !== "COMPONENT") parentOwner = parentOwner.parent;
+    if (parentOwner?.id !== comp.id) {
+      throw new Error(`Parent "${(parent as any).name || p.parentId}" is not inside component "${comp.name}". Pass parentId of a node within the owning component, or omit parentId to create the slot at the component root.`);
+    }
+
+    (parent as any).appendChild(slot);
+  }
+
+  // Apply frame properties via setupFrameNode (slot extends DefaultFrameMixin).
+  // Default to VERTICAL auto-layout with FILL/HUG so the slot is immediately
+  // usable as a content container — matches how frames behave in auto-layout.
+  p.layoutMode ??= "VERTICAL";
+  p.layoutSizingHorizontal ??= "FILL";
+  p.layoutSizingVertical ??= "HUG";
+  // Point parentId at the slot's actual parent so setupFrameNode re-appends correctly
+  const slotParentId = slot.parent?.id;
+  const { componentId: _cid, ...frameParams } = p;
+  frameParams.parentId = slotParentId;
+  frameParams._skipOverlapCheck = true;
+  const { hints } = await setupFrameNode(slot as any, frameParams);
+
+  const result: any = { id: slot.id };
+  if (hints.length > 0) result.hints = hints;
+  return result;
+}
 
 async function createComponentDispatch(params: any) {
   switch (params.type) {

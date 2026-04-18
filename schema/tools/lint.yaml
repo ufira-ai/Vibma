@@ -33,7 +33,7 @@ notes: |
   //   "fixed-in-autolayout" — FIXED-size children in auto-layout parents [heuristic]
   //   "unbounded-hug" — HUG on both axes [unsafe; short leaf text→style]
   //   "hug-cross-axis" — HUG on cross-axis of constrained parent [heuristic; leaf nodes→style]
-  //   "empty-container" — empty frames [style]
+  //   "empty-container" — empty frames, excludes SLOT nodes [style]
   // Token rules [token]:
   //   "hardcoded-color" — colors not using styles or variables [heuristic]
   //   "hardcoded-token" — numeric values not bound to FLOAT variable [heuristic]
