@@ -326,9 +326,6 @@ function mapEffects(effects: any[]): any[] {
 
 // ─── Style Resolution Helpers ────────────────────────────────────
 
-async 
-async 
-async 
 /** Resolve any style by ID or name -- tries all types. */
 async function resolveAnyStyle(idOrName: string): Promise<BaseStyle> {
   const byId = await figma.getStyleByIdAsync(ensureStyleId(idOrName));
@@ -511,6 +508,9 @@ export const figmaHandlers: Record<string, (params: any) => Promise<any>> = {
     get:    (p: StyleParams & { method: "get" })    => getStyleByIdFigma(p),
     list:   (p: StyleParams & { method: "list" })   => listStylesFigma(p),
     update: (p: StyleParams & { method: "update" }) => patchStylesBatch(p),
-    delete: (p: StyleParams & { method: "delete" }) => batchHandler(p, removeStyleSingle, { keys: stylesDelete, help: 'styles(method: "help", topic: "delete")' }),
+    delete: (p: StyleParams & { method: "delete" }) => {
+      if (p.id && !p.items) { p.items = [{ id: p.id }]; }
+      return batchHandler(p, removeStyleSingle, { keys: stylesDelete, help: 'styles(method: "help", topic: "delete")' });
+    },
   }),
 };
