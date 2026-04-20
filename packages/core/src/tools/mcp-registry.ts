@@ -45,7 +45,7 @@ if (framesTool) {
   };
 }
 
-export const allTools = [...endpointTools];
+const allTools = [...endpointTools];
 
 /** Register all MCP tools and prompts on the server */
 export async function registerAllTools(server: McpServer, sendCommand: SendCommandFn, caps: Capabilities) {
@@ -231,7 +231,8 @@ export async function registerAllTools(server: McpServer, sendCommand: SendComma
         }
 
         const teamFromEnv = process.env.FIGMA_TEAM_ID;
-        let { file, team } = params;
+        const { file } = params;
+        let { team } = params;
 
         // Convenience: if registry is empty and neither target is passed, try env.
         const needsTarget = (m: string) => m === "list" || (m === "get" && filterRegistryByQuery("").length === 0);

@@ -1214,16 +1214,7 @@ export async function applyStrokeWithAutoBind(
   await applyTokens(node, swFields, hints);
 }
 
-/**
- * Parse a token value: numeric string → number, otherwise variable name.
- * Returns { num } for hardcoded values, { varName } for variable references.
- */
-function parseToken(value: string | number): { num: number } | { varName: string } {
-  if (typeof value === "number") return { num: value };
-  const n = Number(value);
-  if (!isNaN(n) && value.trim() !== "") return { num: n };
-  return { varName: value };
-}
+
 
 /**
  * Apply a token field to a node property.

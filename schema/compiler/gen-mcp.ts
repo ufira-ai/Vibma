@@ -159,7 +159,7 @@ function generateSchema(endpoint: ResolvedEndpoint): string {
 }
 
 /** Determine the minimum tier needed for this endpoint */
-function endpointTier(endpoint: ResolvedEndpoint): string {
+function endpointTier(): string {
   // If any method is read-only, the endpoint itself is read (tier gate is per-method via caps)
   return "read";
 }
@@ -376,7 +376,7 @@ export function generateMcpDefs(endpoints: ResolvedEndpoint[]): string {
     ` * Command dispatch map: endpoint → method → Figma command name.`,
     ` * For discriminated methods (create with type), the value is a sub-map: type → command.`,
     ` */`,
-    `export const commandMap: Record<string, Record<string, string>> = {`,
+    `const commandMap: Record<string, Record<string, string>> = {`,
   ];
 
   for (const ep of endpoints) {
@@ -398,7 +398,7 @@ export function generateMcpDefs(endpoints: ResolvedEndpoint[]): string {
     }
   }
   lines.push(`/** Methods handled inline (local WS state, not sent to Figma) */`);
-  lines.push(`export const inlineMethods: Record<string, Record<string, boolean>> = {`);
+  lines.push(`const inlineMethods: Record<string, Record<string, boolean>> = {`);
   lines.push(...inlineEntries);
   lines.push(`};`);
   lines.push(``);

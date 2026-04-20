@@ -24,7 +24,7 @@ function filterMethodsByTier(
  * Command dispatch map: endpoint → method → Figma command name.
  * For discriminated methods (create with type), the value is a sub-map: type → command.
  */
-export const commandMap: Record<string, Record<string, string>> = {
+const commandMap: Record<string, Record<string, string>> = {
   "annotations": {"get":"annotations.get","list":"annotations.list","set":"annotations.set","add":"annotations.add","remove":"annotations.remove","categories":"annotations.categories","create_category":"annotations.create_category","update_category":"annotations.update_category","delete_category":"annotations.delete_category"},
   "components": {"clone":"components.clone","audit":"components.audit","reparent":"components.reparent","list":"components.list","get":"components.get","create":"components.create","commit":"components.commit","update":"components.update","delete":"components.delete"},
   "connection": {"create":"connection.create","get":"connection.get","list":"connection.list","delete":"connection.delete"},
@@ -46,7 +46,7 @@ export const commandMap: Record<string, Record<string, string>> = {
 };
 
 /** Methods handled inline (local WS state, not sent to Figma) */
-export const inlineMethods: Record<string, Record<string, boolean>> = {
+const inlineMethods: Record<string, Record<string, boolean>> = {
   "connection": {"create":true,"list":true,"delete":true},
   "icons": {"search":true,"collections":true,"create":true},
   "images": {"search":true,"preview":true},

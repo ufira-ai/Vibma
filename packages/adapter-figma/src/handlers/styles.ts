@@ -326,41 +326,9 @@ function mapEffects(effects: any[]): any[] {
 
 // ─── Style Resolution Helpers ────────────────────────────────────
 
-async function resolvePaintStyle(idOrName: string): Promise<PaintStyle> {
-  // Try by ID first
-  const byId = await figma.getStyleByIdAsync(ensureStyleId(idOrName));
-  if (byId?.type === "PAINT") return byId as PaintStyle;
-  // Fallback to name search
-  const all = await figma.getLocalPaintStylesAsync();
-  const exact = all.find(s => s.name === idOrName);
-  if (exact) return exact;
-  const fuzzy = all.find(s => s.name.toLowerCase().includes(idOrName.toLowerCase()));
-  if (fuzzy) return fuzzy;
-  throw new Error(`Paint style not found: '${idOrName}'`);
-}
-
-async function resolveTextStyle(idOrName: string): Promise<TextStyle> {
-  const byId = await figma.getStyleByIdAsync(ensureStyleId(idOrName));
-  if (byId?.type === "TEXT") return byId as TextStyle;
-  const all = await figma.getLocalTextStylesAsync();
-  const exact = all.find(s => s.name === idOrName);
-  if (exact) return exact;
-  const fuzzy = all.find(s => s.name.toLowerCase().includes(idOrName.toLowerCase()));
-  if (fuzzy) return fuzzy;
-  throw new Error(`Text style not found: '${idOrName}'`);
-}
-
-async function resolveEffectStyle(idOrName: string): Promise<EffectStyle> {
-  const byId = await figma.getStyleByIdAsync(ensureStyleId(idOrName));
-  if (byId?.type === "EFFECT") return byId as EffectStyle;
-  const all = await figma.getLocalEffectStylesAsync();
-  const exact = all.find(s => s.name === idOrName);
-  if (exact) return exact;
-  const fuzzy = all.find(s => s.name.toLowerCase().includes(idOrName.toLowerCase()));
-  if (fuzzy) return fuzzy;
-  throw new Error(`Effect style not found: '${idOrName}'`);
-}
-
+async 
+async 
+async 
 /** Resolve any style by ID or name -- tries all types. */
 async function resolveAnyStyle(idOrName: string): Promise<BaseStyle> {
   const byId = await figma.getStyleByIdAsync(ensureStyleId(idOrName));

@@ -236,18 +236,6 @@ const nodeStubSchema = {
   type: "object",
   properties: { id: idProp, name: stringProp, type: stringProp },
 };
-const modeEntrySchema = {
-  type: "object",
-  properties: { modeId: stringProp, name: stringProp },
-};
-const styleEntrySchema = {
-  type: "object",
-  properties: { id: stringProp, name: stringProp },
-};
-const vector2Schema = {
-  type: "object",
-  properties: { x: numberProp, y: numberProp },
-};
 const boundsSchema = {
   type: "object",
   properties: { x: numberProp, y: numberProp, width: numberProp, height: numberProp },

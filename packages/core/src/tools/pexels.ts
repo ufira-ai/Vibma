@@ -112,9 +112,6 @@ export interface SlimPhoto {
   height: number;
 }
 
-function isError(res: unknown): res is ErrorResponse {
-  return !!res && typeof res === "object" && "error" in res;
-}
 
 function cacheAndSlim(p: Photo): SlimPhoto {
   photoCache.set(p.id, p);
@@ -163,10 +160,6 @@ export async function getPhoto(id: number): Promise<Photo | { error: string }> {
 
 const PEXEL_RE = /^pexel:(\d+)$/;
 
-/** Check if a string is a pexel:ID reference. */
-export function isPexelRef(s: string): boolean {
-  return PEXEL_RE.test(s);
-}
 
 /**
  * Resolve a pexel:ID to an image URL + attribution.

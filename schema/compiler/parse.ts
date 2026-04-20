@@ -47,7 +47,8 @@ function loadMixins(): Record<string, Record<string, RawParam>> {
 function applyMixins(params: Record<string, any>, mixins: Record<string, Record<string, RawParam>>): Record<string, RawParam> {
   const mixinRef = params.$mixin;
   if (!mixinRef) return params;
-  const { $mixin, ...explicit } = params;
+  const explicit = { ...params };
+  delete explicit.$mixin;
   const names = Array.isArray(mixinRef) ? mixinRef : [mixinRef];
   let merged: Record<string, RawParam> = {};
   for (const name of names) {
@@ -64,7 +65,8 @@ function resolveParam(param: RawParam, refs: Record<string, RawParam>, mixins: R
     const ref = refs[param.$ref];
     if (!ref) throw new Error(`Unknown $ref: ${param.$ref}`);
     // Merge: explicit fields override the ref
-    const { $ref, ...rest } = param;
+    const rest = { ...param };
+    delete rest.$ref;
     const resolved = { ...structuredClone(ref), ...rest };
     return resolveParam(resolved, refs, mixins);
   }
