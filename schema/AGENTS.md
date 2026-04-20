@@ -4,7 +4,7 @@
 
 YAML schemas in `tools/` define tool params, methods, notes. The compiler (`compiler/`) generates multiple outputs:
 
-1. **`defs.ts`** — Zod schemas, tool descriptions, `commandMap` (MCP-side)
+1. **`defs.ts`** — Zod schemas, tool descriptions, and per-tool dispatch metadata (MCP-side)
 2. **`help.ts`** — runtime help text for the `help` tool and per-endpoint `method: "help"` (MCP-side)
 3. **`guards.ts`** — `ReadonlySet<string>` param key sets for handler-level validation (`gen-guards.ts`)
 4. **`prompts.ts`** — MCP prompt definitions
