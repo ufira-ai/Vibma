@@ -29,7 +29,7 @@
     "build": "tsup"
   },
   "dependencies": {
-    "ws": "latest"
+    "ws": "^8.20.0"
   },
   "devDependencies": {
     "@types/node": "^25.5.0",
