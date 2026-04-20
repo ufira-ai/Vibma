@@ -1,9 +1,9 @@
-import { batchHandler, appendAndApplySizing, checkOverlappingSiblings, isSmallIntrinsic, applyTokens, resolveComponentPropertyKey, normalizeAliases, TEXT_ALIAS_KEYS, FRAME_ALIAS_KEYS, type Hint } from "./helpers";
+import { batchHandler, appendAndApplySizing, checkOverlappingSiblings, isSmallIntrinsic, applyTokens, resolveComponentPropertyKey, normalizeAliases, TEXT_ALIAS_KEYS, type Hint } from "./helpers";
 import { setupFrameNode } from "./create-frame";
 import { auditNode } from "./lint";
 import { validateAndFixInlineChildren, formatDiff, buildCorrectedPayload } from "./inline-tree";
 import { createStageContainer } from "./stage";
-import { createDispatcher, paginate, pickFields } from "@ufira/vibma/endpoint";
+import { createDispatcher, paginate } from "@ufira/vibma/endpoint";
 import {
   componentsCreateComponent, componentsCreateFromNode, componentsCreateVariantSet,
   componentsUpdate, instancesCreate, instancesUpdate, instancesSwap,
@@ -640,7 +640,7 @@ async function getComponentFigma(params: any) {
 
   // Resolve target nodes: by names (batch) or id (single)
   const names: string[] | undefined = params.names;
-  let targets: { node: any; error?: string; name?: string }[] = [];
+  const targets: { node: any; error?: string; name?: string }[] = [];
 
   if (names?.length) {
     await figma.loadAllPagesAsync();

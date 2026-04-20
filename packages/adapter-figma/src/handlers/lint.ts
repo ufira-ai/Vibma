@@ -93,8 +93,8 @@ async function lintNodeHandler(params: any) {
   // Collect local styles + color variables for checks
   let localPaintStyleIds = new Set<string>();
   let localTextStyleIds = new Set<string>();
-  let paintStyleEntries: ColorEntry[] = [];
-  let colorVarEntries: ColorEntry[] = [];
+  const paintStyleEntries: ColorEntry[] = [];
+  const colorVarEntries: ColorEntry[] = [];
   let hasFloatVars = false;
   if (runAll || ruleSet.has("hardcoded-token") || ruleSet.has("hardcoded-radius")) {
     const floatVars = await figma.variables.getLocalVariablesAsync("FLOAT");

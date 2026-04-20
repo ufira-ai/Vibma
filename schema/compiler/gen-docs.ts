@@ -76,8 +76,7 @@ function paramToJsonSchema(param: RawParam): Record<string, any> {
 }
 
 function propsToJsonSchema(
-  params: Record<string, RawParam>,
-  parent?: RawParam,
+  params: Record<string, RawParam>
 ): Record<string, any> {
   const properties: Record<string, any> = {};
   const required: string[] = [];

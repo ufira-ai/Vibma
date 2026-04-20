@@ -20,39 +20,6 @@ function filterMethodsByTier(
   return { ...schema, method: z.enum(methods as [string, ...string[]]) };
 }
 
-/**
- * Command dispatch map: endpoint → method → Figma command name.
- * For discriminated methods (create with type), the value is a sub-map: type → command.
- */
-export const commandMap: Record<string, Record<string, string>> = {
-  "annotations": {"get":"annotations.get","list":"annotations.list","set":"annotations.set","add":"annotations.add","remove":"annotations.remove","categories":"annotations.categories","create_category":"annotations.create_category","update_category":"annotations.update_category","delete_category":"annotations.delete_category"},
-  "components": {"clone":"components.clone","audit":"components.audit","reparent":"components.reparent","list":"components.list","get":"components.get","create":"components.create","commit":"components.commit","update":"components.update","delete":"components.delete"},
-  "connection": {"create":"connection.create","get":"connection.get","list":"connection.list","delete":"connection.delete"},
-  "document": {"get":"document.get","list":"document.list","set":"document.set","create":"document.create","update":"document.update"},
-  "fonts": {"list":"fonts.list"},
-  "frames": {"get":"frames.get","list":"frames.list","update":"frames.update","delete":"frames.delete","clone":"frames.clone","audit":"frames.audit","reparent":"frames.reparent","create":"frames.create","commit":"frames.commit","export":"frames.export"},
-  "icons": {"search":"icons.search","collections":"icons.collections","create":"icons.create"},
-  "images": {"search":"images.search","preview":"images.preview"},
-  "instances": {"list":"instances.list","delete":"instances.delete","clone":"instances.clone","audit":"instances.audit","reparent":"instances.reparent","get":"instances.get","create":"instances.create","update":"instances.update","swap":"instances.swap","detach":"instances.detach","reset_overrides":"instances.reset_overrides"},
-  "library": {"list":"library.list","get":"library.get"},
-  "lint": {"check":"lint.check","fix":"lint.fix"},
-  "prototyping": {"get":"prototyping.get","add":"prototyping.add","set":"prototyping.set","remove":"prototyping.remove"},
-  "selection": {"get":"selection.get","set":"selection.set"},
-  "styles": {"list":"styles.list","get":"styles.get","create":"styles.create","update":"styles.update","delete":"styles.delete"},
-  "text": {"get":"text.get","list":"text.list","update":"text.update","delete":"text.delete","clone":"text.clone","audit":"text.audit","reparent":"text.reparent","create":"text.create","set_content":"text.set_content","scan":"text.scan"},
-  "variable_collections": {"list":"variable_collections.list","get":"variable_collections.get","create":"variable_collections.create","update":"variable_collections.update","delete":"variable_collections.delete","add_mode":"variable_collections.add_mode","rename_mode":"variable_collections.rename_mode","remove_mode":"variable_collections.remove_mode"},
-  "variables": {"list":"variables.list","get":"variables.get","create":"variables.create","update":"variables.update","delete":"variables.delete"},
-  "version_history": {"save":"version_history.save"},
-};
-
-/** Methods handled inline (local WS state, not sent to Figma) */
-export const inlineMethods: Record<string, Record<string, boolean>> = {
-  "connection": {"create":true,"list":true,"delete":true},
-  "icons": {"search":true,"collections":true,"create":true},
-  "images": {"search":true,"preview":true},
-  "library": {"list":true,"get":true},
-};
-
 export const tools: ToolDef[] = [
   {
     name: "annotations",

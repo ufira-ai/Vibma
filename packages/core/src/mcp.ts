@@ -2,7 +2,6 @@
 
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
-import { z } from "zod";
 import WebSocket from "ws";
 import { v4 as uuidv4 } from "uuid";
 import { readFileSync } from "fs";
@@ -43,11 +42,6 @@ const logger = {
 
 // ─── Types ───────────────────────────────────────────────────────
 
-interface FigmaResponse {
-  id: string;
-  result?: any;
-  error?: string;
-}
 
 interface CommandProgressUpdate {
   type: "command_progress";

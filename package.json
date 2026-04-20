@@ -14,6 +14,8 @@
     "dev": "node scripts/dev-mcp.mjs",
     "dev:mcp": "tsx packages/core/src/mcp.ts",
     "dev:watch": "npm run build:watch",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
     "release": "./scripts/release.sh",
     "codegen": "tsx schema/compiler/index.ts",
     "docs:generate": "tsx schema/compiler/index.ts",
@@ -21,12 +23,14 @@
     "docs:build": "npm run docs:generate && cd docs && npm run build"
   },
   "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "eslint": "^10.2.1",
+    "globals": "^17.5.0",
     "tsx": "^4.21.0",
-    "typescript": "^5.9.3"
+    "typescript": "^5.9.3",
+    "typescript-eslint": "^8.59.0"
   },
   "dependencies": {
-    "pexels": "1.4.0",
-    "untildify": "6.0.0",
     "yaml": "^2.8.2"
   }
 }

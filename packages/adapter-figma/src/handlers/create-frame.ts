@@ -94,8 +94,6 @@ export async function setupFrameNode(
   const {
     layoutWrap = "NO_WRAP",
     primaryAxisAlignItems = "MIN", counterAxisAlignItems = "MIN",
-    layoutSizingHorizontal = "FIXED", layoutSizingVertical = "FIXED",
-    parentId,
   } = p;
 
   const hints: Hint[] = [];
