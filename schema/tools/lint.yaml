@@ -32,6 +32,7 @@ notes: |
   //   "shape-instead-of-frame" — shapes used as containers [style]
   //   "fixed-in-autolayout" — FIXED-size children in auto-layout parents [heuristic]
   //   "unbounded-hug" — HUG on both axes [unsafe; short leaf text→style]
+  //   "fill-in-hug" — collapsed FILL on the same axis inside a HUG parent (existing anchored states may be valid) [unsafe]
   //   "hug-cross-axis" — HUG on cross-axis of constrained parent [heuristic; leaf nodes→style]
   //   "empty-container" — empty frames, excludes SLOT nodes [style]
   // Token rules [token]:
@@ -145,4 +146,3 @@ methods:
         description: "Response detail for fixed nodes: omit for stubs, 0=properties, -1=full tree"
     response:
       type: batch_mixed
-

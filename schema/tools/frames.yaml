@@ -28,7 +28,6 @@ methods:
   create:
     tier: create
     description: Create frame-like containers
-    example: 'frames(method:"create", type:"auto_layout", layoutMode:"VERTICAL", itemSpacing:16, padding:24)'
     discriminant: type
     types:
       frame:
@@ -39,6 +38,7 @@ methods:
           children: { $ref: inlineChildren }
       auto_layout:
         description: Auto-layout frame that arranges children automatically
+        example: 'frames(method:"create", type:"auto_layout", layoutMode:"VERTICAL", itemSpacing:16, padding:24)'
         params:
           $mixin: frame_params
           layoutMode: { type: enum, values: [HORIZONTAL, VERTICAL], required: true, description: Primary axis direction }

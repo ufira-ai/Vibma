@@ -12,7 +12,7 @@ Use **Vibma** as the *only* integration for interacting with Figma (read/search/
 2. **Ensure the Figma plugin is running and connected**
    - In Figma: Plugins → Development → run “Vibma”
    - In the plugin UI: select the matching port and channel, then click **Connect**
-   - If the plugin reloads/disconnects after a build, the user must click **Connect** again.
+   - Normal `npm run build` updates hot-reload the plugin from `plugin/`. Do not assume the user needs to reopen the plugin or click **Connect** again after a build.
 
 3. **Connect from MCP to the same channel**
    - Call `join_channel` with the channel name (default: `vibma`)
@@ -37,8 +37,7 @@ Access tiers:
 
 ## Operational rules
 
-- **Disconnects are normal** after rebuilding Vibma/plugin outputs; re-run `join_channel` + `ping`.
+- Re-run `join_channel` + `ping` when the relay/MCP session changed or the connection actually dropped. Do not treat a normal plugin hot-reload after `npm run build` as requiring manual plugin reopen/reconnect.
 - Prefer Vibma inspection tools for ground truth (node properties, variables/tokens, rendered screenshots).
 - When asked to “match Figma”, always fetch design context/screenshot via Vibma first, then implement.
 - If a request would require Figma UI interaction the agent cannot perform, ask the user to (a) open the plugin, (b) click **Connect**, or (c) provide the relevant node id/URL, then retry via Vibma.
-

@@ -177,6 +177,12 @@ function renderDiscriminatedTypes(method: ResolvedMethod): string[] {
     lines.push("");
     if (variant.description) lines.push(variant.description);
     lines.push("");
+    if (variant.example) {
+      lines.push("```ts");
+      lines.push(variant.example);
+      lines.push("```");
+      lines.push("");
+    }
     const schema = propsToJsonSchema(variant.params);
     lines.push(`<ParameterTable schema={${JSON.stringify(schema)}} />`);
     lines.push("");

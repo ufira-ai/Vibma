@@ -49,6 +49,17 @@ interface InlineNode {
 
 // ─── Resolvers ──────────────────────────────────────────────────
 
+function asNumber(value: unknown): number | undefined {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    if (!trimmed) return undefined;
+    const parsed = Number(trimmed);
+    if (Number.isFinite(parsed)) return parsed;
+  }
+  return undefined;
+}
+
 function resolveEffectiveSizing(p: any, axis: "H" | "V"): string {
   if (axis === "H") return p.layoutSizingHorizontal || (p.width !== undefined ? "FIXED" : "HUG");
   return p.layoutSizingVertical || (p.height !== undefined ? "FIXED" : "HUG");
@@ -81,6 +92,80 @@ function childHasFillOrHug(child: any): boolean {
 /** Check if parent has explicit dimensions (fixed-size container). */
 function parentHasDimensions(p: any): boolean {
   return p.width !== undefined && p.height !== undefined;
+}
+
+interface AxisBudget {
+  axis: "H" | "V";
+  dimensionField: "width" | "height";
+  anchorDimension?: number;
+  fillCount: number;
+  unknownSiblingCount: number;
+  knownSiblingSpace: number;
+  chromeSpace: number;
+  leftoverSpace?: number;
+}
+
+function getAxisBudget(parentRaw: any, nodes: InlineNode[], axis: "H" | "V"): AxisBudget {
+  const dimensionField = axis === "H" ? "width" : "height";
+  const minField = axis === "H" ? "minWidth" : "minHeight";
+  const maxField = axis === "H" ? "maxWidth" : "maxHeight";
+  const sizingField = axis === "H" ? "layoutSizingHorizontal" : "layoutSizingVertical";
+
+  const directAnchor = asNumber(parentRaw[dimensionField]);
+  const minAnchor = asNumber(parentRaw[minField]);
+  const maxAnchor = asNumber(parentRaw[maxField]);
+  const anchorDimension = directAnchor
+    ?? (minAnchor !== undefined && maxAnchor !== undefined && minAnchor === maxAnchor ? minAnchor : undefined);
+
+  const padStart = axis === "H" ? asNumber(parentRaw.paddingLeft) : asNumber(parentRaw.paddingTop);
+  const padEnd = axis === "H" ? asNumber(parentRaw.paddingRight) : asNumber(parentRaw.paddingBottom);
+  const padAll = asNumber(parentRaw.padding);
+  const itemSpacing = asNumber(parentRaw.itemSpacing);
+
+  const chromeSpace =
+    (padStart ?? padAll ?? 0) +
+    (padEnd ?? padAll ?? 0) +
+    (itemSpacing ?? 0) * Math.max(0, nodes.length - 1);
+
+  let fillCount = 0;
+  let unknownSiblingCount = 0;
+  let knownSiblingSpace = 0;
+
+  for (const node of nodes) {
+    const sizing = node.raw[sizingField];
+    const dimension = asNumber(node.raw[dimensionField]);
+
+    if (sizing === "FILL") {
+      fillCount++;
+      continue;
+    }
+
+    if (dimension !== undefined) {
+      knownSiblingSpace += dimension;
+      continue;
+    }
+
+    unknownSiblingCount++;
+  }
+
+  const leftoverSpace = anchorDimension !== undefined
+    ? anchorDimension - chromeSpace - knownSiblingSpace
+    : undefined;
+
+  return {
+    axis,
+    dimensionField,
+    anchorDimension,
+    fillCount,
+    unknownSiblingCount,
+    knownSiblingSpace,
+    chromeSpace,
+    leftoverSpace,
+  };
+}
+
+function formatPx(value: number): string {
+  return Number.isInteger(value) ? `${value}` : value.toFixed(1).replace(/\.0$/, "");
 }
 
 // ─── Build Tree ─────────────────────────────────────────────────
@@ -167,6 +252,52 @@ function validateInlineTree(
   }
 
   // ── Level 2 + 3: Per-node, per-axis validation ──
+  const parentIsVertical = nodes[0]?.parent.layoutMode === "VERTICAL";
+  const primaryField = parentIsVertical ? "layoutSizingVertical" : "layoutSizingHorizontal";
+  const primaryDimName = parentIsVertical ? "height" : "width";
+  const parentPrimarySizing = nodes[0]
+    ? (parentIsVertical ? nodes[0].parent.sizingV : nodes[0].parent.sizingH)
+    : "HUG";
+  const primaryBudget = nodes.length > 0 && nodes[0]?.parent.layoutMode !== "NONE"
+    ? getAxisBudget(parentRaw, nodes, parentIsVertical ? "V" : "H")
+    : null;
+  const hasPrimaryFillChildren = nodes.some((node) => node.raw[primaryField] === "FILL");
+
+  if (parentPrimarySizing === "HUG" && hasPrimaryFillChildren && primaryBudget?.anchorDimension !== undefined) {
+    const leftover = primaryBudget.leftoverSpace;
+    if (leftover !== undefined && leftover < 0) {
+      throw new Error(
+        `Parent '${parentPath}' has ${primaryDimName}:${formatPx(primaryBudget.anchorDimension)} but its fixed chrome/siblings already need ${formatPx(primaryBudget.chromeSpace + primaryBudget.knownSiblingSpace)}. ` +
+        `Primary-axis FILL children cannot fit without a larger ${primaryDimName}.`
+      );
+    }
+
+    const from = parentRaw[primaryField] ?? "HUG";
+    parentRaw[primaryField] = "FIXED";
+    for (const node of nodes) {
+      if (parentIsVertical) node.parent.sizingV = "FIXED";
+      else node.parent.sizingH = "FIXED";
+    }
+
+    const leftoverNote = leftover !== undefined
+      ? ` with ${formatPx(leftover)}px of remaining space${primaryBudget.fillCount > 1 ? ` shared across ${primaryBudget.fillCount} FILL children` : ""}`
+      : "";
+    inferences.push({
+      path: parentPath || "(root)",
+      field: primaryField,
+      from,
+      to: "FIXED",
+      confidence: "deterministic",
+      reason:
+        `Explicit ${primaryDimName}:${formatPx(primaryBudget.anchorDimension)} plus primary-axis FILL children needs a real create-time anchor${leftoverNote}`,
+    });
+    hints.push({
+      type: "confirm",
+      message:
+        `Parent '${parentPath}' uses primary-axis FILL children with explicit ${primaryDimName}:${formatPx(primaryBudget.anchorDimension)} — using ${primaryField}:'FIXED' so the leftover space is preserved at creation time${leftoverNote}.`,
+    });
+  }
+
   for (const node of nodes) {
     const { parent, raw, path } = node;
 
@@ -207,16 +338,26 @@ function validateInlineTree(
       const { field, role, dimension, sizing, parentSizing } = axis;
       const dimName = field === "layoutSizingHorizontal" ? "width" : "height";
 
-      // Level 2: HUG parent + FILL child — ambiguous, warn but allow.
-      // Figma resolves: widest content determines parent width, FILL children stretch to match.
+      // Level 2a: HUG parent + FILL child on the primary axis — invalid.
+      // A HUG parent normally sizes from its children, but an explicit parent dimension
+      // can preserve a real leftover-space anchor (common in existing nodes / staged edits).
       if (parentSizing === "HUG" && sizing === "FILL") {
+        if (role === "primary") {
+          throw new Error(
+            `Child '${node.name}' has ${field}:'FILL' inside parent '${parentPath}' that is HUG on the same axis. ` +
+            `A HUG parent sizes to its children, so FILL has no width/height anchor here. ` +
+            `Resolve by choosing one: parent ${field}:'FIXED' with explicit ${dimName}, parent ${field}:'FILL' within its own parent, or child ${field}:'HUG'.`
+          );
+        }
+
+        // Level 2b: Cross-axis FILL inside HUG is ambiguous but recoverable.
         inferences.push({
           path, field, from: "FILL", to: "FILL", confidence: "ambiguous",
-          reason: `FILL inside HUG parent — siblings determine width`,
+          reason: `Cross-axis FILL inside HUG parent — siblings determine width`,
         });
         hints.push({
           type: "warn",
-          message: `Child '${node.name}' has ${field}:'FILL' inside HUG parent — FILL children adopt the width of the widest sibling. Set ${dimName} on parent for explicit sizing.`,
+          message: `Child '${node.name}' has ${field}:'FILL' on the cross-axis inside a HUG parent — FILL adopts the largest sibling size. Set ${dimName} on parent for explicit sizing.`,
         });
       }
 

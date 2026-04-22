@@ -265,7 +265,7 @@ If the plugin shows **Disconnected** on port 3055, try the following before aski
 
 1. Check the tunnel is running: `lsof -ti:3055` — if no output, the tunnel isn't started.
 2. Restart the tunnel: `npx @ufira/vibma-tunnel`
-3. Ask the user to close and reopen the Figma plugin.
+3. Ask the user to check the existing Vibma plugin window and click **Connect** again only if it is actually disconnected.
 
 If the issue persists after these steps, direct the user to the [Vibma Discord](https://discord.gg/4XTedZdwV6) for help.
 

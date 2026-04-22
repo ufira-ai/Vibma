@@ -60,18 +60,8 @@ export async function setExportSettingsSingle(p: any) {
   return {};
 }
 
-export async function setNodePropertiesSingle(p: any) {
-  const node = await figma.getNodeByIdAsync(p.nodeId);
-  if (!node) throw new Error(`Node not found: ${p.nodeId}`);
-  for (const [key, value] of Object.entries(p.properties)) {
-    if (key in node) (node as any)[key] = value;
-  }
-  return {};
-}
-
 export const figmaHandlers: Record<string, (params: any) => Promise<any>> = {
   set_effects: (p) => batchHandler(p, setEffectsSingle),
   set_constraints: (p) => batchHandler(p, setConstraintsSingle),
   set_export_settings: (p) => batchHandler(p, setExportSettingsSingle),
-  set_node_properties: (p) => batchHandler(p, setNodePropertiesSingle),
 };

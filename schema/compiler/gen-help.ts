@@ -47,6 +47,7 @@ function methodDetail(ep: ResolvedEndpoint, method: ResolvedMethod): string {
     for (const [typeName, variant] of Object.entries(method.types)) {
       lines.push("");
       lines.push(`  ## ${typeName}${variant.description ? " — " + variant.description : ""}`);
+      if (variant.example) lines.push(`  Example: ${variant.example}`);
       for (const [pName, param] of Object.entries(variant.params)) {
         lines.push(...paramLines(pName, param));
       }
