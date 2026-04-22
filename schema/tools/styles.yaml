@@ -75,7 +75,6 @@ methods:
   create:
     tier: create
     description: Create local styles
-    example: 'styles(method:"create", type:"effect", name:"Shadow/Medium", effects:[{type:"DROP_SHADOW", color:"#00000040", offset:{x:0,y:4}, radius:8}])'
     discriminant: type
     types:
       paint:
@@ -102,6 +101,7 @@ methods:
           description: { type: string, optional: true, description: "Style description" }
       effect:
         description: Effect style
+        example: 'styles(method:"create", type:"effect", name:"Shadow/Medium", effects:[{type:"DROP_SHADOW", color:"#00000040", offset:{x:0,y:4}, radius:8}])'
         params:
           name: { type: string, required: true, description: Style name }
           effects: { type: array, coerce: json, required: true, description: "Array of Effect objects" }

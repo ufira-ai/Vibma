@@ -361,8 +361,8 @@ server.registerTool(
           content: [{
             type: "text",
             text: connected
-              ? `Tunnel reset: ${body.message}. Reconnected on port ${activePort}.\n\nIMPORTANT: The Figma plugin was also disconnected. Ask the user to reopen the Vibma plugin, then call connection(method: "create") followed by connection(method: "get").`
-              : `Tunnel reset: ${body.message}. Reconnection in progress.\n\nIMPORTANT: The Figma plugin was also disconnected. Ask the user to reopen the Vibma plugin, then call connection(method: "create") to retry.`,
+              ? `Tunnel reset: ${body.message}. Reconnected on port ${activePort}.\n\nIMPORTANT: The Figma plugin was also disconnected from the tunnel. Ask the user to use the existing Vibma plugin window and click Connect again if needed, then call connection(method: "create") followed by connection(method: "get").`
+              : `Tunnel reset: ${body.message}. Reconnection in progress.\n\nIMPORTANT: The Figma plugin was also disconnected from the tunnel. Ask the user to use the existing Vibma plugin window and click Connect again if needed, then call connection(method: "create") to retry.`,
           }],
         };
       }

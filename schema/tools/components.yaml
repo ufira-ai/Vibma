@@ -90,11 +90,11 @@ methods:
   create:
     tier: create
     description: Create components
-    example: 'components(method:"create", type:"component", items:[{name:"Card", layoutMode:"VERTICAL", padding:"16", itemSpacing:"8", fillVariableName:"bg/surface", children:[{type:"text", text:"Title", componentPropertyName:"Title"}, {type:"text", text:"Description", fontSize:14, componentPropertyName:"Description"}], properties:[{propertyName:"Show Icon", type:"BOOLEAN", defaultValue:true}]}])'
     discriminant: type
     types:
       component:
         description: "Create component with full frame properties (layout, fill, stroke, sizing). A component IS a frame — build directly, no need to create a frame first."
+        example: 'components(method:"create", type:"component", items:[{name:"Card", layoutMode:"VERTICAL", padding:"16", itemSpacing:"8", fillVariableName:"bg/surface", children:[{type:"text", text:"Title", componentPropertyName:"Title"}, {type:"text", text:"Description", fontSize:14, componentPropertyName:"Description"}], properties:[{propertyName:"Show Icon", type:"BOOLEAN", defaultValue:true}]}])'
         params:
           $mixin: frame_params
           name: { type: string, required: true, description: Component name }
@@ -120,6 +120,7 @@ methods:
           exposeText: { type: boolean, coerce: true, optional: true, description: "Auto-expose text as editable properties (default: true)" }
       variant_set:
         description: Combine components into a variant set. The resulting set is a frame — accepts all frame properties for layout/styling.
+        example: 'components(method:"create", type:"variant_set", items:[{name:"Button", children:[{type:"component", name:"Style=Primary", children:[{type:"text", text:"Button", componentPropertyName:"Label"}]}, {type:"component", name:"Style=Secondary", children:[{type:"text", text:"Button", componentPropertyName:"Label"}]}]}])'
         params:
           $mixin: frame_params
           componentIds: { type: "string[]", coerce: json, optional: true, description: "Existing component IDs to combine (min 2). Alternative to children.", aliases: [nodeIds] }

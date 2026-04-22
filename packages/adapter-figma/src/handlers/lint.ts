@@ -19,7 +19,7 @@ const WCAG_RULES = [
 /** Category meta-rules: expand "component" → component rules, etc. */
 const CATEGORY_RULES: Record<string, readonly string[]> = {
   component: ["no-text-property", "component-bindings"],
-  composition: ["no-autolayout", "overlapping-children", "shape-instead-of-frame", "fixed-in-autolayout", "overflow-parent", "unbounded-hug", "hug-cross-axis", "empty-container"],
+  composition: ["no-autolayout", "overlapping-children", "shape-instead-of-frame", "fixed-in-autolayout", "overflow-parent", "unbounded-hug", "fill-in-hug", "hug-cross-axis", "empty-container"],
   token: ["hardcoded-color", "hardcoded-token", "no-text-style"],
   naming: ["default-name", "stale-text-name"],
 };
@@ -33,6 +33,7 @@ const RULE_META: Record<string, { severity: Severity; category: RuleCategory; fi
   "no-text-style":        { severity: "heuristic", category: "token", fix: "Apply a text style via textStyleName. guidelines(topic:\"token-discipline\") for details." },
   "fixed-in-autolayout":  { severity: "heuristic", category: "composition", fix: "Use FILL or HUG instead of FIXED inside auto-layout." },
   "overflow-parent":      { severity: "unsafe", category: "composition", fix: "Child exceeds parent's available inner space. Fix: use layoutSizingHorizontal/Vertical:'FILL' on children, reduce the fixed dimension, or set overflowDirection on the parent for scrollable overflow." },
+  "fill-in-hug":          { severity: "unsafe", category: "composition", fix: "Collapsed FILL on the same axis inside a HUG parent usually means there is no usable width/height anchor. Give the parent a real constraint, preserve an explicit size, or change the child to HUG/FIXED." },
   "default-name":         { severity: "style", category: "naming", fix: "Rename to something descriptive." },
   "empty-container":      { severity: "style", category: "composition", fix: "Delete if leftover, or add content." },
   "stale-text-name":      { severity: "style", category: "naming", fix: "Sync layer name with text content, or leave if intentional." },
@@ -270,6 +271,40 @@ async function walkNode(node: BaseNode, depth: number, issues: Issue[], ctx: Lin
         const isShortLabel = ((node as any).characters?.length ?? 0) < 40;
         issues.push({ rule: "unbounded-hug", nodeId: node.id, nodeName: node.name, severity: isShortLabel ? "style" : undefined, extra: { nodeType: "TEXT" } });
         if (issues.length >= ctx.maxFindings) return;
+      }
+    }
+  }
+
+  // -- Rule: fill-in-hug --
+  // Existing Figma nodes can preserve a usable size anchor even with HUG + same-axis FILL.
+  // Only flag the clearly broken live cases where the FILL child has effectively collapsed.
+  if (ctx.runAll || ctx.ruleSet.has("fill-in-hug")) {
+    if (node.parent && "layoutMode" in node.parent && "layoutSizingHorizontal" in node) {
+      const parent = node.parent as any;
+      if (parent.layoutMode !== "NONE") {
+        const isHorizontal = parent.layoutMode === "HORIZONTAL";
+        const childPrimaryField = isHorizontal ? "layoutSizingHorizontal" : "layoutSizingVertical";
+        const parentPrimary = isHorizontal ? parent.layoutSizingHorizontal : parent.layoutSizingVertical;
+        const childPrimary = (node as any)[childPrimaryField];
+        const childPrimarySize =
+          node && "width" in node && "height" in node
+            ? (isHorizontal ? (node as any).width : (node as any).height)
+            : undefined;
+        if (parentPrimary === "HUG" && childPrimary === "FILL" && childPrimarySize !== undefined && childPrimarySize <= 1) {
+          issues.push({
+            rule: "fill-in-hug",
+            nodeId: node.id,
+            nodeName: node.name,
+            extra: {
+              axis: isHorizontal ? "horizontal" : "vertical",
+              parentId: parent.id,
+              parentName: parent.name,
+              parentSizing: parentPrimary,
+              childPrimarySize,
+            },
+          });
+          if (issues.length >= ctx.maxFindings) return;
+        }
       }
     }
   }

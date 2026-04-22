@@ -565,6 +565,10 @@ async function combineSingle(p: any) {
 // Extend variant_set guard to accept nodeIds as alias for componentIds
 const VARIANT_SET_KEYS = new Set([...componentsCreateVariantSet, "nodeIds"]) as ReadonlySet<string>;
 
+function variantSetCreateHelp(): string {
+  return 'Example: components(method:"create", type:"variant_set", items:[{name:"Button", children:[{type:"component", name:"Style=Primary", children:[{type:"text", text:"Button", componentPropertyName:"Label"}]}, {type:"component", name:"Style=Secondary", children:[{type:"text", text:"Button", componentPropertyName:"Label"}]}]}])';
+}
+
 export async function createSlotSingle(p: any) {
   // Resolve the owning component — explicit componentId, or walk up from parentId
   let comp: ComponentNode | null = null;
@@ -629,7 +633,16 @@ async function createComponentDispatch(params: any) {
   switch (params.type) {
     case "component": return batchHandler(params, createComponentSingle, { keys: componentsCreateComponent, help: 'components(method: "help", topic: "create")' });
     case "from_node": return batchHandler(params, fromNodeSingle, { keys: componentsCreateFromNode, help: 'components(method: "help", topic: "create")' });
-    case "variant_set": return batchHandler(params, combineSingle, { keys: VARIANT_SET_KEYS, help: 'components(method: "help", topic: "create")' });
+    case "variant_set": {
+      if (!Array.isArray(params.items) || params.items.length === 0) {
+        throw new Error(`items: [] — need at least one variant set spec. Each item must have either componentIds:[...] (min 2 existing component IDs) or children:[...] (min 2 inline {type:"component", ...} specs). ${variantSetCreateHelp()}`);
+      }
+      const misplacedVariants = params.items.filter((item: any) => item?.type === "component");
+      if (misplacedVariants.length > 0) {
+        throw new Error(`Looks like you put variant children directly in items. Each items entry is one variant set, not one variant. Wrap your components like this: ${variantSetCreateHelp()}`);
+      }
+      return batchHandler(params, combineSingle, { keys: VARIANT_SET_KEYS, help: 'components(method: "help", topic: "create")' });
+    }
     default: throw new Error(`Unknown create type: ${params.type}`);
   }
 }

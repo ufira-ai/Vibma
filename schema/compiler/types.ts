@@ -43,7 +43,7 @@ export interface RawMethodDef {
   response: RawResponse;
   /** For create methods with type discriminant */
   discriminant?: string;
-  types?: Record<string, { description?: string; params: Record<string, RawParam> }>;
+  types?: Record<string, { description?: string; example?: string; params: Record<string, RawParam> }>;
 }
 
 export interface RawEndpointDef {
@@ -85,7 +85,7 @@ export interface ResolvedMethod {
   params: Record<string, RawParam>;
   response: RawResponse;
   discriminant?: string;
-  types?: Record<string, { description?: string; params: Record<string, RawParam> }>;
+  types?: Record<string, { description?: string; example?: string; params: Record<string, RawParam> }>;
   inherited?: boolean;
 }
 

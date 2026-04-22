@@ -1,6 +1,6 @@
 import { batchHandler, findVariableById, findVariableByName, bindTextToComponentProperty, findComponentForBinding, applyImageFill, type Hint } from "./helpers";
 import { setFillSingle, setStrokeSingle, setCornerSingle, setOpacitySingle } from "./fill-stroke";
-import { setEffectsSingle, setConstraintsSingle, setExportSettingsSingle, setNodePropertiesSingle } from "./effects";
+import { setEffectsSingle, setConstraintsSingle, setExportSettingsSingle } from "./effects";
 import { moveSingle, resizeSingle } from "./modify-node";
 import { updateFrameSingle } from "./update-frame";
 import { prepSetTextProperties, setTextPropertiesSingle } from "./text";
@@ -10,7 +10,7 @@ import { applyAnnotations } from "./annotations";
 
 // ─── Sub-dispatch groups (handler-level concern, not schema validation) ────
 
-const SIMPLE_PROPS = ["name", "visible", "locked", "rotation", "blendMode", "layoutPositioning", "overflowDirection"] as const;
+const SIMPLE_PROPS = ["name", "visible", "locked", "rotation", "blendMode", "layoutPositioning", "overflowDirection", "clipsContent"] as const;
 
 const FILL_KEYS = ["fills", "fillColor", "fillStyleName", "fillVariableName", "clearFill", "_imageData"] as const;
 
@@ -38,6 +38,8 @@ export const TEXT_KEYS = [...mixinTextParams] as string[];
 // Validation set: schema-generated + handler-level extensions
 const ALL_KNOWN = new Set<string>([
   ...nodeUpdate,
+  "properties",          // reserved legacy alias — handled explicitly with migration error below
+  "rawProperties",       // removed escape hatch — handled explicitly with migration error below
   "nodeId",              // handler alias for id
   "componentProperties", // instance handler extension
   "componentPropertyName", // bind text node to component TEXT property
@@ -49,6 +51,13 @@ const ALL_KNOWN = new Set<string>([
 
 export function hasAny(item: any, keys: readonly string[]): boolean {
   return keys.some(k => item[k] !== undefined);
+}
+
+function lastErrorHint(hints: Hint[], fromIndex: number): string | null {
+  for (let i = hints.length - 1; i >= fromIndex; i--) {
+    if (hints[i]?.type === "error") return hints[i].message;
+  }
+  return null;
 }
 
 // ─── Figma Handlers ──────────────────────────────────────────────
@@ -73,6 +82,19 @@ export async function patchSingleNode(item: any, textCtx: TextPropsContext | nul
   const result: any = {};
   const hints: Hint[] = [];
 
+  if (item.properties !== undefined) {
+    throw new Error(
+      `frames.update/text.update do not accept 'properties'. Use documented top-level fields instead. ` +
+      `'properties' is reserved for component override maps on instances.create/update.`
+    );
+  }
+  if (item.rawProperties !== undefined) {
+    throw new Error(
+      `frames.update/text.update do not support 'rawProperties'. Use documented top-level fields instead. ` +
+      `If a missing field is important, add it to the schema rather than guessing raw Figma properties.`
+    );
+  }
+
   /** Collect hints from a sub-handler result */
   function collectHints(r: any) {
     if (r?.hints) hints.push(...(r.hints as Hint[]));
@@ -86,7 +108,7 @@ export async function patchSingleNode(item: any, textCtx: TextPropsContext | nul
     if (!node) throw new Error(`Node not found: ${item.nodeId}`);
     for (const key of [...simpleUpdates, ...sizeConstraints]) {
       if (key in node) (node as any)[key] = item[key];
-      else hints.push({ type: "error", message: `Property '${key}' not supported on ${node.type}` });
+      else throw new Error(`Property '${key}' not supported on ${node.type}`);
     }
   }
 
@@ -249,13 +271,23 @@ export async function patchSingleNode(item: any, textCtx: TextPropsContext | nul
     const node = await figma.getNodeByIdAsync(item.nodeId);
     if (!node) throw new Error(`Node not found: ${item.nodeId}`);
     if (node.type !== "TEXT") {
-      hints.push({ type: "error", message: `componentPropertyName ignored — node is ${node.type}, not TEXT.` });
+      throw new Error(`componentPropertyName requires a TEXT node, got ${node.type}.`);
     } else {
+      const hintsBeforeResolve = hints.length;
       const comp = await findComponentForBinding(node, item.componentId, hints);
       if (!comp) {
-        if (!item.componentId) hints.push({ type: "error", message: `componentPropertyName '${item.componentPropertyName}' ignored — no ancestor component found.` });
+        const resolveError = lastErrorHint(hints, hintsBeforeResolve);
+        if (resolveError) throw new Error(resolveError);
+        if (!item.componentId) {
+          throw new Error(`componentPropertyName '${item.componentPropertyName}' requires an ancestor component or an explicit componentId.`);
+        }
       } else {
-        bindTextToComponentProperty(node, comp, item.componentPropertyName, hints);
+        const hintsBeforeBind = hints.length;
+        const ok = bindTextToComponentProperty(node, comp, item.componentPropertyName, hints);
+        if (!ok) {
+          const bindError = lastErrorHint(hints, hintsBeforeBind);
+          throw new Error(bindError || `Failed to bind componentPropertyName '${item.componentPropertyName}'.`);
+        }
       }
     }
   }
@@ -268,7 +300,7 @@ export async function patchSingleNode(item: any, textCtx: TextPropsContext | nul
       const variable = b.variableName
         ? await findVariableByName(b.variableName)
         : await findVariableById(b.variableId);
-      if (!variable) { hints.push({ type: "error", message: `Variable not found: ${b.variableName || b.variableId}` }); continue; }
+      if (!variable) throw new Error(`Variable not found: ${b.variableName || b.variableId}`);
       const paintMatch = b.field.match(/^(fills|strokes)\/(\d+)\/color$/);
       if (paintMatch) {
         const prop = paintMatch[1];
@@ -284,7 +316,7 @@ export async function patchSingleNode(item: any, textCtx: TextPropsContext | nul
       } else if ("setBoundVariable" in node) {
         (node as any).setBoundVariable(b.field, variable);
       } else {
-        hints.push({ type: "error", message: `Node does not support variable binding for field: ${b.field}` });
+        throw new Error(`Node does not support variable binding for field: ${b.field}`);
       }
     }
   }
@@ -294,7 +326,7 @@ export async function patchSingleNode(item: any, textCtx: TextPropsContext | nul
     const node = await figma.getNodeByIdAsync(item.nodeId);
     if (!node) throw new Error(`Node not found: ${item.nodeId}`);
     if (!("setExplicitVariableModeForCollection" in node)) {
-      hints.push({ type: "error", message: `Node ${item.nodeId} does not support explicit variable modes.` });
+      throw new Error(`Node ${item.nodeId} does not support explicit variable modes.`);
     } else {
       const allCollections = await figma.variables.getLocalVariableCollectionsAsync();
       const em = item.explicitMode;
@@ -324,12 +356,7 @@ export async function patchSingleNode(item: any, textCtx: TextPropsContext | nul
     }
   }
 
-  // 16. Properties escape hatch (last)
-  if (item.properties) {
-    await setNodePropertiesSingle({ nodeId: item.nodeId, properties: item.properties });
-  }
-
-  // Annotations
+  // 16. Annotations
   if (item.annotations) {
     const node = await figma.getNodeByIdAsync(item.nodeId);
     if (node) applyAnnotations(node, item, hints);
