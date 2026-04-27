@@ -24,16 +24,179 @@ export async function resizeSingle(p: any) {
   return {};
 }
 
+const MIN_SCALE_FACTOR = 0.01;
+const SCALE_EPSILON = 0.000001;
+
+function readScaleFactor(value: unknown, name: string): number | undefined {
+  if (value === undefined) return undefined;
+  const n = Number(value);
+  if (!Number.isFinite(n) || n < MIN_SCALE_FACTOR) {
+    throw new Error(`${name} must be a number >= ${MIN_SCALE_FACTOR}`);
+  }
+  return n;
+}
+
+function resolveScaleAxes(p: any): { scaleX: number; scaleY: number; uniform: boolean } {
+  const factor = readScaleFactor(p.factor, "factor");
+  const scaleX = readScaleFactor(p.scaleX, "scaleX");
+  const scaleY = readScaleFactor(p.scaleY, "scaleY");
+
+  if (factor !== undefined && (scaleX !== undefined || scaleY !== undefined)) {
+    throw new Error("scale accepts either factor or scaleX/scaleY, not both");
+  }
+  if (factor !== undefined) return { scaleX: factor, scaleY: factor, uniform: true };
+  if (scaleX === undefined && scaleY === undefined) {
+    throw new Error("scale requires factor or scaleX/scaleY");
+  }
+
+  if (p.lockAspectRatio === true) {
+    const locked = scaleX ?? scaleY!;
+    if (scaleX !== undefined && scaleY !== undefined && Math.abs(scaleX - scaleY) > SCALE_EPSILON) {
+      throw new Error("lockAspectRatio requires matching scaleX and scaleY. Pass factor for uniform scaling or set lockAspectRatio:false for independent axes.");
+    }
+    return { scaleX: locked, scaleY: locked, uniform: true };
+  }
+
+  const x = scaleX ?? 1;
+  const y = scaleY ?? 1;
+  return { scaleX: x, scaleY: y, uniform: Math.abs(x - y) <= SCALE_EPSILON };
+}
+
+async function loadTextFontsInSubtree(node: any) {
+  const fonts = new Map<string, FontName>();
+
+  function collect(n: any) {
+    if (n?.type === "TEXT") {
+      const text = n as TextNode;
+      const nodeFonts = typeof text.getRangeAllFontNames === "function"
+        ? text.getRangeAllFontNames(0, text.characters.length)
+        : text.fontName !== figma.mixed ? [text.fontName as FontName] : [];
+      for (const font of nodeFonts) fonts.set(`${font.family}::${font.style}`, font);
+    }
+    if (Array.isArray(n?.children)) {
+      for (const child of n.children) collect(child);
+    }
+  }
+
+  collect(node);
+  await Promise.all([...fonts.values()].map(font => figma.loadFontAsync(font)));
+}
+
+const SCALAR_PROPERTIES = [
+  "strokeWeight",
+  "strokeTopWeight",
+  "strokeRightWeight",
+  "strokeBottomWeight",
+  "strokeLeftWeight",
+  "cornerRadius",
+  "topLeftRadius",
+  "topRightRadius",
+  "bottomRightRadius",
+  "bottomLeftRadius",
+  "fontSize",
+];
+
+interface ScalarSnapshot {
+  values: Record<string, number>;
+  lineHeight?: any;
+  letterSpacing?: any;
+  effects?: any[];
+}
+
+function scaleNumberProperty(target: any, property: string, scale: number) {
+  const value = target[property];
+  if (typeof value === "number" && value !== figma.mixed) target[property] = value * scale;
+}
+
+function snapshotScalarProperties(node: any): ScalarSnapshot {
+  const values: Record<string, number> = {};
+  for (const property of SCALAR_PROPERTIES) {
+    const value = node[property];
+    if (typeof value === "number" && value !== figma.mixed) values[property] = value;
+  }
+  return {
+    values,
+    lineHeight: node.lineHeight && node.lineHeight !== figma.mixed ? { ...node.lineHeight } : undefined,
+    letterSpacing: node.letterSpacing && node.letterSpacing !== figma.mixed ? { ...node.letterSpacing } : undefined,
+    effects: Array.isArray(node.effects) ? node.effects.map((effect: any) => ({
+      ...effect,
+      offset: effect.offset ? { ...effect.offset } : effect.offset,
+    })) : undefined,
+  };
+}
+
+function scaleScalarProperties(node: any, scaleX: number, scaleY: number, snapshot: ScalarSnapshot) {
+  // Figma exposes native non-uniform geometry resize, but scalar properties need
+  // one axis. Text, strokes, corners, and blur radii follow the vertical axis.
+  const scalar = scaleY;
+  for (const [property, value] of Object.entries(snapshot.values)) {
+    node[property] = value * scalar;
+  }
+
+  if (snapshot.lineHeight?.unit === "PIXELS") {
+    node.lineHeight = { ...snapshot.lineHeight, value: snapshot.lineHeight.value * scalar };
+  }
+  if (snapshot.letterSpacing?.unit === "PIXELS") {
+    node.letterSpacing = { ...snapshot.letterSpacing, value: snapshot.letterSpacing.value * scaleX };
+  }
+  if (snapshot.effects && snapshot.effects.length > 0) {
+    node.effects = snapshot.effects.map((effect: any) => ({
+      ...effect,
+      radius: typeof effect.radius === "number" ? effect.radius * scalar : effect.radius,
+      spread: typeof effect.spread === "number" ? effect.spread * scalar : effect.spread,
+      offset: effect.offset
+        ? { x: effect.offset.x * scaleX, y: effect.offset.y * scaleY }
+        : effect.offset,
+    }));
+  }
+}
+
+function scaleAutoLayoutProperties(node: any, scaleX: number, scaleY: number) {
+  scaleNumberProperty(node, "paddingLeft", scaleX);
+  scaleNumberProperty(node, "paddingRight", scaleX);
+  scaleNumberProperty(node, "paddingTop", scaleY);
+  scaleNumberProperty(node, "paddingBottom", scaleY);
+  if (node.layoutMode === "HORIZONTAL") scaleNumberProperty(node, "itemSpacing", scaleX);
+  else if (node.layoutMode === "VERTICAL") scaleNumberProperty(node, "itemSpacing", scaleY);
+  scaleNumberProperty(node, "counterAxisSpacing", node.layoutMode === "HORIZONTAL" ? scaleY : scaleX);
+}
+
+function resizeWithoutConstraints(node: any, scaleX: number, scaleY: number): boolean {
+  if (!("resizeWithoutConstraints" in node) || typeof node.width !== "number" || typeof node.height !== "number") {
+    return false;
+  }
+  const width = Math.max(node.width * scaleX, MIN_SCALE_FACTOR);
+  const height = node.type === "LINE" ? 0 : Math.max(node.height * scaleY, MIN_SCALE_FACTOR);
+  node.resizeWithoutConstraints(width, height);
+  return true;
+}
+
+function scaleNodeAxes(node: any, scaleX: number, scaleY: number, includePosition: boolean) {
+  const children = Array.isArray(node.children) ? [...node.children] : [];
+  const scalarSnapshot = snapshotScalarProperties(node);
+  if (includePosition) {
+    if ("x" in node && typeof node.x === "number") node.x *= scaleX;
+    if ("y" in node && typeof node.y === "number") node.y *= scaleY;
+  }
+  for (const child of children) scaleNodeAxes(child, scaleX, scaleY, true);
+  const resized = resizeWithoutConstraints(node, scaleX, scaleY);
+  scaleAutoLayoutProperties(node, scaleX, scaleY);
+  scaleScalarProperties(node, scaleX, scaleY, scalarSnapshot);
+  if (!resized && children.length === 0) throw new Error(`Node does not support axis scaling: ${node.id}`);
+}
+
 export async function rescaleSingle(p: any) {
   if (!p.nodeId) throw new Error("scale requires id");
-  const factor = Number(p.factor);
-  if (!Number.isFinite(factor) || factor < 0.01) {
-    throw new Error("factor must be a number >= 0.01");
-  }
+  const { scaleX, scaleY, uniform } = resolveScaleAxes(p);
   const node = await figma.getNodeByIdAsync(p.nodeId);
   if (!node) throw new Error(`Node not found: ${p.nodeId}`);
-  if (!("rescale" in node)) throw new Error(`Node does not support proportional scaling: ${p.nodeId}`);
-  (node as any).rescale(factor);
+  if (uniform) {
+    if (!("rescale" in node)) throw new Error(`Node does not support proportional scaling: ${p.nodeId}`);
+    (node as any).rescale(scaleX);
+  } else {
+    await loadTextFontsInSubtree(node);
+    scaleNodeAxes(node, scaleX, scaleY, false);
+  }
   return {};
 }
 

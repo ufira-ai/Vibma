@@ -47,7 +47,13 @@ const scaleAdapter = (p: any) => modifyNodeHandlers.rescale_node({
   ...p,
   items: p.items
     ? p.items.map((i: any) => ({ ...i, nodeId: i.nodeId ?? i.id }))
-    : [{ nodeId: p.id, factor: p.factor }],
+    : [{
+      nodeId: p.id,
+      factor: p.factor,
+      scaleX: p.scaleX,
+      scaleY: p.scaleY,
+      lockAspectRatio: p.lockAspectRatio,
+    }],
 });
 const auditAdapter = (p: any) => auditNode({ nodeId: p.id, rules: p.rules, maxDepth: p.maxDepth, maxFindings: p.maxFindings, minSeverity: p.minSeverity, skipInstances: p.skipInstances });
 
