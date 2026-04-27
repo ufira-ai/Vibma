@@ -220,7 +220,7 @@ methods:
   scale:
     # command auto-derived as {endpoint}.scale
     tier: edit
-    description: "Scale a node subtree. factor/locked aspect uses Figma's native Scale tool behavior; independent scaleX/scaleY uses recursive geometry scaling."
+    description: "Proportionally rescale a node subtree using Figma's Scale tool behavior"
     example: '{endpoint}(method:"scale", id:"1:23", factor:0.5)'
     params:
       id:
@@ -231,34 +231,17 @@ methods:
         type: number
         coerce: true
         optional: true
-        description: "Uniform scale factor, >= 0.01. 0.5 = 50%, 2 = 200%. Uses Figma's native rescale behavior."
-      scaleX:
-        type: number
-        coerce: true
-        optional: true
-        description: "Horizontal scale factor, >= 0.01. Use with scaleY for independent axis scaling. Omitted axis defaults to 1 unless lockAspectRatio:true."
-      scaleY:
-        type: number
-        coerce: true
-        optional: true
-        description: "Vertical scale factor, >= 0.01. In independent axis scaling, text, strokes, corners, and effect radii follow this vertical scale."
-      lockAspectRatio:
-        type: boolean
-        optional: true
-        description: "When true with scaleX/scaleY, keep proportions by using a uniform factor. If both axes are provided they must match. factor is always uniform."
+        description: "Scale factor, >= 0.01. 0.5 = 50%, 2 = 200%. Scales children, text, strokes, effects, and layout geometry from the node's top-left."
       items:
         type: array
         coerce: json
         optional: true
-        description: "Batch: [{id, factor}] or [{id, scaleX, scaleY, lockAspectRatio?}, ...]. Alternative to single-item params."
+        description: "Batch: [{id, factor}, ...]. Alternative to single-item params."
         items:
           type: object
           properties:
             id: { type: string, required: true, description: "Node ID to scale" }
-            factor: { type: number, coerce: true, optional: true, description: "Uniform scale factor, >= 0.01. Use factor or scaleX/scaleY, not both." }
-            scaleX: { type: number, coerce: true, optional: true, description: "Horizontal scale factor, >= 0.01." }
-            scaleY: { type: number, coerce: true, optional: true, description: "Vertical scale factor, >= 0.01." }
-            lockAspectRatio: { type: boolean, optional: true, description: "When true with scaleX/scaleY, force uniform aspect-locked scaling." }
+            factor: { type: number, coerce: true, required: true, description: "Scale factor, >= 0.01. 0.5 = 50%, 2 = 200%." }
     response:
       type: batch_ok
 
