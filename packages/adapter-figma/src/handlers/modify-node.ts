@@ -24,6 +24,19 @@ export async function resizeSingle(p: any) {
   return {};
 }
 
+export async function rescaleSingle(p: any) {
+  if (!p.nodeId) throw new Error("scale requires id");
+  const factor = Number(p.factor);
+  if (!Number.isFinite(factor) || factor < 0.01) {
+    throw new Error("factor must be a number >= 0.01");
+  }
+  const node = await figma.getNodeByIdAsync(p.nodeId);
+  if (!node) throw new Error(`Node not found: ${p.nodeId}`);
+  if (!("rescale" in node)) throw new Error(`Node does not support proportional scaling: ${p.nodeId}`);
+  (node as any).rescale(factor);
+  return {};
+}
+
 async function deleteSingle(p: any) {
   const node = await figma.getNodeByIdAsync(p.nodeId);
   if (!node) throw new Error(`Node not found: ${p.nodeId}`);
@@ -117,6 +130,7 @@ async function insertSingle(p: any) {
 export const figmaHandlers: Record<string, (params: any) => Promise<any>> = {
   move_node: (p) => batchHandler(p, moveSingle),
   resize_node: (p) => batchHandler(p, resizeSingle),
+  rescale_node: (p) => batchHandler(p, rescaleSingle),
   delete_node: (p) => batchHandler(p, deleteSingle),
   // Legacy alias
   delete_multiple_nodes: async (p) => batchHandler({ items: (p.nodeIds || []).map((id: string) => ({ nodeId: id })) }, deleteSingle),

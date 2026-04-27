@@ -31,6 +31,10 @@ function paramLines(name: string, param: RawParam, indent = 4): string[] {
   return lines;
 }
 
+function formatExample(ep: ResolvedEndpoint, example: string): string {
+  return example.split("{endpoint}").join(ep.name);
+}
+
 function methodDetail(ep: ResolvedEndpoint, method: ResolvedMethod): string {
   const lines: string[] = [];
   lines.push(`# ${ep.name}.${method.name}`);
@@ -38,7 +42,7 @@ function methodDetail(ep: ResolvedEndpoint, method: ResolvedMethod): string {
   lines.push("");
 
   if (method.example) {
-    lines.push(`Example: ${method.example}`);
+    lines.push(`Example: ${formatExample(ep, method.example)}`);
     lines.push("");
   }
 

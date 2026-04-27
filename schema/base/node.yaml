@@ -217,6 +217,34 @@ methods:
       type: batch
       item: { id: { type: string } }
 
+  scale:
+    # command auto-derived as {endpoint}.scale
+    tier: edit
+    description: "Proportionally rescale a node subtree using Figma's Scale tool behavior"
+    example: '{endpoint}(method:"scale", id:"1:23", factor:0.5)'
+    params:
+      id:
+        type: string
+        optional: true
+        description: "Node ID to scale"
+      factor:
+        type: number
+        coerce: true
+        optional: true
+        description: "Scale factor, >= 0.01. 0.5 = 50%, 2 = 200%. Scales children, text, strokes, effects, and layout geometry from the node's top-left."
+      items:
+        type: array
+        coerce: json
+        optional: true
+        description: "Batch: [{id, factor}, ...]. Alternative to single-item params."
+        items:
+          type: object
+          properties:
+            id: { type: string, required: true, description: "Node ID to scale" }
+            factor: { type: number, coerce: true, required: true, description: "Scale factor, >= 0.01. 0.5 = 50%, 2 = 200%." }
+    response:
+      type: batch_ok
+
   audit:
     tier: read
     description: "Run lint on a node — returns severity-ranked findings"

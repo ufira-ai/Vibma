@@ -43,6 +43,12 @@ const reparentAdapter = (p: any) => modifyNodeHandlers.insert_child({
   ...p,
   items: (p.items || []).map((i: any) => ({ childId: i.id, parentId: i.parentId, index: i.index })),
 });
+const scaleAdapter = (p: any) => modifyNodeHandlers.rescale_node({
+  ...p,
+  items: p.items
+    ? p.items.map((i: any) => ({ ...i, nodeId: i.nodeId ?? i.id }))
+    : [{ nodeId: p.id, factor: p.factor }],
+});
 const auditAdapter = (p: any) => auditNode({ nodeId: p.id, rules: p.rules, maxDepth: p.maxDepth, maxFindings: p.maxFindings, minSeverity: p.minSeverity, skipInstances: p.skipInstances });
 
 /** Merged dispatch map: command name → handler function */
@@ -103,6 +109,7 @@ export const allFigmaHandlers: Record<string, (params: any) => Promise<any>> = {
   }),
   "frames.delete": deleteAdapter,
   "frames.clone": cloneAdapter,
+  "frames.scale": scaleAdapter,
   "frames.reparent": reparentAdapter,
   "frames.export": nodeInfoHandlers.export_node_as_image,
   "frames.audit": auditAdapter,
@@ -129,6 +136,7 @@ export const allFigmaHandlers: Record<string, (params: any) => Promise<any>> = {
   }),
   "text.delete": deleteAdapter,
   "text.clone": cloneAdapter,
+  "text.scale": scaleAdapter,
   "text.audit": auditAdapter,
   "text.reparent": reparentAdapter,
 
@@ -156,6 +164,7 @@ export const allFigmaHandlers: Record<string, (params: any) => Promise<any>> = {
 
   // components endpoint — inherited node base methods + commit
   "components.clone": cloneAdapter,
+  "components.scale": scaleAdapter,
   "components.reparent": reparentAdapter,
   "components.commit": stageHandlers.commit,
 
@@ -174,6 +183,7 @@ export const allFigmaHandlers: Record<string, (params: any) => Promise<any>> = {
   "instances.list": (p: any) => nodeInfoHandlers.search_nodes({ ...p, scopeNodeId: p.parentId, types: p.types ?? ["INSTANCE"] }),
   "instances.delete": deleteAdapter,
   "instances.clone": cloneAdapter,
+  "instances.scale": scaleAdapter,
   "instances.reparent": reparentAdapter,
 
   // ─── variable_collections endpoint ───

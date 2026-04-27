@@ -15,6 +15,9 @@ export const annotationsRemove = new Set(["id","index"]) as ReadonlySet<string>;
 /** node.clone item params */
 export const nodeClone = new Set(["id","name","parentId","x","y"]) as ReadonlySet<string>;
 
+/** node.scale item params */
+export const nodeScale = new Set(["factor","id"]) as ReadonlySet<string>;
+
 /** node.reparent item params */
 export const nodeReparent = new Set(["id","index","parentId"]) as ReadonlySet<string>;
 
