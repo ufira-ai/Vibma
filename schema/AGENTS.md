@@ -24,6 +24,15 @@ Key YAML features:
 
 Regenerate: `npx tsx schema/compiler/index.ts` then `npm run build`.
 
+## Generated Validation Ownership
+
+The schema compiler is the first place to fix validation that can be derived from YAML:
+
+- Empty `items: []` is a batch-shape error and must be handled generically in generated validation and adapter `batchHandler`, not per endpoint.
+- `discriminant: type` means the discriminant lives at the method/root level (`components(method:"create", type:"component", items:[...])`), not inside each item. Misplaced item-level discriminants should be rejected by compiler-generated validation.
+- If a discriminated endpoint needs examples for multiple branches, put `example:` on each `types.<branch>` entry. Do not duplicate branch examples in handler strings or generated files.
+- If a new method has `items` with inline properties or a discriminant, make sure `gen-mcp.ts` can validate that shape from YAML before adding handler-specific guards.
+
 ## Single Source of Truth
 
 YAML is the source of truth for all type information. Interfaces in tool descriptions and help output are **auto-generated** from the schema — never hand-written in notes.
@@ -36,6 +45,8 @@ Three paths for interface generation (`gen-descriptions.ts`):
 For complex `items` arrays (>3 props), always add `tsType` to get a named interface. Without it, the schema renders as inline `{ ... }[]` in the method DSL.
 
 **Param guard key sets** (`guards.ts`) are generated from the same YAML. Handlers import `ReadonlySet<string>` values from `@ufira/vibma/guards` for `rejectUnknownParams()` validation. Handler-level aliases (e.g. `characters` for `text`) extend the generated set inline — never duplicate the schema keys.
+
+When adding a discriminant branch, keep param names, examples, generated guard keys, help output, and docs in sync by editing only the YAML source and compiler support. Never hardcode branch-specific examples or param lists in adapter handlers.
 
 **Remaining exception**: `SHARED_TYPES` in `gen-descriptions.ts` (Color, Effect, Paint, LayoutGrid, NodeStub) are still hardcoded. Their shapes exist in `refs/common.yaml` but the auto-append mechanism hasn't been migrated yet.
 

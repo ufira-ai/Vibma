@@ -449,7 +449,16 @@ export const framesCreateLine = new Set([
 export const framesCreateGroup = new Set(["name","nodeIds","parentId"]) as ReadonlySet<string>;
 
 /** frames create type="boolean_operation" */
-export const framesCreateBooleanOperation = new Set(["name","nodeIds","operation","parentId"]) as ReadonlySet<string>;
+export const framesCreateBooleanOperation = new Set([
+  "fillStyleName",
+  "fillVariableName",
+  "name",
+  "nodeIds",
+  "operation",
+  "parentId",
+  "strokeStyleName",
+  "strokeVariableName",
+]) as ReadonlySet<string>;
 
 /** frames create type="svg" */
 export const framesCreateSvg = new Set([

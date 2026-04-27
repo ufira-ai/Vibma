@@ -44,6 +44,18 @@ async function createSingleSvg(p: any) {
     if (p.name) node.name = p.name;
     await appendToParent(node, p.parentId);
 
+    if (p.name && "children" in node) {
+      let pathIndex = 0;
+      const renameDefaultVectorChildren = (n: SceneNode) => {
+        if ((n.type === "VECTOR" || n.type === "BOOLEAN_OPERATION") && (n.name === "Vector" || /^Vector \d+$/.test(n.name))) {
+          pathIndex += 1;
+          n.name = pathIndex === 1 ? `${p.name} Path` : `${p.name} Path ${pathIndex}`;
+        }
+        if ("children" in n) (n as any).children.forEach(renameDefaultVectorChildren);
+      };
+      (node as any).children.forEach(renameDefaultVectorChildren);
+    }
+
     // Bind fill style/variable to all vector children
     if (p.fillStyleName || p.fillVariableId || p.fillVariableName) {
       const vectors: SceneNode[] = [];
@@ -271,7 +283,21 @@ async function createSingleBooleanOperation(p: any) {
   const result = op(nodes, parent as any);
   if (p.name) result.name = p.name;
 
-  return { id: result.id };
+  const hints: Hint[] = [];
+  if (p.fillVariableName) {
+    await applyFillWithAutoBind(result, { fills: { _variable: p.fillVariableName } }, hints);
+  } else if (p.fillStyleName) {
+    await applyFillWithAutoBind(result, { fills: { _style: p.fillStyleName } }, hints);
+  }
+  if (p.strokeVariableName) {
+    await applyStrokeWithAutoBind(result, { strokes: { _variable: p.strokeVariableName } }, hints);
+  } else if (p.strokeStyleName) {
+    await applyStrokeWithAutoBind(result, { strokes: { _style: p.strokeStyleName } }, hints);
+  }
+
+  const response: any = { id: result.id };
+  if (hints.length > 0) response.hints = hints;
+  return response;
 }
 
 export const figmaHandlers: Record<string, (params: any) => Promise<any>> = {

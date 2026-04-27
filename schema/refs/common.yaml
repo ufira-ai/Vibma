@@ -54,14 +54,15 @@ inlineChildren:
   optional: true
   description: >
     Inline child nodes — build nested trees in one call. Types:
-    text: {type:"text", text, fontFamily?, fontSize?, fontWeight?, fontStyle?, fontColor?, layoutSizingHorizontal?}.
-    frame: {type:"frame", name?, layoutMode?, fillColor?, width?, layoutSizingHorizontal?, children?}.
+    text: {type:"text", text, textStyleName?, fontColorVariableName?, layoutSizingHorizontal?}.
+    frame: {type:"frame", name?, layoutMode?, fillVariableName?, itemSpacing?, layoutSizingHorizontal?, children?}.
     instance: {type:"instance", componentId, variantProperties?, properties?}.
     component: {type:"component", name, children?}.
     All params from text/frame endpoints are supported on their respective types.
     Always set layoutSizingHorizontal + layoutSizingVertical on children inside auto-layout parents (FILL, HUG, or FIXED).
-    Example: children:[{type:"text", text:"Title", fontSize:20, layoutSizingHorizontal:"FILL", layoutSizingVertical:"HUG"},
-    {type:"frame", name:"Row", layoutMode:"HORIZONTAL", layoutSizingHorizontal:"FILL", layoutSizingVertical:"HUG", itemSpacing:8,
+    Example: children:[{type:"text", name:"Title", text:"Title", textStyleName:"Heading/Medium",
+    fontColorVariableName:"text/primary", layoutSizingHorizontal:"FILL", layoutSizingVertical:"HUG"},
+    {type:"frame", name:"Row", layoutMode:"HORIZONTAL", layoutSizingHorizontal:"FILL", layoutSizingVertical:"HUG", itemSpacing:"space/8",
     children:[{type:"instance", componentId:"1:2", layoutSizingHorizontal:"FILL", layoutSizingVertical:"HUG"}]}]
     Inside components: add componentPropertyName to auto-bind TEXT or INSTANCE_SWAP properties.
   items:
@@ -73,16 +74,16 @@ inlineChildrenComponent:
   optional: true
   description: >
     Inline child nodes — build nested trees in one call. Types:
-    text: {type:"text", text, componentPropertyName?, fontFamily?, fontSize?, fontWeight?, fontStyle?, fontColor?, layoutSizingHorizontal?}.
-    frame: {type:"frame", name?, layoutMode?, fillColor?, width?, layoutSizingHorizontal?, children?}.
+    text: {type:"text", text, componentPropertyName?, textStyleName?, fontColorVariableName?, layoutSizingHorizontal?}.
+    frame: {type:"frame", name?, layoutMode?, fillVariableName?, itemSpacing?, layoutSizingHorizontal?, children?}.
     instance: {type:"instance", componentId, componentPropertyName?, variantProperties?, properties?}.
     component: {type:"component", name, children?}.
     All params from text/frame endpoints are supported on their respective types.
     componentPropertyName auto-creates and binds a TEXT (text) or INSTANCE_SWAP (instance) property.
     Always set layoutSizingHorizontal + layoutSizingVertical on children inside auto-layout parents (FILL, HUG, or FIXED).
-    Example: children:[{type:"text", text:"Label", componentPropertyName:"Label", fontSize:14,
-    fontColorVariableName:"text/primary", layoutSizingHorizontal:"FILL", layoutSizingVertical:"HUG"},
-    {type:"frame", name:"Actions", layoutMode:"HORIZONTAL", layoutSizingHorizontal:"FILL", layoutSizingVertical:"HUG", itemSpacing:8,
+    Example: children:[{type:"text", name:"Label", text:"Button", componentPropertyName:"Label",
+    textStyleName:"Body/Medium", fontColorVariableName:"text/primary", layoutSizingHorizontal:"FILL", layoutSizingVertical:"HUG"},
+    {type:"frame", name:"Actions", layoutMode:"HORIZONTAL", layoutSizingHorizontal:"FILL", layoutSizingVertical:"HUG", itemSpacing:"space/8",
     children:[{type:"instance", componentId:"1:2", componentPropertyName:"Action", layoutSizingHorizontal:"FILL", layoutSizingVertical:"HUG"}]}]
   items:
     type: object

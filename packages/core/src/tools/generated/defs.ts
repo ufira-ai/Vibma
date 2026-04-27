@@ -52,6 +52,7 @@ export const tools: ToolDef[] = [
         if (params.id === undefined) throw new Error("delete_category requires \"id\"");
       }
       if (!params.items) return;
+      if (Array.isArray(params.items) && params.items.length === 0) throw new Error("items: [] is a no-op. Batch calls need at least one item. Omit items to use single-item params, or pass one or more item objects. Use annotations(method: \"help\", topic: \"" + m + "\") to see valid item shapes.");
       if (m === "get") {
         const itemSchema = z.object({
           id: z.string(),
@@ -117,6 +118,10 @@ export const tools: ToolDef[] = [
     tier: "read" as const,
     validate: (params: any) => {
       const m = params.method;
+      if (m === "create") {
+        const itemDiscriminant = Array.isArray(params.items) ? params.items.find((it: any) => it && typeof it === "object" && typeof it.type === "string")?.type : undefined;
+        if (params.type === undefined) { throw new Error(itemDiscriminant ? "components.create uses top-level \"type\", not \"type\" inside items. Move the item value to the top level and use help for valid item shapes." : "components.create requires top-level \"type\" (component, from_node, variant_set). Use components(method: \"help\", topic: \"create\") for valid item shapes."); }
+      }
       if (m === "commit") {
         if (params.id === undefined) throw new Error("commit requires \"id\"");
       }
@@ -124,6 +129,7 @@ export const tools: ToolDef[] = [
         if (params.id === undefined) throw new Error("delete requires \"id\"");
       }
       if (!params.items) return;
+      if (Array.isArray(params.items) && params.items.length === 0) throw new Error("items: [] is a no-op. Batch calls need at least one item. Omit items to use single-item params, or pass one or more item objects. Use components(method: \"help\", topic: \"" + m + "\") to see valid item shapes.");
       if (m === "create") {
         if (params.items) {
           if (params.type === "variant_set") for (const it of params.items) { if (it.nodeIds !== undefined && it.componentIds === undefined) { it.componentIds = it.nodeIds; delete it.nodeIds; } }
@@ -145,7 +151,7 @@ export const tools: ToolDef[] = [
             fills: z.array(z.record(z.string(), z.unknown())).optional().describe("Fill paints array — e.g. [{type: 'SOLID', color: '#hex'}] or [] for transparent. Primary way to set fills."),
             fillColor: S.colorRgba.optional().describe("Shorthand — sets a single solid fill (auto-binds to matching variable/style)"),
             fillStyleName: z.string().optional().describe("Paint style name for fill"),
-            fillVariableName: z.string().optional().describe("Color variable by name e.g. 'bg/primary'"),
+            fillVariableName: z.string().optional().describe("Color variable by name e.g. 'bg/surface'"),
             imageUrl: z.string().optional().describe("Image source — 'pexel:<id>' for Pexels photos, a public URL, or a local file path. SVGs are inserted as vectors; raster images become IMAGE fills."),
             imageScaleMode: z.enum(["FILL", "FIT", "CROP", "TILE"]).optional().describe("How the image is scaled within the frame (default: FILL)"),
             strokes: z.array(z.record(z.string(), z.unknown())).optional().describe("Stroke paints array — e.g. [{type: 'SOLID', color: '#hex'}] or [] to clear. Primary way to set strokes."),
@@ -185,7 +191,7 @@ export const tools: ToolDef[] = [
             maxHeight: z.coerce.number().optional().describe("Max height for responsive auto-layout"),
             annotations: flexJson(z.array(z.record(z.string(), z.unknown()))).optional().describe("Set annotations — [{label?, labelMarkdown?, properties?, categoryId?}]. Properties validated per node type."),
             description: z.string().optional().describe("Component description (shown in Figma's component panel)"),
-            children: flexJson(z.array(z.record(z.string(), z.unknown()))).optional().describe("Inline child nodes — build nested trees in one call. Types: text: {type:\"text\", text, componentPropertyName?, fontFamily?, fontSize?, fontWeight?, fontStyle?, fontColor?, layoutSizingHorizontal?}. frame: {type:\"frame\", name?, layoutMode?, fillColor?, width?, layoutSizingHorizontal?, children?}. instance: {type:\"instance\", componentId, componentPropertyName?, variantProperties?, properties?}. component: {type:\"component\", name, children?}. All params from text/frame endpoints are supported on their respective types. componentPropertyName auto-creates and binds a TEXT (text) or INSTANCE_SWAP (instance) property. Always set layoutSizingHorizontal + layoutSizingVertical on children inside auto-layout parents (FILL, HUG, or FIXED). Example: children:[{type:\"text\", text:\"Label\", componentPropertyName:\"Label\", fontSize:14, fontColorVariableName:\"text/primary\", layoutSizingHorizontal:\"FILL\", layoutSizingVertical:\"HUG\"}, {type:\"frame\", name:\"Actions\", layoutMode:\"HORIZONTAL\", layoutSizingHorizontal:\"FILL\", layoutSizingVertical:\"HUG\", itemSpacing:8, children:[{type:\"instance\", componentId:\"1:2\", componentPropertyName:\"Action\", layoutSizingHorizontal:\"FILL\", layoutSizingVertical:\"HUG\"}]}]\n"),
+            children: flexJson(z.array(z.record(z.string(), z.unknown()))).optional().describe("Inline child nodes — build nested trees in one call. Types: text: {type:\"text\", text, componentPropertyName?, textStyleName?, fontColorVariableName?, layoutSizingHorizontal?}. frame: {type:\"frame\", name?, layoutMode?, fillVariableName?, itemSpacing?, layoutSizingHorizontal?, children?}. instance: {type:\"instance\", componentId, componentPropertyName?, variantProperties?, properties?}. component: {type:\"component\", name, children?}. All params from text/frame endpoints are supported on their respective types. componentPropertyName auto-creates and binds a TEXT (text) or INSTANCE_SWAP (instance) property. Always set layoutSizingHorizontal + layoutSizingVertical on children inside auto-layout parents (FILL, HUG, or FIXED). Example: children:[{type:\"text\", name:\"Label\", text:\"Button\", componentPropertyName:\"Label\", textStyleName:\"Body/Medium\", fontColorVariableName:\"text/primary\", layoutSizingHorizontal:\"FILL\", layoutSizingVertical:\"HUG\"}, {type:\"frame\", name:\"Actions\", layoutMode:\"HORIZONTAL\", layoutSizingHorizontal:\"FILL\", layoutSizingVertical:\"HUG\", itemSpacing:\"space/8\", children:[{type:\"instance\", componentId:\"1:2\", componentPropertyName:\"Action\", layoutSizingHorizontal:\"FILL\", layoutSizingVertical:\"HUG\"}]}]\n"),
             properties: flexJson(z.array(z.record(z.string(), z.unknown()))).optional().describe("Component properties to define at creation: [{propertyName, type, defaultValue}]. TEXT properties for inline children with componentPropertyName are created automatically."),
           }).passthrough(),
           "from_node": z.object({
@@ -209,7 +215,7 @@ export const tools: ToolDef[] = [
             fills: z.array(z.record(z.string(), z.unknown())).optional().describe("Fill paints array — e.g. [{type: 'SOLID', color: '#hex'}] or [] for transparent. Primary way to set fills."),
             fillColor: S.colorRgba.optional().describe("Shorthand — sets a single solid fill (auto-binds to matching variable/style)"),
             fillStyleName: z.string().optional().describe("Paint style name for fill"),
-            fillVariableName: z.string().optional().describe("Color variable by name e.g. 'bg/primary'"),
+            fillVariableName: z.string().optional().describe("Color variable by name e.g. 'bg/surface'"),
             imageUrl: z.string().optional().describe("Image source — 'pexel:<id>' for Pexels photos, a public URL, or a local file path. SVGs are inserted as vectors; raster images become IMAGE fills."),
             imageScaleMode: z.enum(["FILL", "FIT", "CROP", "TILE"]).optional().describe("How the image is scaled within the frame (default: FILL)"),
             strokes: z.array(z.record(z.string(), z.unknown())).optional().describe("Stroke paints array — e.g. [{type: 'SOLID', color: '#hex'}] or [] to clear. Primary way to set strokes."),
@@ -254,10 +260,9 @@ export const tools: ToolDef[] = [
           }).passthrough(),
         };
         const s = params.type && schemas[params.type];
-        if (s) {
-          try { params.items = z.array(s).parse(params.items); }
-          catch (e) { if (e instanceof z.ZodError) { throw new Error(e.issues.map(i => { const path = i.path.join("."); const shape = s instanceof z.ZodObject ? (s as any).shape : null; const desc = shape?.[i.path[1]]?.description; return path + ": " + i.message + (desc ? " (expected: " + desc + ")" : ""); }).join("; ")); } throw e; }
-        }
+        if (!s) throw new Error("components.create: unknown type. Use components(method: \"help\", topic: \"create\") for valid types and item shapes.");
+        try { params.items = z.array(s).parse(params.items); }
+        catch (e) { if (e instanceof z.ZodError) { throw new Error(e.issues.map(i => { const path = i.path.join("."); const shape = s instanceof z.ZodObject ? (s as any).shape : null; const desc = shape?.[i.path[1]]?.description; return path + ": " + i.message + (desc ? " (expected: " + desc + ")" : ""); }).join("; ")); } throw e; }
       }
       if (m === "update") {
         const itemSchema = z.object({
@@ -348,6 +353,10 @@ export const tools: ToolDef[] = [
     tier: "read" as const,
     validate: (params: any) => {
       const m = params.method;
+      if (m === "create") {
+        const itemDiscriminant = Array.isArray(params.items) ? params.items.find((it: any) => it && typeof it === "object" && typeof it.type === "string")?.type : undefined;
+        if (params.type === undefined) { throw new Error(itemDiscriminant ? "frames.create uses top-level \"type\", not \"type\" inside items. Move the item value to the top level and use help for valid item shapes." : "frames.create requires top-level \"type\" (frame, auto_layout, section, rectangle, ellipse, line, group, boolean_operation, svg, slot). Use frames(method: \"help\", topic: \"create\") for valid item shapes."); }
+      }
       if (m === "commit") {
         if (params.id === undefined) throw new Error("commit requires \"id\"");
       }
@@ -355,6 +364,7 @@ export const tools: ToolDef[] = [
         if (params.id === undefined) throw new Error("export requires \"id\"");
       }
       if (!params.items) return;
+      if (Array.isArray(params.items) && params.items.length === 0) throw new Error("items: [] is a no-op. Batch calls need at least one item. Omit items to use single-item params, or pass one or more item objects. Use frames(method: \"help\", topic: \"" + m + "\") to see valid item shapes.");
       if (m === "create") {
         const schemas: Record<string, z.ZodTypeAny> = {
           "frame": z.object({
@@ -373,7 +383,7 @@ export const tools: ToolDef[] = [
             fills: z.array(z.record(z.string(), z.unknown())).optional().describe("Fill paints array — e.g. [{type: 'SOLID', color: '#hex'}] or [] for transparent. Primary way to set fills."),
             fillColor: S.colorRgba.optional().describe("Shorthand — sets a single solid fill (auto-binds to matching variable/style)"),
             fillStyleName: z.string().optional().describe("Paint style name for fill"),
-            fillVariableName: z.string().optional().describe("Color variable by name e.g. 'bg/primary'"),
+            fillVariableName: z.string().optional().describe("Color variable by name e.g. 'bg/surface'"),
             imageUrl: z.string().optional().describe("Image source — 'pexel:<id>' for Pexels photos, a public URL, or a local file path. SVGs are inserted as vectors; raster images become IMAGE fills."),
             imageScaleMode: z.enum(["FILL", "FIT", "CROP", "TILE"]).optional().describe("How the image is scaled within the frame (default: FILL)"),
             strokes: z.array(z.record(z.string(), z.unknown())).optional().describe("Stroke paints array — e.g. [{type: 'SOLID', color: '#hex'}] or [] to clear. Primary way to set strokes."),
@@ -413,7 +423,7 @@ export const tools: ToolDef[] = [
             maxHeight: z.coerce.number().optional().describe("Max height for responsive auto-layout"),
             annotations: flexJson(z.array(z.record(z.string(), z.unknown()))).optional().describe("Set annotations — [{label?, labelMarkdown?, properties?, categoryId?}]. Properties validated per node type."),
             clipsContent: flexBool(z.boolean()).optional(),
-            children: flexJson(z.array(z.record(z.string(), z.unknown()))).optional().describe("Inline child nodes — build nested trees in one call. Types: text: {type:\"text\", text, fontFamily?, fontSize?, fontWeight?, fontStyle?, fontColor?, layoutSizingHorizontal?}. frame: {type:\"frame\", name?, layoutMode?, fillColor?, width?, layoutSizingHorizontal?, children?}. instance: {type:\"instance\", componentId, variantProperties?, properties?}. component: {type:\"component\", name, children?}. All params from text/frame endpoints are supported on their respective types. Always set layoutSizingHorizontal + layoutSizingVertical on children inside auto-layout parents (FILL, HUG, or FIXED). Example: children:[{type:\"text\", text:\"Title\", fontSize:20, layoutSizingHorizontal:\"FILL\", layoutSizingVertical:\"HUG\"}, {type:\"frame\", name:\"Row\", layoutMode:\"HORIZONTAL\", layoutSizingHorizontal:\"FILL\", layoutSizingVertical:\"HUG\", itemSpacing:8, children:[{type:\"instance\", componentId:\"1:2\", layoutSizingHorizontal:\"FILL\", layoutSizingVertical:\"HUG\"}]}] Inside components: add componentPropertyName to auto-bind TEXT or INSTANCE_SWAP properties.\n"),
+            children: flexJson(z.array(z.record(z.string(), z.unknown()))).optional().describe("Inline child nodes — build nested trees in one call. Types: text: {type:\"text\", text, textStyleName?, fontColorVariableName?, layoutSizingHorizontal?}. frame: {type:\"frame\", name?, layoutMode?, fillVariableName?, itemSpacing?, layoutSizingHorizontal?, children?}. instance: {type:\"instance\", componentId, variantProperties?, properties?}. component: {type:\"component\", name, children?}. All params from text/frame endpoints are supported on their respective types. Always set layoutSizingHorizontal + layoutSizingVertical on children inside auto-layout parents (FILL, HUG, or FIXED). Example: children:[{type:\"text\", name:\"Title\", text:\"Title\", textStyleName:\"Heading/Medium\", fontColorVariableName:\"text/primary\", layoutSizingHorizontal:\"FILL\", layoutSizingVertical:\"HUG\"}, {type:\"frame\", name:\"Row\", layoutMode:\"HORIZONTAL\", layoutSizingHorizontal:\"FILL\", layoutSizingVertical:\"HUG\", itemSpacing:\"space/8\", children:[{type:\"instance\", componentId:\"1:2\", layoutSizingHorizontal:\"FILL\", layoutSizingVertical:\"HUG\"}]}] Inside components: add componentPropertyName to auto-bind TEXT or INSTANCE_SWAP properties.\n"),
           }).passthrough(),
           "auto_layout": z.object({
             name: z.string().optional().describe("Node name"),
@@ -431,7 +441,7 @@ export const tools: ToolDef[] = [
             fills: z.array(z.record(z.string(), z.unknown())).optional().describe("Fill paints array — e.g. [{type: 'SOLID', color: '#hex'}] or [] for transparent. Primary way to set fills."),
             fillColor: S.colorRgba.optional().describe("Shorthand — sets a single solid fill (auto-binds to matching variable/style)"),
             fillStyleName: z.string().optional().describe("Paint style name for fill"),
-            fillVariableName: z.string().optional().describe("Color variable by name e.g. 'bg/primary'"),
+            fillVariableName: z.string().optional().describe("Color variable by name e.g. 'bg/surface'"),
             imageUrl: z.string().optional().describe("Image source — 'pexel:<id>' for Pexels photos, a public URL, or a local file path. SVGs are inserted as vectors; raster images become IMAGE fills."),
             imageScaleMode: z.enum(["FILL", "FIT", "CROP", "TILE"]).optional().describe("How the image is scaled within the frame (default: FILL)"),
             strokes: z.array(z.record(z.string(), z.unknown())).optional().describe("Stroke paints array — e.g. [{type: 'SOLID', color: '#hex'}] or [] to clear. Primary way to set strokes."),
@@ -472,7 +482,7 @@ export const tools: ToolDef[] = [
             annotations: flexJson(z.array(z.record(z.string(), z.unknown()))).optional().describe("Set annotations — [{label?, labelMarkdown?, properties?, categoryId?}]. Properties validated per node type."),
             clipsContent: flexBool(z.boolean()).optional(),
             nodeIds: flexStringList(z.array(z.string())).optional().describe("Existing node IDs to wrap into auto-layout"),
-            children: flexJson(z.array(z.record(z.string(), z.unknown()))).optional().describe("Inline child nodes — build nested trees in one call. Types: text: {type:\"text\", text, fontFamily?, fontSize?, fontWeight?, fontStyle?, fontColor?, layoutSizingHorizontal?}. frame: {type:\"frame\", name?, layoutMode?, fillColor?, width?, layoutSizingHorizontal?, children?}. instance: {type:\"instance\", componentId, variantProperties?, properties?}. component: {type:\"component\", name, children?}. All params from text/frame endpoints are supported on their respective types. Always set layoutSizingHorizontal + layoutSizingVertical on children inside auto-layout parents (FILL, HUG, or FIXED). Example: children:[{type:\"text\", text:\"Title\", fontSize:20, layoutSizingHorizontal:\"FILL\", layoutSizingVertical:\"HUG\"}, {type:\"frame\", name:\"Row\", layoutMode:\"HORIZONTAL\", layoutSizingHorizontal:\"FILL\", layoutSizingVertical:\"HUG\", itemSpacing:8, children:[{type:\"instance\", componentId:\"1:2\", layoutSizingHorizontal:\"FILL\", layoutSizingVertical:\"HUG\"}]}] Inside components: add componentPropertyName to auto-bind TEXT or INSTANCE_SWAP properties.\n"),
+            children: flexJson(z.array(z.record(z.string(), z.unknown()))).optional().describe("Inline child nodes — build nested trees in one call. Types: text: {type:\"text\", text, textStyleName?, fontColorVariableName?, layoutSizingHorizontal?}. frame: {type:\"frame\", name?, layoutMode?, fillVariableName?, itemSpacing?, layoutSizingHorizontal?, children?}. instance: {type:\"instance\", componentId, variantProperties?, properties?}. component: {type:\"component\", name, children?}. All params from text/frame endpoints are supported on their respective types. Always set layoutSizingHorizontal + layoutSizingVertical on children inside auto-layout parents (FILL, HUG, or FIXED). Example: children:[{type:\"text\", name:\"Title\", text:\"Title\", textStyleName:\"Heading/Medium\", fontColorVariableName:\"text/primary\", layoutSizingHorizontal:\"FILL\", layoutSizingVertical:\"HUG\"}, {type:\"frame\", name:\"Row\", layoutMode:\"HORIZONTAL\", layoutSizingHorizontal:\"FILL\", layoutSizingVertical:\"HUG\", itemSpacing:\"space/8\", children:[{type:\"instance\", componentId:\"1:2\", layoutSizingHorizontal:\"FILL\", layoutSizingVertical:\"HUG\"}]}] Inside components: add componentPropertyName to auto-bind TEXT or INSTANCE_SWAP properties.\n"),
           }).passthrough(),
           "section": z.object({
             name: z.string().describe("Section name"),
@@ -484,7 +494,7 @@ export const tools: ToolDef[] = [
             fills: z.array(z.record(z.string(), z.unknown())).optional().describe("Fill paints array — e.g. [{type: 'SOLID', color: '#hex'}] or [] for transparent"),
             fillColor: S.colorRgba.optional().describe("Shorthand — sets a single solid fill (auto-binds to matching variable/style)"),
             fillStyleName: z.string().optional().describe("Paint style name for fill"),
-            fillVariableName: z.string().optional().describe("Color variable by name e.g. 'bg/primary'"),
+            fillVariableName: z.string().optional().describe("Color variable by name e.g. 'bg/surface'"),
             imageUrl: z.string().optional().describe("Image source — 'pexel:<id>', public URL, or local file path"),
             imageScaleMode: z.enum(["FILL", "FIT", "CROP", "TILE"]).optional().describe("How the image is scaled (default: FILL)"),
           }).passthrough(),
@@ -498,7 +508,7 @@ export const tools: ToolDef[] = [
             fills: z.array(z.record(z.string(), z.unknown())).optional().describe("Fill paints array — e.g. [{type: 'SOLID', color: '#hex'}] or [] for transparent"),
             fillColor: S.colorRgba.optional().describe("Shorthand — sets a single solid fill (auto-binds to matching variable/style)"),
             fillStyleName: z.string().optional().describe("Paint style name for fill"),
-            fillVariableName: z.string().optional().describe("Color variable by name e.g. 'bg/primary'"),
+            fillVariableName: z.string().optional().describe("Color variable by name e.g. 'bg/surface'"),
             imageUrl: z.string().optional().describe("Image source — 'pexel:<id>', public URL, or local file path"),
             imageScaleMode: z.enum(["FILL", "FIT", "CROP", "TILE"]).optional().describe("How the image is scaled (default: FILL)"),
             strokes: z.array(z.record(z.string(), z.unknown())).optional().describe("Stroke paints array — e.g. [{type: 'SOLID', color: '#hex'}] or [] to clear"),
@@ -525,7 +535,7 @@ export const tools: ToolDef[] = [
             fills: z.array(z.record(z.string(), z.unknown())).optional().describe("Fill paints array — e.g. [{type: 'SOLID', color: '#hex'}] or [] for transparent"),
             fillColor: S.colorRgba.optional().describe("Shorthand — sets a single solid fill (auto-binds to matching variable/style)"),
             fillStyleName: z.string().optional().describe("Paint style name for fill"),
-            fillVariableName: z.string().optional().describe("Color variable by name e.g. 'bg/primary'"),
+            fillVariableName: z.string().optional().describe("Color variable by name e.g. 'bg/surface'"),
             imageUrl: z.string().optional().describe("Image source — 'pexel:<id>', public URL, or local file path"),
             imageScaleMode: z.enum(["FILL", "FIT", "CROP", "TILE"]).optional().describe("How the image is scaled (default: FILL)"),
             strokes: z.array(z.record(z.string(), z.unknown())).optional().describe("Stroke paints array — e.g. [{type: 'SOLID', color: '#hex'}] or [] to clear"),
@@ -558,6 +568,10 @@ export const tools: ToolDef[] = [
             parentId: z.string().optional().describe("Parent node ID. Omit to place at current page root."),
           }).passthrough(),
           "boolean_operation": z.object({
+            fillStyleName: z.string().optional().describe("Paint style to apply to vector fills"),
+            fillVariableName: z.string().optional().describe("Color variable by name for vector fills"),
+            strokeStyleName: z.string().optional().describe("Paint style to apply to vector strokes"),
+            strokeVariableName: z.string().optional().describe("Color variable by name for vector strokes"),
             operation: z.enum(["UNION", "SUBTRACT", "INTERSECT", "EXCLUDE"]).describe("Boolean operation type"),
             nodeIds: z.array(z.string()).describe("Node IDs to combine (min 2, first node is the base for SUBTRACT)"),
             name: z.string().optional().describe("Result node name"),
@@ -590,7 +604,7 @@ export const tools: ToolDef[] = [
             fills: z.array(z.record(z.string(), z.unknown())).optional().describe("Fill paints array — e.g. [{type: 'SOLID', color: '#hex'}] or [] for transparent. Primary way to set fills."),
             fillColor: S.colorRgba.optional().describe("Shorthand — sets a single solid fill (auto-binds to matching variable/style)"),
             fillStyleName: z.string().optional().describe("Paint style name for fill"),
-            fillVariableName: z.string().optional().describe("Color variable by name e.g. 'bg/primary'"),
+            fillVariableName: z.string().optional().describe("Color variable by name e.g. 'bg/surface'"),
             imageUrl: z.string().optional().describe("Image source — 'pexel:<id>' for Pexels photos, a public URL, or a local file path. SVGs are inserted as vectors; raster images become IMAGE fills."),
             imageScaleMode: z.enum(["FILL", "FIT", "CROP", "TILE"]).optional().describe("How the image is scaled within the frame (default: FILL)"),
             strokes: z.array(z.record(z.string(), z.unknown())).optional().describe("Stroke paints array — e.g. [{type: 'SOLID', color: '#hex'}] or [] to clear. Primary way to set strokes."),
@@ -633,10 +647,9 @@ export const tools: ToolDef[] = [
           }).passthrough(),
         };
         const s = params.type && schemas[params.type];
-        if (s) {
-          try { params.items = z.array(s).parse(params.items); }
-          catch (e) { if (e instanceof z.ZodError) { throw new Error(e.issues.map(i => { const path = i.path.join("."); const shape = s instanceof z.ZodObject ? (s as any).shape : null; const desc = shape?.[i.path[1]]?.description; return path + ": " + i.message + (desc ? " (expected: " + desc + ")" : ""); }).join("; ")); } throw e; }
-        }
+        if (!s) throw new Error("frames.create: unknown type. Use frames(method: \"help\", topic: \"create\") for valid types and item shapes.");
+        try { params.items = z.array(s).parse(params.items); }
+        catch (e) { if (e instanceof z.ZodError) { throw new Error(e.issues.map(i => { const path = i.path.join("."); const shape = s instanceof z.ZodObject ? (s as any).shape : null; const desc = shape?.[i.path[1]]?.description; return path + ": " + i.message + (desc ? " (expected: " + desc + ")" : ""); }).join("; ")); } throw e; }
       }
     },
     commandMap: {"get":"frames.get","list":"frames.list","update":"frames.update","delete":"frames.delete","clone":"frames.clone","audit":"frames.audit","reparent":"frames.reparent","create":"frames.create","commit":"frames.commit","export":"frames.export"},
@@ -728,6 +741,7 @@ export const tools: ToolDef[] = [
         if (params.id === undefined) throw new Error("get requires \"id\"");
       }
       if (!params.items) return;
+      if (Array.isArray(params.items) && params.items.length === 0) throw new Error("items: [] is a no-op. Batch calls need at least one item. Omit items to use single-item params, or pass one or more item objects. Use instances(method: \"help\", topic: \"" + m + "\") to see valid item shapes.");
       if (m === "create") {
         for (const it of params.items) {
           if (it.id !== undefined && it.componentId === undefined) { it.componentId = it.id; delete it.id; }
@@ -767,7 +781,7 @@ export const tools: ToolDef[] = [
           fills: z.array(z.record(z.string(), z.unknown())).optional().describe("Fill paints array — e.g. [{type: 'SOLID', color: '#hex'}] or [] for transparent. Primary way to set fills."),
           fillColor: S.colorRgba.optional().describe("Shorthand — sets a single solid fill (auto-binds to matching variable/style)"),
           fillStyleName: z.string().optional().describe("Paint style name for fill"),
-          fillVariableName: z.string().optional().describe("Color variable by name e.g. 'bg/primary'"),
+          fillVariableName: z.string().optional().describe("Color variable by name e.g. 'bg/surface'"),
           strokes: z.array(z.record(z.string(), z.unknown())).optional().describe("Stroke paints array — e.g. [{type: 'SOLID', color: '#hex'}] or [] to clear. Primary way to set strokes."),
           strokeColor: S.colorRgba.optional().describe("Shorthand — sets a single solid stroke (auto-binds to matching variable/style)"),
           strokeStyleName: z.string().optional().describe("Paint style name for stroke"),
@@ -908,6 +922,7 @@ export const tools: ToolDef[] = [
     validate: (params: any) => {
       const m = params.method;
       if (!params.items) return;
+      if (Array.isArray(params.items) && params.items.length === 0) throw new Error("items: [] is a no-op. Batch calls need at least one item. Omit items to use single-item params, or pass one or more item objects. Use lint(method: \"help\", topic: \"" + m + "\") to see valid item shapes.");
       if (m === "fix") {
         for (const it of params.items) {
           if (it.id !== undefined && it.nodeId === undefined) { it.nodeId = it.id; delete it.id; }
@@ -964,6 +979,7 @@ export const tools: ToolDef[] = [
         if (params.index === undefined) throw new Error("remove requires \"index\"");
       }
       if (!params.items) return;
+      if (Array.isArray(params.items) && params.items.length === 0) throw new Error("items: [] is a no-op. Batch calls need at least one item. Omit items to use single-item params, or pass one or more item objects. Use prototyping(method: \"help\", topic: \"" + m + "\") to see valid item shapes.");
       if (m === "add") {
         const itemSchema = z.object({
           id: z.string().describe("Node ID"),
@@ -1024,7 +1040,12 @@ export const tools: ToolDef[] = [
       if (m === "get") {
         if (params.id === undefined) throw new Error("get requires \"id\"");
       }
+      if (m === "create") {
+        const itemDiscriminant = Array.isArray(params.items) ? params.items.find((it: any) => it && typeof it === "object" && typeof it.type === "string")?.type : undefined;
+        if (params.type === undefined) { throw new Error(itemDiscriminant ? "styles.create uses top-level \"type\", not \"type\" inside items. Move the item value to the top level and use help for valid item shapes." : "styles.create requires top-level \"type\" (paint, text, effect, grid). Use styles(method: \"help\", topic: \"create\") for valid item shapes."); }
+      }
       if (!params.items) return;
+      if (Array.isArray(params.items) && params.items.length === 0) throw new Error("items: [] is a no-op. Batch calls need at least one item. Omit items to use single-item params, or pass one or more item objects. Use styles(method: \"help\", topic: \"" + m + "\") to see valid item shapes.");
       if (m === "create") {
         const schemas: Record<string, z.ZodTypeAny> = {
           "paint": z.object({
@@ -1059,10 +1080,9 @@ export const tools: ToolDef[] = [
           }).passthrough(),
         };
         const s = params.type && schemas[params.type];
-        if (s) {
-          try { params.items = z.array(s).parse(params.items); }
-          catch (e) { if (e instanceof z.ZodError) { throw new Error(e.issues.map(i => { const path = i.path.join("."); const shape = s instanceof z.ZodObject ? (s as any).shape : null; const desc = shape?.[i.path[1]]?.description; return path + ": " + i.message + (desc ? " (expected: " + desc + ")" : ""); }).join("; ")); } throw e; }
-        }
+        if (!s) throw new Error("styles.create: unknown type. Use styles(method: \"help\", topic: \"create\") for valid types and item shapes.");
+        try { params.items = z.array(s).parse(params.items); }
+        catch (e) { if (e instanceof z.ZodError) { throw new Error(e.issues.map(i => { const path = i.path.join("."); const shape = s instanceof z.ZodObject ? (s as any).shape : null; const desc = shape?.[i.path[1]]?.description; return path + ": " + i.message + (desc ? " (expected: " + desc + ")" : ""); }).join("; ")); } throw e; }
       }
       if (m === "update") {
         const itemSchema = z.object({
@@ -1125,6 +1145,7 @@ export const tools: ToolDef[] = [
     validate: (params: any) => {
       const m = params.method;
       if (!params.items) return;
+      if (Array.isArray(params.items) && params.items.length === 0) throw new Error("items: [] is a no-op. Batch calls need at least one item. Omit items to use single-item params, or pass one or more item objects. Use text(method: \"help\", topic: \"" + m + "\") to see valid item shapes.");
       if (m === "create") {
         for (const it of params.items) {
           if (it.characters !== undefined && it.text === undefined) { it.text = it.characters; delete it.characters; }
@@ -1195,6 +1216,7 @@ export const tools: ToolDef[] = [
         if (params.id === undefined) throw new Error("get requires \"id\"");
       }
       if (!params.items) return;
+      if (Array.isArray(params.items) && params.items.length === 0) throw new Error("items: [] is a no-op. Batch calls need at least one item. Omit items to use single-item params, or pass one or more item objects. Use variable_collections(method: \"help\", topic: \"" + m + "\") to see valid item shapes.");
       if (m === "create") {
         const itemSchema = z.object({
           name: z.string().describe("Collection name"),
@@ -1281,6 +1303,7 @@ export const tools: ToolDef[] = [
         if (params.collectionId === undefined) throw new Error("delete requires \"collectionId\"");
       }
       if (!params.items) return;
+      if (Array.isArray(params.items) && params.items.length === 0) throw new Error("items: [] is a no-op. Batch calls need at least one item. Omit items to use single-item params, or pass one or more item objects. Use variables(method: \"help\", topic: \"" + m + "\") to see valid item shapes.");
       if (m === "create") {
         const itemSchema = z.object({
           name: z.string().describe("Variable name (must be unique within collection)"),

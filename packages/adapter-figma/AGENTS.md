@@ -12,11 +12,15 @@ async function myBatch(params: any) {
 ```
 
 `batchHandler` provides:
+- Explicit empty batch rejection — `items: []` is a no-op and should fail with guidance
+- Shared item-shape diagnostics — e.g. item-level `type` is rejected when the current guard does not allow it
 - Per-item try/catch → `{error: "message"}` (one failure doesn't abort the batch)
 - Depth enrichment → if `depth` param present and result has `id`, merges node snapshot
 - Warning hoisting → per-item `warning` fields move to batch-level `warnings[]`, deduplicated
 - `{}` → `"ok"` conversion for readability
 - Progress reporting for batches > 3 items (extends MCP timeout from 30s to 60s)
+
+If a bug affects multiple `items`-based tools, fix `batchHandler` first. Do not add endpoint-local empty-array checks, per-branch batch wrappers, or copied examples unless the behavior is genuinely resource-specific.
 
 ## Response Design
 
@@ -45,4 +49,5 @@ async function myBatch(params: any) {
 ## Endpoint Consistency
 
 - New discriminant branches added under an existing endpoint must preserve that endpoint's normal validation path. If the endpoint's other create variants use generated guard key sets with `batchHandler(..., { keys, help })`, the new branch should too.
+- Discriminant branch examples and item schemas belong in YAML/compiler output. Handlers should import generated guard key sets and call `batchHandler`; they should not duplicate param lists or examples.
 - Contextual create paths must reject invalid parent targets explicitly. Do not silently fall back to a different parent when `parentId` resolves to a node that cannot contain children or is outside the intended ownership context.

@@ -32,7 +32,7 @@ frame_params:
   fills: { type: array, optional: true, description: "Fill paints array — e.g. [{type: 'SOLID', color: '#hex'}] or [] for transparent. Primary way to set fills." }
   fillColor: { $ref: color, optional: true, description: "Shorthand — sets a single solid fill (auto-binds to matching variable/style)" }
   fillStyleName: { type: string, optional: true, description: "Paint style name for fill" }
-  fillVariableName: { type: string, optional: true, description: "Color variable by name e.g. 'bg/primary'" }
+  fillVariableName: { type: string, optional: true, description: "Color variable by name e.g. 'bg/surface'" }
   imageUrl: { type: string, optional: true, description: "Image source — 'pexel:<id>' for Pexels photos, a public URL, or a local file path. SVGs are inserted as vectors; raster images become IMAGE fills." }
   imageScaleMode: { type: enum, values: [FILL, FIT, CROP, TILE], optional: true, description: "How the image is scaled within the frame (default: FILL)" }
   # --- MinimalStrokesMixin + custom (see stroke.yaml) ---

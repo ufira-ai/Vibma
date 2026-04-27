@@ -18,7 +18,7 @@ methods:
   list:
     tier: read
     description: Search variables within a collection
-    example: 'variables(method:"list", collectionId:"Colors", query:"bg/")'
+    example: 'variables(method:"list", collectionId:"Tokens", query:"bg/")'
     params:
       collectionId:
         type: string
@@ -88,7 +88,7 @@ methods:
   create:
     tier: create
     description: "Create variables in a collection. Use valuesByMode for per-mode control, or value to set all modes at once."
-    example: 'variables(method:"create", collectionId:"Colors", items:[{name:"bg/primary", type:"COLOR", valuesByMode:{"Light":"#FFF","Dark":"#111"}, scopes:["ALL_FILLS"]}])'
+    example: 'variables(method:"create", collectionId:"Tokens", items:[{name:"bg/warning", type:"COLOR", value:"#F59E0B", scopes:["ALL_FILLS"]}])'
     params:
       collectionId:
         type: string
@@ -120,7 +120,7 @@ methods:
   update:
     tier: edit
     description: "Update variable metadata and/or set values"
-    example: 'variables(method:"update", collectionId:"Colors", items:[{name:"bg/primary", valuesByMode:{"Light":"#FFF","Dark":"#222"}}])'
+    example: 'variables(method:"update", collectionId:"Tokens", items:[{name:"bg/accent", value:"#1D4ED8"}])'
     params:
       collectionId:
         type: string

@@ -360,12 +360,15 @@ async function walkNode(node: BaseNode, depth: number, issues: Issue[], ctx: Lin
 
   // -- Rule: hardcoded-color --
   if ((ctx.runAll || ctx.ruleSet.has("hardcoded-color")) && (ctx.hasPaintStyles || ctx.hasColorVars)) {
+    const hasPaintBinding = (binding: any) => Array.isArray(binding) ? binding.length > 0 : Boolean(binding);
     const checkPaints = (paints: any, styleId: any, hasBoundVar: boolean, property: "fill" | "stroke") => {
-      if (!paints || !Array.isArray(paints) || paints.length === 0 || paints[0].type !== "SOLID") return;
+      if (!paints || !Array.isArray(paints) || paints.length === 0) return;
+      const paint = [...paints].reverse().find((p: any) => p.visible !== false && p.type === "SOLID");
+      if (!paint) return;
       if (hasBoundVar) return;
       if (styleId && styleId !== "" && styleId !== figma.mixed) return;
-      const color = paints[0].color;
-      const opacity = paints[0].opacity ?? 1;
+      const color = paint.color;
+      const opacity = paint.opacity ?? 1;
       const hex = rgbaToHex({ r: color.r, g: color.g, b: color.b, a: opacity });
       const match = findColorMatch(color.r, color.g, color.b, opacity, ctx);
       const extra: Record<string, any> = { hex, property };
@@ -373,11 +376,11 @@ async function walkNode(node: BaseNode, depth: number, issues: Issue[], ctx: Lin
       issues.push({ rule: "hardcoded-color", nodeId: node.id, nodeName: node.name, extra });
     };
     if ("fills" in node && "fillStyleId" in node) {
-      checkPaints((node as any).fills, (node as any).fillStyleId, (node as any).boundVariables?.fills?.length > 0, "fill");
+      checkPaints((node as any).fills, (node as any).fillStyleId, hasPaintBinding((node as any).boundVariables?.fills), "fill");
       if (issues.length >= ctx.maxFindings) return;
     }
     if ("strokes" in node && "strokeStyleId" in node) {
-      checkPaints((node as any).strokes, (node as any).strokeStyleId, (node as any).boundVariables?.strokes?.length > 0, "stroke");
+      checkPaints((node as any).strokes, (node as any).strokeStyleId, hasPaintBinding((node as any).boundVariables?.strokes), "stroke");
       if (issues.length >= ctx.maxFindings) return;
     }
   }
@@ -413,7 +416,7 @@ async function walkNode(node: BaseNode, depth: number, issues: Issue[], ctx: Lin
       const hasStrokes = Array.isArray(strokes) && strokes.length > 0;
       if (hasStrokes) {
         const sw = (node as any).strokeWeight;
-        if (typeof sw === "number" && sw > 0 && !bv.strokeTopWeight && !bv.strokeBottomWeight && !bv.strokeLeftWeight && !bv.strokeRightWeight) {
+        if (typeof sw === "number" && sw > 0 && !bv.strokeWeight && !bv.strokeTopWeight && !bv.strokeBottomWeight && !bv.strokeLeftWeight && !bv.strokeRightWeight) {
           issues.push({ rule: "hardcoded-token", nodeId: node.id, nodeName: node.name, extra: { property: "strokeWeight", value: sw } });
           if (issues.length >= ctx.maxFindings) return;
         }
@@ -614,8 +617,9 @@ async function walkNode(node: BaseNode, depth: number, issues: Issue[], ctx: Lin
   if (ctx.runAll || ctx.ruleSet.has("stale-text-name")) {
     if (node.type === "TEXT") {
       const chars = (node as any).characters as string;
+      const refs = (node as any).componentPropertyReferences;
       // Only flag if both name and characters are non-empty and they differ
-      if (chars && node.name && node.name !== chars && node.name !== chars.slice(0, node.name.length)) {
+      if (!refs?.characters && chars && node.name && node.name !== chars && node.name !== chars.slice(0, node.name.length)) {
         issues.push({ rule: "stale-text-name", nodeId: node.id, nodeName: node.name, extra: { characters: chars.slice(0, 60) } });
         if (issues.length >= ctx.maxFindings) return;
       }

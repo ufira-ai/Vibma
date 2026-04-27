@@ -21,6 +21,15 @@ Shared infrastructure in `src/tools/endpoint.ts`:
 | `paginate(items, offset?, limit?)` | Slices array into `{totalCount, returned, offset, limit, items}` |
 | `pickFields(obj, fields)` | Top-level filter, always preserves `id`, `name`, `type` |
 
+## Generated Validation
+
+Endpoint input validation that can be inferred from YAML belongs in `schema/compiler/gen-mcp.ts` and the generated `src/tools/generated/defs.ts`, not in hand-written endpoint registrations.
+
+- Batch methods with `items` must reject explicit `items: []` before sending to Figma, with a pointer to `endpoint(method:"help", topic:"<method>")`.
+- Discriminated methods (`discriminant: type`) must require the discriminant at the method/root level and reject item-level discriminants with a corrective message.
+- If one endpoint exposes a batch/discriminant shape bug, audit other generated endpoints such as frames, components, styles, variables, and variable_collections before patching.
+- Do not edit `src/tools/generated/*` by hand. Change YAML/compiler code and regenerate.
+
 ## Access Tiers (Capabilities)
 
 MCP server supports three tiers via CLI flags:

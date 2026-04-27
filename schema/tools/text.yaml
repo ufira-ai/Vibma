@@ -21,7 +21,7 @@ methods:
   create:
     tier: create
     description: Create text nodes
-    example: 'text(method:"create", items:[{text:"Hello", fontFamily:"Inter", fontSize:16, textStyleName:"body/medium"}])'
+    example: 'text(method:"create", items:[{text:"Hello", textStyleName:"Body/Regular", fontColorVariableName:"text/primary"}])'
     params:
       items:
         type: array

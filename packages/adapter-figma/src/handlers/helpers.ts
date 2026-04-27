@@ -133,9 +133,29 @@ export async function batchHandler<TItem, TResult>(
   fn: (item: TItem) => Promise<TResult>,
   guard?: { keys: ReadonlySet<string>; help: string },
 ): Promise<BatchResult<TResult>> {
+  if (Array.isArray(params.items) && params.items.length === 0) {
+    const help = guard ? ` Use ${guard.help} to see valid item shapes.` : "";
+    throw new Error(`items: [] is a no-op. Batch calls need at least one item. Omit items to use single-item params, or pass one or more item objects.${help}`);
+  }
+
   const items = (params.items || [params]) as TItem[];
   const depth = params.depth;
   const commandId = (params as any).commandId;
+
+  if (guard && Array.isArray(params.items)) {
+    const itemWithType = params.items.find((item: any) =>
+      item && typeof item === "object" && typeof item.type === "string" && !guard.keys.has("type")
+    ) as any;
+    if (itemWithType) {
+      const topLevelType = typeof (params as any).type === "string"
+        ? ` This call already has top-level type "${(params as any).type}".`
+        : "";
+      const variantSetHint = (params as any).type === "variant_set" && itemWithType.type === "component"
+        ? " For variant sets, each item is one variant set; put variant components under that item's children array."
+        : "";
+      throw new Error(`Item-level type "${itemWithType.type}" is not valid here.${topLevelType}${variantSetHint} Use ${guard.help} to see valid item shapes.`);
+    }
+  }
 
   const useProgress = items.length > 3 && commandId;
   if (useProgress) sendBatchProgress(commandId, 0, items.length, "started");

@@ -34,6 +34,17 @@ Package-specific rules live alongside the code they govern:
 
 **Don't create a tool that's a subset of another.** If `frames(method: "update")` already applies styles via `fill.styleName`, don't add a separate tool. If a fix can be done with existing primitives, don't add a dedicated tool.
 
+### Shared Behavior Before Local Patches
+
+When fixing validation, examples, response formatting, or batch behavior, first identify the shared layer that owns the concern:
+
+- **Examples and parameter shapes** belong in `schema/tools/*.yaml` and must flow through the compiler to help/docs/descriptions.
+- **MCP-side schema validation** belongs in `schema/compiler/` when it can be derived from YAML.
+- **Figma adapter batch behavior** belongs in `batchHandler` when it affects every `items` batch.
+- **Handler code** should only contain resource-specific validation that cannot be expressed by the schema or shared helpers.
+
+Do not patch one endpoint or one discriminant branch for a structural issue until you have checked whether frames, components, styles, variables, and other `batchHandler` users share the same failure mode.
+
 ## Build Pipeline
 
 `npm run build` (tsup) produces:
@@ -70,5 +81,6 @@ After relay restart: plugin auto-reconnects. Use `dev_reload` to restart the MCP
 4. **SKIP_FOCUS** (`packages/adapter-figma/src/plugin/code.ts`): add read-only tools (non-node resources)
 5. **String references**: search for old tool names in `helpers.ts`, `lint.ts`, prompts, and docs
 6. **AGENTS.md files**: update if the change affects architecture rules or conventions — these files are a source of truth that agents and other docs reference
-7. **Regenerate**: `npx tsx schema/compiler/index.ts` — updates `defs.ts`, `help.ts`, `prompts.ts`, and static docs site MDX pages. All are derived from the YAML and will go stale without this step.
-8. **Build**: `npm run build`
+7. **Shared behavior audit**: if the change touches batches, discriminants, examples, validation, or response shaping, update the shared compiler/helper path rather than one handler
+8. **Regenerate**: `npx tsx schema/compiler/index.ts` — updates `defs.ts`, `help.ts`, `prompts.ts`, and static docs site MDX pages. All are derived from the YAML and will go stale without this step.
+9. **Build**: `npm run build`
