@@ -1,4 +1,4 @@
-import { batchHandler } from "./helpers";
+import { batchHandler, type Hint } from "./helpers";
 
 // ─── Figma Handlers ──────────────────────────────────────────────
 
@@ -33,8 +33,37 @@ export async function rescaleSingle(p: any) {
   const node = await figma.getNodeByIdAsync(p.nodeId);
   if (!node) throw new Error(`Node not found: ${p.nodeId}`);
   if (!("rescale" in node)) throw new Error(`Node does not support proportional scaling: ${p.nodeId}`);
+  const hints = scaleStructureWarnings(node);
   (node as any).rescale(factor);
-  return {};
+  return hints.length > 0 ? { hints } : {};
+}
+
+function scaleStructureWarnings(node: BaseNode): Hint[] {
+  const hints: Hint[] = [];
+  let autoLayoutCount = 0;
+  let responsiveSizingCount = 0;
+  const parentIsAutoLayout = node.parent && "layoutMode" in node.parent && (node.parent as any).layoutMode !== "NONE";
+
+  function visit(n: BaseNode) {
+    if ("layoutMode" in n && (n as any).layoutMode !== "NONE") autoLayoutCount++;
+    if ("layoutSizingHorizontal" in n) {
+      const h = (n as any).layoutSizingHorizontal;
+      const v = (n as any).layoutSizingVertical;
+      if (h === "HUG" || h === "FILL" || v === "HUG" || v === "FILL") responsiveSizingCount++;
+    }
+    if ("children" in n && Array.isArray((n as any).children)) {
+      for (const child of (n as any).children) visit(child);
+    }
+  }
+
+  visit(node);
+  if (parentIsAutoLayout || autoLayoutCount > 0 || responsiveSizingCount > 0) {
+    hints.push({
+      type: "warn",
+      message: "scale uses Figma's visual Scale tool. On auto-layout or HUG/FILL nodes, Figma may resolve responsive sizing to fixed width/height. Use frames.update with width/height/layoutSizing for responsive layout changes.",
+    });
+  }
+  return hints;
 }
 
 async function deleteSingle(p: any) {

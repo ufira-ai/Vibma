@@ -220,7 +220,7 @@ methods:
   scale:
     # command auto-derived as {endpoint}.scale
     tier: edit
-    description: "Proportionally rescale a node subtree using Figma's Scale tool behavior"
+    description: "Proportionally rescale a node subtree using Figma's visual Scale tool behavior. This is for visual/artifact scaling, not responsive layout resizing."
     example: '{endpoint}(method:"scale", id:"1:23", factor:0.5)'
     params:
       id:
@@ -231,7 +231,7 @@ methods:
         type: number
         coerce: true
         optional: true
-        description: "Scale factor, >= 0.01. 0.5 = 50%, 2 = 200%. Scales children, text, strokes, effects, and layout geometry from the node's top-left."
+        description: "Scale factor, >= 0.01. 0.5 = 50%, 2 = 200%. Scales children, text, strokes, effects, and layout geometry from the node's top-left. On auto-layout or HUG/FILL nodes, Figma may resolve responsive sizing to fixed width/height."
       items:
         type: array
         coerce: json
