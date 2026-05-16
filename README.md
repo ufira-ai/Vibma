@@ -37,12 +37,12 @@ Vibma works with any MCP-capable LLM, but model quality matters.
 | Tier | OpenAI | Claude | Gemini | Open Source |
 |------|--------|--------|--------|-------------|
 | **Baseline** | GPT 5.2 Medium | Claude Sonnet 4.6 | Gemini 2.5 Flash | Kimi K2.5 |
-| **Recommended** | GPT 5.4 | Claude Opus 4.6 | Gemini 3.1 Pro | — |
+| **Recommended** | GPT 5.4 | Claude Opus 4.6 | Gemini 3.1 Pro | Kimi K2.6 |
 
 - **GPT 5.4** — best overall balance of tool competence and design taste.
 - **Claude Opus 4.6** — strongest tool use, but final designs can feel formulaic.
 - **Gemini 3.1 Pro** — solid middle ground; GPT 5.4 currently edges it on both axes.
-- **Open source** — Kimi K2.5 handles basics (variables, styles) but struggles with complex multi-tool flows.
+- **Kimi K2.6** — performs well in following harness instructions, probably the cheapeast model that delivers a good experience overall.
 
 ## Setup
 

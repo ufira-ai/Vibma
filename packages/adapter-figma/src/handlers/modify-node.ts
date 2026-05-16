@@ -1,4 +1,4 @@
-import { batchHandler } from "./helpers";
+import { batchHandler, type Hint } from "./helpers";
 
 // ─── Figma Handlers ──────────────────────────────────────────────
 
@@ -22,6 +22,48 @@ export async function resizeSingle(p: any) {
   if (savedH === "HUG") (node as any).layoutSizingHorizontal = "HUG";
   if (savedV === "HUG") (node as any).layoutSizingVertical = "HUG";
   return {};
+}
+
+export async function rescaleSingle(p: any) {
+  if (!p.nodeId) throw new Error("scale requires id");
+  const factor = Number(p.factor);
+  if (!Number.isFinite(factor) || factor < 0.01) {
+    throw new Error("factor must be a number >= 0.01");
+  }
+  const node = await figma.getNodeByIdAsync(p.nodeId);
+  if (!node) throw new Error(`Node not found: ${p.nodeId}`);
+  if (!("rescale" in node)) throw new Error(`Node does not support proportional scaling: ${p.nodeId}`);
+  const hints = scaleStructureWarnings(node);
+  (node as any).rescale(factor);
+  return hints.length > 0 ? { hints } : {};
+}
+
+function scaleStructureWarnings(node: BaseNode): Hint[] {
+  const hints: Hint[] = [];
+  let autoLayoutCount = 0;
+  let responsiveSizingCount = 0;
+  const parentIsAutoLayout = node.parent && "layoutMode" in node.parent && (node.parent as any).layoutMode !== "NONE";
+
+  function visit(n: BaseNode) {
+    if ("layoutMode" in n && (n as any).layoutMode !== "NONE") autoLayoutCount++;
+    if ("layoutSizingHorizontal" in n) {
+      const h = (n as any).layoutSizingHorizontal;
+      const v = (n as any).layoutSizingVertical;
+      if (h === "HUG" || h === "FILL" || v === "HUG" || v === "FILL") responsiveSizingCount++;
+    }
+    if ("children" in n && Array.isArray((n as any).children)) {
+      for (const child of (n as any).children) visit(child);
+    }
+  }
+
+  visit(node);
+  if (parentIsAutoLayout || autoLayoutCount > 0 || responsiveSizingCount > 0) {
+    hints.push({
+      type: "warn",
+      message: "scale uses Figma's visual Scale tool. On auto-layout or HUG/FILL nodes, Figma may resolve responsive sizing to fixed width/height. Use frames.update with width/height/layoutSizing for responsive layout changes.",
+    });
+  }
+  return hints;
 }
 
 async function deleteSingle(p: any) {
@@ -106,7 +148,7 @@ async function cloneSingle(p: any) {
 async function insertSingle(p: any) {
   const parent = await figma.getNodeByIdAsync(p.parentId);
   if (!parent) throw new Error(`Parent not found: ${p.parentId}`);
-  if (!("insertChild" in parent)) throw new Error(`Parent does not support children: ${p.parentId}. Only FRAME, COMPONENT, GROUP, SECTION, and PAGE nodes can have children.`);
+  if (!("insertChild" in parent)) throw new Error(`Parent does not support children: ${p.parentId}. Only FRAME, COMPONENT, GROUP, SECTION, SLOT, and PAGE nodes can have children.`);
   const child = await figma.getNodeByIdAsync(p.childId);
   if (!child) throw new Error(`Child not found: ${p.childId}`);
   if (p.index !== undefined) (parent as any).insertChild(p.index, child);
@@ -117,6 +159,7 @@ async function insertSingle(p: any) {
 export const figmaHandlers: Record<string, (params: any) => Promise<any>> = {
   move_node: (p) => batchHandler(p, moveSingle),
   resize_node: (p) => batchHandler(p, resizeSingle),
+  rescale_node: (p) => batchHandler(p, rescaleSingle),
   delete_node: (p) => batchHandler(p, deleteSingle),
   // Legacy alias
   delete_multiple_nodes: async (p) => batchHandler({ items: (p.nodeIds || []).map((id: string) => ({ nodeId: id })) }, deleteSingle),

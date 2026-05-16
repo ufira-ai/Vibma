@@ -45,7 +45,7 @@ methods:
   create:
     tier: create
     description: Create component instances
-    example: 'instances(method:"create", items:[{componentName:"Button", variantProperties:{"Size":"Large"}, properties:{"Label":"Click me"}, parentId:"2:45", layoutSizingHorizontal:"FILL"}])  // or componentId:"1:23" for a local component'
+    example: 'instances(method:"create", items:[{componentId:"1:23", variantProperties:{"Style":"Primary"}, properties:{"Button":"Click me"}, x:320, y:0}])'
     params:
       items:
         type: array
@@ -78,14 +78,14 @@ methods:
   update:
     tier: edit
     description: Set instance properties
-    example: 'instances(method:"update", items:[{id:"1:23", properties:{"Label#4:0":"Submit"}, fillColor:"#3B82F6", layoutSizingHorizontal:"FILL"}])'
+    example: 'instances(method:"update", items:[{id:"1:23", properties:{"Button#4:0":"Submit"}, fillVariableName:"bg/accent"}])'
     params:
       items:
         type: array
         coerce: json
         required: true
         tsType: "InstanceUpdateItem[]"
-        description: 'Array of {id, properties: {"Label#1:0":"text"}, fillColor?: ...}'
+        description: 'Array of {id, properties: {"Property#1:0":"text"}, fillVariableName?: ...}. Use components.get on the source component to discover exact property keys.'
         items:
           type: object
           properties:

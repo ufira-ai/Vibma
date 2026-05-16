@@ -8,7 +8,8 @@ import { figmaHandlers as createFrameHandlers } from "./create-frame";
 import { figmaHandlers as createTextHandlers } from "./create-text";
 import { figmaHandlers as modifyNodeHandlers } from "./modify-node";
 import { figmaHandlers as patchNodesHandlers } from "./patch-nodes";
-import { instanceUpdateCombined } from "./components";
+import { instanceUpdateCombined, createSlotSingle } from "./components";
+import { batchHandler } from "./helpers";
 import { figmaHandlers as fillStrokeHandlers } from "./fill-stroke";
 import { figmaHandlers as updateFrameHandlers } from "./update-frame";
 import { figmaHandlers as effectsHandlers } from "./effects";
@@ -22,6 +23,7 @@ import { figmaHandlers as versionHistoryHandlers } from "./version-history";
 import { figmaHandlers as prototypingHandlers } from "./prototyping";
 import { figmaHandlers as annotationsHandlers } from "./annotations";
 import { figmaHandlers as stageHandlers } from "./stage";
+import { framesCreateSlot } from "@ufira/vibma/guards";
 
 // ─── Shared adapters for inherited node base methods ──────────────
 // Single source of truth for param → handler item mapping.
@@ -40,6 +42,12 @@ const deleteAdapter = (p: any) => {
 const reparentAdapter = (p: any) => modifyNodeHandlers.insert_child({
   ...p,
   items: (p.items || []).map((i: any) => ({ childId: i.id, parentId: i.parentId, index: i.index })),
+});
+const scaleAdapter = (p: any) => modifyNodeHandlers.rescale_node({
+  ...p,
+  items: p.items
+    ? p.items.map((i: any) => ({ ...i, nodeId: i.nodeId ?? i.id }))
+    : [{ nodeId: p.id, factor: p.factor }],
 });
 const auditAdapter = (p: any) => auditNode({ nodeId: p.id, rules: p.rules, maxDepth: p.maxDepth, maxFindings: p.maxFindings, minSeverity: p.minSeverity, skipInstances: p.skipInstances });
 
@@ -88,7 +96,8 @@ export const allFigmaHandlers: Record<string, (params: any) => Promise<any>> = {
     if (type === "group") return createShapeHandlers.create_group(params);
     if (type === "boolean_operation") return createShapeHandlers.create_boolean_operation(params);
     if (type === "svg") return createShapeHandlers.create_node_from_svg(params);
-    throw new Error(`frames.create: unknown type "${type}". Expected: frame, auto_layout, section, rectangle, ellipse, line, group, boolean_operation, svg`);
+    if (type === "slot") return batchHandler(params, createSlotSingle, { keys: framesCreateSlot, help: 'frames(method: "help", topic: "create")' });
+    throw new Error(`frames.create: unknown type "${type}". Expected: frame, auto_layout, section, rectangle, ellipse, line, group, boolean_operation, svg, slot`);
   },
 
   // frames endpoint — inherited node base methods (translate endpoint params → legacy handler params)
@@ -100,6 +109,7 @@ export const allFigmaHandlers: Record<string, (params: any) => Promise<any>> = {
   }),
   "frames.delete": deleteAdapter,
   "frames.clone": cloneAdapter,
+  "frames.scale": scaleAdapter,
   "frames.reparent": reparentAdapter,
   "frames.export": nodeInfoHandlers.export_node_as_image,
   "frames.audit": auditAdapter,
@@ -126,6 +136,7 @@ export const allFigmaHandlers: Record<string, (params: any) => Promise<any>> = {
   }),
   "text.delete": deleteAdapter,
   "text.clone": cloneAdapter,
+  "text.scale": scaleAdapter,
   "text.audit": auditAdapter,
   "text.reparent": reparentAdapter,
 
@@ -153,6 +164,7 @@ export const allFigmaHandlers: Record<string, (params: any) => Promise<any>> = {
 
   // components endpoint — inherited node base methods + commit
   "components.clone": cloneAdapter,
+  "components.scale": scaleAdapter,
   "components.reparent": reparentAdapter,
   "components.commit": stageHandlers.commit,
 
@@ -171,6 +183,7 @@ export const allFigmaHandlers: Record<string, (params: any) => Promise<any>> = {
   "instances.list": (p: any) => nodeInfoHandlers.search_nodes({ ...p, scopeNodeId: p.parentId, types: p.types ?? ["INSTANCE"] }),
   "instances.delete": deleteAdapter,
   "instances.clone": cloneAdapter,
+  "instances.scale": scaleAdapter,
   "instances.reparent": reparentAdapter,
 
   // ─── variable_collections endpoint ───

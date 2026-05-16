@@ -1,9 +1,10 @@
-import { batchHandler, appendAndApplySizing, checkOverlappingSiblings, isSmallIntrinsic, applyTokens, resolveComponentPropertyKey, normalizeAliases, TEXT_ALIAS_KEYS, FRAME_ALIAS_KEYS, type Hint } from "./helpers";
+import { batchHandler, appendAndApplySizing, checkOverlappingSiblings, isSmallIntrinsic, applyTokens, resolveComponentPropertyKey, normalizeAliases, TEXT_ALIAS_KEYS, type Hint } from "./helpers";
 import { setupFrameNode } from "./create-frame";
+import { createSingleRectangle, createSingleEllipse, createSingleLine } from "./create-shape";
 import { auditNode } from "./lint";
 import { validateAndFixInlineChildren, formatDiff, buildCorrectedPayload } from "./inline-tree";
 import { createStageContainer } from "./stage";
-import { createDispatcher, paginate, pickFields } from "@ufira/vibma/endpoint";
+import { createDispatcher, paginate } from "@ufira/vibma/endpoint";
 import {
   componentsCreateComponent, componentsCreateFromNode, componentsCreateVariantSet,
   componentsUpdate, instancesCreate, instancesUpdate, instancesSwap,
@@ -32,6 +33,17 @@ function warnUnboundText(comp: ComponentNode, hints: Hint[]) {
 // -- inline children --
 
 import { prepCreateText, createTextSingle, type CreateTextContext } from "./create-text";
+
+const INLINE_SHAPE_TYPES = new Set(["rectangle", "ellipse", "line"]);
+const INLINE_SUPPORTED_CHILD_TYPES = ["text", "frame", "instance", "component", "slot", ...INLINE_SHAPE_TYPES] as const;
+
+function formatInlineChildTypes(): string {
+  return INLINE_SUPPORTED_CHILD_TYPES.map((type, index, arr) => {
+    if (index === arr.length - 1) return `'${type}'`;
+    if (index === arr.length - 2) return `'${type}', or `;
+    return `'${type}', `;
+  }).join("");
+}
 
 /**
  * Normalize inline child types in-place before processing.
@@ -79,6 +91,7 @@ export function collectTextChildren(children: any[]): any[] {
  * Works for both components (with property binding) and plain frames (without).
  * Text children delegate to createTextSingle for full feature parity.
  * Frame children use setupFrameNode and recurse for nested trees.
+ * Shape children reuse the same helpers as top-level frames.create discriminants.
  */
 export async function createInlineChildren(
   appendTo: FrameNode | ComponentNode,
@@ -91,7 +104,7 @@ export async function createInlineChildren(
     // Type normalization (lowercase, inference, id→componentId) handled by normalizeInlineChildTypes pre-pass.
     // Catch anything that still has no type (e.g. empty object).
     if (!child.type) {
-      hints.push({ type: "error", message: `Inline child missing 'type'. Set type: "text", "frame", "instance", or "component".` });
+      hints.push({ type: "error", message: `Inline child missing 'type'. Set type: ${formatInlineChildTypes()}.` });
       continue;
     }
 
@@ -187,8 +200,37 @@ export async function createInlineChildren(
         parentId: appendTo.id,
       });
       if (result.hints) hints.push(...result.hints);
+    } else if (INLINE_SHAPE_TYPES.has(child.type)) {
+      const createShape = child.type === "rectangle"
+        ? createSingleRectangle
+        : child.type === "ellipse"
+          ? createSingleEllipse
+          : createSingleLine;
+      const result = await createShape({
+        ...child,
+        parentId: appendTo.id,
+      });
+      if (result.hints) hints.push(...result.hints);
+    } else if (child.type === "slot") {
+      if (!comp) {
+        hints.push({ type: "error", message: `Inline slot children require a component parent. Slots can only be created inside components.` });
+        continue;
+      }
+      const slot = comp.createSlot();
+      if (child.name) slot.name = child.name;
+      appendTo.appendChild(slot);
+
+      // Apply sensible defaults — VERTICAL auto-layout, FILL/HUG
+      child.layoutMode ??= "VERTICAL";
+      child.layoutSizingHorizontal ??= "FILL";
+      child.layoutSizingVertical ??= "HUG";
+      const { type: _t, name: _n, ...slotFrameParams } = child;
+      slotFrameParams.parentId = appendTo.id;
+      slotFrameParams._skipOverlapCheck = true;
+      const { hints: slotHints } = await setupFrameNode(slot as any, slotFrameParams);
+      hints.push(...slotHints);
     } else {
-      hints.push({ type: "error", message: `Inline child type '${child.type}' not supported. Use 'text', 'frame', 'instance', or 'component'.` });
+      hints.push({ type: "error", message: `Inline child type '${child.type}' not supported. Use ${formatInlineChildTypes()}.` });
     }
   }
 }
@@ -547,11 +589,84 @@ async function combineSingle(p: any) {
 // Extend variant_set guard to accept nodeIds as alias for componentIds
 const VARIANT_SET_KEYS = new Set([...componentsCreateVariantSet, "nodeIds"]) as ReadonlySet<string>;
 
+function variantSetCreateHelp(): string {
+  return 'Example: components(method:"create", type:"variant_set", items:[{name:"Button", children:[{type:"component", name:"Style=Primary", children:[{type:"text", text:"Button", componentPropertyName:"Label"}]}, {type:"component", name:"Style=Secondary", children:[{type:"text", text:"Button", componentPropertyName:"Label"}]}]}])';
+}
+
+export async function createSlotSingle(p: any) {
+  // Resolve the owning component — explicit componentId, or walk up from parentId
+  let comp: ComponentNode | null = null;
+  let parent: BaseNode | null = null;
+  if (p.componentId) {
+    const node = await figma.getNodeByIdAsync(p.componentId);
+    if (!node) throw new Error(`Component not found: ${p.componentId}`);
+    if (node.type !== "COMPONENT") throw new Error(`Slots can only be created inside components — "${(node as any).name || p.componentId}" is a ${node.type}. Pass the ID of a COMPONENT node as componentId.`);
+    comp = node as ComponentNode;
+  } else if (p.parentId) {
+    parent = await figma.getNodeByIdAsync(p.parentId);
+    if (!parent) throw new Error(`Parent not found: ${p.parentId}`);
+    let cursor: BaseNode | null = parent;
+    while (cursor) {
+      if (cursor.type === "COMPONENT") { comp = cursor as ComponentNode; break; }
+      cursor = cursor.parent;
+    }
+    if (!comp) throw new Error(`No ancestor component found for parentId "${p.parentId}". Slots must live inside a component — pass parentId of a node within a component, or componentId of the owning component.`);
+  } else {
+    throw new Error(`Slots must be created inside a component. Pass parentId (a frame inside a component) or componentId (the component itself).`);
+  }
+
+  const slot = comp.createSlot();
+  if (p.name) slot.name = p.name;
+
+  // Reparent into the target frame if parentId differs from the component
+  if (p.parentId && p.parentId !== comp.id) {
+    parent ??= await figma.getNodeByIdAsync(p.parentId);
+    if (!parent) throw new Error(`Parent not found: ${p.parentId}`);
+    if (!("appendChild" in parent)) {
+      throw new Error(`Parent does not support children: ${p.parentId}. Only FRAME, COMPONENT, GROUP, SECTION, SLOT, and PAGE nodes can have children.`);
+    }
+
+    let parentOwner: BaseNode | null = parent;
+    while (parentOwner && parentOwner.type !== "COMPONENT") parentOwner = parentOwner.parent;
+    if (parentOwner?.id !== comp.id) {
+      throw new Error(`Parent "${(parent as any).name || p.parentId}" is not inside component "${comp.name}". Pass parentId of a node within the owning component, or omit parentId to create the slot at the component root.`);
+    }
+
+    (parent as any).appendChild(slot);
+  }
+
+  // Apply frame properties via setupFrameNode (slot extends DefaultFrameMixin).
+  // Default to VERTICAL auto-layout with FILL/HUG so the slot is immediately
+  // usable as a content container — matches how frames behave in auto-layout.
+  p.layoutMode ??= "VERTICAL";
+  p.layoutSizingHorizontal ??= "FILL";
+  p.layoutSizingVertical ??= "HUG";
+  // Point parentId at the slot's actual parent so setupFrameNode re-appends correctly
+  const slotParentId = slot.parent?.id;
+  const { componentId: _cid, ...frameParams } = p;
+  frameParams.parentId = slotParentId;
+  frameParams._skipOverlapCheck = true;
+  const { hints } = await setupFrameNode(slot as any, frameParams);
+
+  const result: any = { id: slot.id };
+  if (hints.length > 0) result.hints = hints;
+  return result;
+}
+
 async function createComponentDispatch(params: any) {
   switch (params.type) {
     case "component": return batchHandler(params, createComponentSingle, { keys: componentsCreateComponent, help: 'components(method: "help", topic: "create")' });
     case "from_node": return batchHandler(params, fromNodeSingle, { keys: componentsCreateFromNode, help: 'components(method: "help", topic: "create")' });
-    case "variant_set": return batchHandler(params, combineSingle, { keys: VARIANT_SET_KEYS, help: 'components(method: "help", topic: "create")' });
+    case "variant_set": {
+      if (!Array.isArray(params.items) || params.items.length === 0) {
+        throw new Error(`items: [] — need at least one variant set spec. Each item must have either componentIds:[...] (min 2 existing component IDs) or children:[...] (min 2 inline {type:"component", ...} specs). ${variantSetCreateHelp()}`);
+      }
+      const misplacedVariants = params.items.filter((item: any) => item?.type === "component");
+      if (misplacedVariants.length > 0) {
+        throw new Error(`Looks like you put variant children directly in items. Each items entry is one variant set, not one variant. Wrap your components like this: ${variantSetCreateHelp()}`);
+      }
+      return batchHandler(params, combineSingle, { keys: VARIANT_SET_KEYS, help: 'components(method: "help", topic: "create")' });
+    }
     default: throw new Error(`Unknown create type: ${params.type}`);
   }
 }
@@ -562,7 +677,7 @@ async function getComponentFigma(params: any) {
 
   // Resolve target nodes: by names (batch) or id (single)
   const names: string[] | undefined = params.names;
-  let targets: { node: any; error?: string; name?: string }[] = [];
+  const targets: { node: any; error?: string; name?: string }[] = [];
 
   if (names?.length) {
     await figma.loadAllPagesAsync();

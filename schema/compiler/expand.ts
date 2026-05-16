@@ -51,7 +51,9 @@ function expandParam(name: string, param: RawParam): Record<string, RawParam> | 
   if (!preset) throw new Error(`Unknown $expand preset: "${presetName}" on param "${name}"`);
 
   // Base properties inherited by all expanded fields
-  const { $expand, description, coerce, ...base } = param as any;
+  const { description, ...base } = param as any;
+  delete base.$expand;
+  delete base.coerce;
   const result: Record<string, RawParam> = {};
 
   // All expanded fields use the token type (number | variable name)

@@ -163,11 +163,6 @@ export function resolveComponentKey(name: string): string | undefined {
   return r.key;
 }
 
-export function resolveStyleKey(name: string): string | undefined {
-  const r = registry.get(name);
-  if (!r || r.kind !== "style") return undefined;
-  return r.key;
-}
 
 export function listCachedComponentNames(): string[] {
   const names: string[] = [];
@@ -556,7 +551,7 @@ export async function queryLibrary(
   };
 }
 
-export async function getLibraryDetails(records: LibraryRecord[]): Promise<LibraryDetail[]> {
+async function getLibraryDetails(records: LibraryRecord[]): Promise<LibraryDetail[]> {
   // Group by fileKey so each file only costs one REST call.
   const byFile = new Map<string, LibraryRecord[]>();
   for (const r of records) {

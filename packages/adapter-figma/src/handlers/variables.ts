@@ -479,7 +479,7 @@ async function setBindingSingle(p: any) {
 async function setExplicitModeSingle(p: any) {
   const node = await figma.getNodeByIdAsync(p.nodeId);
   if (!node) throw new Error(`Node not found: ${p.nodeId}`);
-  if (!("setExplicitVariableModeForCollection" in node)) throw new Error(`Node ${p.nodeId} (${node.type}) does not support explicit variable modes. Use a FRAME, COMPONENT, or COMPONENT_SET.`);
+  if (!("setExplicitVariableModeForCollection" in node)) throw new Error(`Node ${p.nodeId} (${node.type}) does not support explicit variable modes. Use a FRAME, COMPONENT, COMPONENT_SET, or SLOT.`);
   const collection = await findCollection(p.collectionId);
   if (!collection) throw new Error(`Collection not found: ${p.collectionId}`);
   try {

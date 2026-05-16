@@ -277,7 +277,7 @@ If the plugin shows **Disconnected** on port 3055, try the following before aski
 
 1. Check the relay is running: `lsof -ti:3055` — if no output, the relay isn't started.
 2. Restart the relay: `npm run socket`
-3. Ask the user to close and reopen the Figma plugin.
+3. Ask the user to check the existing Vibma plugin window and click **Connect** again only if it is actually disconnected.
 
 If `connection(method: "create")` fails with a `ROLE_OCCUPIED` error, another MCP server is already connected to that channel. Use `connection(method: "list")` (or `curl http://127.0.0.1:3055/channels`) to inspect who's connected. The user needs to disconnect the other MCP client or use a different channel name.
 
@@ -305,7 +305,7 @@ If `connection(method: "create")` returns a version mismatch warning, the Figma 
 1. Pull the latest changes: `git pull origin main`
 2. Rebuild: `npm install && npm run build`
 3. Restart the relay: kill the old process (`lsof -ti:3055 | xargs kill`), then `npm run socket`
-4. Ask the user to close and reopen the Figma plugin (it auto-reloads from `plugin/`)
+4. Do not ask the user to reopen the plugin just because of the build. The plugin hot-reloads from `plugin/`. Only ask them to click **Connect** again if the plugin UI actually shows **Disconnected** after the relay restart.
 5. Reconnect: `connection(method: "create")` → `connection(method: "get")`
 
 All three components (plugin, relay, MCP server) are built from the same source and should always be on the same version.

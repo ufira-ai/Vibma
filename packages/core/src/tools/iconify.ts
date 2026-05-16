@@ -15,7 +15,7 @@ const svgCache = new Map<string, string>();
 const NAME_RE = /^([a-z0-9][a-z0-9-]*):([a-z0-9][a-z0-9-]*)$/;
 
 /** Parse "prefix:name" → { prefix, name } or null on bad format. */
-export function parseIconName(icon: string): { prefix: string; name: string } | null {
+function parseIconName(icon: string): { prefix: string; name: string } | null {
   const m = icon.match(NAME_RE);
   return m ? { prefix: m[1], name: m[2] } : null;
 }

@@ -1,4 +1,4 @@
-import { batchHandler, type Hint } from "./helpers";
+import { batchHandler } from "./helpers";
 
 // ─── Prototype Reactions & Navigation ────────────────────────────
 

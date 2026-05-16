@@ -20,7 +20,7 @@ notes: |
   // constraints: position behavior in non-auto-layout parents. Ignored inside auto-layout frames.
   // bindings: bind design variables to node properties. field uses slash path: "fills/0/color" (first fill), "strokes/0/color", "opacity", "width", "height", "cornerRadius", "paddingLeft", "itemSpacing".
   // explicitMode: pin a variable mode on this node. Use { collectionName, modeName } (preferred) or { collectionId, modeId }.
-  // properties: escape hatch — set any Figma node property directly. Use only when no dedicated field exists.
+  // clipsContent: clip children to the node bounds where supported (frames/components/instances). Set false for overflow-visible layouts.
   interface Node {
     id: string; name: string; type: string;
     visible?: boolean;       // omitted when true
@@ -124,7 +124,7 @@ methods:
         coerce: json
         required: true
         tsType: "PatchItem[]"
-        description: "Array of {id, ...properties} to patch"
+        description: "Array of {id, ...fields} to patch"
         items:
           type: object
           properties:
@@ -156,7 +156,7 @@ methods:
             explicitMode: { type: object, optional: true, description: "Pin variable mode — use { collectionName, modeName } (preferred) or { collectionId, modeId }" }
             exportSettings: { type: array, optional: true, description: "Export settings", items: { type: object } }
             annotations: { type: array, coerce: json, optional: true, description: "Set annotations — [{label?, labelMarkdown?, properties?, categoryId?}]. Properties are validated per node type.", items: { type: object } }
-            properties: { type: object, optional: true, description: "Direct Figma API props (escape hatch)" }
+            clipsContent: { type: boolean, coerce: true, optional: true, description: "Clip children to bounds where supported (frames/components/instances)." }
     response:
       type: batch_mixed
 
@@ -216,6 +216,34 @@ methods:
     response:
       type: batch
       item: { id: { type: string } }
+
+  scale:
+    # command auto-derived as {endpoint}.scale
+    tier: edit
+    description: "Proportionally rescale a node subtree using Figma's visual Scale tool behavior. This is for visual/artifact scaling, not responsive layout resizing."
+    example: '{endpoint}(method:"scale", id:"1:23", factor:0.5)'
+    params:
+      id:
+        type: string
+        optional: true
+        description: "Node ID to scale"
+      factor:
+        type: number
+        coerce: true
+        optional: true
+        description: "Scale factor, >= 0.01. 0.5 = 50%, 2 = 200%. Scales children, text, strokes, effects, and layout geometry from the node's top-left. On auto-layout or HUG/FILL nodes, Figma may resolve responsive sizing to fixed width/height."
+      items:
+        type: array
+        coerce: json
+        optional: true
+        description: "Batch: [{id, factor}, ...]. Alternative to single-item params."
+        items:
+          type: object
+          properties:
+            id: { type: string, required: true, description: "Node ID to scale" }
+            factor: { type: number, coerce: true, required: true, description: "Scale factor, >= 0.01. 0.5 = 50%, 2 = 200%." }
+    response:
+      type: batch_ok
 
   audit:
     tier: read

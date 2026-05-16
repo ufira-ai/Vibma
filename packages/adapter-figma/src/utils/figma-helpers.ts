@@ -101,10 +101,10 @@ export function applyDeferredFill(
   deferV: boolean
 ) {
   if (deferH) {
-    try { (node as any).layoutSizingHorizontal = "FILL"; } catch (_) {}
+    try { (node as any).layoutSizingHorizontal = "FILL"; } catch {}
   }
   if (deferV) {
-    try { (node as any).layoutSizingVertical = "FILL"; } catch (_) {}
+    try { (node as any).layoutSizingVertical = "FILL"; } catch {}
   }
 }
 

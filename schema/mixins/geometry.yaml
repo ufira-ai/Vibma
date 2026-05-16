@@ -7,7 +7,7 @@ geometry_params:
   fills: { $ref: paints, optional: true, description: "Fill Paint[] authoring — accepts only SOLID or GRADIENT_LINEAR/RADIAL/ANGULAR/DIAMOND with gradientTransform + gradientStops. [] for transparent. Do not use CSS gradients, REST gradientHandlePositions, IMAGE/VIDEO/PATTERN, or top-level gradient boundVariables; use imageUrl/images for image authoring. IMAGE/VIDEO/PATTERN may appear in readback metadata only. Primary way to set non-image fills." }
   fillColor: { $ref: color, optional: true, description: "Shorthand — sets a single solid fill (auto-binds to matching variable/style)" }
   fillStyleName: { type: string, optional: true, description: "Paint style name for fill" }
-  fillVariableName: { type: string, optional: true, description: "Color variable by name e.g. 'bg/primary'" }
+  fillVariableName: { type: string, optional: true, description: "Color variable by name e.g. 'bg/surface'" }
   # MinimalStrokesMixin + custom aliases (see stroke.yaml)
   strokes: { $ref: paints, optional: true, description: "Stroke Paint[] authoring — accepts only SOLID or GRADIENT_LINEAR/RADIAL/ANGULAR/DIAMOND with gradientTransform + gradientStops. [] to clear. Do not use CSS gradients, REST gradientHandlePositions, IMAGE/VIDEO/PATTERN, or top-level gradient boundVariables. IMAGE/VIDEO/PATTERN may appear in readback metadata only. Primary way to set strokes." }
   strokeColor: { $ref: color, optional: true, description: "Shorthand — sets a single solid stroke (auto-binds to matching variable/style)" }

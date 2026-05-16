@@ -161,7 +161,7 @@ function generateSchema(endpoint: ResolvedEndpoint): string {
 }
 
 /** Determine the minimum tier needed for this endpoint */
-function endpointTier(endpoint: ResolvedEndpoint): string {
+function endpointTier(): string {
   // If any method is read-only, the endpoint itself is read (tier gate is per-method via caps)
   return "read";
 }
@@ -209,6 +209,11 @@ function getRequiredParams(method: ResolvedMethod): string[] {
   return required;
 }
 
+/** Generate runtime code to find a discriminant accidentally placed on an item. */
+function misplacedDiscriminantLine(discriminant: string): string {
+  return `const itemDiscriminant = Array.isArray(params.items) ? params.items.find((it: any) => it && typeof it === "object" && typeof it.${discriminant} === "string")?.${discriminant} : undefined;`;
+}
+
 /**
  * Collect alias preprocessing lines for item params.
  * Each alias generates: if (it.alias !== undefined && it.canonical === undefined) { it.canonical = it.alias; delete it.alias; }
@@ -244,10 +249,20 @@ function generateValidate(endpoint: ResolvedEndpoint): string | null {
   for (const method of endpoint.methods) {
     // Required param checks (e.g. get needs id)
     const required = getRequiredParams(method);
-    if (required.length > 0) {
-      const checks = required.map(p =>
+    if (required.length > 0 || (method.discriminant && method.types)) {
+      const checks: string[] = [];
+      if (method.discriminant && method.types) {
+        const availableTypes = Object.keys(method.types).join(", ");
+        checks.push(`        ${misplacedDiscriminantLine(method.discriminant)}`);
+        checks.push(
+          `        if (params.${method.discriminant} === undefined) {` +
+          ` throw new Error(itemDiscriminant ? ${JSON.stringify(`${endpoint.name}.${method.name} uses top-level "${method.discriminant}", not "${method.discriminant}" inside items. Move the item value to the top level and use help for valid item shapes.`)} : ${JSON.stringify(`${endpoint.name}.${method.name} requires top-level "${method.discriminant}" (${availableTypes}). Use ${endpoint.name}(method: "help", topic: "${method.name}") for valid item shapes.`)});` +
+          ` }`
+        );
+      }
+      checks.push(...required.map(p =>
         `        if (params.${p} === undefined) throw new Error(${JSON.stringify(`${method.name} requires "${p}"`)});`
-      );
+      ));
       requiredBranches.push(
         `      if (m === ${JSON.stringify(method.name)}) {\n${checks.join("\n")}\n      }`
       );
@@ -273,10 +288,9 @@ function generateValidate(endpoint: ResolvedEndpoint): string | null {
         aliasBlock +
         `        const schemas: Record<string, z.ZodTypeAny> = {\n${schemaLines.join("\n")}\n        };\n` +
         `        const s = params.${method.discriminant} && schemas[params.${method.discriminant}];\n` +
-        `        if (s) {\n` +
-        `          try { params.items = z.array(s).parse(params.items); }\n` +
-        `          ${zodCatchBlock("s", `${endpoint.name}(method:\"help\", topic:\"${method.name}\")`)}\n` +
-        `        }\n` +
+        `        if (!s) throw new Error(${JSON.stringify(`${endpoint.name}.${method.name}: unknown ${method.discriminant}. Use ${endpoint.name}(method: "help", topic: "${method.name}") for valid types and item shapes.`)});\n` +
+        `        try { params.items = z.array(s).parse(params.items); }\n` +
+        `        ${zodCatchBlock("s", `${endpoint.name}(method:\"help\", topic:\"${method.name}\")`)}\n` +
         `      }`
       );
     } else {
@@ -308,6 +322,7 @@ function generateValidate(endpoint: ResolvedEndpoint): string | null {
   }
   if (itemBranches.length > 0) {
     lines.push(`      if (!params.items) return;`);
+    lines.push(`      if (Array.isArray(params.items) && params.items.length === 0) throw new Error("items: [] is a no-op. Batch calls need at least one item. Omit items to use single-item params, or pass one or more item objects. Use ${endpoint.name}(method: \\"help\\", topic: \\"" + m + "\\") to see valid item shapes.");`);
     lines.push(...itemBranches);
   }
   lines.push(`    }`);
@@ -375,36 +390,7 @@ export function generateMcpDefs(endpoints: ResolvedEndpoint[]): string {
     `  return { ...schema, method: z.enum(methods as [string, ...string[]]) };`,
     `}`,
     ``,
-    `/**`,
-    ` * Command dispatch map: endpoint → method → Figma command name.`,
-    ` * For discriminated methods (create with type), the value is a sub-map: type → command.`,
-    ` */`,
-    `export const commandMap: Record<string, Record<string, string>> = {`,
   ];
-
-  for (const ep of endpoints) {
-    lines.push(`  "${ep.name}": ${JSON.stringify(buildDispatchMap(ep))},`);
-  }
-
-  lines.push(`};`);
-  lines.push(``);
-
-  // Inline method flags
-  const inlineEntries: string[] = [];
-  for (const ep of endpoints) {
-    const inlines: Record<string, boolean> = {};
-    for (const m of ep.methods) {
-      if (m.inline) inlines[m.name] = true;
-    }
-    if (Object.keys(inlines).length > 0) {
-      inlineEntries.push(`  "${ep.name}": ${JSON.stringify(inlines)},`);
-    }
-  }
-  lines.push(`/** Methods handled inline (local WS state, not sent to Figma) */`);
-  lines.push(`export const inlineMethods: Record<string, Record<string, boolean>> = {`);
-  lines.push(...inlineEntries);
-  lines.push(`};`);
-  lines.push(``);
 
   lines.push(`export const tools: ToolDef[] = [`);
 

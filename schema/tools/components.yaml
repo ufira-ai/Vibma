@@ -19,6 +19,7 @@ notes: |
   // Property keys: read returns clean names ("Label"), write requires the #suffix ("Label#1:0"). Call components.get(id) to discover exact keys before edit/delete.
   // ComponentItem accepts the same params as FrameItem (layout, fill, stroke, sizing, min/max).
   // A component IS a frame — create it directly with all layout properties, then add children.
+  // Examples assume design tokens/styles already exist. Build components from tokens/styles, not raw color/spacing/type values.
   // SIZING: Components with text need a width constraint — set width + layoutSizingHorizontal:"FIXED".
   //   Without it, text won't wrap and the component grows unboundedly.
   //   HUG on both axes is only correct for intrinsically-sized elements (buttons, badges, icons).
@@ -90,11 +91,11 @@ methods:
   create:
     tier: create
     description: Create components
-    example: 'components(method:"create", type:"component", items:[{name:"Card", layoutMode:"VERTICAL", padding:"16", itemSpacing:"8", fillVariableName:"bg/surface", children:[{type:"text", text:"Title", componentPropertyName:"Title"}, {type:"text", text:"Description", fontSize:14, componentPropertyName:"Description"}], properties:[{propertyName:"Show Icon", type:"BOOLEAN", defaultValue:true}]}])'
     discriminant: type
     types:
       component:
         description: "Create component with full frame properties (layout, fill, stroke, sizing). A component IS a frame — build directly, no need to create a frame first."
+        example: 'components(method:"create", type:"component", items:[{name:"Card", width:320, height:200, layoutMode:"VERTICAL", padding:"space/16", itemSpacing:"space/8", fillVariableName:"bg/surface", strokeVariableName:"border/subtle", strokeWeight:"stroke/1", cornerRadius:"radius/12", children:[{type:"text", name:"Title", text:"Title", componentPropertyName:"Title", textStyleName:"Heading/Medium", fontColorVariableName:"text/primary", layoutSizingHorizontal:"FILL", layoutSizingVertical:"HUG"}]}])'
         params:
           $mixin: frame_params
           name: { type: string, required: true, description: Component name }
@@ -114,12 +115,14 @@ methods:
                 preferredValues: { type: array, coerce: json, optional: true, description: "Preferred values for INSTANCE_SWAP" }
       from_node:
         description: "Convert existing nodes to components. Text children auto-exposed as editable properties (exposeText: true)."
+        example: 'components(method:"create", type:"from_node", items:[{nodeId:"1:23", name:"Button", exposeText:true}])'
         params:
           nodeId: { type: string, required: true, description: Node ID to convert }
           name: { type: string, optional: true, description: "Rename the component (default: keeps the node's current name)" }
           exposeText: { type: boolean, coerce: true, optional: true, description: "Auto-expose text as editable properties (default: true)" }
       variant_set:
         description: Combine components into a variant set. The resulting set is a frame — accepts all frame properties for layout/styling.
+        example: 'components(method:"create", type:"variant_set", items:[{name:"Button", layoutMode:"HORIZONTAL", layoutSizingHorizontal:"HUG", layoutSizingVertical:"HUG", padding:"space/8", itemSpacing:"space/8", children:[{type:"component", name:"Style=Primary", minWidth:120, height:48, layoutMode:"HORIZONTAL", layoutSizingHorizontal:"HUG", layoutSizingVertical:"FIXED", padding:"space/12", cornerRadius:"radius/8", fillVariableName:"bg/accent", primaryAxisAlignItems:"CENTER", counterAxisAlignItems:"MIN", children:[{type:"text", name:"Button", text:"Button", width:72, componentPropertyName:"Button", textStyleName:"Body/Medium", fontColorVariableName:"text/inverse", textAlignHorizontal:"CENTER", textAlignVertical:"CENTER", layoutSizingHorizontal:"FIXED", layoutSizingVertical:"FILL"}]}, {type:"component", name:"Style=Secondary", minWidth:120, height:48, layoutMode:"HORIZONTAL", layoutSizingHorizontal:"HUG", layoutSizingVertical:"FIXED", padding:"space/12", cornerRadius:"radius/8", fillVariableName:"bg/surface", strokeVariableName:"border/subtle", strokeWeight:"stroke/1", primaryAxisAlignItems:"CENTER", counterAxisAlignItems:"MIN", children:[{type:"text", name:"Button", text:"Button", width:72, componentPropertyName:"Button", textStyleName:"Body/Medium", fontColorVariableName:"text/primary", textAlignHorizontal:"CENTER", textAlignVertical:"CENTER", layoutSizingHorizontal:"FIXED", layoutSizingVertical:"FILL"}]}]}])'
         params:
           $mixin: frame_params
           componentIds: { type: "string[]", coerce: json, optional: true, description: "Existing component IDs to combine (min 2). Alternative to children.", aliases: [nodeIds] }
@@ -142,7 +145,7 @@ methods:
   update:
     tier: edit
     description: "Add, edit, or delete component properties"
-    example: 'components(method:"update", items:[{id:"1:23", propertyName:"Label", action:"edit", defaultValue:"Click Me"}])'
+    example: 'components(method:"update", items:[{id:"1:23", propertyName:"Show Icon", action:"add", type:"BOOLEAN", defaultValue:true}])'
     params:
       items:
         type: array

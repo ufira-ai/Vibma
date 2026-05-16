@@ -51,9 +51,18 @@ Then patch the new variants: `frames(method:"update", items:[{id:"<new>", fillVa
 **Add a new dimension** (e.g. Size=sm to a Style×State set):
 1. Batch rename existing variants to include the new dimension: `frames(method:"update", items:[{id:"<each>", name:"..., Size=md"}])`
 2. Batch clone all variants with the new value: `components(method:"clone", items:[{id:"<each>", name:"..., Size=sm", parentId:"<set_id>"}])`
-3. Batch patch the new variants: `frames(method:"update", items:[{id:"<each>", padding:8, minHeight:32}])`
+3. Batch patch the new variants: `frames(method:"update", items:[{id:"<each>", padding:"space/8"}])`
 
 Property bindings (TEXT, INSTANCE_SWAP) are preserved on cloned variants.
+
+## Slots
+
+Slots are placeholder containers inside components that instance users can fill with custom content.
+
+- Create at component root: `frames(method:"create", type:"slot", items:[{parentId:"<comp_id>", name:"Content"}])`
+- Create nested inside a frame within a component: `frames(method:"create", type:"slot", items:[{parentId:"<frame_id>", name:"Content"}])`
+- In instances, add content by using the slot's ID as `parentId` on any create/reparent call
+- Empty slots are normal — they don't trigger lint warnings
 
 ## Checking
 

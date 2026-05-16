@@ -86,6 +86,7 @@ methods:
     types:
       paint:
         description: Paint/color style
+        example: 'styles(method:"create", type:"paint", items:[{name:"Surface/Primary", colorVariableName:"bg/surface"}])'
         params:
           name: { type: string, required: true, description: Style name }
           paints: { $ref: paints, optional: true, description: "PaintStyle.paints authoring array. Accepts only SOLID and GRADIENT_LINEAR/RADIAL/ANGULAR/DIAMOND, using gradientTransform + gradientStops, opacity/blendMode, and gradientStops[].boundVariables.color. Mutually exclusive with color/colorVariableName shorthands. Do not pass IMAGE/VIDEO/PATTERN, CSS gradients, REST gradientHandlePositions, or top-level gradient boundVariables. Use imageUrl/images for image authoring on nodes; VIDEO/PATTERN authoring is not supported here. For examples call styles(method:\"help\", topic:\"create\")." }
@@ -94,6 +95,7 @@ methods:
           description: { type: string, optional: true, description: "Style description" }
       text:
         description: Text style
+        example: 'styles(method:"create", type:"text", items:[{name:"Heading/Medium", fontFamily:"Inter", fontStyle:"Medium", fontSize:20, lineHeight:{value:28, unit:"PIXELS"}}, {name:"Body/Regular", fontFamily:"Inter", fontSize:14, lineHeight:{value:20, unit:"PIXELS"}}, {name:"Body/Medium", fontFamily:"Inter", fontStyle:"Medium", fontSize:14, lineHeight:{value:20, unit:"PIXELS"}}])'
         params:
           name: { type: string, required: true, description: Style name }
           fontFamily: { type: string, required: true, description: Font family }
@@ -109,12 +111,14 @@ methods:
           description: { type: string, optional: true, description: "Style description" }
       effect:
         description: Effect style
+        example: 'styles(method:"create", type:"effect", items:[{name:"Shadow/Medium", effects:[{type:"DROP_SHADOW", color:"#00000040", offset:{x:0,y:4}, radius:8}]}])'
         params:
           name: { type: string, required: true, description: Style name }
           effects: { type: array, coerce: json, required: true, description: "Array of Effect objects" }
           description: { type: string, optional: true, description: "Style description" }
       grid:
         description: Grid/layout grid style
+        example: 'styles(method:"create", type:"grid", items:[{name:"Grid/Desktop 12", layoutGrids:[{pattern:"COLUMNS", alignment:"STRETCH", count:12, gutterSize:24, offset:80}]}])'
         params:
           name: { type: string, required: true, description: Style name }
           layoutGrids: { type: array, coerce: json, required: true, description: "Array of LayoutGrid objects" }

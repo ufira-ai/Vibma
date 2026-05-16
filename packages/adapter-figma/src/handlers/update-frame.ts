@@ -2,7 +2,7 @@ import { batchHandler, applyTokens, applySizing, type Hint } from "./helpers";
 
 // ─── Figma Handlers ──────────────────────────────────────────────
 
-const LAYOUT_TYPES = ["FRAME", "COMPONENT", "COMPONENT_SET", "INSTANCE"];
+const LAYOUT_TYPES = ["FRAME", "COMPONENT", "COMPONENT_SET", "INSTANCE", "SLOT"];
 
 export async function updateFrameSingle(p: any) {
   const node = await figma.getNodeByIdAsync(p.nodeId);
@@ -49,7 +49,7 @@ export async function updateFrameSingle(p: any) {
       (p.layoutSizingHorizontal !== undefined || p.layoutSizingVertical !== undefined) && "sizing",
     ].filter(Boolean) as string[];
     if (layoutProps.length > 0) {
-      hints.push({ type: "warn", message: `Node type ${node.type} does not support layout properties (${layoutProps.join(", ")}) — ignored. These only work on FRAME, COMPONENT, COMPONENT_SET, and INSTANCE.` });
+      hints.push({ type: "warn", message: `Node type ${node.type} does not support layout properties (${layoutProps.join(", ")}) — ignored. These only work on FRAME, COMPONENT, COMPONENT_SET, INSTANCE, and SLOT.` });
       const result: any = {};
       if (hints.length > 0) result.hints = hints;
       return result;

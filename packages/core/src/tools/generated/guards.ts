@@ -15,6 +15,9 @@ export const annotationsRemove = new Set(["id","index"]) as ReadonlySet<string>;
 /** node.clone item params */
 export const nodeClone = new Set(["id","name","parentId","x","y"]) as ReadonlySet<string>;
 
+/** node.scale item params */
+export const nodeScale = new Set(["factor","id"]) as ReadonlySet<string>;
+
 /** node.reparent item params */
 export const nodeReparent = new Set(["id","index","parentId"]) as ReadonlySet<string>;
 
@@ -162,6 +165,7 @@ export const nodeUpdate = new Set([
   "bottomLeftRadius",
   "bottomRightRadius",
   "clearFill",
+  "clipsContent",
   "constraints",
   "cornerRadius",
   "counterAxisAlignItems",
@@ -207,7 +211,6 @@ export const nodeUpdate = new Set([
   "paddingRight",
   "paddingTop",
   "primaryAxisAlignItems",
-  "properties",
   "rotation",
   "strokeAlign",
   "strokeBottomWeight",
@@ -449,7 +452,16 @@ export const framesCreateLine = new Set([
 export const framesCreateGroup = new Set(["name","nodeIds","parentId"]) as ReadonlySet<string>;
 
 /** frames create type="boolean_operation" */
-export const framesCreateBooleanOperation = new Set(["name","nodeIds","operation","parentId"]) as ReadonlySet<string>;
+export const framesCreateBooleanOperation = new Set([
+  "fillStyleName",
+  "fillVariableName",
+  "name",
+  "nodeIds",
+  "operation",
+  "parentId",
+  "strokeStyleName",
+  "strokeVariableName",
+]) as ReadonlySet<string>;
 
 /** frames create type="svg" */
 export const framesCreateSvg = new Set([
@@ -460,6 +472,65 @@ export const framesCreateSvg = new Set([
   "strokeStyleName",
   "strokeVariableName",
   "svg",
+  "x",
+  "y",
+]) as ReadonlySet<string>;
+
+/** frames create type="slot" */
+export const framesCreateSlot = new Set([
+  "annotations",
+  "blendMode",
+  "bottomLeftRadius",
+  "bottomRightRadius",
+  "componentId",
+  "cornerRadius",
+  "counterAxisAlignItems",
+  "counterAxisSpacing",
+  "effectStyleName",
+  "fillColor",
+  "fillStyleName",
+  "fillVariableName",
+  "fills",
+  "height",
+  "imageScaleMode",
+  "imageUrl",
+  "itemSpacing",
+  "layoutMode",
+  "layoutPositioning",
+  "layoutSizingHorizontal",
+  "layoutSizingVertical",
+  "layoutWrap",
+  "locked",
+  "maxHeight",
+  "maxWidth",
+  "minHeight",
+  "minWidth",
+  "name",
+  "opacity",
+  "overflowDirection",
+  "padding",
+  "paddingBottom",
+  "paddingLeft",
+  "paddingRight",
+  "paddingTop",
+  "parentId",
+  "primaryAxisAlignItems",
+  "rotation",
+  "strokeAlign",
+  "strokeBottomWeight",
+  "strokeColor",
+  "strokeLeftWeight",
+  "strokeRightWeight",
+  "strokeStyleName",
+  "strokeTopWeight",
+  "strokeVariableName",
+  "strokeWeight",
+  "strokes",
+  "strokesIncludedInLayout",
+  "topLeftRadius",
+  "topRightRadius",
+  "visible",
+  "width",
   "x",
   "y",
 ]) as ReadonlySet<string>;

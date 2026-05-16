@@ -2,7 +2,6 @@
 
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
-import { z } from "zod";
 import WebSocket from "ws";
 import { v4 as uuidv4 } from "uuid";
 import { readFileSync } from "fs";
@@ -43,11 +42,6 @@ const logger = {
 
 // ─── Types ───────────────────────────────────────────────────────
 
-interface FigmaResponse {
-  id: string;
-  result?: any;
-  error?: string;
-}
 
 interface CommandProgressUpdate {
   type: "command_progress";
@@ -367,8 +361,8 @@ server.registerTool(
           content: [{
             type: "text",
             text: connected
-              ? `Tunnel reset: ${body.message}. Reconnected on port ${activePort}.\n\nIMPORTANT: The Figma plugin was also disconnected. Ask the user to reopen the Vibma plugin, then call connection(method: "create") followed by connection(method: "get").`
-              : `Tunnel reset: ${body.message}. Reconnection in progress.\n\nIMPORTANT: The Figma plugin was also disconnected. Ask the user to reopen the Vibma plugin, then call connection(method: "create") to retry.`,
+              ? `Tunnel reset: ${body.message}. Reconnected on port ${activePort}.\n\nIMPORTANT: The Figma plugin was also disconnected from the tunnel. Ask the user to use the existing Vibma plugin window and click Connect again if needed, then call connection(method: "create") followed by connection(method: "get").`
+              : `Tunnel reset: ${body.message}. Reconnection in progress.\n\nIMPORTANT: The Figma plugin was also disconnected from the tunnel. Ask the user to use the existing Vibma plugin window and click Connect again if needed, then call connection(method: "create") to retry.`,
           }],
         };
       }

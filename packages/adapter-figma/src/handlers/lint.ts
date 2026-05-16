@@ -19,7 +19,7 @@ const WCAG_RULES = [
 /** Category meta-rules: expand "component" → component rules, etc. */
 const CATEGORY_RULES: Record<string, readonly string[]> = {
   component: ["no-text-property", "component-bindings"],
-  composition: ["no-autolayout", "overlapping-children", "shape-instead-of-frame", "fixed-in-autolayout", "overflow-parent", "unbounded-hug", "hug-cross-axis", "empty-container"],
+  composition: ["no-autolayout", "overlapping-children", "shape-instead-of-frame", "fixed-in-autolayout", "overflow-parent", "unbounded-hug", "fill-in-hug", "hug-cross-axis", "empty-container"],
   token: ["hardcoded-color", "hardcoded-token", "no-text-style"],
   naming: ["default-name", "stale-text-name"],
 };
@@ -33,6 +33,7 @@ const RULE_META: Record<string, { severity: Severity; category: RuleCategory; fi
   "no-text-style":        { severity: "heuristic", category: "token", fix: "Apply a text style via textStyleName. guidelines(topic:\"token-discipline\") for details." },
   "fixed-in-autolayout":  { severity: "heuristic", category: "composition", fix: "Use FILL or HUG instead of FIXED inside auto-layout." },
   "overflow-parent":      { severity: "unsafe", category: "composition", fix: "Child exceeds parent's available inner space. Fix: use layoutSizingHorizontal/Vertical:'FILL' on children, reduce the fixed dimension, or set overflowDirection on the parent for scrollable overflow." },
+  "fill-in-hug":          { severity: "unsafe", category: "composition", fix: "Collapsed FILL on the same axis inside a HUG parent usually means there is no usable width/height anchor. Give the parent a real constraint, preserve an explicit size, or change the child to HUG/FIXED." },
   "default-name":         { severity: "style", category: "naming", fix: "Rename to something descriptive." },
   "empty-container":      { severity: "style", category: "composition", fix: "Delete if leftover, or add content." },
   "stale-text-name":      { severity: "style", category: "naming", fix: "Sync layer name with text content, or leave if intentional." },
@@ -93,8 +94,8 @@ async function lintNodeHandler(params: any) {
   // Collect local styles + color variables for checks
   let localPaintStyleIds = new Set<string>();
   let localTextStyleIds = new Set<string>();
-  let paintStyleEntries: ColorEntry[] = [];
-  let colorVarEntries: ColorEntry[] = [];
+  const paintStyleEntries: ColorEntry[] = [];
+  const colorVarEntries: ColorEntry[] = [];
   let hasFloatVars = false;
   if (runAll || ruleSet.has("hardcoded-token") || ruleSet.has("hardcoded-radius")) {
     const floatVars = await figma.variables.getLocalVariablesAsync("FLOAT");
@@ -274,6 +275,40 @@ async function walkNode(node: BaseNode, depth: number, issues: Issue[], ctx: Lin
     }
   }
 
+  // -- Rule: fill-in-hug --
+  // Existing Figma nodes can preserve a usable size anchor even with HUG + same-axis FILL.
+  // Only flag the clearly broken live cases where the FILL child has effectively collapsed.
+  if (ctx.runAll || ctx.ruleSet.has("fill-in-hug")) {
+    if (node.parent && "layoutMode" in node.parent && "layoutSizingHorizontal" in node) {
+      const parent = node.parent as any;
+      if (parent.layoutMode !== "NONE") {
+        const isHorizontal = parent.layoutMode === "HORIZONTAL";
+        const childPrimaryField = isHorizontal ? "layoutSizingHorizontal" : "layoutSizingVertical";
+        const parentPrimary = isHorizontal ? parent.layoutSizingHorizontal : parent.layoutSizingVertical;
+        const childPrimary = (node as any)[childPrimaryField];
+        const childPrimarySize =
+          node && "width" in node && "height" in node
+            ? (isHorizontal ? (node as any).width : (node as any).height)
+            : undefined;
+        if (parentPrimary === "HUG" && childPrimary === "FILL" && childPrimarySize !== undefined && childPrimarySize <= 1) {
+          issues.push({
+            rule: "fill-in-hug",
+            nodeId: node.id,
+            nodeName: node.name,
+            extra: {
+              axis: isHorizontal ? "horizontal" : "vertical",
+              parentId: parent.id,
+              parentName: parent.name,
+              parentSizing: parentPrimary,
+              childPrimarySize,
+            },
+          });
+          if (issues.length >= ctx.maxFindings) return;
+        }
+      }
+    }
+  }
+
   // -- Rule: hug-cross-axis --
   // Child has HUG on the cross-axis of a constrained parent — won't fill available space
   if (ctx.runAll || ctx.ruleSet.has("hug-cross-axis")) {
@@ -325,12 +360,15 @@ async function walkNode(node: BaseNode, depth: number, issues: Issue[], ctx: Lin
 
   // -- Rule: hardcoded-color --
   if ((ctx.runAll || ctx.ruleSet.has("hardcoded-color")) && (ctx.hasPaintStyles || ctx.hasColorVars)) {
+    const hasPaintBinding = (binding: any) => Array.isArray(binding) ? binding.length > 0 : Boolean(binding);
     const checkPaints = (paints: any, styleId: any, hasBoundVar: boolean, property: "fill" | "stroke") => {
-      if (!paints || !Array.isArray(paints) || paints.length === 0 || paints[0].type !== "SOLID") return;
+      if (!paints || !Array.isArray(paints) || paints.length === 0) return;
+      const paint = [...paints].reverse().find((p: any) => p.visible !== false && p.type === "SOLID");
+      if (!paint) return;
       if (hasBoundVar) return;
       if (styleId && styleId !== "" && styleId !== figma.mixed) return;
-      const color = paints[0].color;
-      const opacity = paints[0].opacity ?? 1;
+      const color = paint.color;
+      const opacity = paint.opacity ?? 1;
       const hex = rgbaToHex({ r: color.r, g: color.g, b: color.b, a: opacity });
       const match = findColorMatch(color.r, color.g, color.b, opacity, ctx);
       const extra: Record<string, any> = { hex, property };
@@ -338,11 +376,11 @@ async function walkNode(node: BaseNode, depth: number, issues: Issue[], ctx: Lin
       issues.push({ rule: "hardcoded-color", nodeId: node.id, nodeName: node.name, extra });
     };
     if ("fills" in node && "fillStyleId" in node) {
-      checkPaints((node as any).fills, (node as any).fillStyleId, (node as any).boundVariables?.fills?.length > 0, "fill");
+      checkPaints((node as any).fills, (node as any).fillStyleId, hasPaintBinding((node as any).boundVariables?.fills), "fill");
       if (issues.length >= ctx.maxFindings) return;
     }
     if ("strokes" in node && "strokeStyleId" in node) {
-      checkPaints((node as any).strokes, (node as any).strokeStyleId, (node as any).boundVariables?.strokes?.length > 0, "stroke");
+      checkPaints((node as any).strokes, (node as any).strokeStyleId, hasPaintBinding((node as any).boundVariables?.strokes), "stroke");
       if (issues.length >= ctx.maxFindings) return;
     }
   }
@@ -378,7 +416,7 @@ async function walkNode(node: BaseNode, depth: number, issues: Issue[], ctx: Lin
       const hasStrokes = Array.isArray(strokes) && strokes.length > 0;
       if (hasStrokes) {
         const sw = (node as any).strokeWeight;
-        if (typeof sw === "number" && sw > 0 && !bv.strokeTopWeight && !bv.strokeBottomWeight && !bv.strokeLeftWeight && !bv.strokeRightWeight) {
+        if (typeof sw === "number" && sw > 0 && !bv.strokeWeight && !bv.strokeTopWeight && !bv.strokeBottomWeight && !bv.strokeLeftWeight && !bv.strokeRightWeight) {
           issues.push({ rule: "hardcoded-token", nodeId: node.id, nodeName: node.name, extra: { property: "strokeWeight", value: sw } });
           if (issues.length >= ctx.maxFindings) return;
         }
@@ -563,8 +601,9 @@ async function walkNode(node: BaseNode, depth: number, issues: Issue[], ctx: Lin
 
   // -- Rule: empty-container --
   // Skip frames with image or gradient fills — they have visual content even without children.
+  // Skip SLOT nodes — empty slots are intentional placeholders for instance content.
   if (ctx.runAll || ctx.ruleSet.has("empty-container")) {
-    if (isFrame(node) && "children" in node && (node as any).children.length === 0) {
+    if (isFrame(node) && node.type !== "SLOT" && "children" in node && (node as any).children.length === 0) {
       const fills: any[] = (node as any).fills || [];
       const hasVisualFill = fills.some((f: any) => f.type === "IMAGE" || f.type === "GRADIENT_LINEAR" || f.type === "GRADIENT_RADIAL" || f.type === "GRADIENT_ANGULAR" || f.type === "GRADIENT_DIAMOND");
       if (!hasVisualFill) {
@@ -578,8 +617,9 @@ async function walkNode(node: BaseNode, depth: number, issues: Issue[], ctx: Lin
   if (ctx.runAll || ctx.ruleSet.has("stale-text-name")) {
     if (node.type === "TEXT") {
       const chars = (node as any).characters as string;
+      const refs = (node as any).componentPropertyReferences;
       // Only flag if both name and characters are non-empty and they differ
-      if (chars && node.name && node.name !== chars && node.name !== chars.slice(0, node.name.length)) {
+      if (!refs?.characters && chars && node.name && node.name !== chars && node.name !== chars.slice(0, node.name.length)) {
         issues.push({ rule: "stale-text-name", nodeId: node.id, nodeName: node.name, extra: { characters: chars.slice(0, 60) } });
         if (issues.length >= ctx.maxFindings) return;
       }
@@ -842,7 +882,7 @@ function findColorMatch(r: number, g: number, b: number, a: number, ctx: LintCtx
 }
 
 function isFrame(node: BaseNode): node is FrameNode {
-  return node.type === "FRAME" || node.type === "COMPONENT" || node.type === "COMPONENT_SET" || node.type === "INSTANCE";
+  return node.type === "FRAME" || node.type === "COMPONENT" || node.type === "COMPONENT_SET" || node.type === "INSTANCE" || node.type === "SLOT";
 }
 
 function isInsideComponent(node: BaseNode): boolean {

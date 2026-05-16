@@ -1,4 +1,4 @@
-import { batchHandler, appendToParent, appendAndApplySizing, checkOverlappingSiblings, solidPaint, applyFillWithAutoBind, applyImageFill, applyStrokeWithAutoBind, applyCornerRadius, applyTokens, findVariableById, findColorVariableByName, type Hint } from "./helpers";
+import { batchHandler, appendToParent, appendAndApplySizing, checkOverlappingSiblings, solidPaint, applyFillWithAutoBind, applyImageFill, applyStrokeWithAutoBind, applyCornerRadius, applyTokens, findVariableById, findColorVariableByName, normalizeAliases, FRAME_ALIAS_KEYS, type Hint } from "./helpers";
 import {
   framesCreateSection, framesCreateSvg, framesCreateRectangle,
   framesCreateEllipse, framesCreateLine, framesCreateGroup,
@@ -43,6 +43,18 @@ async function createSingleSvg(p: any) {
     node.y = p.y ?? 0;
     if (p.name) node.name = p.name;
     await appendToParent(node, p.parentId);
+
+    if (p.name && "children" in node) {
+      let pathIndex = 0;
+      const renameDefaultVectorChildren = (n: SceneNode) => {
+        if ((n.type === "VECTOR" || n.type === "BOOLEAN_OPERATION") && (n.name === "Vector" || /^Vector \d+$/.test(n.name))) {
+          pathIndex += 1;
+          n.name = pathIndex === 1 ? `${p.name} Path` : `${p.name} Path ${pathIndex}`;
+        }
+        if ("children" in n) (n as any).children.forEach(renameDefaultVectorChildren);
+      };
+      (node as any).children.forEach(renameDefaultVectorChildren);
+    }
 
     // Bind fill style/variable to all vector children
     if (p.fillStyleName || p.fillVariableId || p.fillVariableName) {
@@ -126,7 +138,8 @@ async function createSingleSvg(p: any) {
 
 // ─── Rectangle ──────────────────────────────────────────────────
 
-async function createSingleRectangle(p: any) {
+export async function createSingleRectangle(p: any) {
+  normalizeAliases(p, FRAME_ALIAS_KEYS);
   const rect = figma.createRectangle();
   try {
     rect.x = p.x ?? 0;
@@ -155,7 +168,8 @@ async function createSingleRectangle(p: any) {
 
 // ─── Ellipse ────────────────────────────────────────────────────
 
-async function createSingleEllipse(p: any) {
+export async function createSingleEllipse(p: any) {
+  normalizeAliases(p, FRAME_ALIAS_KEYS);
   const ellipse = figma.createEllipse();
   try {
     ellipse.x = p.x ?? 0;
@@ -183,7 +197,8 @@ async function createSingleEllipse(p: any) {
 
 // ─── Line ───────────────────────────────────────────────────────
 
-async function createSingleLine(p: any) {
+export async function createSingleLine(p: any) {
+  normalizeAliases(p, FRAME_ALIAS_KEYS);
   const line = figma.createLine();
   try {
     line.x = p.x ?? 0;
@@ -271,7 +286,21 @@ async function createSingleBooleanOperation(p: any) {
   const result = op(nodes, parent as any);
   if (p.name) result.name = p.name;
 
-  return { id: result.id };
+  const hints: Hint[] = [];
+  if (p.fillVariableName) {
+    await applyFillWithAutoBind(result, { fills: { _variable: p.fillVariableName } }, hints);
+  } else if (p.fillStyleName) {
+    await applyFillWithAutoBind(result, { fills: { _style: p.fillStyleName } }, hints);
+  }
+  if (p.strokeVariableName) {
+    await applyStrokeWithAutoBind(result, { strokes: { _variable: p.strokeVariableName } }, hints);
+  } else if (p.strokeStyleName) {
+    await applyStrokeWithAutoBind(result, { strokes: { _style: p.strokeStyleName } }, hints);
+  }
+
+  const response: any = { id: result.id };
+  if (hints.length > 0) response.hints = hints;
+  return response;
 }
 
 export const figmaHandlers: Record<string, (params: any) => Promise<any>> = {

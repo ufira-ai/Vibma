@@ -6,13 +6,13 @@ Every color, spacing value, and text style should come from a design token — n
 
 Bind fills and strokes to color variables instead of hex values.
 
-- Fill: `fillVariableName:"bg/primary"` or `fillStyleName:"Surface/Primary"`
-- Stroke: `strokeVariableName:"border/default"`
+- Fill: `fillVariableName:"bg/surface"` or `fillStyleName:"Surface/Primary"`
+- Stroke: `strokeVariableName:"border/subtle"`
 - Text color: `fontColorVariableName:"text/primary"`
 
 If no matching variable exists, create one first:
 ```
-variables(method:"create", collectionId:"Colors", items:[{name:"bg/accent", type:"COLOR", valuesByMode:{"Light":"#E8F0FE","Dark":"#1A3A5C"}, scopes:["ALL_FILLS"]}])
+variables(method:"create", collectionId:"Tokens", items:[{name:"bg/warning", type:"COLOR", value:"#F59E0B", scopes:["ALL_FILLS"]}])
 ```
 
 ## Spacing and Radius
@@ -25,7 +25,7 @@ Pass a variable name string instead of a number for cornerRadius, padding, itemS
 
 Create FLOAT variables with appropriate scopes:
 ```
-variables(method:"create", collectionId:"Metrics", items:[{name:"space/12", type:"FLOAT", value:12, scopes:["GAP","WIDTH_HEIGHT"]}])
+variables(method:"create", collectionId:"Tokens", items:[{name:"space/32", type:"FLOAT", value:32, scopes:["GAP"]}])
 ```
 
 ## Text Styles
