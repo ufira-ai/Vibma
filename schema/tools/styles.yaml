@@ -23,11 +23,11 @@ notes: |
   //   DROP_SHADOW/INNER_SHADOW require color, offset, radius. LAYER_BLUR/BACKGROUND_BLUR require radius only.
   //   Example: { type: "DROP_SHADOW", color: "#00000040", offset: {x:0,y:4}, radius: 8 }
   //
-  // LayoutGrid object shape (for grid styles):
-  //   Rows/Columns: { pattern: "ROWS"|"COLUMNS", alignment: "MIN"|"MAX"|"STRETCH"|"CENTER",
-  //     gutterSize: number, count: number, sectionSize?: number, offset?: number, visible?: boolean, color?: Color }
-  //   Grid: { pattern: "GRID", sectionSize: number, visible?: boolean, color?: Color }
-  //   Example: { pattern: "COLUMNS", alignment: "STRETCH", gutterSize: 20, count: 12, offset: 40 }
+  // LayoutGrid object shape (for grid styles) follows Figma Plugin API conditional shapes:
+  //   Grid: { pattern:"GRID", sectionSize:number, visible?:boolean, color?:Color }
+  //   Rows/Columns: { pattern:"ROWS"|"COLUMNS", alignment?:"MIN"|"MAX"|"STRETCH"|"CENTER", gutterSize?:number, count?:number, offset?:number, sectionSize?:number, visible?:boolean, color?:Color }
+  //   Important: alignment:"STRETCH" must omit sectionSize because Figma computes stretched row/column sizes. Use sectionSize only with fixed rows/columns (MIN/MAX/CENTER) or GRID.
+  //   Examples: stretch columns {pattern:"COLUMNS", alignment:"STRETCH", count:12, gutterSize:24, offset:80}; fixed columns {pattern:"COLUMNS", alignment:"MIN", count:12, gutterSize:24, offset:80, sectionSize:72}; square grid {pattern:"GRID", sectionSize:8}.
 
 methods:
   list:
@@ -121,7 +121,7 @@ methods:
         example: 'styles(method:"create", type:"grid", items:[{name:"Grid/Desktop 12", layoutGrids:[{pattern:"COLUMNS", alignment:"STRETCH", count:12, gutterSize:24, offset:80}]}])'
         params:
           name: { type: string, required: true, description: Style name }
-          layoutGrids: { type: array, coerce: json, required: true, description: "Array of LayoutGrid objects" }
+          layoutGrids: { type: array, coerce: json, required: true, description: "Array of LayoutGrid objects. Conditional shapes: GRID requires sectionSize and does not use alignment/count/gutterSize/offset; ROWS/COLUMNS use alignment/count/gutterSize/offset, and sectionSize only for fixed alignments MIN/MAX/CENTER. For alignment:STRETCH, omit sectionSize." }
           description: { type: string, optional: true, description: "Style description" }
     response:
       type: batch
@@ -163,7 +163,7 @@ methods:
             paragraphSpacing: { type: number, coerce: true, optional: true, description: "Paragraph spacing (px)" }
             leadingTrim: { type: enum, values: [CAP_HEIGHT, NONE], optional: true }
             effects: { type: array, coerce: json, optional: true, description: "Array of Effect objects" }
-            layoutGrids: { type: array, coerce: json, optional: true, description: "Array of LayoutGrid objects (grid styles)" }
+            layoutGrids: { type: array, coerce: json, optional: true, description: "Array of LayoutGrid objects (grid styles). Conditional shapes: GRID requires sectionSize and does not use alignment/count/gutterSize/offset; ROWS/COLUMNS use alignment/count/gutterSize/offset, and sectionSize only for fixed alignments MIN/MAX/CENTER. For alignment:STRETCH, omit sectionSize." }
     response:
       type: batch_mixed
 

@@ -197,7 +197,7 @@ const SHARED_TYPES: Record<string, string> = {
   GradientPaint: 'GradientPaint: {type: "GRADIENT_LINEAR"|"GRADIENT_RADIAL"|"GRADIENT_ANGULAR"|"GRADIENT_DIAMOND", gradientTransform: Transform, gradientStops: ColorStop[], visible?: boolean, opacity?: number, blendMode?: BlendMode}. Use gradientTransform + gradientStops (basic left-to-right: [[1,0,0],[0,1,0]]); do not use CSS gradients or REST gradientHandlePositions.',
   Effect: 'Effect: {type: "DROP_SHADOW"|"INNER_SHADOW"|"LAYER_BLUR"|"BACKGROUND_BLUR", radius: number, color?: {r,g,b,a} (0-1), offset?: {x, y}, spread?: number, visible?: boolean}',
   Paint: 'Paint: Paint[] authoring accepts only SOLID and GRADIENT_LINEAR/GRADIENT_RADIAL/GRADIENT_ANGULAR/GRADIENT_DIAMOND. SolidPaint: {type: "SOLID", color: Color, visible?: boolean, opacity?: number, blendMode?: BlendMode, boundVariables?: {color?: VariableAlias}}. GradientPaint authoring: {type: GRADIENT_*, gradientTransform: Transform, gradientStops: ColorStop[], visible?, opacity?, blendMode?}; bind variables on gradientStops[].boundVariables.color, not top-level gradient boundVariables. Do not pass IMAGE/VIDEO/PATTERN to create/update Paint[]; those may appear only in readback metadata from existing Figma content. Use imageUrl/images for image authoring. VIDEO/PATTERN authoring is not supported here. Do not use CSS gradients or REST gradientHandlePositions.',
-  LayoutGrid: 'LayoutGrid: {pattern: "COLUMNS"|"ROWS"|"GRID", alignment: "MIN"|"MAX"|"CENTER"|"STRETCH", sectionSize: number, count?: number, offset?: number, gutterSize?: number}',
+  LayoutGrid: 'LayoutGrid is conditional: GridLayoutGrid {pattern:"GRID", sectionSize:number, visible?:boolean, color?:Color}; RowsColsLayoutGrid {pattern:"ROWS"|"COLUMNS", alignment?:"MIN"|"MAX"|"CENTER"|"STRETCH", gutterSize?:number, count?:number, offset?:number, sectionSize?:number, visible?:boolean, color?:Color}. For alignment:"STRETCH", omit sectionSize; Figma computes stretched row/column sizes. Use sectionSize only with fixed rows/columns (MIN/MAX/CENTER) or GRID.',
   NodeStub: 'NodeStub: {id: string, name: string, type: string}',
 };
 
@@ -205,6 +205,7 @@ const SHARED_TYPE_DEPS: Record<string, string[]> = {
   Paint: ["Color", "VariableAlias", "Transform", "BlendMode", "ColorStop", "GradientPaint"],
   GradientPaint: ["Transform", "BlendMode", "ColorStop"],
   ColorStop: ["Color", "VariableAlias"],
+  LayoutGrid: ["Color"],
 };
 
 /** Scan text for shared type references and append definitions */

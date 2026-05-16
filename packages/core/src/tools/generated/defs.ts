@@ -1079,7 +1079,7 @@ export const tools: ToolDef[] = [
           }).passthrough(),
           "grid": z.object({
             name: z.string().describe("Style name"),
-            layoutGrids: flexJson(z.array(z.record(z.string(), z.unknown()))).describe("Array of LayoutGrid objects"),
+            layoutGrids: flexJson(z.array(z.record(z.string(), z.unknown()))).describe("Array of LayoutGrid objects. Conditional shapes: GRID requires sectionSize and does not use alignment/count/gutterSize/offset; ROWS/COLUMNS use alignment/count/gutterSize/offset, and sectionSize only for fixed alignments MIN/MAX/CENTER. For alignment:STRETCH, omit sectionSize."),
             description: z.string().optional().describe("Style description"),
           }).passthrough(),
         };
@@ -1107,7 +1107,7 @@ export const tools: ToolDef[] = [
           paragraphSpacing: z.coerce.number().optional().describe("Paragraph spacing (px)"),
           leadingTrim: z.enum(["CAP_HEIGHT", "NONE"]).optional(),
           effects: flexJson(z.array(z.record(z.string(), z.unknown()))).optional().describe("Array of Effect objects"),
-          layoutGrids: flexJson(z.array(z.record(z.string(), z.unknown()))).optional().describe("Array of LayoutGrid objects (grid styles)"),
+          layoutGrids: flexJson(z.array(z.record(z.string(), z.unknown()))).optional().describe("Array of LayoutGrid objects (grid styles). Conditional shapes: GRID requires sectionSize and does not use alignment/count/gutterSize/offset; ROWS/COLUMNS use alignment/count/gutterSize/offset, and sectionSize only for fixed alignments MIN/MAX/CENTER. For alignment:STRETCH, omit sectionSize."),
         }).passthrough();
         try { params.items = z.array(itemSchema).parse(params.items); }
         catch (e) { if (e instanceof z.ZodError) { throw new Error(e.issues.map(i => { const path = i.path.join("."); const shape = itemSchema instanceof z.ZodObject ? (itemSchema as any).shape : null; const field = String(i.path[1] ?? i.path[0] ?? ""); const desc = shape?.[field]?.description; const paintField = field === "paints" || field === "fills" || field === "strokes"; const paintHelp = paintField ? " Invalid Paint[] payload. Supported Paint[] authoring types: SOLID, GRADIENT_LINEAR, GRADIENT_RADIAL, GRADIENT_ANGULAR, GRADIENT_DIAMOND. Use gradientTransform + gradientStops; do not use CSS gradients or REST gradientHandlePositions. IMAGE/VIDEO/PATTERN are readback-only metadata, not Paint[] authoring input; use imageUrl/images for images. For examples call " + "styles(method:\"help\", topic:\"update\")" + "." : ""; return path + ": " + i.message + (desc ? " (expected: " + desc + ")" : "") + paintHelp; }).join("; ")); } throw e; }
