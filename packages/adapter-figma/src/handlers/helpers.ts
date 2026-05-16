@@ -1,4 +1,5 @@
 import { serializeNode, DEFAULT_NODE_BUDGET } from "../utils/serialize-node";
+import { coercePaints, isCssGradientString, paintAuthoringError } from "../utils/paint";
 import type { BatchResult } from "@ufira/vibma/types";
 
 // NOTE: the plugin holds ZERO state about imported library styles.
@@ -933,6 +934,18 @@ export async function applyImageFill(
   }
 }
 
+function hasExplicitPaintColorAlias(paint: any): boolean {
+  return paint?.boundVariables?.color?.type === "VARIABLE_ALIAS" && typeof paint.boundVariables.color.id === "string";
+}
+
+async function clearFillStyleIfPresent(node: any): Promise<void> {
+  if ("fillStyleId" in node && node.fillStyleId) try { await node.setFillStyleIdAsync(""); } catch {}
+}
+
+async function clearStrokeStyleIfPresent(node: any): Promise<void> {
+  if ("strokeStyleId" in node && node.strokeStyleId) try { await node.setStrokeStyleIdAsync(""); } catch {}
+}
+
 export async function applyFillWithAutoBind(
   node: any,
   p: { fills?: any },
@@ -1007,29 +1020,20 @@ export async function applyFillWithAutoBind(
     return true;
   }
 
-  // Array of paints → coerce hex colors, auto-bind single solid
+  // Array of paints → coerce to Vibma-supported Paint[] authoring input; auto-bind only single solids
   if (Array.isArray(p.fills)) {
-    // Warn about REST API gradient format (gradientHandlePositions) — plugin API uses gradientTransform
-    for (const f of p.fills) {
-      if (f.gradientHandlePositions) {
-        hints.push({ type: "warn", message: `"gradientHandlePositions" is the REST API format. The plugin API uses gradientTransform: [[1,0,0],[0,1,0]] (2×3 matrix). The handle positions were ignored.` });
-        break;
-      }
-    }
-    node.fills = p.fills.map((f: any) => {
-      if (f.type === "SOLID" && f.color) {
-        const c = coerceColor(f.color);
-        if (c) return { type: "SOLID" as const, color: { r: c.r, g: c.g, b: c.b }, opacity: f.opacity ?? c.a ?? 1 };
-      }
-      const { gradientHandlePositions: _, ...clean } = f;
-      return clean;
-    });
-    // Auto-bind for single solid color
-    if (p.fills.length === 1 && node.fills[0]?.type === "SOLID") {
-      const sc = node.fills[0].color;
-      const match = await suggestStyleForColor({ ...sc, a: node.fills[0].opacity ?? 1 }, "fillStyleName", "ALL_FILLS");
+    const fills = coercePaints(p.fills, hints, { path: "fills", help: 'frames(method:"help", topic:"create")' });
+    await clearFillStyleIfPresent(node);
+    node.fills = fills;
+
+    // Auto-bind/style-match only when the user did not provide an explicit Paint[] VariableAlias.
+    // Otherwise same-color variables/styles can overwrite the requested alias ID.
+    const singleFill = fills.length === 1 ? fills[0] : undefined;
+    if (singleFill?.type === "SOLID" && !hasExplicitPaintColorAlias(singleFill)) {
+      const sc = singleFill.color;
+      const match = await suggestStyleForColor({ ...sc, a: singleFill.opacity ?? 1 }, "fillStyleName", "ALL_FILLS");
       if (match.variable) {
-        const bound = figma.variables.setBoundVariableForPaint(node.fills[0] as SolidPaint, "color", match.variable);
+        const bound = figma.variables.setBoundVariableForPaint(singleFill as SolidPaint, "color", match.variable);
         node.fills = [bound];
       } else if (match.paintStyleId) {
         try { await node.setFillStyleIdAsync(match.paintStyleId); } catch {}
@@ -1037,6 +1041,10 @@ export async function applyFillWithAutoBind(
       hints.push(match.hint);
     }
     return true;
+  }
+
+  if (isCssGradientString(p.fills)) {
+    throw new Error(paintAuthoringError(`fills is a CSS gradient string (${JSON.stringify(p.fills)}), not Paint[] input. Use fills:[{type:"GRADIENT_LINEAR", gradientTransform:[[1,0,0],[0,1,0]], gradientStops:[...]}].`, 'frames(method:"help", topic:"create")'));
   }
 
   // Scalar: hex color string
@@ -1142,29 +1150,20 @@ export async function applyStrokeWithAutoBind(
     else if (Array.isArray(p.strokes) && p.strokes.length === 0) {
       node.strokes = [];
     }
-    // Array of paints → coerce hex colors, auto-bind single solid
+    // Array of paints → coerce to Vibma-supported Paint[] authoring input; auto-bind only single solids
     else if (Array.isArray(p.strokes)) {
-      // Warn about REST API gradient format (gradientHandlePositions) — plugin API uses gradientTransform
-      for (const f of p.strokes) {
-        if (f.gradientHandlePositions) {
-          hints.push({ type: "warn", message: `"gradientHandlePositions" is the REST API format. The plugin API uses gradientTransform: [[1,0,0],[0,1,0]] (2×3 matrix). The handle positions were ignored.` });
-          break;
-        }
-      }
-      node.strokes = p.strokes.map((f: any) => {
-        if (f.type === "SOLID" && f.color) {
-          const c = coerceColor(f.color);
-          if (c) return { type: "SOLID" as const, color: { r: c.r, g: c.g, b: c.b }, opacity: f.opacity ?? c.a ?? 1 };
-        }
-        const { gradientHandlePositions: _, ...clean } = f;
-        return clean;
-      });
-      // Auto-bind for single solid color
-      if (p.strokes.length === 1 && node.strokes[0]?.type === "SOLID") {
-        const sc = node.strokes[0].color;
-        const match = await suggestStyleForColor({ ...sc, a: node.strokes[0].opacity ?? 1 }, "strokeStyleName", "STROKE_COLOR");
+      const strokes = coercePaints(p.strokes, hints, { path: "strokes", help: 'frames(method:"help", topic:"create")' });
+      await clearStrokeStyleIfPresent(node);
+      node.strokes = strokes;
+
+      // Auto-bind/style-match only when the user did not provide an explicit Paint[] VariableAlias.
+      // Otherwise same-color variables/styles can overwrite the requested alias ID.
+      const singleStroke = strokes.length === 1 ? strokes[0] : undefined;
+      if (singleStroke?.type === "SOLID" && !hasExplicitPaintColorAlias(singleStroke)) {
+        const sc = singleStroke.color;
+        const match = await suggestStyleForColor({ ...sc, a: singleStroke.opacity ?? 1 }, "strokeStyleName", "STROKE_COLOR");
         if (match.variable) {
-          const bound = figma.variables.setBoundVariableForPaint(node.strokes[0] as SolidPaint, "color", match.variable);
+          const bound = figma.variables.setBoundVariableForPaint(singleStroke as SolidPaint, "color", match.variable);
           node.strokes = [bound];
         } else if (match.paintStyleId) {
           try { await node.setStrokeStyleIdAsync(match.paintStyleId); } catch {}
@@ -1174,6 +1173,9 @@ export async function applyStrokeWithAutoBind(
     }
     // Scalar: hex color string
     else {
+      if (isCssGradientString(p.strokes)) {
+        throw new Error(paintAuthoringError(`strokes is a CSS gradient string (${JSON.stringify(p.strokes)}), not Paint[] input. Use strokes:[{type:"GRADIENT_LINEAR", gradientTransform:[[1,0,0],[0,1,0]], gradientStops:[...]}].`, 'frames(method:"help", topic:"create")'));
+      }
       const c = coerceColor(p.strokes);
       if (c) {
         node.strokes = [solidPaint(c)];

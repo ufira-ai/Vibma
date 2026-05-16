@@ -62,8 +62,8 @@ methods:
             textCase: { type: enum, values: [ORIGINAL, UPPER, LOWER, TITLE, SMALL_CAPS, SMALL_CAPS_FORCED], optional: true }
             textDecoration: { type: enum, values: [NONE, UNDERLINE, STRIKETHROUGH], optional: true }
             fills:
-              type: array
-              description: "Text color paints — e.g. [{type: 'SOLID', color: '#hex'}]. Same as node fills."
+              $ref: paints
+              description: "Text Paint[] authoring — accepts only SOLID or GRADIENT_LINEAR/RADIAL/ANGULAR/DIAMOND with gradientTransform + gradientStops. Same as node fills. Do not use CSS gradients, REST gradientHandlePositions, IMAGE/VIDEO/PATTERN, or top-level gradient boundVariables. IMAGE/VIDEO/PATTERN may appear in readback metadata only."
             fontColor:
               type: color
               description: "Shorthand — sets text color (auto-binds to matching variable/style)"

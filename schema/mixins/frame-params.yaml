@@ -29,14 +29,14 @@ frame_params:
   blendMode: { type: enum, values: [PASS_THROUGH, NORMAL, DARKEN, MULTIPLY, LINEAR_BURN, COLOR_BURN, LIGHTEN, SCREEN, LINEAR_DODGE, COLOR_DODGE, OVERLAY, SOFT_LIGHT, HARD_LIGHT, DIFFERENCE, EXCLUSION, HUE, SATURATION, COLOR, LUMINOSITY], optional: true }
   effectStyleName: { type: string, optional: true, description: "Effect style name (e.g. 'Shadow/Card') for shadows, blurs" }
   # --- MinimalFillsMixin + custom (see fill.yaml) ---
-  fills: { type: array, optional: true, description: "Fill paints array — e.g. [{type: 'SOLID', color: '#hex'}] or [] for transparent. Primary way to set fills." }
+  fills: { $ref: paints, optional: true, description: "Fill Paint[] authoring — accepts only SOLID or GRADIENT_LINEAR/RADIAL/ANGULAR/DIAMOND with gradientTransform + gradientStops. [] for transparent. Do not use CSS gradients, REST gradientHandlePositions, IMAGE/VIDEO/PATTERN, or top-level gradient boundVariables; use imageUrl/images for image authoring. IMAGE/VIDEO/PATTERN may appear in readback metadata only. Primary way to set non-image fills." }
   fillColor: { $ref: color, optional: true, description: "Shorthand — sets a single solid fill (auto-binds to matching variable/style)" }
   fillStyleName: { type: string, optional: true, description: "Paint style name for fill" }
   fillVariableName: { type: string, optional: true, description: "Color variable by name e.g. 'bg/primary'" }
   imageUrl: { type: string, optional: true, description: "Image source — 'pexel:<id>' for Pexels photos, a public URL, or a local file path. SVGs are inserted as vectors; raster images become IMAGE fills." }
   imageScaleMode: { type: enum, values: [FILL, FIT, CROP, TILE], optional: true, description: "How the image is scaled within the frame (default: FILL)" }
   # --- MinimalStrokesMixin + custom (see stroke.yaml) ---
-  strokes: { type: array, optional: true, description: "Stroke paints array — e.g. [{type: 'SOLID', color: '#hex'}] or [] to clear. Primary way to set strokes." }
+  strokes: { $ref: paints, optional: true, description: "Stroke Paint[] authoring — accepts only SOLID or GRADIENT_LINEAR/RADIAL/ANGULAR/DIAMOND with gradientTransform + gradientStops. [] to clear. Do not use CSS gradients, REST gradientHandlePositions, IMAGE/VIDEO/PATTERN, or top-level gradient boundVariables. IMAGE/VIDEO/PATTERN may appear in readback metadata only. Primary way to set strokes." }
   strokeColor: { $ref: color, optional: true, description: "Shorthand — sets a single solid stroke (auto-binds to matching variable/style)" }
   strokeStyleName: { type: string, optional: true, description: "Paint style name for stroke" }
   strokeVariableName: { type: string, optional: true, description: "Color variable by name for stroke" }

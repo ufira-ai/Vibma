@@ -33,13 +33,13 @@ notes: |
     layoutSizingVertical?: "FIXED" | "HUG" | "FILL";
     minWidth?: number; maxWidth?: number; minHeight?: number; maxHeight?: number;
     absoluteBoundingBox: { x: number; y: number; width: number; height: number };
-    fills?: Paint[];         // solid: {type: "SOLID", color: {r, g, b, a}}
+    fills?: Paint[];         // readback Paint[]; authoring supports SOLID + gradients via gradientTransform + gradientStops
     strokes?: Paint[];
     effects?: Effect[];      // DROP_SHADOW | INNER_SHADOW | LAYER_BLUR | BACKGROUND_BLUR
     children?: NodeStub[];   // stubs: {id, name, type} — use depth to expand
   }
   // PatchItem uses flat params matching create shape — no nested sub-objects.
-  // Fill/stroke/corner/layout/text params are identical to frames.create and text.create.
+  // Fill/stroke/corner/layout/text params are identical to frames.create and text.create. Paint[] authoring supports SOLID + gradients only; IMAGE/VIDEO/PATTERN are readback-only metadata.
   // Unknown keys produce a warning, preventing silent failures.
 
 methods:

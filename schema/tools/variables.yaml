@@ -9,7 +9,8 @@ notes: |
   // ---
   // query: prefix match first, then substring. "bg/" matches bg/canvas, bg/surface, etc.
   // valuesByMode: values keyed by mode name. On create, value sets all modes; on update, value sets the default mode only.
-  // Aliases: {type: "VARIABLE_ALIAS", name: "other/variable"}.
+  // Aliases in variable values use {type: "VARIABLE_ALIAS", name: "other/variable"}.
+  // Paint[] VariableAlias uses {type:"VARIABLE_ALIAS", id:"<VariableID>"}; get IDs from variables.get/list or variable_collections.get. Prefer *VariableName helpers when available.
   // scopes: ALL_SCOPES, TEXT_CONTENT, WIDTH_HEIGHT, GAP, CORNER_RADIUS, ALL_FILLS, FRAME_FILL, SHAPE_FILL,
   //   TEXT_FILL, STROKE_COLOR, STROKE_FLOAT, EFFECT_FLOAT, EFFECT_COLOR, OPACITY, FONT_FAMILY, FONT_STYLE,
   //   FONT_WEIGHT, FONT_SIZE, LINE_HEIGHT, LETTER_SPACING, PARAGRAPH_SPACING, PARAGRAPH_INDENT
@@ -44,6 +45,7 @@ methods:
       item:
         type: object
         properties:
+          id: { type: string, required: true, description: "Figma VariableID. Use as VariableAlias.id in Paint[] when needed." }
           name: { type: string, required: true }
           type: { type: string, optional: true, description: "COLOR | FLOAT | STRING | BOOLEAN" }
           valuesByMode: { type: object, optional: true, description: "Values keyed by mode name" }
@@ -68,6 +70,7 @@ methods:
       type: object
       tsType: Variable
       properties:
+        id: { type: string, required: true, description: "Figma VariableID. Use as VariableAlias.id in Paint[] when needed." }
         name: { type: string, required: true }
         type:
           type: enum
@@ -83,7 +86,7 @@ methods:
         scopes:
           type: "string[]"
           description: "Where this variable can be applied"
-      required: [name, type, collectionId, valuesByMode]
+      required: [id, name, type, collectionId, valuesByMode]
 
   create:
     tier: create
@@ -115,7 +118,9 @@ methods:
             scopes: { type: "string[]", coerce: json, optional: true, description: "Restrict where variable can be applied (default: ALL_SCOPES)" }
     response:
       type: batch
-      item: { name: { type: string, description: "Name of the created variable" } }
+      item:
+        id: { type: string, description: "Figma VariableID. Use as VariableAlias.id in Paint[] when needed." }
+        name: { type: string, description: "Name of the created variable" }
 
   update:
     tier: edit

@@ -3,7 +3,7 @@
 
 fill_params:
   # MinimalFillsMixin (1-1 Figma API)
-  fills: { type: array, optional: true, description: "Fill paints array — e.g. [{type: 'SOLID', color: '#hex'}] or [] for transparent. Primary way to set fills." }
+  fills: { $ref: paints, optional: true, description: "Fill Paint[] authoring — accepts only SOLID or GRADIENT_LINEAR/RADIAL/ANGULAR/DIAMOND with gradientTransform + gradientStops. [] for transparent. Do not use CSS gradients, REST gradientHandlePositions, IMAGE/VIDEO/PATTERN, or top-level gradient boundVariables; use imageUrl/images for image authoring. IMAGE/VIDEO/PATTERN may appear in readback metadata only. Primary way to set non-image fills." }
   # Custom aliases
   fillColor: { $ref: color, optional: true, description: "Shorthand — sets a single solid fill (auto-binds to matching variable/style)" }
   fillStyleName: { type: string, optional: true, description: "Paint style name for fill" }

@@ -3,7 +3,7 @@
 
 stroke_params:
   # MinimalStrokesMixin (1-1 Figma API)
-  strokes: { type: array, optional: true, description: "Stroke paints array — e.g. [{type: 'SOLID', color: '#hex'}] or [] to clear. Primary way to set strokes." }
+  strokes: { $ref: paints, optional: true, description: "Stroke Paint[] authoring — accepts only SOLID or GRADIENT_LINEAR/RADIAL/ANGULAR/DIAMOND with gradientTransform + gradientStops. [] to clear. Do not use CSS gradients, REST gradientHandlePositions, IMAGE/VIDEO/PATTERN, or top-level gradient boundVariables. IMAGE/VIDEO/PATTERN may appear in readback metadata only. Primary way to set strokes." }
   strokeWeight: { $expand: stroke, type: token }
   strokeAlign: { type: enum, values: [INSIDE, OUTSIDE, CENTER], optional: true, description: "Stroke position (default: INSIDE)" }
   # Custom aliases

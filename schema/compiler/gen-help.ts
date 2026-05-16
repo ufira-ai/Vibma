@@ -6,18 +6,25 @@
  * - helpEndpoints: per-endpoint summary + per-method detail
  * - resolveHelp(): runtime lookup function
  */
-import type { ResolvedEndpoint, ResolvedMethod, RawParam } from "./types";
+import type { ResolvedEndpoint, ResolvedMethod, RawParam, RawResponse } from "./types";
 import type { RawPrompt } from "./gen-prompts";
+import { appendSharedTypes } from "./gen-descriptions";
 
 // ─── Formatters ──────────────────────────────────────────────────
 
-function paramLines(name: string, param: RawParam, indent = 4): string[] {
+function paramType(param: RawParam): string {
   let type = param.tsType ?? param.type ?? "string";
   if (param.values) type = param.values.join(" | ");
   if (param.coerce === "hex_or_rgba" || type === "color") type = "Color";
+  if (type === "paints") type = "Paint[]";
   if (type === "token") type = "string";
   if (type === "line_height") type = 'number | {value, unit: "PIXELS"|"PERCENT"|"AUTO"}';
   if (type === "letter_spacing") type = 'number | {value, unit: "PIXELS"|"PERCENT"}';
+  return type;
+}
+
+function paramLines(name: string, param: RawParam, indent = 4): string[] {
+  const type = paramType(param);
   const req = param.required === true ? "required" : "optional";
   const desc = param.description ? ` — ${param.description}` : "";
   const lines: string[] = [];
@@ -28,6 +35,58 @@ function paramLines(name: string, param: RawParam, indent = 4): string[] {
       lines.push(...paramLines(subName, subParam as RawParam, indent + 2));
     }
   }
+  return lines;
+}
+
+function responseLines(response: RawResponse): string[] {
+  const lines: string[] = [];
+  lines.push("Response:");
+
+  if (response.description) {
+    lines.push(`    ${response.description}`);
+  }
+
+  if (response.type === "object" && response.properties) {
+    const required = new Set(response.required ?? []);
+    for (const [name, param] of Object.entries(response.properties)) {
+      lines.push(...paramLines(name, { ...param, required: required.has(name) || param.required === true }, 4));
+    }
+    return lines;
+  }
+
+  if (response.type === "paginated") {
+    lines.push("    totalCount (number, required)");
+    lines.push("    returned (number, optional)");
+    lines.push("    offset (number, optional)");
+    lines.push("    limit (number, optional)");
+    lines.push("    items (array, required)");
+    const item = response.item as RawParam | undefined;
+    if (item && typeof item === "object" && "properties" in item && item.properties) {
+      for (const [name, param] of Object.entries(item.properties)) {
+        lines.push(...paramLines(name, param as RawParam, 6));
+      }
+    }
+    return lines;
+  }
+
+  if (response.type === "batch") {
+    lines.push('    { results: ({id} | {error})[] }');
+    return lines;
+  }
+  if (response.type === "batch_ok") {
+    lines.push('    { results: ("ok" | {error})[] }');
+    return lines;
+  }
+  if (response.type === "batch_mixed") {
+    lines.push('    { results: ("ok" | {error} | object)[] }');
+    return lines;
+  }
+  if (response.type === "string") {
+    lines.push("    string");
+    return lines;
+  }
+
+  lines.push(`    ${response.type}`);
   return lines;
 }
 
@@ -43,12 +102,19 @@ function methodDetail(ep: ResolvedEndpoint, method: ResolvedMethod): string {
   }
 
   if (method.discriminant && method.types) {
+    lines.push(`Call shape: ${ep.name}(method:"${method.name}", ${method.discriminant}:"<${method.discriminant}>", items:[{...type-specific fields...}])`);
+    lines.push("Do not pass type-specific item fields at the top level; put them inside items[].");
+    lines.push("");
     lines.push(`Discriminant: ${method.discriminant} (${Object.keys(method.types).join(" | ")})`);
+    lines.push("Top-level params:");
+    lines.push(`    ${method.discriminant} (${Object.keys(method.types).join(" | ")}, required) — Selects which item shape to use`);
+    lines.push("    items (array, required) — One or more type-specific item objects");
     for (const [typeName, variant] of Object.entries(method.types)) {
       lines.push("");
       lines.push(`  ## ${typeName}${variant.description ? " — " + variant.description : ""}`);
+      lines.push(`    Item fields for items[] when ${method.discriminant}:"${typeName}":`);
       for (const [pName, param] of Object.entries(variant.params)) {
-        lines.push(...paramLines(pName, param));
+        lines.push(...paramLines(pName, param, 6));
       }
     }
   } else if (method.params && Object.keys(method.params).length > 0) {
@@ -60,7 +126,10 @@ function methodDetail(ep: ResolvedEndpoint, method: ResolvedMethod): string {
     lines.push("No params.");
   }
 
-  return lines.join("\n");
+  lines.push("");
+  lines.push(...responseLines(method.response));
+
+  return appendSharedTypes(lines.join("\n"));
 }
 
 function endpointSummary(ep: ResolvedEndpoint): string {
@@ -78,7 +147,7 @@ function endpointSummary(ep: ResolvedEndpoint): string {
   }
   lines.push("");
   lines.push(`Use ${ep.name}(method: "help", topic: "<method>") for method details.`);
-  return lines.join("\n");
+  return appendSharedTypes(lines.join("\n"));
 }
 
 // ─── Code generation ─────────────────────────────────────────────

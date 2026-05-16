@@ -8,7 +8,8 @@ notes: |
   // All ID params accept both IDs and display names.
   // ---
   // valuesByMode: values keyed by mode name, e.g. {"Light": "#FFF", "Dark": "#111"}.
-  // Aliases: {type: "VARIABLE_ALIAS", name: "other/variable"}.
+  // Aliases in variable values use {type: "VARIABLE_ALIAS", name: "other/variable"}.
+  // Paint[] VariableAlias uses {type:"VARIABLE_ALIAS", id:"<VariableID>"}; variable_collections.get includes each variable id. Prefer *VariableName helpers when available.
   // scopes: see variables endpoint for full list.
   // Deleting a collection deletes all variables inside it.
   // The default mode cannot be removed. Use add_mode/remove_mode for additional modes.
@@ -58,6 +59,7 @@ methods:
           items:
             type: object
             properties:
+              id: { type: string, required: true, description: "Figma VariableID. Use as VariableAlias.id in Paint[] when needed." }
               name: { type: string, required: true }
               type: { type: string, required: true, description: "COLOR | FLOAT | STRING | BOOLEAN" }
               valuesByMode:

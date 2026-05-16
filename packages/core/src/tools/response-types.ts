@@ -186,8 +186,9 @@ export interface GetNodeVariablesResult {
 export interface GetStyleByIdResult {
   id: string;
   name: string;
-  type: "PAINT" | "TEXT" | "EFFECT";
-  paints?: unknown[];
+  type: "PAINT" | "TEXT" | "EFFECT" | "GRID";
+  paints?: Array<Record<string, unknown>>;
+  boundVariables?: Record<string, unknown>;
   fontSize?: number;
   fontName?: unknown;
   letterSpacing?: unknown;
@@ -575,11 +576,23 @@ export const toolResponseSchemas: Record<string, SchemaEntry> = {
   // ── Styles ──
   styles: {
     type: "object",
-    description: "Response varies by method. list → paginated {totalCount, items: [...]} (stubs by default, use fields for detail). get → style object (full detail, field-filterable). create → {results: [{id}]}. update → {results: ['ok'|{warning}]}. delete → 'ok' (single) or {results: ['ok', ...]} (batch).",
+    description: "Response varies by method. list → paginated {totalCount, items: [...]} (stubs by default, use fields for detail). get → style object (full detail, field-filterable). create → {results: [{id}]}. update → {results: ['ok'|{warning}]}. delete → 'ok' (single) or {results: ['ok', ...]} (batch). PAINT styles return Figma Plugin API PaintStyle.paints. Create/update Paint[] authoring accepts SOLID and gradients only; readback may include IMAGE/VIDEO/PATTERN metadata from existing Figma content.",
     example: {
       totalCount: 3, returned: 3, offset: 0, limit: 100,
       items: [
-        { id: "S:abc123,", name: "Primary/Blue", type: "PAINT" },
+        {
+          id: "S:abc123,",
+          name: "Gradient/Primary",
+          type: "PAINT",
+          paints: [{
+            type: "GRADIENT_LINEAR",
+            gradientTransform: [[1, 0, 0], [0, 1, 0]],
+            gradientStops: [
+              { position: 0, color: "#7d58ed" },
+              { position: 1, color: "#207ce5" },
+            ],
+          }],
+        },
         { id: "S:def456,", name: "Heading/H1", type: "TEXT" },
         { id: "S:ghi789,", name: "Shadow/Large", type: "EFFECT" },
       ],

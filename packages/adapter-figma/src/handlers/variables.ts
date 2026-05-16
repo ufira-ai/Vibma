@@ -96,7 +96,7 @@ async function serializeVariable(v: any): Promise<Record<string, any>> {
     valuesByMode[modeMap.get(modeId) ?? modeId] = value;
   }
   const result: Record<string, any> = {
-    name: v.name, type: v.resolvedType,
+    id: v.id, name: v.name, type: v.resolvedType,
     valuesByMode, scopes: v.scopes,
   };
   if (v.description) result.description = v.description;
@@ -360,7 +360,7 @@ async function createVariableSingle(p: any, collection: any) {
     }
   }
 
-  const result: any = { name: variable.name, resolvedValues };
+  const result: any = { id: variable.id, name: variable.name, resolvedValues };
   if (hints.length > 0) result.hints = hints;
   return result;
 }

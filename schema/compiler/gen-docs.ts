@@ -7,6 +7,7 @@
 import { mkdirSync, writeFileSync, readFileSync, readdirSync, unlinkSync } from "fs";
 import { join } from "path";
 import type { ResolvedEndpoint, ResolvedMethod, RawParam, RawResponse } from "./types";
+import { appendSharedTypes } from "./gen-descriptions";
 
 // ─── JSON Schema conversion (for ParameterTable.astro) ──────────
 
@@ -37,6 +38,10 @@ function paramToJsonSchema(param: RawParam): Record<string, any> {
   } else if (type === "color" || (type === "object" && param.coerce === "hex_or_rgba")) {
     schema.type = "string";
     schema.description = (schema.description ?? "") || 'Hex "#FF0000" or {r,g,b,a?} 0-1';
+  } else if (type === "paints") {
+    schema.type = "array";
+    schema.items = { type: "object", description: "Paint object. Authoring supports SOLID and GRADIENT_LINEAR/RADIAL/ANGULAR/DIAMOND only." };
+    schema.description = (schema.description ?? "") || "Paint[] authoring supports SOLID and gradients only. Use gradientTransform + gradientStops; do not use CSS gradients, REST gradientHandlePositions, or IMAGE/VIDEO/PATTERN.";
   } else if (type === "variable_value") {
     schema.type = "any";
     schema.description = (schema.description ?? "") || "number | boolean | Color | {type:VARIABLE_ALIAS, name}";
@@ -99,6 +104,26 @@ function buildMethodSchema(method: ResolvedMethod): Record<string, any> {
     return { type: "object", properties: {} };
   }
   return propsToJsonSchema(method.params);
+}
+
+function buildDiscriminatedTopLevelSchema(method: ResolvedMethod): Record<string, any> {
+  const typeNames = Object.keys(method.types ?? {});
+  return {
+    type: "object",
+    properties: {
+      [method.discriminant!]: {
+        type: "string",
+        enum: typeNames,
+        description: "Selects which item shape to use",
+      },
+      items: {
+        type: "array",
+        description: "One or more type-specific item objects. Put fields from the selected type table inside each item; do not pass them at top level.",
+        items: { type: "object" },
+      },
+    },
+    required: [method.discriminant!, "items"],
+  };
 }
 
 // ─── Response schema builder ────────────────────────────────────
@@ -173,6 +198,8 @@ function renderDiscriminatedTypes(method: ResolvedMethod): string[] {
   lines.push("");
   lines.push(`Discriminated by \`${method.discriminant}\`. Available types:`);
   lines.push("");
+  lines.push("Each table below describes one object inside `items[]` for that type.");
+  lines.push("");
   for (const [typeName, variant] of Object.entries(method.types)) {
     lines.push(`#### ${typeName}`);
     lines.push("");
@@ -189,7 +216,7 @@ function renderDiscriminatedTypes(method: ResolvedMethod): string[] {
 
 function formatNotes(notes: string): string {
   // Wrap in a code block if it looks like TypeScript interfaces
-  const trimmed = notes.trim();
+  const trimmed = appendSharedTypes(notes.trim());
   if (trimmed.includes("interface ") || trimmed.startsWith("//")) {
     return "```ts\n" + trimmed + "\n```";
   }
@@ -474,14 +501,31 @@ export function generateDocs(
       lines.push(method.description);
       lines.push("");
 
+      if (method.example) {
+        lines.push("**Example**");
+        lines.push("");
+        lines.push("```ts");
+        lines.push(method.example);
+        lines.push("```");
+        lines.push("");
+      }
+
       // Parameters
-      const schema = buildMethodSchema(method);
-      if (schema.properties && Object.keys(schema.properties).length > 0) {
-        lines.push(`<ParameterTable schema={${JSON.stringify(schema)}} />`);
+      if (method.discriminant && method.types) {
+        lines.push("Type-specific fields go inside `items[]`; do not pass them at the top level.");
+        lines.push("");
+        const topLevelSchema = buildDiscriminatedTopLevelSchema(method);
+        lines.push(`<ParameterTable schema={${JSON.stringify(topLevelSchema)}} />`);
         lines.push("");
       } else {
-        lines.push("No parameters.");
-        lines.push("");
+        const schema = buildMethodSchema(method);
+        if (schema.properties && Object.keys(schema.properties).length > 0) {
+          lines.push(`<ParameterTable schema={${JSON.stringify(schema)}} />`);
+          lines.push("");
+        } else {
+          lines.push("No parameters.");
+          lines.push("");
+        }
       }
 
       // Discriminated type details
@@ -576,13 +620,30 @@ export function generateDocs(
       lines.push(method.description);
       lines.push("");
 
-      const schema = buildMethodSchema(method);
-      if (schema.properties && Object.keys(schema.properties).length > 0) {
-        lines.push(`<ParameterTable schema={${JSON.stringify(schema)}} />`);
+      if (method.example) {
+        lines.push("**Example**");
+        lines.push("");
+        lines.push("```ts");
+        lines.push(method.example);
+        lines.push("```");
+        lines.push("");
+      }
+
+      if (method.discriminant && method.types) {
+        lines.push("Type-specific fields go inside `items[]`; do not pass them at the top level.");
+        lines.push("");
+        const topLevelSchema = buildDiscriminatedTopLevelSchema(method);
+        lines.push(`<ParameterTable schema={${JSON.stringify(topLevelSchema)}} />`);
         lines.push("");
       } else {
-        lines.push("No parameters.");
-        lines.push("");
+        const schema = buildMethodSchema(method);
+        if (schema.properties && Object.keys(schema.properties).length > 0) {
+          lines.push(`<ParameterTable schema={${JSON.stringify(schema)}} />`);
+          lines.push("");
+        } else {
+          lines.push("No parameters.");
+          lines.push("");
+        }
       }
 
       const typeLines = renderDiscriminatedTypes(method);

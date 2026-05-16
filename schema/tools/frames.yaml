@@ -7,10 +7,10 @@ description_zh: "创建和管理框架、形状、自动布局容器、分区和
 notes: |
   // Frames are the primary container in Figma. Use auto_layout for responsive containers.
   // Sizing: FIXED = explicit size, HUG = shrink to children, FILL = expand to fill parent.
-  // Fill: pass fills:[{type:"SOLID", color:"#hex"}] or [] for transparent. Shorthand: fillColor:"#3B82F6" (auto-binds to matching variable/style).
-  // Also: fillVariableName:"bg/primary", fillStyleName:"Surface/Primary".
-  // Image fill: imageUrl accepts "pexel:<id>", a public URL, or a local file path. SVGs become vector nodes; raster images become IMAGE fills. imageScaleMode: FILL (default), FIT, CROP, TILE.
-  // Stroke: pass strokes:[{type:"SOLID", color:"#hex"}] or [] to clear. Shorthand: strokeColor:"#000", strokeVariableName:"border/default".
+  // Fill: pass fills:[{type:"SOLID", color:"#hex"}] or gradient Paint[] (GRADIENT_LINEAR/RADIAL/ANGULAR/DIAMOND) with gradientTransform + gradientStops; [] for transparent. Shorthand: fillColor:"#3B82F6" (auto-binds single solids).
+  // Also: fillVariableName:"bg/primary", fillStyleName:"Surface/Primary". Do not use CSS gradients, REST gradientHandlePositions, or top-level gradient boundVariables.
+  // Image fill: use imageUrl/images for image authoring. imageUrl accepts "pexel:<id>", a public URL, or a local file path. SVGs become vector nodes; raster images become IMAGE fills. IMAGE/VIDEO/PATTERN may appear in readback metadata only; do not pass those objects in Paint[]. imageScaleMode: FILL (default), FIT, CROP, TILE.
+  // Stroke: pass strokes:[{type:"SOLID", color:"#hex"}] or gradient Paint[] (GRADIENT_LINEAR/RADIAL/ANGULAR/DIAMOND) with gradientTransform + gradientStops; [] to clear. Shorthand: strokeColor:"#000", strokeVariableName:"border/default".
   // Token fields (cornerRadius, opacity, itemSpacing, padding, strokeWeight): pass number for value, string for variable name/ID.
   // ---
   // SIZING: Always think about both axes. Containers with text need a width constraint — set width + layoutSizingHorizontal:"FIXED".
@@ -28,7 +28,7 @@ methods:
   create:
     tier: create
     description: Create frame-like containers
-    example: 'frames(method:"create", type:"auto_layout", layoutMode:"VERTICAL", itemSpacing:16, padding:24)'
+    example: 'frames(method:"create", type:"rectangle", items:[{name:"Gradient Box", fills:[{type:"GRADIENT_LINEAR", gradientTransform:[[1,0,0],[0,1,0]], gradientStops:[{position:0,color:"#FF6B6B"},{position:1,color:"#FFD93D"}]}]}])'
     discriminant: type
     types:
       frame:
@@ -54,7 +54,7 @@ methods:
           y: { $ref: yPos }
           width: { type: number, coerce: true, optional: true, description: "Width (default: 500)" }
           height: { type: number, coerce: true, optional: true, description: "Height (default: 500)" }
-          fills: { type: array, optional: true, description: "Fill paints array — e.g. [{type: 'SOLID', color: '#hex'}] or [] for transparent" }
+          fills: { $ref: paints, optional: true, description: "Fill Paint[] authoring — accepts only SOLID or GRADIENT_LINEAR/RADIAL/ANGULAR/DIAMOND with gradientTransform + gradientStops. [] for transparent. Do not use CSS gradients, REST gradientHandlePositions, IMAGE/VIDEO/PATTERN, or top-level gradient boundVariables; use imageUrl/images for image authoring. IMAGE/VIDEO/PATTERN may appear in readback metadata only" }
           fillColor: { $ref: color, optional: true, description: "Shorthand — sets a single solid fill (auto-binds to matching variable/style)" }
           fillStyleName: { type: string, optional: true, description: Paint style name for fill }
           fillVariableName: { type: string, optional: true, description: "Color variable by name e.g. 'bg/primary'" }
@@ -69,13 +69,13 @@ methods:
           y: { $ref: yPos }
           width: { type: number, coerce: true, optional: true, description: "Width in px (default: 100)" }
           height: { type: number, coerce: true, optional: true, description: "Height in px (default: 100)" }
-          fills: { type: array, optional: true, description: "Fill paints array — e.g. [{type: 'SOLID', color: '#hex'}] or [] for transparent" }
+          fills: { $ref: paints, optional: true, description: "Fill Paint[] authoring — accepts only SOLID or GRADIENT_LINEAR/RADIAL/ANGULAR/DIAMOND with gradientTransform + gradientStops. [] for transparent. Do not use CSS gradients, REST gradientHandlePositions, IMAGE/VIDEO/PATTERN, or top-level gradient boundVariables; use imageUrl/images for image authoring. IMAGE/VIDEO/PATTERN may appear in readback metadata only" }
           fillColor: { $ref: color, optional: true, description: "Shorthand — sets a single solid fill (auto-binds to matching variable/style)" }
           fillStyleName: { type: string, optional: true, description: Paint style name for fill }
           fillVariableName: { type: string, optional: true, description: "Color variable by name e.g. 'bg/primary'" }
           imageUrl: { type: string, optional: true, description: "Image source — 'pexel:<id>', public URL, or local file path" }
           imageScaleMode: { type: enum, values: [FILL, FIT, CROP, TILE], optional: true, description: "How the image is scaled (default: FILL)" }
-          strokes: { type: array, optional: true, description: "Stroke paints array — e.g. [{type: 'SOLID', color: '#hex'}] or [] to clear" }
+          strokes: { $ref: paints, optional: true, description: "Stroke Paint[] authoring — accepts only SOLID or GRADIENT_LINEAR/RADIAL/ANGULAR/DIAMOND with gradientTransform + gradientStops. [] to clear. Do not use CSS gradients, REST gradientHandlePositions, IMAGE/VIDEO/PATTERN, or top-level gradient boundVariables. IMAGE/VIDEO/PATTERN may appear in readback metadata only" }
           strokeColor: { $ref: color, optional: true, description: "Shorthand — sets a single solid stroke (auto-binds to matching variable/style)" }
           strokeVariableName: { type: string, optional: true, description: "Color variable by name for stroke" }
           strokeWeight: { type: token, optional: true }
@@ -93,13 +93,13 @@ methods:
           y: { $ref: yPos }
           width: { type: number, coerce: true, optional: true, description: "Width in px (default: 100)" }
           height: { type: number, coerce: true, optional: true, description: "Height in px (default: 100, same as width for circle)" }
-          fills: { type: array, optional: true, description: "Fill paints array — e.g. [{type: 'SOLID', color: '#hex'}] or [] for transparent" }
+          fills: { $ref: paints, optional: true, description: "Fill Paint[] authoring — accepts only SOLID or GRADIENT_LINEAR/RADIAL/ANGULAR/DIAMOND with gradientTransform + gradientStops. [] for transparent. Do not use CSS gradients, REST gradientHandlePositions, IMAGE/VIDEO/PATTERN, or top-level gradient boundVariables; use imageUrl/images for image authoring. IMAGE/VIDEO/PATTERN may appear in readback metadata only" }
           fillColor: { $ref: color, optional: true, description: "Shorthand — sets a single solid fill (auto-binds to matching variable/style)" }
           fillStyleName: { type: string, optional: true, description: Paint style name for fill }
           fillVariableName: { type: string, optional: true, description: "Color variable by name e.g. 'bg/primary'" }
           imageUrl: { type: string, optional: true, description: "Image source — 'pexel:<id>', public URL, or local file path" }
           imageScaleMode: { type: enum, values: [FILL, FIT, CROP, TILE], optional: true, description: "How the image is scaled (default: FILL)" }
-          strokes: { type: array, optional: true, description: "Stroke paints array — e.g. [{type: 'SOLID', color: '#hex'}] or [] to clear" }
+          strokes: { $ref: paints, optional: true, description: "Stroke Paint[] authoring — accepts only SOLID or GRADIENT_LINEAR/RADIAL/ANGULAR/DIAMOND with gradientTransform + gradientStops. [] to clear. Do not use CSS gradients, REST gradientHandlePositions, IMAGE/VIDEO/PATTERN, or top-level gradient boundVariables. IMAGE/VIDEO/PATTERN may appear in readback metadata only" }
           strokeColor: { $ref: color, optional: true, description: "Shorthand — sets a single solid stroke (auto-binds to matching variable/style)" }
           strokeVariableName: { type: string, optional: true, description: "Color variable by name for stroke" }
           strokeWeight: { type: token, optional: true }
@@ -116,7 +116,7 @@ methods:
           y: { $ref: yPos }
           length: { type: number, coerce: true, optional: true, description: "Line length in px (default: 100)" }
           rotation: { type: number, coerce: true, optional: true, description: "Rotation in degrees (default: 0 = horizontal)" }
-          strokes: { type: array, optional: true, description: "Stroke paints array — e.g. [{type: 'SOLID', color: '#hex'}] or [] to clear" }
+          strokes: { $ref: paints, optional: true, description: "Stroke Paint[] authoring — accepts only SOLID or GRADIENT_LINEAR/RADIAL/ANGULAR/DIAMOND with gradientTransform + gradientStops. [] to clear. Do not use CSS gradients, REST gradientHandlePositions, IMAGE/VIDEO/PATTERN, or top-level gradient boundVariables. IMAGE/VIDEO/PATTERN may appear in readback metadata only" }
           strokeColor: { $ref: color, optional: true, description: "Line color (default: black, auto-binds to matching variable/style)" }
           strokeVariableName: { type: string, optional: true, description: "Color variable by name for stroke" }
           strokeWeight: { type: token, optional: true, description: "Line thickness (default: 1)" }

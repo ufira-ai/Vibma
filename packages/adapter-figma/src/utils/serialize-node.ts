@@ -1,4 +1,5 @@
 import { rgbaToHex } from "@ufira/vibma/utils/color";
+import { serializePaint } from "./paint";
 
 /** Strip Figma's internal hash suffix from property keys: "Label#1:0" → "Label" */
 function cleanPropKey(key: string): string {
@@ -444,7 +445,7 @@ export async function serializeNode(
   return out;
 }
 
-// ── Paint serialization ───────────────────────────────────────────
+// ── Prototype reaction serialization ─────────────────────────────
 
 function serializeReactionAction(a: any): any {
   const act: any = { type: a.type };
@@ -476,24 +477,4 @@ function serializeReaction(r: any): any {
     out.actions = r.actions.map(serializeReactionAction);
   }
   return out;
-}
-
-function serializePaint(paint: any): any {
-  const p: any = { type: paint.type };
-  if (paint.visible === false) p.visible = false;
-  if (paint.opacity !== undefined && paint.opacity !== 1) p.opacity = paint.opacity;
-  if (paint.blendMode && paint.blendMode !== "NORMAL") p.blendMode = paint.blendMode;
-  if (paint.color) {
-    // Plugin API: color = {r,g,b}, opacity separate. Merge for hex.
-    p.color = rgbaToHex({ ...paint.color, a: paint.opacity ?? 1 });
-  }
-  if (paint.gradientStops) {
-    p.gradientStops = paint.gradientStops.map((stop: any) => ({
-      position: stop.position,
-      color: rgbaToHex(stop.color),
-    }));
-  }
-  if (paint.gradientTransform) p.gradientTransform = paint.gradientTransform;
-  if (paint.scaleMode) p.scaleMode = paint.scaleMode;
-  return p;
 }

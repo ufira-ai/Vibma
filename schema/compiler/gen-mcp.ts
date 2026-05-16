@@ -38,6 +38,8 @@ function paramToZod(name: string, param: RawParam, indent = 2): string {
     zod = param.coerce === "json" ? `flexJson(${inner})` : inner;
   } else if (type === "color") {
     zod = "S.colorRgba";
+  } else if (type === "paints") {
+    zod = "S.paintArrayLoose";
   } else if (type === "variable_value") {
     zod = "S.variableValue";
   } else if (type === "line_height") {
@@ -229,8 +231,9 @@ function collectAliasLines(params: Record<string, RawParam>, guard?: string): st
 }
 
 /** Generate the inline Zod catch block for a schema variable name. */
-function zodCatchBlock(schemaVar: string): string {
-  return `catch (e) { if (e instanceof z.ZodError) { throw new Error(e.issues.map(i => { const path = i.path.join("."); const shape = ${schemaVar} instanceof z.ZodObject ? (${schemaVar} as any).shape : null; const desc = shape?.[i.path[1]]?.description; return path + ": " + i.message + (desc ? " (expected: " + desc + ")" : ""); }).join("; ")); } throw e; }`;
+function zodCatchBlock(schemaVar: string, helpCmd: string): string {
+  const help = JSON.stringify(helpCmd);
+  return `catch (e) { if (e instanceof z.ZodError) { throw new Error(e.issues.map(i => { const path = i.path.join("."); const shape = ${schemaVar} instanceof z.ZodObject ? (${schemaVar} as any).shape : null; const field = String(i.path[1] ?? i.path[0] ?? ""); const desc = shape?.[field]?.description; const paintField = field === "paints" || field === "fills" || field === "strokes"; const paintHelp = paintField ? " Invalid Paint[] payload. Supported Paint[] authoring types: SOLID, GRADIENT_LINEAR, GRADIENT_RADIAL, GRADIENT_ANGULAR, GRADIENT_DIAMOND. Use gradientTransform + gradientStops; do not use CSS gradients or REST gradientHandlePositions. IMAGE/VIDEO/PATTERN are readback-only metadata, not Paint[] authoring input; use imageUrl/images for images. For examples call " + ${help} + "." : ""; return path + ": " + i.message + (desc ? " (expected: " + desc + ")" : "") + paintHelp; }).join("; ")); } throw e; }`;
 }
 
 /** Generate a validate function for an endpoint. Returns null if no validation needed. */
@@ -272,7 +275,7 @@ function generateValidate(endpoint: ResolvedEndpoint): string | null {
         `        const s = params.${method.discriminant} && schemas[params.${method.discriminant}];\n` +
         `        if (s) {\n` +
         `          try { params.items = z.array(s).parse(params.items); }\n` +
-        `          ${zodCatchBlock("s")}\n` +
+        `          ${zodCatchBlock("s", `${endpoint.name}(method:\"help\", topic:\"${method.name}\")`)}\n` +
         `        }\n` +
         `      }`
       );
@@ -290,7 +293,7 @@ function generateValidate(endpoint: ResolvedEndpoint): string | null {
           aliasBlock +
           `        const itemSchema = ${zodObj};\n` +
           `        try { params.items = z.array(itemSchema).parse(params.items); }\n` +
-          `        ${zodCatchBlock("itemSchema")}\n` +
+          `        ${zodCatchBlock("itemSchema", `${endpoint.name}(method:\"help\", topic:\"${method.name}\")`)}\n` +
           `      }`
         );
       }

@@ -34,6 +34,7 @@ function paramToTs(param: RawParam): string {
   }
 
   if (type === "color") return "Color";
+  if (type === "paints") return "Paint[]";
   if (type === "variable_value") return 'number | boolean | string | Color | {type: "VARIABLE_ALIAS", name: string}';
   if (type === "line_height") return 'number | {value: number, unit: "PIXELS" | "PERCENT" | "AUTO"}';
   if (type === "letter_spacing") return 'number | {value: number, unit: "PIXELS" | "PERCENT"}';
@@ -188,30 +189,45 @@ function stripInterfaces(text: string, names: Set<string>): string {
 // ─── Shared type definitions ──────────────────────────────────────
 
 const SHARED_TYPES: Record<string, string> = {
-  Color: 'Color: hex "#FF0000" or {r: 0-1, g: 0-1, b: 0-1, a?: 0-1}',
+  Color: 'Color: hex "#RGB"|"#RGBA"|"#RRGGBB"|"#RRGGBBAA" or {r: 0-1, g: 0-1, b: 0-1, a?: 0-1}',
+  VariableAlias: 'VariableAlias: {type: "VARIABLE_ALIAS", id: string}. The id must be a Figma VariableID; discover it via variables.get/list or variable_collections.get. Prefer colorVariableName/fillVariableName/strokeVariableName when available; Paint[] VariableAlias is mainly for precise Paint[] round-trips and gradient stop bindings.',
+  Transform: 'Transform: [[number, number, number], [number, number, number]] (Figma Plugin API 2×3 matrix)',
+  BlendMode: 'BlendMode: "PASS_THROUGH"|"NORMAL"|"DARKEN"|"MULTIPLY"|"LINEAR_BURN"|"COLOR_BURN"|"LIGHTEN"|"SCREEN"|"LINEAR_DODGE"|"COLOR_DODGE"|"OVERLAY"|"SOFT_LIGHT"|"HARD_LIGHT"|"DIFFERENCE"|"EXCLUSION"|"HUE"|"SATURATION"|"COLOR"|"LUMINOSITY"',
+  ColorStop: 'ColorStop: {position: 0-1, color: Color, boundVariables?: {color?: VariableAlias}}',
+  GradientPaint: 'GradientPaint: {type: "GRADIENT_LINEAR"|"GRADIENT_RADIAL"|"GRADIENT_ANGULAR"|"GRADIENT_DIAMOND", gradientTransform: Transform, gradientStops: ColorStop[], visible?: boolean, opacity?: number, blendMode?: BlendMode}. Use gradientTransform + gradientStops (basic left-to-right: [[1,0,0],[0,1,0]]); do not use CSS gradients or REST gradientHandlePositions.',
   Effect: 'Effect: {type: "DROP_SHADOW"|"INNER_SHADOW"|"LAYER_BLUR"|"BACKGROUND_BLUR", radius: number, color?: {r,g,b,a} (0-1), offset?: {x, y}, spread?: number, visible?: boolean}',
-  Paint: 'Paint: {type: "SOLID", color: Color, opacity?: number}',
+  Paint: 'Paint: Paint[] authoring accepts only SOLID and GRADIENT_LINEAR/GRADIENT_RADIAL/GRADIENT_ANGULAR/GRADIENT_DIAMOND. SolidPaint: {type: "SOLID", color: Color, visible?: boolean, opacity?: number, blendMode?: BlendMode, boundVariables?: {color?: VariableAlias}}. GradientPaint authoring: {type: GRADIENT_*, gradientTransform: Transform, gradientStops: ColorStop[], visible?, opacity?, blendMode?}; bind variables on gradientStops[].boundVariables.color, not top-level gradient boundVariables. Do not pass IMAGE/VIDEO/PATTERN to create/update Paint[]; those may appear only in readback metadata from existing Figma content. Use imageUrl/images for image authoring. VIDEO/PATTERN authoring is not supported here. Do not use CSS gradients or REST gradientHandlePositions.',
   LayoutGrid: 'LayoutGrid: {pattern: "COLUMNS"|"ROWS"|"GRID", alignment: "MIN"|"MAX"|"CENTER"|"STRETCH", sectionSize: number, count?: number, offset?: number, gutterSize?: number}',
   NodeStub: 'NodeStub: {id: string, name: string, type: string}',
 };
 
+const SHARED_TYPE_DEPS: Record<string, string[]> = {
+  Paint: ["Color", "VariableAlias", "Transform", "BlendMode", "ColorStop", "GradientPaint"],
+  GradientPaint: ["Transform", "BlendMode", "ColorStop"],
+  ColorStop: ["Color", "VariableAlias"],
+};
+
 /** Scan text for shared type references and append definitions */
-function appendSharedTypes(text: string): string {
-  const needed: string[] = [];
-  for (const [typeName, definition] of Object.entries(SHARED_TYPES)) {
+export function appendSharedTypes(text: string): string {
+  const neededNames = new Set<string>();
+  const addWithDeps = (typeName: string) => {
+    if (neededNames.has(typeName)) return;
+    neededNames.add(typeName);
+    for (const dep of SHARED_TYPE_DEPS[typeName] ?? []) addWithDeps(dep);
+  };
+
+  for (const typeName of Object.keys(SHARED_TYPES)) {
     // Match type name as a word boundary (not inside a longer word)
     const re = new RegExp(`\\b${typeName}\\b`);
-    if (re.test(text)) {
-      needed.push(definition);
-    }
+    if (re.test(text)) addWithDeps(typeName);
   }
-  if (needed.length === 0) return text;
+  if (neededNames.size === 0) return text;
 
   // Ensure Color is appended if Effect references it
-  if (needed.some(d => d.startsWith("Effect:")) && !needed.some(d => d.startsWith("Color:"))) {
-    needed.unshift(SHARED_TYPES.Color);
-  }
+  if (neededNames.has("Effect")) addWithDeps("Color");
 
+  const order = ["Color", "VariableAlias", "Transform", "BlendMode", "ColorStop", "GradientPaint", "Effect", "Paint", "LayoutGrid", "NodeStub"];
+  const needed = order.filter(name => neededNames.has(name)).map(name => SHARED_TYPES[name]);
   return text + "\n// Shared types:\n// " + needed.join("\n// ");
 }
 

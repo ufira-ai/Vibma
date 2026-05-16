@@ -59,6 +59,121 @@ export const colorRgba = z.preprocess((v) => {
   z.string(), // Non-hex strings pass through for handler-level style/variable resolution
 ])).describe('Hex "#FF0000", {r,g,b,a?} 0-1, or style/variable name.');
 
+// ─── Figma Plugin API Paint[] schemas ───────────────────────────
+
+export const variableAlias = z.object({
+  type: z.literal("VARIABLE_ALIAS"),
+  id: z.string(),
+}).strict().describe('{type:"VARIABLE_ALIAS", id:string}. Discover VariableIDs via variables.get/list or variable_collections.get; prefer *VariableName helpers when available.');
+
+export const transform = z.tuple([
+  z.tuple([z.coerce.number(), z.coerce.number(), z.coerce.number()]),
+  z.tuple([z.coerce.number(), z.coerce.number(), z.coerce.number()]),
+]).describe('Figma Plugin API Transform: [[number,number,number],[number,number,number]]');
+
+export const blendMode = z.enum([
+  "PASS_THROUGH", "NORMAL", "DARKEN", "MULTIPLY", "LINEAR_BURN", "COLOR_BURN",
+  "LIGHTEN", "SCREEN", "LINEAR_DODGE", "COLOR_DODGE", "OVERLAY", "SOFT_LIGHT",
+  "HARD_LIGHT", "DIFFERENCE", "EXCLUSION", "HUE", "SATURATION", "COLOR", "LUMINOSITY",
+]);
+
+/** Strict Color for Paint arrays: hex or RGB(A) object only, not style/variable-name strings. */
+export const paintColor = z.preprocess((v) => {
+  if (typeof v === "string") return parseHex(v) ?? v;
+  return v;
+}, z.object({
+  r: z.coerce.number().min(0).max(1),
+  g: z.coerce.number().min(0).max(1),
+  b: z.coerce.number().min(0).max(1),
+  a: z.coerce.number().min(0).max(1).optional(),
+}).strict()).describe('Paint color: hex "#FF0000"/"#FF000080" or {r,g,b,a?} 0-1. Non-hex strings are not valid inside Paint[].');
+
+const paintBoundVariables = z.object({
+  color: variableAlias.optional(),
+}).strict();
+
+const commonPaintFields = {
+  visible: flexBool(z.boolean()).optional(),
+  opacity: z.coerce.number().min(0).max(1).optional(),
+  blendMode: blendMode.optional(),
+};
+
+export const colorStop = z.object({
+  position: z.coerce.number().min(0).max(1),
+  color: paintColor,
+  boundVariables: paintBoundVariables.optional(),
+}).strict().describe('ColorStop: {position:0..1, color: Color, boundVariables?: {color: VariableAlias}}');
+
+export const solidPaint = z.object({
+  type: z.literal("SOLID"),
+  color: paintColor,
+  boundVariables: paintBoundVariables.optional(),
+  ...commonPaintFields,
+}).strict();
+
+export const gradientPaint = z.object({
+  type: z.enum(["GRADIENT_LINEAR", "GRADIENT_RADIAL", "GRADIENT_ANGULAR", "GRADIENT_DIAMOND"]),
+  gradientTransform: transform,
+  gradientStops: z.array(colorStop),
+  ...commonPaintFields,
+}).strict().describe('GradientPaint: use gradientTransform + gradientStops. Do not use REST gradientHandlePositions.');
+
+const imageFilters = z.object({
+  exposure: z.coerce.number().optional(),
+  contrast: z.coerce.number().optional(),
+  saturation: z.coerce.number().optional(),
+  temperature: z.coerce.number().optional(),
+  tint: z.coerce.number().optional(),
+  highlights: z.coerce.number().optional(),
+  shadows: z.coerce.number().optional(),
+}).strict();
+
+export const imagePaint = z.object({
+  type: z.literal("IMAGE"),
+  scaleMode: z.enum(["FILL", "FIT", "CROP", "TILE"]),
+  imageHash: z.string().nullable(),
+  imageTransform: transform.optional(),
+  scalingFactor: z.coerce.number().optional(),
+  rotation: z.coerce.number().optional(),
+  filters: imageFilters.optional(),
+  ...commonPaintFields,
+}).strict();
+
+export const videoPaint = z.object({
+  type: z.literal("VIDEO"),
+  scaleMode: z.enum(["FILL", "FIT", "CROP", "TILE"]),
+  videoHash: z.string().nullable(),
+  videoTransform: transform.optional(),
+  scalingFactor: z.coerce.number().optional(),
+  rotation: z.coerce.number().optional(),
+  filters: imageFilters.optional(),
+  ...commonPaintFields,
+}).strict();
+
+export const patternPaint = z.object({
+  type: z.literal("PATTERN"),
+  sourceNodeId: z.string(),
+  tileType: z.enum(["RECTANGULAR", "HORIZONTAL_HEXAGONAL", "VERTICAL_HEXAGONAL"]),
+  scalingFactor: z.coerce.number(),
+  spacing: z.object({ x: z.coerce.number(), y: z.coerce.number() }).strict(),
+  horizontalAlignment: z.enum(["START", "CENTER", "END"]),
+  ...commonPaintFields,
+}).strict();
+
+export const paintInput = z.union([solidPaint, gradientPaint], {
+  error: 'Invalid Paint[] payload. Supported Paint[] authoring types: SOLID, GRADIENT_LINEAR, GRADIENT_RADIAL, GRADIENT_ANGULAR, GRADIENT_DIAMOND. Use gradientTransform + gradientStops; do not use CSS gradients, REST gradientHandlePositions, IMAGE, VIDEO, or PATTERN.',
+})
+  .describe('Paint[] authoring input supports SOLID and Figma gradient paints only. Images use imageUrl/images endpoint; VIDEO and PATTERN authoring are not supported here.');
+
+export const paint = paintInput
+  .describe('Paint[] authoring input. Supports SOLID and gradients: GRADIENT_LINEAR, GRADIENT_RADIAL, GRADIENT_ANGULAR, GRADIENT_DIAMOND. Use gradientTransform + gradientStops; REST gradientHandlePositions is not accepted. IMAGE/VIDEO/PATTERN are readback-only metadata, not authoring input.');
+
+export const paintArray = flexJson(z.array(paintInput))
+  .describe('Paint[] input array. Authoring accepts only SOLID and gradients: GRADIENT_LINEAR, GRADIENT_RADIAL, GRADIENT_ANGULAR, GRADIENT_DIAMOND. Use imageUrl/images for images; VIDEO/PATTERN authoring is not supported here.');
+
+export const paintArrayLoose = flexJson(z.array(z.unknown()))
+  .describe('Paint[] input array. Authoring accepts only SOLID and gradients. Adapter validates details and returns guidance; CSS gradients, REST gradientHandlePositions, IMAGE, VIDEO, and PATTERN are not supported as authoring input. Use imageUrl/images for images.');
+
 /** Variable value — color (hex or RGBA), number, boolean, string, or alias */
 export const variableValue = z.preprocess((v) => {
   if (typeof v === "string") return parseHex(v) ?? v;

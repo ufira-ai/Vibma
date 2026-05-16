@@ -1,5 +1,6 @@
 import { batchHandler, coerceColor, findColorVariableByName, suggestStyleForColor, type Hint } from "./helpers";
 import { resolveFontAsync, clearFontCache } from "./create-text";
+import { coercePaints, serializeBoundVariables, serializePaint } from "../utils/paint";
 import { createDispatcher, paginate, pickFields } from "@ufira/vibma/endpoint";
 import type { ListResponse } from "@ufira/vibma/endpoint";
 import {
@@ -9,20 +10,20 @@ import {
 
 // ─── TypeScript Types ────────────────────────────────────────────
 
-interface PaintStyleItem  { name: string; color: { r: number; g: number; b: number; a?: number } }
+interface PaintStyleItem  { name: string; color?: { r: number; g: number; b: number; a?: number }; colorVariableName?: string; paints?: any[]; description?: string }
 interface TextStyleItem   { name: string; fontFamily: string; fontStyle?: string; fontSize: number; lineHeight?: any; letterSpacing?: any; textCase?: string; textDecoration?: string }
 interface EffectStyleItem  { name: string; effects: any[] }
-interface PatchPaintItem  { id: string; name?: string; color?: { r: number; g: number; b: number; a?: number } }
+interface PatchPaintItem  { id: string; name?: string; description?: string; color?: { r: number; g: number; b: number; a?: number }; colorVariableName?: string; paints?: any[] }
 interface PatchTextItem   { id: string; name?: string; fontFamily?: string; fontStyle?: string; fontSize?: number; lineHeight?: any; letterSpacing?: any; textCase?: string; textDecoration?: string }
 interface PatchEffectItem  { id: string; name?: string; effects?: any[] }
-interface PatchAnyItem    { id: string; name?: string; color?: any; fontFamily?: string; fontStyle?: string; fontSize?: number; lineHeight?: any; letterSpacing?: any; textCase?: string; textDecoration?: string; effects?: any[] }
+interface PatchAnyItem    { id: string; name?: string; description?: string; color?: any; colorVariableName?: string; paints?: any[]; fontFamily?: string; fontStyle?: string; fontSize?: number; lineHeight?: any; letterSpacing?: any; textCase?: string; textDecoration?: string; effects?: any[] }
 
 type StyleParams =
   | { method: "create"; type: "paint";  items: PaintStyleItem[];  depth?: number }
   | { method: "create"; type: "text";   items: TextStyleItem[];   depth?: number }
   | { method: "create"; type: "effect"; items: EffectStyleItem[]; depth?: number }
   | { method: "get";    id: string; fields?: string[] }
-  | { method: "list";   type?: "paint" | "text" | "effect"; fields?: string[]; offset?: number; limit?: number }
+  | { method: "list";   type?: "paint" | "text" | "effect" | "grid"; fields?: string[]; offset?: number; limit?: number }
   | { method: "update"; type: "paint";  items: PatchPaintItem[] }
   | { method: "update"; type: "text";   items: PatchTextItem[] }
   | { method: "update"; type: "effect"; items: PatchEffectItem[] }
@@ -50,35 +51,35 @@ function rgbaToHex(color: any): string {
   return `#${[r, g, b, a].map(x => x.toString(16).padStart(2, "0")).join("")}`;
 }
 
+function collectVariableAliasIds(value: any): string[] {
+  if (!value) return [];
+  if (Array.isArray(value)) return value.flatMap(collectVariableAliasIds);
+  if (typeof value === "object") {
+    if (typeof value.id === "string" && (value.type === undefined || value.type === "VARIABLE_ALIAS")) return [value.id];
+    return Object.values(value).flatMap(collectVariableAliasIds);
+  }
+  return [];
+}
+
 /** Serialize a Figma BaseStyle to a plain object. Shared by get and list. */
 function serializeStyle(style: BaseStyle): Record<string, any> {
   const r: any = { id: style.id, name: style.name, type: style.type };
   if (style.description) r.description = style.description;
   if (style.type === "PAINT") {
     const ps = style as PaintStyle;
-    r.paints = ps.paints.map((p: any) => {
-      const paint: any = { type: p.type };
-      if (p.visible !== undefined) paint.visible = p.visible;
-      if (p.opacity !== undefined) paint.opacity = p.opacity;
-      if (p.blendMode) paint.blendMode = p.blendMode;
-      if (p.color) paint.color = rgbaToHex({ ...p.color, a: p.opacity ?? 1 });
-      return paint;
-    });
-    // Expose bound variable name on the paint style
-    const bv = (ps as any).boundVariables;
-    if (bv) {
-      for (const [, val] of Object.entries(bv)) {
-        if (Array.isArray(val)) {
-          for (const v of val) {
-            if (v?.id) {
-              try {
-                const resolved = figma.variables.getVariableById(v.id);
-                if (resolved) r.colorVariableName = resolved.name;
-              } catch {}
-            }
-          }
-        }
-      }
+    r.paints = ps.paints.map(serializePaint);
+
+    const boundVariables = serializeBoundVariables((ps as any).boundVariables);
+    if (boundVariables) r.boundVariables = boundVariables;
+
+    // Backward-compatible convenience: expose the first local color variable name if present.
+    const aliasIds = collectVariableAliasIds((ps as any).boundVariables);
+    for (const paint of ps.paints as any[]) aliasIds.push(...collectVariableAliasIds(paint.boundVariables));
+    for (const id of aliasIds) {
+      try {
+        const resolved = figma.variables.getVariableById(id);
+        if (resolved) { r.colorVariableName = resolved.name; break; }
+      } catch {}
     }
   } else if (style.type === "TEXT") {
     const ts = style as TextStyle;
@@ -147,6 +148,25 @@ async function removeStyleSingle(p: any) {
 }
 
 async function createPaintStyleSingle(p: any) {
+  const hasPaints = p.paints !== undefined;
+  if (hasPaints && (p.color !== undefined || p.colorVariableName !== undefined)) {
+    throw new Error(`Paint style "${p.name}" cannot combine paints with color/colorVariableName. Use paints for full PaintStyle.paints, or color/colorVariableName for the single-solid shorthand.`);
+  }
+
+  if (hasPaints) {
+    const paints = coercePaints(p.paints, undefined, { path: "paints", help: 'styles(method:"help", topic:"create")' });
+    const style = figma.createPaintStyle();
+    try {
+      style.name = p.name;
+      if (p.description) style.description = p.description;
+      style.paints = paints;
+      return { id: style.id };
+    } catch (e) {
+      style.remove();
+      throw e;
+    }
+  }
+
   // Resolve color: explicit color, or from variable, or error
   let c = p.color ? coerceColor(p.color) : null;
   let resolvedVariable: Variable | null = null;
@@ -172,7 +192,7 @@ async function createPaintStyleSingle(p: any) {
     }
   }
 
-  if (!c) throw new Error(`Paint style "${p.name}" requires either color or colorVariableName.`);
+  if (!c) throw new Error(`Paint style "${p.name}" requires paints, color, or colorVariableName.`);
 
   const style = figma.createPaintStyle();
   try {
@@ -383,7 +403,7 @@ async function resolveAnyStyle(idOrName: string): Promise<BaseStyle> {
 // ─── Patch Styles Handler ────────────────────────────────────────
 
 // Fields applicable to each style type (excluding shared fields: id, name)
-const PAINT_FIELDS = ["color", "colorVariableName"];
+const PAINT_FIELDS = ["paints", "color", "colorVariableName"];
 const TEXT_FIELDS = ["fontFamily", "fontStyle", "fontSize", "lineHeight", "letterSpacing", "textCase", "textDecoration", "paragraphIndent", "paragraphSpacing", "leadingTrim"];
 const EFFECT_FIELDS = ["effects"];
 const GRID_FIELDS = ["layoutGrids"];
@@ -403,7 +423,12 @@ async function patchStyleSingle(p: any) {
 
   if (style.type === "PAINT") {
     const ps = style as PaintStyle;
-    if (p.color !== undefined || p.colorVariableName !== undefined) {
+    if (p.paints !== undefined) {
+      if (p.color !== undefined || p.colorVariableName !== undefined) {
+        throw new Error(`Paint style "${style.name}" cannot combine paints with color/colorVariableName. Use paints to replace PaintStyle.paints, or color/colorVariableName for the single-solid shorthand.`);
+      }
+      ps.paints = coercePaints(p.paints, undefined, { path: "paints", help: 'styles(method:"help", topic:"update")' });
+    } else if (p.color !== undefined || p.colorVariableName !== undefined) {
       const c = p.color ? coerceColor(p.color) : null;
       ps.paints = [{ type: "SOLID", color: c ? { r: c.r, g: c.g, b: c.b } : (ps.paints[0] as SolidPaint)?.color ?? { r: 0, g: 0, b: 0 }, opacity: c?.a ?? 1 }];
       if (p.colorVariableName) {
