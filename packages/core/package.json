@@ -74,7 +74,7 @@
     "prepack": "cp ../../README.md . 2>/dev/null || true"
   },
   "dependencies": {
-    "@modelcontextprotocol/sdk": "1.27.1",
+    "@modelcontextprotocol/sdk": "1.29.0",
     "uuid": "latest",
     "ws": "latest",
     "zod": "4.3.6"
